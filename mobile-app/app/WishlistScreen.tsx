@@ -1,12 +1,11 @@
 import { useNavigation } from '@react-navigation/native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Image } from 'expo-image';
-import { ChevronLeft, ChevronRight, Edit2, FolderHeart, Heart, Share, Trash2, X } from 'lucide-react-native';
+import { ChevronDown, ChevronLeft, ChevronRight, ChevronUp, Edit2, FolderHeart, Heart, Share, Star, Trash2, X } from 'lucide-react-native';
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Alert, Animated, Dimensions, Keyboard, KeyboardAvoidingView, Modal, Platform, Pressable, ScrollView, Share as ShareApi, StatusBar, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { GuestLoginModal } from '../src/components/GuestLoginModal';
-import { ProductCard } from '../src/components/ProductCard';
 import { COLORS } from '../src/constants/theme';
 import { useAuthStore } from '../src/stores/authStore';
 import { useWishlistStore, WishlistItem } from '../src/stores/wishlistStore';
@@ -24,6 +23,164 @@ const OCCASIONS = [
 ];
 
 const BRAND_COLOR = COLORS.primary;
+
+// Delete Confirmation Modal
+const DeleteConfirmationModal = ({ visible, onClose, onConfirm, itemName }: {
+    visible: boolean;
+    onClose: () => void;
+    onConfirm: () => void;
+    itemName: string;
+}) => {
+    return (
+        <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose}>
+            <View style={styles.deleteModalOverlay}>
+                <View style={styles.deleteModalContent}>
+                    <View style={styles.deleteIconContainer}>
+                        <Trash2 size={32} color="#DC2626" />
+                    </View>
+                    <Text style={styles.deleteModalTitle}>Remove Item?</Text>
+                    <Text style={styles.deleteModalMessage}>
+                        Are you sure you want to remove "{itemName}" from your wishlist?
+                    </Text>
+                    <View style={styles.deleteModalActions}>
+                        <Pressable style={[styles.deleteModalBtn, styles.deleteModalCancelBtn]} onPress={onClose}>
+                            <Text style={styles.deleteModalCancelText}>Cancel</Text>
+                        </Pressable>
+                        <Pressable style={[styles.deleteModalBtn, styles.deleteModalConfirmBtn]} onPress={onConfirm}>
+                            <Text style={styles.deleteModalConfirmText}>Remove</Text>
+                        </Pressable>
+                    </View>
+                </View>
+            </View>
+        </Modal>
+    );
+};
+
+// Wishlist List Item Card Component - Horizontal list view
+const WishlistListItem = ({
+    item,
+    onProductPress,
+    onDelete,
+    onQuantityChange
+}: {
+    item: WishlistItem;
+    onProductPress: () => void;
+    onDelete: () => void;
+    onQuantityChange: (itemId: string, newQty: number) => void;
+}) => {
+    const imageUri = item.image || item.images?.[0];
+    const regularPrice = typeof item.price === 'number' ? item.price : parseFloat(String(item.price || 0));
+    const pbPrice = item.originalPrice ?? item.original_price;
+    const originalPrice = typeof pbPrice === 'number' ? pbPrice : parseFloat(String(pbPrice || 0));
+    const hasDiscount = !!(originalPrice > 0 && regularPrice > 0 && originalPrice > regularPrice);
+    const discountPercent = hasDiscount ? Math.round(((originalPrice - regularPrice) / originalPrice) * 100) : 0;
+    const desiredQty = item.desiredQty || 1;
+
+    const [showDeleteModal, setShowDeleteModal] = useState(false);
+
+    const handleDeleteConfirm = () => {
+        setShowDeleteModal(false);
+        onDelete();
+    };
+
+    const handleQtyIncrease = () => {
+        onQuantityChange(item.id, desiredQty + 1);
+    };
+
+    const handleQtyDecrease = () => {
+        if (desiredQty > 1) {
+            onQuantityChange(item.id, desiredQty - 1);
+        }
+    };
+
+    return (
+        <View style={styles.listItemWrapper}>
+            <Pressable
+                onPress={onProductPress}
+                onLongPress={() => setShowDeleteModal(true)}
+                style={({ pressed }) => [
+                    styles.listItemCard,
+                    pressed && styles.listItemCardPressed,
+                ]}
+                android_ripple={{ color: '#FFE5D9' }}
+            >
+                {/* Left: Product Image */}
+                <View style={styles.listItemImageContainer}>
+                    <Image
+                        source={{ uri: imageUri }}
+                        style={styles.listItemImage}
+                        contentFit="cover"
+                        cachePolicy="disk"
+                    />
+                    {hasDiscount && (
+                        <View style={styles.listItemDiscountBadge}>
+                            <Text style={styles.listItemDiscountText}>{discountPercent}%</Text>
+                        </View>
+                    )}
+                </View>
+
+                {/* Middle: Product Details */}
+                <View style={styles.listItemDetails}>
+                    <Text style={styles.listItemProductName} numberOfLines={2}>
+                        {item.name}
+                    </Text>
+
+                    <View style={styles.listItemTagsRow}>
+                        {item.isFreeShipping && (
+                            <View style={[styles.listItemTag, { backgroundColor: '#ECFDF5' }]}>
+                                <Text style={[styles.listItemTagText, { color: '#059669' }]}>Free Shipping</Text>
+                            </View>
+                        )}
+                    </View>
+
+                    <View style={styles.listItemPriceRow}>
+                        <Text style={[
+                            styles.listItemPrice,
+                            hasDiscount && { color: '#DC2626' }
+                        ]}>
+                            ₱{regularPrice.toLocaleString()}
+                        </Text>
+                        {hasDiscount && originalPrice > 0 && (
+                            <Text style={styles.listItemOriginalPrice}>₱{originalPrice.toLocaleString()}</Text>
+                        )}
+                    </View>
+
+                    <View style={styles.listItemFooter}>
+                        <View style={styles.listItemRatingBox}>
+                            <Star size={10} fill="#F59E0B" color="#F59E0B" />
+                            <Text style={styles.listItemRatingText}>{item.rating || 5.0} ({item.review_count || 0})</Text>
+                        </View>
+                        <Text style={styles.listItemSoldText}>{(item.sold || item.sales_count || 0).toLocaleString()} sold</Text>
+                    </View>
+                </View>
+
+                {/* Right: Desired Quantity with Up/Down Arrows */}
+                <View style={styles.listItemQtyContainer}>
+                    <Pressable
+                        style={styles.listItemQtyBtn}
+                        onPress={handleQtyIncrease}
+                    >
+                        <ChevronUp size={18} color={COLORS.primary} strokeWidth={2.5} />
+                    </Pressable>
+                    <Text style={styles.listItemQtyValue}>{desiredQty}</Text>
+                    <Pressable
+                        style={styles.listItemQtyBtn}
+                        onPress={handleQtyDecrease}
+                    >
+                        <ChevronDown size={18} color={desiredQty > 1 ? COLORS.primary : '#D1D5DB'} strokeWidth={2.5} />
+                    </Pressable>
+                </View>
+            </Pressable>
+
+            <DeleteConfirmationModal
+                visible={showDeleteModal}
+                onClose={() => setShowDeleteModal(false)}
+                onConfirm={handleDeleteConfirm}
+                itemName={item.name || 'Item'}
+            />
+        </View>
+    );
+};
 
 // Product Thumbnails Component - replaces static AvatarStack with actual product images
 const ProductThumbnails = ({ items, totalCount }: { items: WishlistItem[]; totalCount: number }) => {
@@ -311,6 +468,7 @@ const EditCategoryModal = ({ visible, onClose, category, onSave, onDelete }: any
     const [name, setName] = useState(category?.name || '');
     const insets = useSafeAreaInsets();
     const slideAnim = useRef(new Animated.Value(Dimensions.get('window').height)).current;
+    const keyboardOffset = useRef(new Animated.Value(0)).current;
 
     useEffect(() => {
         if (category) {
@@ -324,18 +482,44 @@ const EditCategoryModal = ({ visible, onClose, category, onSave, onDelete }: any
                 toValue: 0,
                 tension: 50,
                 friction: 8,
-                useNativeDriver: true,
+                useNativeDriver: false,
             }).start();
         } else {
             slideAnim.setValue(Dimensions.get('window').height);
         }
     }, [visible]);
 
+    // Keyboard handling
+    useEffect(() => {
+        const showSub = Keyboard.addListener(
+            Platform.OS === 'ios' ? 'keyboardWillShow' : 'keyboardDidShow',
+            (e) => {
+                Animated.timing(keyboardOffset, {
+                    toValue: e.endCoordinates.height,
+                    duration: Platform.OS === 'ios' ? e.duration : 200,
+                    useNativeDriver: false,
+                }).start();
+            }
+        );
+        const hideSub = Keyboard.addListener(
+            Platform.OS === 'ios' ? 'keyboardWillHide' : 'keyboardDidHide',
+            (e) => {
+                Animated.timing(keyboardOffset, {
+                    toValue: 0,
+                    duration: Platform.OS === 'ios' ? e.duration : 200,
+                    useNativeDriver: false,
+                }).start();
+            }
+        );
+        return () => { showSub.remove(); hideSub.remove(); };
+    }, []);
+
     const handleCloseInternal = () => {
+        Keyboard.dismiss();
         Animated.timing(slideAnim, {
             toValue: Dimensions.get('window').height,
             duration: 250,
-            useNativeDriver: true,
+            useNativeDriver: false,
         }).start(() => {
             onClose();
         });
@@ -371,51 +555,53 @@ const EditCategoryModal = ({ visible, onClose, category, onSave, onDelete }: any
         <Modal
             visible={visible}
             transparent
-            animationType="fade"
+            animationType="slide"
             onRequestClose={handleCloseInternal}
             statusBarTranslucent={true}
         >
             <View style={styles.bottomSheetOverlay}>
                 <Pressable style={styles.backdrop} onPress={handleCloseInternal} />
-                <KeyboardAvoidingView
-                    behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-                    style={{ width: '100%' }}
-                >
-                    <Animated.View style={[
-                        styles.bottomSheetContent,
-                        {
-                            paddingBottom: insets.bottom + 20,
-                            transform: [{ translateY: slideAnim }]
-                        }
-                    ]}>
-                        <View style={styles.bsHeader}>
-                            <Text style={styles.bsTitle}>Edit List</Text>
-                            <Pressable onPress={handleCloseInternal} style={styles.closeBtn}>
-                                <X size={24} color="#374151" />
+                <Animated.View style={[
+                    styles.bottomSheetContent,
+                    {
+                        paddingBottom: insets.bottom + 20,
+                        transform: [{ translateY: slideAnim }],
+                        marginBottom: keyboardOffset,
+                    }
+                ]}>
+                    <View style={styles.bsHeader}>
+                        <Text style={styles.bsTitle}>Edit List</Text>
+                        <Pressable onPress={handleCloseInternal} style={styles.closeBtn}>
+                            <X size={24} color="#374151" />
+                        </Pressable>
+                    </View>
+
+                    <Text style={styles.inputLabel}>List Name</Text>
+                    <TextInput
+                        style={styles.bsInput}
+                        value={name}
+                        onChangeText={setName}
+                        placeholder="List Name"
+                        autoFocus
+                    />
+
+                    <View style={{ gap: 12, marginTop: 12 }}>
+                        <View style={styles.editListButtonRow}>
+                            <Pressable onPress={handleCloseInternal} style={[styles.editListBtn, styles.editListCancelBtn]}>
+                                <Text style={styles.editListCancelText}>Cancel</Text>
+                            </Pressable>
+                            <Pressable onPress={handleSave} style={[styles.editListBtn, styles.editListSaveBtn, !name.trim() && styles.disabledBtn]}>
+                                <Text style={[styles.editListSaveText, !name.trim() && styles.disabledBtnText]}>Save Changes</Text>
                             </Pressable>
                         </View>
 
-                        <Text style={styles.inputLabel}>List Name</Text>
-                        <TextInput
-                            style={styles.bsInput}
-                            value={name}
-                            onChangeText={setName}
-                            placeholder="List Name"
-                        />
-
-                        <View style={{ gap: 12 }}>
-                            <Pressable onPress={handleSave} style={[styles.createBtn, !name.trim() && styles.disabledBtn]}>
-                                <Text style={styles.createBtnText}>Save Changes</Text>
+                        {category?.id !== 'default' && (
+                            <Pressable onPress={handleDelete} style={styles.deleteListBtn}>
+                                <Text style={styles.deleteListBtnText}>Delete List</Text>
                             </Pressable>
-
-                            {category?.id !== 'default' && (
-                                <Pressable onPress={handleDelete} style={[styles.createBtn, { backgroundColor: '#FEE2E2' }]}>
-                                    <Text style={[styles.createBtnText, { color: '#DC2626' }]}>Delete List</Text>
-                                </Pressable>
-                            )}
-                        </View>
-                    </Animated.View>
-                </KeyboardAvoidingView>
+                        )}
+                    </View>
+                </Animated.View>
             </View>
         </Modal>
     );
@@ -682,26 +868,23 @@ export default function WishlistScreen() {
                                     </Pressable>
                                 </View>
                             ) : (
-                                <View style={styles.itemsGrid}>
+                                <View style={styles.itemsListContainer}>
                                     {displayedItems.map((item) => (
-                                        <View key={item.id} style={styles.listItem}>
-                                            <View style={styles.itemCardContainer}>
-                                                <ProductCard
-                                                    product={item}
-                                                    onPress={() => handleProductPress(item)}
-                                                />
-
-
-                                                {/* Overlay Controls */}
-                                                <View style={styles.itemControls}>
-                                                    <Pressable style={styles.editIconBtn} onPress={() => setEditingItem(item)}>
-                                                        <Edit2 size={16} color="#FFF" />
-                                                    </Pressable>
-                                                </View>
-                                            </View>
-
-
-                                        </View>
+                                        <WishlistListItem
+                                            key={item.id}
+                                            item={item}
+                                            onProductPress={() => handleProductPress(item)}
+                                            onDelete={() => {
+                                                const target = items.find(i => i.id === item.id || i.registryItemId === item.id);
+                                                const rid = target?.registryItemId || item.id;
+                                                removeItem(rid);
+                                            }}
+                                            onQuantityChange={(itemId, newQty) => {
+                                                const target = items.find(i => i.id === itemId || i.registryItemId === itemId);
+                                                const rid = target?.registryItemId || itemId;
+                                                updateItem(rid, { desiredQty: newQty });
+                                            }}
+                                        />
                                     ))}
                                 </View>
                             )}
@@ -807,14 +990,6 @@ const styles = StyleSheet.create({
         justifyContent: 'center',
         alignItems: 'center',
         borderRadius: 22,
-        backgroundColor: '#FFF',
-        borderWidth: 1,
-        borderColor: '#F3F4F6',
-        shadowColor: '#000',
-        shadowOffset: { width: 0, height: 1 },
-        shadowOpacity: 0.05,
-        shadowRadius: 3,
-        elevation: 2,
     },
     scrollContent: { padding: 16, paddingTop: 24, paddingBottom: 40, minHeight: '100%' },
 
@@ -827,13 +1002,6 @@ const styles = StyleSheet.create({
         borderRadius: 12,
         paddingVertical: 8,
         paddingHorizontal: 4,
-        shadowColor: COLORS.primary,
-        shadowOffset: { width: 0, height: 4 },
-        shadowOpacity: 0.05,
-        shadowRadius: 10,
-        elevation: 2,
-        borderWidth: 1,
-        borderColor: '#FEE2E2',
     },
     groupedCardItem: {
         flexDirection: 'row',
@@ -999,7 +1167,216 @@ const styles = StyleSheet.create({
         justifyContent: 'space-between',
         marginTop: 4,
     },
-    // Items Grid
+    // Items List Container
+    itemsListContainer: { paddingBottom: 20 },
+    listItemCard: {
+        flexDirection: 'row',
+        backgroundColor: '#FFFFFF',
+        borderRadius: 16,
+        padding: 12,
+        gap: 12,
+        minHeight: 124,
+    },
+    listItemCardPressed: {
+        opacity: 0.9,
+        transform: [{ scale: 0.98 }],
+    },
+    listItemImageContainer: {
+        width: 100,
+        height: 100,
+        borderRadius: 12,
+        overflow: 'hidden',
+        backgroundColor: '#F3F4F6',
+        position: 'relative',
+    },
+    listItemImage: {
+        width: '100%',
+        height: '100%',
+    },
+    listItemDiscountBadge: {
+        position: 'absolute',
+        top: 6,
+        right: 6,
+        backgroundColor: '#DC2626',
+        paddingHorizontal: 5,
+        paddingVertical: 2,
+        borderRadius: 4,
+    },
+    listItemDiscountText: {
+        color: '#FFFFFF',
+        fontSize: 10,
+        fontWeight: '900',
+    },
+    listItemDetails: {
+        flex: 1,
+        justifyContent: 'space-between',
+        paddingVertical: 4,
+    },
+    listItemProductName: {
+        fontSize: 15,
+        fontWeight: '600',
+        color: COLORS.textHeadline,
+        lineHeight: 18,
+        height: 36,
+    },
+    listItemTagsRow: {
+        flexDirection: 'row',
+        flexWrap: 'wrap',
+        gap: 4,
+        marginTop: 4,
+    },
+    listItemTag: {
+        paddingHorizontal: 6,
+        paddingVertical: 2,
+        borderRadius: 4,
+    },
+    listItemTagText: {
+        fontSize: 10,
+        fontWeight: '600',
+    },
+    listItemPriceRow: {
+        flexDirection: 'row',
+        alignItems: 'baseline',
+        gap: 4,
+        marginTop: 4,
+    },
+    listItemPrice: {
+        fontSize: 18,
+        fontWeight: '700',
+        color: '#D97706',
+    },
+    listItemOriginalPrice: {
+        fontSize: 12,
+        color: '#A8A29E',
+        textDecorationLine: 'line-through',
+    },
+    listItemFooter: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+        marginTop: 6,
+    },
+    listItemRatingBox: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 2,
+    },
+    listItemRatingText: {
+        fontSize: 11,
+        color: '#6B7280',
+    },
+    listItemSoldText: {
+        fontSize: 11,
+        color: '#6B7280',
+    },
+    // List item wrapper
+    listItemWrapper: {
+        marginBottom: 12,
+    },
+    // Quantity container (vertical layout with up/down arrows)
+    listItemQtyContainer: {
+        justifyContent: 'center',
+        alignItems: 'center',
+        paddingLeft: 12,
+        paddingRight: 8,
+        borderLeftWidth: 1,
+        borderLeftColor: '#F3F4F6',
+        gap: 4,
+    },
+    listItemQtyBtn: {
+        width: 28,
+        height: 28,
+        borderRadius: 14,
+        backgroundColor: '#FFF9F5',
+        justifyContent: 'center',
+        alignItems: 'center',
+        borderWidth: 1,
+        borderColor: '#FEE2E2',
+    },
+    listItemQtyLabel: {
+        fontSize: 10,
+        color: '#9CA3AF',
+        fontWeight: '500',
+        marginBottom: 2,
+    },
+    listItemQtyValue: {
+        fontSize: 18,
+        fontWeight: '700',
+        color: COLORS.textHeadline,
+        minWidth: 28,
+        textAlign: 'center',
+    },
+
+    // Delete Confirmation Modal Styles
+    deleteModalOverlay: {
+        flex: 1,
+        backgroundColor: 'rgba(0,0,0,0.5)',
+        justifyContent: 'center',
+        alignItems: 'center',
+    },
+    deleteModalContent: {
+        backgroundColor: '#FFFFFF',
+        width: '85%',
+        padding: 24,
+        borderRadius: 20,
+        alignItems: 'center',
+        elevation: 10,
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 4 },
+        shadowOpacity: 0.15,
+        shadowRadius: 20,
+    },
+    deleteIconContainer: {
+        width: 64,
+        height: 64,
+        borderRadius: 32,
+        backgroundColor: '#FEF2F2',
+        justifyContent: 'center',
+        alignItems: 'center',
+        marginBottom: 16,
+    },
+    deleteModalTitle: {
+        fontSize: 20,
+        fontWeight: '800',
+        color: COLORS.textHeadline,
+        marginBottom: 8,
+    },
+    deleteModalMessage: {
+        fontSize: 14,
+        color: COLORS.textMuted,
+        textAlign: 'center',
+        lineHeight: 20,
+        marginBottom: 24,
+    },
+    deleteModalActions: {
+        flexDirection: 'row',
+        gap: 12,
+        width: '100%',
+    },
+    deleteModalBtn: {
+        flex: 1,
+        paddingVertical: 14,
+        borderRadius: 12,
+        alignItems: 'center',
+    },
+    deleteModalCancelBtn: {
+        backgroundColor: '#F3F4F6',
+    },
+    deleteModalCancelText: {
+        fontSize: 16,
+        fontWeight: '700',
+        color: COLORS.textMuted,
+    },
+    deleteModalConfirmBtn: {
+        backgroundColor: '#DC2626',
+    },
+    deleteModalConfirmText: {
+        fontSize: 16,
+        fontWeight: '700',
+        color: '#FFFFFF',
+    },
+
+    // Items Grid (Old - kept for potential future use)
     itemsGrid: { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'space-between' },
     listItem: { width: (width - 48) / 2, marginBottom: 12 },
     itemCardContainer: { position: 'relative' },
@@ -1123,6 +1500,48 @@ const styles = StyleSheet.create({
         color: '#FFF',
         fontSize: 16,
         fontWeight: '800',
+    },
+
+    // Edit List Modal Button Styles (matching Delete Confirmation Modal)
+    editListButtonRow: {
+        flexDirection: 'row',
+        gap: 12,
+    },
+    editListBtn: {
+        flex: 1,
+        paddingVertical: 14,
+        borderRadius: 12,
+        alignItems: 'center',
+    },
+    editListCancelBtn: {
+        backgroundColor: '#F3F4F6',
+    },
+    editListCancelText: {
+        fontSize: 16,
+        fontWeight: '700',
+        color: COLORS.textMuted,
+    },
+    editListSaveBtn: {
+        backgroundColor: COLORS.primary,
+    },
+    editListSaveText: {
+        fontSize: 16,
+        fontWeight: '700',
+        color: '#FFFFFF',
+    },
+    deleteListBtn: {
+        paddingVertical: 14,
+        borderRadius: 12,
+        alignItems: 'center',
+        backgroundColor: '#FEE2E2',
+    },
+    deleteListBtnText: {
+        fontSize: 16,
+        fontWeight: '700',
+        color: '#DC2626',
+    },
+    disabledBtnText: {
+        color: '#9CA3AF',
     },
 
     // Occasion Selection in Modal

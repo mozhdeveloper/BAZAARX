@@ -200,54 +200,61 @@ export default function HistoryScreen({ navigation }: Props) {
               <Text style={styles.emptyText}>Completed orders will appear here.</Text>
             </View>
           ) : (
-            filteredHistory.map((order) => (
-              <Pressable key={order.id} style={styles.orderCard} onPress={() => navigation.navigate('OrderDetail', { order })}>
-                <View style={styles.cardHeader}>
-                  <View style={styles.statusBadge}>
-                    <Text style={styles.statusText}>DELIVERED</Text>
-                  </View>
-                  <Text style={styles.orderIdText}>#{order.transactionId}</Text>
-                </View>
+            filteredHistory.map((order) => {
+              const firstItem = order.items[0];
+              const productName = firstItem?.name || 'Product';
+              const productImage = firstItem?.image || 'https://placehold.co/100?text=Product';
+              const variant = firstItem?.selectedVariant;
 
-                <View style={styles.cardBody}>
-                  <Image source={{ uri: order.items[0]?.image }} style={styles.productThumb} />
-                  <View style={styles.productInfo}>
-                    <Text style={styles.productName} numberOfLines={1}>{order.items[0]?.name}</Text>
-                    {order.items[0]?.selectedVariant && (order.items[0].selectedVariant.size || order.items[0].selectedVariant.color) && (
-                      <View style={{ flexDirection: 'row', gap: 8, marginTop: 4, marginBottom: 4 }}>
-                        {order.items[0].selectedVariant.size && (
-                          <Text style={{ fontSize: 11, color: '#6b7280', backgroundColor: '#f3f4f6', paddingHorizontal: 6, paddingVertical: 2, borderRadius: 4, overflow: 'hidden' }}>
-                            {order.items[0].selectedVariant.size}
-                          </Text>
-                        )}
-                        {order.items[0].selectedVariant.color && (
-                          <Text style={{ fontSize: 11, color: '#6b7280', backgroundColor: '#f3f4f6', paddingHorizontal: 6, paddingVertical: 2, borderRadius: 4, overflow: 'hidden' }}>
-                            {order.items[0].selectedVariant.color}
-                          </Text>
-                        )}
-                      </View>
-                    )}
-                    <View style={styles.dateRow}>
-                      <Clock size={12} color="#9CA3AF" />
-                      <Text style={styles.dateText}>{order.scheduledDate}</Text>
+              return (
+                <Pressable key={order.id} style={styles.orderCard} onPress={() => navigation.navigate('OrderDetail', { order })}>
+                  <View style={styles.cardHeader}>
+                    <View style={styles.statusBadge}>
+                      <Text style={styles.statusText}>DELIVERED</Text>
                     </View>
-                    <Text style={[styles.totalAmount, { color: BRAND_COLOR }]}>₱{order.total.toLocaleString()}</Text>
+                    <Text style={styles.orderIdText}>#{order.transactionId}</Text>
                   </View>
-                </View>
 
-                <View style={styles.cardFooter}>
-                  <View style={styles.buttonRow}>
-                    <Pressable style={[styles.outlineButton, { flex: 1 }]} onPress={() => navigation.navigate('OrderDetail', { order })}>
-                      <Text style={styles.outlineButtonText}>Details</Text>
-                    </Pressable>
-                    <Pressable style={[styles.buyAgainButton, { flex: 1.5 }]} onPress={() => handleBuyAgain(order)}>
-                      <ShoppingCart size={16} color={BRAND_COLOR} strokeWidth={2.5} />
-                      <Text style={[styles.buyAgainText, { color: BRAND_COLOR }]}>Buy Again</Text>
-                    </Pressable>
+                  <View style={styles.cardBody}>
+                    <Image source={{ uri: productImage }} style={styles.productThumb} />
+                    <View style={styles.productInfo}>
+                      <Text style={styles.productName} numberOfLines={1}>{productName}</Text>
+                      {variant && (variant.size || variant.color) && (
+                        <View style={{ flexDirection: 'row', gap: 8, marginTop: 4, marginBottom: 4 }}>
+                          {variant.size && (
+                            <Text style={{ fontSize: 11, color: '#6b7280', backgroundColor: '#f3f4f6', paddingHorizontal: 6, paddingVertical: 2, borderRadius: 4, overflow: 'hidden' }}>
+                              {variant.size}
+                            </Text>
+                          )}
+                          {variant.color && (
+                            <Text style={{ fontSize: 11, color: '#6b7280', backgroundColor: '#f3f4f6', paddingHorizontal: 6, paddingVertical: 2, borderRadius: 4, overflow: 'hidden' }}>
+                              {variant.color}
+                            </Text>
+                          )}
+                        </View>
+                      )}
+                      <View style={styles.dateRow}>
+                        <Clock size={12} color="#9CA3AF" />
+                        <Text style={styles.dateText}>{order.scheduledDate}</Text>
+                      </View>
+                      <Text style={[styles.totalAmount, { color: BRAND_COLOR }]}>₱{order.total.toLocaleString()}</Text>
+                    </View>
                   </View>
-                </View>
-              </Pressable>
-            ))
+
+                  <View style={styles.cardFooter}>
+                    <View style={styles.buttonRow}>
+                      <Pressable style={[styles.outlineButton, { flex: 1 }]} onPress={() => navigation.navigate('OrderDetail', { order })}>
+                        <Text style={styles.outlineButtonText}>Details</Text>
+                      </Pressable>
+                      <Pressable style={[styles.buyAgainButton, { flex: 1.5 }]} onPress={() => handleBuyAgain(order)}>
+                        <ShoppingCart size={16} color={BRAND_COLOR} strokeWidth={2.5} />
+                        <Text style={[styles.buyAgainText, { color: BRAND_COLOR }]}>Buy Again</Text>
+                      </Pressable>
+                    </View>
+                  </View>
+                </Pressable>
+              );
+            })
           )}
         </ScrollView>
       )}
