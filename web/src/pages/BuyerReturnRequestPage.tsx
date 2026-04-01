@@ -333,7 +333,7 @@ export default function BuyerReturnRequestPage() {
                     ? "The 7-day return window has expired for this order."
                     : "This order is not eligible for return at this time."}
               </p>
-              <Button onClick={() => navigate(`/order/${orderId}`)} variant="outline">
+              <Button onClick={() => navigate(-1)} variant="outline">
                 <ChevronLeft
                   size={20}
                   className="group-hover:-translate-x-0.5 transition-transform"
@@ -354,11 +354,14 @@ export default function BuyerReturnRequestPage() {
       <div className="max-w-6xl mx-auto px-4 py-6 pb-12">
         {/* Back button */}
         <button
-          onClick={() => navigate(`/order/${orderId}`)}
-          className="flex items-center text-xs text-gray-500 hover:text-[var(--brand-primary)] mb-2 transition-colors"
+          onClick={() => navigate(-1)}
+          className="flex items-center gap-1 text-[var(--text-muted)] hover:text-[var(--brand-primary)] transition-colors mb-4 group"
         >
-          <ChevronLeft size={20} className="group-hover:-translate-x-0.5 transition-transform"/>
-          Back to Order #{orderData?.orderNumber || orderId}
+          <ChevronLeft
+            size={20}
+            className="group-hover:-translate-x-0.5 transition-transform"
+          />
+          <span className="text-sm font-medium">Go Back</span>
         </button>
 
         <h1 className="text-3xl font-bold text-gray-900 mb-1">Request Return / Refund</h1>
@@ -886,7 +889,7 @@ export default function BuyerReturnRequestPage() {
         <div className="flex items-center justify-between mt-3 gap-2">
           <Button
             variant="outline"
-            onClick={currentStepIndex === 0 ? () => navigate(`/order/${orderId}`) : goBack}
+            onClick={currentStepIndex === 0 ? () => navigate(-1) : goBack}
             className="px-3 text-[11px]"
             size="sm"
           >

@@ -971,3 +971,45 @@ useEffect(() => {
 - All TypeScript compilation errors resolved
 - Mobile app navigation fixed
 
+---
+
+## Session Log — April 1, 2026
+
+### Bug Fix — Back Buttons Not Redirecting to Previous Page (Return/Refund & Delivery Tracking)
+
+**Prompt:** "Check thoroughly the images I provide, then check all the related codes there. And fix the back button, I want that if the buyer clicks the back button it will redirect where the buyer's previous page is."
+
+**Images Analyzed:**
+1. Return/Refund Request page with "Back to Order" button
+2. Delivery Tracking page with back button in header
+
+**Root Cause:**
+- `BuyerReturnRequestPage.tsx` had 3 back button instances navigating to hardcoded `/order/${orderId}` routes
+- `DeliveryTrackingPage.tsx` back button navigated to hardcoded `/orders` route
+- These routes didn't respect where the buyer actually came from
+
+**Solution:** Replaced all hardcoded route navigation with `navigate(-1)` to use browser history.
+
+**Files Changed:**
+1. `web/src/pages/BuyerReturnRequestPage.tsx` (3 instances fixed)
+   - Line 335: Ineligible order button — `navigate('/order/${orderId}')` → `navigate(-1)`
+   - Line 361: Top page back button — Updated to `navigate(-1)` with improved styling
+   - Line 889: Step navigation button — `navigate('/order/${orderId}')` → `navigate(-1)`
+   - Button styling updated to match OrderDetailPage (gap-1, text-sm, mb-4)
+   - Simplified button text to "Go Back"
+
+2. `web/src/pages/DeliveryTrackingPage.tsx` (1 instance fixed)
+   - Line 360: Top-left back button — `navigate('/orders')` → `navigate(-1)`
+
+**Result:**
+- ✅ Buyers can now return to their actual previous page from Return/Refund forms
+- ✅ Delivery Tracking page back button respects browser navigation history
+- ✅ All back buttons have consistent styling with OrderDetailPage
+- ✅ Natural navigation flow regardless of entry point (Orders list, Search, Notifications, etc.)
+
+**Branch:** `fix/return-refund-back-button`
+
+**Files Modified:**
+- `web/src/pages/BuyerReturnRequestPage.tsx`
+- `web/src/pages/DeliveryTrackingPage.tsx`
+
