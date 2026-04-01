@@ -617,6 +617,14 @@ export default function HomeScreen({ navigation }: Props) {
           logo: safeImageUri(seller.avatar_url || seller.avatar || seller.logo || `https://ui-avatars.com/api/?name=${encodeURIComponent(seller.store_name || seller.storeName || 'S')}&background=FFD89A&color=78350F`),
           verified: seller.approval_status === 'verified' || !!seller.verified_at,
           rating: computedRating,
+          location: (() => {
+            const city = (seller.business_profile?.city || seller.city || '').trim();
+            const province = (seller.business_profile?.province || seller.province || '').trim();
+            if (city && province) return `${city}, ${province}`;
+            if (city) return city;
+            if (province) return province;
+            return 'Philippines';
+          })(),
           products: storeProducts.map((product) => safeImageUri(product.image)).filter((image: unknown): image is string => typeof image === 'string' && image.length > 0),
         };
       })
@@ -816,7 +824,12 @@ export default function HomeScreen({ navigation }: Props) {
                               <Text style={styles.storeSearchName} numberOfLines={1}>{s.store_name}</Text>
                               {s.is_verified && <CheckCircle2 size={14} color={BRAND_COLOR} fill="#FFF" />}
                             </View>
-                            <Text style={styles.storeSearchLocation}>{s.city}, {s.province}</Text>
+                            {(() => {
+                              const city = (s.business_profile?.city || s.city || '').trim();
+                              const province = (s.business_profile?.province || s.province || '').trim();
+                              const location = city && province ? `${city}, ${province}` : city || province || 'Philippines';
+                              return <Text style={styles.storeSearchLocation}>{location}</Text>;
+                            })()}
                           </View>
                         </Pressable>
                       ))}
@@ -1051,7 +1064,7 @@ export default function HomeScreen({ navigation }: Props) {
                           <ChevronRight size={14} color={COLORS.gray400} />
                         </View>
                         <Text style={styles.storeCardSubtitle} numberOfLines={1}>
-                          ★ {store.rating}
+                          ★ {store.rating} • {store.location}
                         </Text>
                       </View>
                     </Pressable>
