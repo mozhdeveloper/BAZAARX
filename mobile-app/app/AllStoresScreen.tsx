@@ -37,7 +37,14 @@ export default function AllStoresScreen() {
                         logo: s.avatar_url || (s.store_name || s.business_name || 'S').substring(0, 1).toUpperCase(),
                         banner: (s as any).banner_url || 'https://images.unsplash.com/photo-1441986300917-64674bd600d8?w=800&h=300&fit=crop',
                         rating: s.rating || 5.0,
-                        location: s.city || s.province || 'Philippines',
+                        location: (() => {
+                            const city = (s.city || '').trim();
+                            const province = (s.province || '').trim();
+                            if (city && province) return `${city}, ${province}`;
+                            if (city) return city;
+                            if (province) return province;
+                            return 'Philippines';
+                        })(),
                         followers: 0,
                         products: Array(s.products_count || 0).fill({}),
                         categories: [],
