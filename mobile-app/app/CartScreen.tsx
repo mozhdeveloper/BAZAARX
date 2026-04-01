@@ -1,23 +1,22 @@
-import React, { useState, useMemo, useEffect, useCallback } from 'react';
-import {
-  View,
-  Text,
-  ScrollView,
-  StyleSheet,
-  Pressable,
-  StatusBar,
-} from 'react-native';
-import { LinearGradient } from 'expo-linear-gradient';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { useFocusEffect } from '@react-navigation/native';
-import { ChevronLeft, Check, Circle, Flame, ChevronRight, Store as StoreIcon } from 'lucide-react-native';
-import { CartItemRow } from '../src/components/CartItemRow';
-import { useCartStore } from '../src/stores/cartStore';
-import { COLORS } from '../src/constants/theme';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { VariantSelectionModal } from '../src/components/VariantSelectionModal';
+import { useFocusEffect } from '@react-navigation/native';
+import { Check, ChevronLeft, ChevronRight } from 'lucide-react-native';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import {
+  Pressable,
+  ScrollView,
+  StatusBar,
+  StyleSheet,
+  Text,
+  View,
+} from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { CartItemRow } from '../src/components/CartItemRow';
 import { DeleteConfirmationModal } from '../src/components/DeleteConfirmationModal';
-import { CartItem, Product } from '../src/types';
+import { VariantSelectionModal } from '../src/components/VariantSelectionModal';
+import { COLORS } from '../src/constants/theme';
+import { useCartStore } from '../src/stores/cartStore';
+import { CartItem } from '../src/types';
 import type { ActiveDiscount } from '../src/types/discount';
 
 
