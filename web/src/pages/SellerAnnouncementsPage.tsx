@@ -22,11 +22,12 @@ const TYPE_META: Record<AnnouncementType, {
 async function fetchSellerAnnouncements(): Promise<Announcement[]> {
   const { data, error } = await supabase
     .from('announcements')
-    .select('*')
+    .select('id, title, message, audience, type, is_active, expires_at, created_at')
     .eq('is_active', true)
     .in('audience', ['all', 'sellers'])
     .or('expires_at.is.null,expires_at.gt.now()')
-    .order('created_at', { ascending: false });
+    .order('created_at', { ascending: false })
+    .limit(30);
 
   if (error) throw error;
   return data ?? [];

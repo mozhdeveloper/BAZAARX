@@ -57,7 +57,7 @@ export default function LoginScreen({ navigation }: Props) {
         // Verify buyer role exists
         const { data: buyerData, error: buyerError } = await supabase
           .from('buyers')
-          .select('*')
+          .select('id, bazcoins, avatar_url')
           .eq('id', data.user.id)
           .single();
 
@@ -71,7 +71,7 @@ export default function LoginScreen({ navigation }: Props) {
         // Get profile data
         const { data: profileData } = await supabase
           .from('profiles')
-          .select('*')
+          .select('id, first_name, last_name, email, phone')
           .eq('id', data.user.id)
           .single();
 

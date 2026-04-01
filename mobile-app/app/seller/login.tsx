@@ -65,7 +65,7 @@ export default function SellerLoginScreen() {
         // Verify seller exists in sellers table
         const { data: sellerData, error: sellerError } = await supabase
           .from('sellers')
-          .select('*')
+          .select('id, store_name, approval_status, avatar_url')
           .eq('id', authData.user.id)
           .single();
 
@@ -78,7 +78,7 @@ export default function SellerLoginScreen() {
         // Get profile data
         const { data: profile, error: profileError } = await supabase
           .from('profiles')
-          .select('*')
+          .select('id, first_name, last_name, email, phone')
           .eq('id', authData.user.id)
           .single();
 
@@ -105,7 +105,7 @@ export default function SellerLoginScreen() {
         // Fetch verification documents from related table
         const { data: verificationDocs } = await supabase
           .from('seller_verification_documents')
-          .select('*')
+          .select('business_permit_url, valid_id_url, proof_of_address_url, dti_registration_url, tax_id_url')
           .eq('seller_id', authData.user.id)
           .single();
 

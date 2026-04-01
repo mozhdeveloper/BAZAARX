@@ -29,7 +29,8 @@ export const useAdminPayouts = create<PayoutsState>((set) => ({
           product:products!inner(seller_id, sellers:sellers(id, store_name)),
           order:orders!inner(id, payment_status, shipment_status, paid_at, created_at)
         `)
-        .in('order.payment_status', ['paid', 'refunded']);
+        .in('order.payment_status', ['paid', 'refunded'])
+        .limit(1000);
 
       if (itemsError) throw itemsError;
 

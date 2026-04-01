@@ -18,16 +18,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "./ui/select";
-import {
-  FacebookShareButton,
-  FacebookIcon,
-  TwitterShareButton,
-  TwitterIcon,
-  LinkedinShareButton,
-  LinkedinIcon,
-  EmailShareButton,
-  EmailIcon,
-} from 'next-share'
+
 
 interface RegistryDetailModalProps {
   isOpen: boolean;
@@ -537,36 +528,56 @@ export const RegistryDetailModal = ({
                       Share on Social Media
                     </Label>
                     <div className="flex gap-3">
-                      <FacebookShareButton
-                        url={`${window.location.origin}/registry/${liveRegistry.id}`}
-                        quote={`Check out ${liveRegistry.title} on BAZAARX! Find amazing gifts and support the community.`}
-                        hashtag="#BAZAARX"
+                      {/* Facebook */}
+                      <a
+                        href={`https://www.facebook.com/sharer/sharer.php?u=${encodeURIComponent(`${window.location.origin}/registry/${liveRegistry.id}`)}&quote=${encodeURIComponent(`Check out ${liveRegistry.title} on BAZAARX!`)}`}
+                        target="_blank"
+                        rel="noopener noreferrer"
                         className="rounded-full hover:opacity-80 transition-opacity"
+                        aria-label="Share on Facebook"
                       >
-                        <FacebookIcon size={40} round />
-                      </FacebookShareButton>
-                      <TwitterShareButton
-                        url={`${window.location.origin}/registry/${liveRegistry.id}`}
-                        title={`Check out ${liveRegistry.title} on BAZAARX!`}
+                        <svg width="40" height="40" viewBox="0 0 40 40" fill="none" xmlns="http://www.w3.org/2000/svg">
+                          <circle cx="20" cy="20" r="20" fill="#1877F2"/>
+                          <path d="M22.5 21h2.5l1-4h-3.5v-2c0-1.1.45-2 1.8-2H26v-3.5A18.5 18.5 0 0 0 23.1 9C20.3 9 18.5 10.7 18.5 14v3H15.5v4H18.5v10h4V21z" fill="white"/>
+                        </svg>
+                      </a>
+                      {/* Twitter / X */}
+                      <a
+                        href={`https://twitter.com/intent/tweet?url=${encodeURIComponent(`${window.location.origin}/registry/${liveRegistry.id}`)}&text=${encodeURIComponent(`Check out ${liveRegistry.title} on BAZAARX!`)}`}
+                        target="_blank"
+                        rel="noopener noreferrer"
                         className="rounded-full hover:opacity-80 transition-opacity"
+                        aria-label="Share on X (Twitter)"
                       >
-                        <TwitterIcon size={40} round />
-                      </TwitterShareButton>
-                      <LinkedinShareButton
-                        url={`${window.location.origin}/registry/${liveRegistry.id}`}
-                        title={`Check out ${liveRegistry.title} on BAZAARX!`}
+                        <svg width="40" height="40" viewBox="0 0 40 40" fill="none" xmlns="http://www.w3.org/2000/svg">
+                          <circle cx="20" cy="20" r="20" fill="#000"/>
+                          <path d="M22.1 18.4L28.7 11h-1.6l-5.7 6.5L16.9 11H11l7 10-7 8h1.6l6.1-7 4.9 7H27l-4.9-7zM13.3 12.2h2.3l11.1 15.6h-2.3L13.3 12.2z" fill="white"/>
+                        </svg>
+                      </a>
+                      {/* LinkedIn */}
+                      <a
+                        href={`https://www.linkedin.com/sharing/share-offsite/?url=${encodeURIComponent(`${window.location.origin}/registry/${liveRegistry.id}`)}`}
+                        target="_blank"
+                        rel="noopener noreferrer"
                         className="rounded-full hover:opacity-80 transition-opacity"
+                        aria-label="Share on LinkedIn"
                       >
-                        <LinkedinIcon size={40} round />
-                      </LinkedinShareButton>
-                      <EmailShareButton
-                        url={`${window.location.origin}/registry/${liveRegistry.id}`}
-                        subject={`Check out ${liveRegistry.title}`}
-                        body={`I wanted to share this registry with you: ${liveRegistry.title}`}
+                        <svg width="40" height="40" viewBox="0 0 40 40" fill="none" xmlns="http://www.w3.org/2000/svg">
+                          <circle cx="20" cy="20" r="20" fill="#0A66C2"/>
+                          <path d="M14 17h-3v11h3V17zm-1.5-1.5a1.75 1.75 0 1 0 0-3.5 1.75 1.75 0 0 0 0 3.5zM29 28h-3v-5.5c0-1.4-.5-2.5-2-2.5-1.2 0-1.8.8-2.1 1.6-.1.3-.1.6-.1 1V28h-3V17h3v1.5c.5-.7 1.4-1.8 3.1-1.8 2.3 0 4.1 1.5 4.1 4.7V28z" fill="white"/>
+                        </svg>
+                      </a>
+                      {/* Email */}
+                      <a
+                        href={`mailto:?subject=${encodeURIComponent(`Check out ${liveRegistry.title}`)}&body=${encodeURIComponent(`I wanted to share this registry with you: ${liveRegistry.title}\n\n${window.location.origin}/registry/${liveRegistry.id}`)}`}
                         className="rounded-full hover:opacity-80 transition-opacity"
+                        aria-label="Share via Email"
                       >
-                        <EmailIcon size={40} round />
-                      </EmailShareButton>
+                        <svg width="40" height="40" viewBox="0 0 40 40" fill="none" xmlns="http://www.w3.org/2000/svg">
+                          <circle cx="20" cy="20" r="20" fill="#7F7F7F"/>
+                          <path d="M11 14.5A1.5 1.5 0 0 1 12.5 13h15A1.5 1.5 0 0 1 29 14.5v11A1.5 1.5 0 0 1 27.5 27h-15A1.5 1.5 0 0 1 11 25.5v-11zm2 .9V25h14V15.4l-7 5-7-5zm1.3-1L20 18.6l5.7-4.1H14.3z" fill="white"/>
+                        </svg>
+                      </a>
                     </div>
                   </div>
 

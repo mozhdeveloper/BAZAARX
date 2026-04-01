@@ -81,9 +81,10 @@ export const useProductStore = create<ProductStore>()(
                     .on(
                         "postgres_changes",
                         {
-                            event: "*",
+                            event: "UPDATE",
                             schema: "public",
                             table: "products",
+                            ...(filters?.sellerId ? { filter: `seller_id=eq.${filters.sellerId}` } : {}),
                         },
                         async () => {
                             await get().fetchProducts(filters);

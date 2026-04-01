@@ -85,12 +85,11 @@ CREATE TABLE public.automation_workflows (
   template_id uuid,
   sms_template text,
   is_enabled boolean NOT NULL DEFAULT true,
-  created_by uuid NOT NULL,
+  created_by uuid,
   created_at timestamp with time zone NOT NULL DEFAULT now(),
   updated_at timestamp with time zone NOT NULL DEFAULT now(),
   CONSTRAINT automation_workflows_pkey PRIMARY KEY (id),
-  CONSTRAINT automation_workflows_template_id_fkey FOREIGN KEY (template_id) REFERENCES public.email_templates(id),
-  CONSTRAINT automation_workflows_created_by_fkey FOREIGN KEY (created_by) REFERENCES public.admins(id)
+  CONSTRAINT automation_workflows_template_id_fkey FOREIGN KEY (template_id) REFERENCES public.email_templates(id)
 );
 CREATE TABLE public.bazcoin_transactions (
   id uuid NOT NULL DEFAULT gen_random_uuid(),
@@ -134,11 +133,10 @@ CREATE TABLE public.buyer_segments (
   filter_criteria jsonb NOT NULL DEFAULT '{}'::jsonb,
   buyer_count integer DEFAULT 0,
   is_dynamic boolean NOT NULL DEFAULT true,
-  created_by uuid NOT NULL,
+  created_by uuid,
   created_at timestamp with time zone NOT NULL DEFAULT now(),
   updated_at timestamp with time zone NOT NULL DEFAULT now(),
-  CONSTRAINT buyer_segments_pkey PRIMARY KEY (id),
-  CONSTRAINT buyer_segments_created_by_fkey FOREIGN KEY (created_by) REFERENCES public.admins(id)
+  CONSTRAINT buyer_segments_pkey PRIMARY KEY (id)
 );
 CREATE TABLE public.buyer_vouchers (
   id uuid NOT NULL DEFAULT gen_random_uuid(),
@@ -478,8 +476,8 @@ CREATE TABLE public.marketing_campaigns (
 CREATE TABLE public.messages (
   id uuid NOT NULL DEFAULT gen_random_uuid(),
   conversation_id uuid NOT NULL,
-  sender_id uuid NOT NULL,
-  sender_type text NOT NULL CHECK (sender_type = ANY (ARRAY['buyer'::text, 'seller'::text])),
+  sender_id uuid,
+  sender_type text CHECK (sender_type = ANY (ARRAY['buyer'::text, 'seller'::text, 'system'::text])),
   content text NOT NULL,
   image_url text,
   is_read boolean NOT NULL DEFAULT false,
@@ -553,6 +551,19 @@ CREATE TABLE public.order_items (
   rating integer CHECK (rating >= 1 AND rating <= 5),
   created_at timestamp with time zone NOT NULL DEFAULT now(),
   updated_at timestamp with time zone NOT NULL DEFAULT now(),
+  warranty_expiration_date timestamp with time zone,
+  warranty_start_date timestamp with time zone,
+  warranty_type USER-DEFINED,
+  warranty_duration_months integer,
+  warranty_provider_name text,
+  warranty_provider_contact text,
+  warranty_provider_email text,
+  warranty_terms_url text,
+  warranty_claimed boolean DEFAULT false,
+  warranty_claimed_at timestamp with time zone,
+  warranty_claim_reason text,
+  warranty_claim_status text,
+  warranty_claim_notes text,
   CONSTRAINT order_items_pkey PRIMARY KEY (id),
   CONSTRAINT order_items_order_id_fkey FOREIGN KEY (order_id) REFERENCES public.orders(id),
   CONSTRAINT order_items_product_id_fkey FOREIGN KEY (product_id) REFERENCES public.products(id),
@@ -786,9 +797,18 @@ CREATE TABLE public.product_assessment_logistics (
   details text,
   created_at timestamp with time zone NOT NULL DEFAULT now(),
   created_by uuid,
+  logistics_method text CHECK (logistics_method IS NULL OR (logistics_method = ANY (ARRAY['courier'::text, 'dropoff'::text]))),
+  courier_service text,
+  tracking_number text,
+  dropoff_date date,
+  dropoff_time time without time zone,
+  dropoff_slot text,
+  batch_id uuid,
+  metadata jsonb DEFAULT '{}'::jsonb,
   CONSTRAINT product_assessment_logistics_pkey PRIMARY KEY (id),
   CONSTRAINT product_assessment_logistics_assessment_id_fkey FOREIGN KEY (assessment_id) REFERENCES public.product_assessments(id),
-  CONSTRAINT product_assessment_logistics_created_by_fkey FOREIGN KEY (created_by) REFERENCES auth.users(id)
+  CONSTRAINT product_assessment_logistics_created_by_fkey FOREIGN KEY (created_by) REFERENCES auth.users(id),
+  CONSTRAINT product_assessment_logistics_batch_id_fkey FOREIGN KEY (batch_id) REFERENCES public.qa_submission_batches(id)
 );
 CREATE TABLE public.product_assessments (
   id uuid NOT NULL DEFAULT gen_random_uuid(),
@@ -943,6 +963,14 @@ CREATE TABLE public.products (
   image_embedding USER-DEFINED,
   seller_id uuid,
   size_guide_image text,
+  has_warranty boolean DEFAULT false,
+  warranty_type USER-DEFINED DEFAULT 'no_warranty'::warranty_type_enum,
+  warranty_duration_months integer DEFAULT 0 CHECK (warranty_duration_months >= 0),
+  warranty_policy text,
+  warranty_provider_name text,
+  warranty_provider_contact text,
+  warranty_provider_email text,
+  warranty_terms_url text,
   CONSTRAINT products_pkey PRIMARY KEY (id),
   CONSTRAINT products_category_id_fkey FOREIGN KEY (category_id) REFERENCES public.categories(id),
   CONSTRAINT products_seller_id_fkey FOREIGN KEY (seller_id) REFERENCES public.sellers(id)
@@ -969,6 +997,45 @@ CREATE TABLE public.push_tokens (
   CONSTRAINT push_tokens_pkey PRIMARY KEY (id),
   CONSTRAINT push_tokens_user_id_fkey FOREIGN KEY (user_id) REFERENCES public.profiles(id)
 );
+CREATE TABLE public.qa_assessment_form_evidence (
+  id uuid NOT NULL DEFAULT gen_random_uuid(),
+  form_id uuid NOT NULL,
+  evidence_type text NOT NULL CHECK (evidence_type = ANY (ARRAY['photo'::text, 'video'::text, 'document'::text])),
+  file_url text NOT NULL,
+  metadata jsonb NOT NULL DEFAULT '{}'::jsonb,
+  created_at timestamp with time zone NOT NULL DEFAULT now(),
+  CONSTRAINT qa_assessment_form_evidence_pkey PRIMARY KEY (id),
+  CONSTRAINT qa_assessment_form_evidence_form_id_fkey FOREIGN KEY (form_id) REFERENCES public.qa_assessment_forms(id)
+);
+CREATE TABLE public.qa_assessment_forms (
+  id uuid NOT NULL DEFAULT gen_random_uuid(),
+  assessment_id uuid NOT NULL UNIQUE,
+  batch_id uuid,
+  qc_method text,
+  qc_agent_name text,
+  qc_date date,
+  serial_number text,
+  product_tier text,
+  packaging_condition text,
+  product_appearance text,
+  label_accuracy_verified boolean NOT NULL DEFAULT false,
+  power_test text,
+  functional_test text,
+  stress_test text,
+  general_notes text,
+  defects_identified text,
+  recommendations text,
+  final_decision text NOT NULL CHECK (final_decision = ANY (ARRAY['approved'::text, 'revision'::text, 'rejected'::text])),
+  decision_reason text,
+  reviewed_by uuid NOT NULL,
+  reviewed_at timestamp with time zone NOT NULL DEFAULT now(),
+  created_at timestamp with time zone NOT NULL DEFAULT now(),
+  updated_at timestamp with time zone NOT NULL DEFAULT now(),
+  CONSTRAINT qa_assessment_forms_pkey PRIMARY KEY (id),
+  CONSTRAINT qa_assessment_forms_assessment_id_fkey FOREIGN KEY (assessment_id) REFERENCES public.product_assessments(id),
+  CONSTRAINT qa_assessment_forms_batch_id_fkey FOREIGN KEY (batch_id) REFERENCES public.qa_submission_batches(id),
+  CONSTRAINT qa_assessment_forms_reviewed_by_fkey FOREIGN KEY (reviewed_by) REFERENCES auth.users(id)
+);
 CREATE TABLE public.qa_review_logs (
   id uuid NOT NULL DEFAULT gen_random_uuid(),
   assessment_id uuid NOT NULL,
@@ -982,6 +1049,32 @@ CREATE TABLE public.qa_review_logs (
   CONSTRAINT qa_review_logs_assessment_id_fkey FOREIGN KEY (assessment_id) REFERENCES public.product_assessments(id),
   CONSTRAINT qa_review_logs_product_id_fkey FOREIGN KEY (product_id) REFERENCES public.products(id),
   CONSTRAINT qa_review_logs_reviewer_id_fkey FOREIGN KEY (reviewer_id) REFERENCES auth.users(id)
+);
+CREATE TABLE public.qa_submission_batch_items (
+  id uuid NOT NULL DEFAULT gen_random_uuid(),
+  batch_id uuid NOT NULL,
+  assessment_id uuid NOT NULL,
+  product_id uuid NOT NULL,
+  created_at timestamp with time zone NOT NULL DEFAULT now(),
+  CONSTRAINT qa_submission_batch_items_pkey PRIMARY KEY (id),
+  CONSTRAINT qa_submission_batch_items_batch_id_fkey FOREIGN KEY (batch_id) REFERENCES public.qa_submission_batches(id),
+  CONSTRAINT qa_submission_batch_items_assessment_id_fkey FOREIGN KEY (assessment_id) REFERENCES public.product_assessments(id),
+  CONSTRAINT qa_submission_batch_items_product_id_fkey FOREIGN KEY (product_id) REFERENCES public.products(id)
+);
+CREATE TABLE public.qa_submission_batches (
+  id uuid NOT NULL DEFAULT gen_random_uuid(),
+  seller_id uuid NOT NULL,
+  batch_code text NOT NULL UNIQUE,
+  submission_type text NOT NULL DEFAULT 'sample'::text,
+  status text NOT NULL DEFAULT 'submitted'::text CHECK (status = ANY (ARRAY['draft'::text, 'submitted'::text, 'in_review'::text, 'completed'::text, 'cancelled'::text])),
+  notes text,
+  created_by uuid,
+  submitted_at timestamp with time zone NOT NULL DEFAULT now(),
+  created_at timestamp with time zone NOT NULL DEFAULT now(),
+  updated_at timestamp with time zone NOT NULL DEFAULT now(),
+  CONSTRAINT qa_submission_batches_pkey PRIMARY KEY (id),
+  CONSTRAINT qa_submission_batches_seller_id_fkey FOREIGN KEY (seller_id) REFERENCES public.sellers(id),
+  CONSTRAINT qa_submission_batches_created_by_fkey FOREIGN KEY (created_by) REFERENCES auth.users(id)
 );
 CREATE TABLE public.qa_team_members (
   id uuid NOT NULL,
@@ -1035,8 +1128,8 @@ CREATE TABLE public.registries (
   category text,
   image_url text DEFAULT ''::text,
   shared_date text,
-  privacy text NOT NULL DEFAULT 'link'::text CHECK (privacy = ANY (ARRAY['public'::text, 'link'::text, 'private'::text])),
-  delivery jsonb DEFAULT '{"showAddress": false}'::jsonb,
+  privacy text NOT NULL CHECK (privacy = ANY (ARRAY['public'::text, 'link'::text, 'private'::text])),
+  delivery jsonb,
   CONSTRAINT registries_pkey PRIMARY KEY (id),
   CONSTRAINT registries_buyer_id_fkey FOREIGN KEY (buyer_id) REFERENCES public.buyers(id)
 );
@@ -1280,12 +1373,11 @@ CREATE TABLE public.sellers (
   temp_blacklist_count integer DEFAULT 0,
   temp_blacklist_until timestamp with time zone,
   is_permanently_blacklisted boolean DEFAULT false,
-  suspended_at timestamp with time zone,
-  suspended_by uuid,
-  suspension_reason text,
   store_banner_url text,
   is_vacation_mode boolean DEFAULT false,
   vacation_reason text,
+  suspended_at timestamp with time zone,
+  suspension_reason text,
   CONSTRAINT sellers_pkey PRIMARY KEY (id),
   CONSTRAINT sellers_id_fkey FOREIGN KEY (id) REFERENCES public.profiles(id)
 );
@@ -1441,4 +1533,48 @@ CREATE TABLE public.vouchers (
   updated_at timestamp with time zone NOT NULL DEFAULT now(),
   CONSTRAINT vouchers_pkey PRIMARY KEY (id),
   CONSTRAINT vouchers_seller_id_fkey FOREIGN KEY (seller_id) REFERENCES public.sellers(id)
+);
+CREATE TABLE public.warranty_actions_log (
+  id uuid NOT NULL DEFAULT gen_random_uuid(),
+  warranty_claim_id uuid,
+  order_item_id uuid,
+  action_type text NOT NULL CHECK (action_type = ANY (ARRAY['claim_created'::text, 'claim_submitted'::text, 'claim_reviewed'::text, 'claim_approved'::text, 'claim_rejected'::text, 'claim_cancelled'::text, 'claim_resolved'::text, 'repair_started'::text, 'replacement_shipped'::text, 'refund_initiated'::text, 'admin_escalated'::text, 'note_added'::text])),
+  actor_id uuid,
+  actor_role text NOT NULL CHECK (actor_role = ANY (ARRAY['buyer'::text, 'seller'::text, 'admin'::text, 'system'::text])),
+  description text,
+  metadata jsonb DEFAULT '{}'::jsonb,
+  created_at timestamp with time zone NOT NULL DEFAULT now(),
+  CONSTRAINT warranty_actions_log_pkey PRIMARY KEY (id),
+  CONSTRAINT warranty_actions_log_warranty_claim_id_fkey FOREIGN KEY (warranty_claim_id) REFERENCES public.warranty_claims(id),
+  CONSTRAINT warranty_actions_log_order_item_id_fkey FOREIGN KEY (order_item_id) REFERENCES public.order_items(id)
+);
+CREATE TABLE public.warranty_claims (
+  id uuid NOT NULL DEFAULT gen_random_uuid(),
+  order_item_id uuid NOT NULL,
+  buyer_id uuid NOT NULL,
+  seller_id uuid NOT NULL,
+  claim_number text NOT NULL UNIQUE,
+  reason text NOT NULL,
+  description text,
+  claim_type text NOT NULL CHECK (claim_type = ANY (ARRAY['repair'::text, 'replacement'::text, 'refund'::text, 'technical_support'::text])),
+  evidence_urls ARRAY,
+  diagnostic_report_url text,
+  status text NOT NULL DEFAULT 'pending'::text CHECK (status = ANY (ARRAY['pending'::text, 'under_review'::text, 'approved'::text, 'rejected'::text, 'repair_in_progress'::text, 'replacement_sent'::text, 'refund_processed'::text, 'resolved'::text, 'cancelled'::text])),
+  priority text DEFAULT 'normal'::text CHECK (priority = ANY (ARRAY['low'::text, 'normal'::text, 'high'::text, 'urgent'::text])),
+  resolution_type text CHECK (resolution_type = ANY (ARRAY['repair'::text, 'replacement'::text, 'refund'::text, 'technical_support'::text, 'rejected'::text])),
+  resolution_description text,
+  resolution_amount numeric,
+  resolved_at timestamp with time zone,
+  resolved_by uuid,
+  seller_response text,
+  seller_response_at timestamp with time zone,
+  admin_notes text,
+  return_tracking_number text,
+  return_shipping_carrier text,
+  replacement_tracking_number text,
+  replacement_shipping_carrier text,
+  created_at timestamp with time zone NOT NULL DEFAULT now(),
+  updated_at timestamp with time zone NOT NULL DEFAULT now(),
+  CONSTRAINT warranty_claims_pkey PRIMARY KEY (id),
+  CONSTRAINT warranty_claims_order_item_id_fkey FOREIGN KEY (order_item_id) REFERENCES public.order_items(id)
 );

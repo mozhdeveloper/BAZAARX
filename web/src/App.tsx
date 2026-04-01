@@ -240,7 +240,7 @@ function App() {
           // 4. Fetch the latest profile to sync with the store
           const { data: profileData } = await supabase
             .from("profiles")
-            .select("*")
+            .select("id, first_name, last_name, email, phone, created_at")
             .eq("id", user.id)
             .maybeSingle();
 
