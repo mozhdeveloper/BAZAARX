@@ -198,7 +198,7 @@ export default function LoginScreen({ navigation }: Props) {
             </View>
 
             {/* Forgot Password */}
-            <Pressable style={styles.forgotPassword}>
+            <Pressable style={styles.forgotPassword} onPress={() => navigation.navigate('ForgotPassword')}>
               <Text style={styles.forgotPasswordText}>Forgot Password?</Text>
             </Pressable>
 
@@ -356,7 +356,7 @@ const styles = StyleSheet.create({
     marginBottom: 24,
   },
   inputContainer: {
-    marginBottom: 20,
+    marginBottom: 10,
   },
   label: {
     fontSize: 14,

@@ -716,8 +716,13 @@ export class AuthService {
     }
 
     try {
+      const configuredBaseUrl = (import.meta as any)?.env?.VITE_PUBLIC_APP_URL as string | undefined;
+      const resetBaseUrl = configuredBaseUrl && configuredBaseUrl.trim().length > 0
+        ? configuredBaseUrl.replace(/\/$/, '')
+        : window.location.origin;
+
       const { error } = await supabase.auth.resetPasswordForEmail(email, {
-        redirectTo: `${window.location.origin}/reset-password`,
+        redirectTo: `${resetBaseUrl}/reset-password`,
       });
 
       if (error) throw error;
