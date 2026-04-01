@@ -644,12 +644,6 @@ const AdminOrders: React.FC = () => {
                   <Label>Status</Label>
                   <div className="mt-1">{getStatusBadge(selectedOrder.status)}</div>
                 </div>
-                <div>
-                  <Label>Payment Status</Label>
-                  <Badge className={selectedOrder.paymentStatus === 'paid' ? 'bg-green-100 text-green-700' : 'bg-yellow-100 text-yellow-700'}>
-                    {selectedOrder.paymentStatus}
-                  </Badge>
-                </div>
               </div>
 
               {/* Buyer Info */}

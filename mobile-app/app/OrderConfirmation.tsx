@@ -65,7 +65,7 @@ export default function OrderConfirmation({ navigation, route }: Props) {
           {/* Success Message */}
           <Text style={styles.title}>Order Placed Successfully!</Text>
           <Text style={styles.subtitle}>
-            Your order has been confirmed and {order.isPaid ? `paid via ${order.paymentMethod}` : 'will be paid on delivery'}!
+            Your order has been confirmed. Payment method: {order.paymentMethod}
           </Text>
 
 
@@ -103,13 +103,13 @@ export default function OrderConfirmation({ navigation, route }: Props) {
                 <Text style={{ fontSize: 14, color: '#6B7280' }}>Status</Text>
                 <View style={{
                   paddingHorizontal: 10, paddingVertical: 3, borderRadius: 8,
-                  backgroundColor: order.isPaid ? '#D1FAE5' : '#FEF3C7',
+                  backgroundColor: '#E5E7EB',
                 }}>
                   <Text style={{
                     fontSize: 12, fontWeight: '700',
-                    color: order.isPaid ? '#065F46' : '#92400E',
+                    color: '#374151',
                   }}>
-                    {order.isPaid ? 'Paid' : 'Pending'}
+                    Confirmed
                   </Text>
                 </View>
               </View>
