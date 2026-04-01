@@ -39,6 +39,8 @@ export const CartItemRow: React.FC<CartItemRowProps> = React.memo(({
     return item.stock ?? null;
   })();
   const isOutOfStock = stock !== null && stock === 0;
+  const lowStockThreshold = item.low_stock_threshold ?? 10;
+  const isLowStock = stock !== null && stock > 0 && stock <= lowStockThreshold;
 
   // Out of stock + has variant → show Change Variant button on the right
   const showChangeVariantBtn = isOutOfStock && hasVariant && !!onEdit;
@@ -64,10 +66,10 @@ export const CartItemRow: React.FC<CartItemRowProps> = React.memo(({
       <Pressable onPress={onPress}>
         <View>
           <Image source={{ uri: safeImageUri(item.image) }} style={styles.image} contentFit="cover" cachePolicy="memory-disk" transition={150} />
-          {stock !== null && (
+          {(isOutOfStock || isLowStock) && (
             <View style={[styles.stockBadge, isOutOfStock ? styles.stockBadgeOos : styles.stockBadgeAvail]}>
               <Text style={styles.stockBadgeText}>
-                {isOutOfStock ? 'Out of Stock' : `Stock: ${stock}`}
+                {isOutOfStock ? 'Out of Stock' : `Only ${stock} left`}
               </Text>
             </View>
           )}
