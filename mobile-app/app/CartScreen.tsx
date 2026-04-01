@@ -316,8 +316,8 @@ export default function CartScreen({ navigation, route }: any) {
                     <View style={{ flex: 1 }}>
                       <CartItemRow
                         item={item}
-                        onIncrement={() => {}}
-                        onDecrement={() => {}}
+                        onIncrement={() => updateQuantity(item.cartItemId, item.quantity + 1)}
+                        onDecrement={() => updateQuantity(item.cartItemId, item.quantity - 1)}
                         onChange={() => {}}
                         onRemove={() => handleRemoveSingle(item)}
                         onEdit={item.selectedVariant ? () => handleEditVariant(item) : undefined}
