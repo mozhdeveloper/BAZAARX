@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import {
     View,
     Text,
@@ -15,6 +15,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Mail, Lock, User, Phone, Eye, EyeOff, ArrowRight, ArrowLeft } from 'lucide-react-native';
 import { supabase } from '../src/lib/supabase';
+import { authService } from '../src/services/authService';
 import { COLORS } from '../src/constants/theme';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import type { RootStackParamList } from '../App';
@@ -25,6 +26,10 @@ export default function SignupScreen({ navigation }: Props) {
     const [loading, setLoading] = useState(false);
     const [showPassword, setShowPassword] = useState(false);
     const [showConfirmPassword, setShowConfirmPassword] = useState(false);
+    const [emailTouched, setEmailTouched] = useState(false);
+    const [emailStatus, setEmailStatus] = useState<'idle' | 'checking' | 'available' | 'taken' | 'invalid'>('idle');
+    const [emailStatusMessage, setEmailStatusMessage] = useState('');
+    const emailCheckRequestIdRef = useRef(0);
 
     const [formData, setFormData] = useState({
         firstName: '',
@@ -37,6 +42,44 @@ export default function SignupScreen({ navigation }: Props) {
 
     const validateEmail = (email: string) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
     const validatePhone = (phone: string) => /^(\+63|0)?9\d{9}$/.test(phone.replace(/\s/g, ''));
+    const trimmedEmail = formData.email.trim();
+    const showEmailError = emailTouched && (emailStatus === 'invalid' || emailStatus === 'taken');
+    const showEmailSuccess = emailTouched && emailStatus === 'available';
+
+    useEffect(() => {
+        if (!emailTouched) return;
+
+        if (!trimmedEmail) {
+            setEmailStatus('idle');
+            setEmailStatusMessage('');
+            return;
+        }
+
+        if (!validateEmail(trimmedEmail)) {
+            setEmailStatus('invalid');
+            setEmailStatusMessage('Please enter a valid email address.');
+            return;
+        }
+
+        const requestId = ++emailCheckRequestIdRef.current;
+        setEmailStatus('checking');
+        setEmailStatusMessage('Checking email availability...');
+
+        const timer = setTimeout(async () => {
+            const exists = await authService.checkEmailExists(trimmedEmail);
+            if (requestId !== emailCheckRequestIdRef.current) return;
+
+            if (exists) {
+                setEmailStatus('taken');
+                setEmailStatusMessage('Email is already taken.');
+            } else {
+                setEmailStatus('available');
+                setEmailStatusMessage('Email is available.');
+            }
+        }, 400);
+
+        return () => clearTimeout(timer);
+    }, [trimmedEmail, emailTouched]);
 
     const handleSignup = async () => {
         const { firstName, lastName, email, phone, password, confirmPassword } = formData;
@@ -52,8 +95,14 @@ export default function SignupScreen({ navigation }: Props) {
             return;
         }
 
-        if (!validateEmail(email)) {
+        if (!validateEmail(email.trim())) {
             Alert.alert('Error', 'Invalid email address');
+            return;
+        }
+
+        const isEmailTaken = await authService.checkEmailExists(email.trim());
+        if (isEmailTaken) {
+            Alert.alert('Error', 'Email is already taken');
             return;
         }
 
@@ -118,16 +167,39 @@ export default function SignupScreen({ navigation }: Props) {
                         {/* Email */}
                         <View style={styles.inputContainer}>
                             <Text style={styles.label}>Email Address</Text>
-                            <View style={styles.inputWrapper}>
+                            <View style={[
+                                styles.inputWrapper,
+                                showEmailError && styles.inputWrapperError,
+                                showEmailSuccess && styles.inputWrapperSuccess,
+                            ]}>
                                 <Mail size={18} color="#9CA3AF" />
                                 <TextInput
                                     style={styles.input}
                                     placeholder="juan@example.ph"
                                     keyboardType="email-address"
                                     autoCapitalize="none"
-                                    onChangeText={(v) => setFormData({ ...formData, email: v })}
+                                    value={formData.email}
+                                    onChangeText={(v) => {
+                                        setFormData({ ...formData, email: v });
+                                        if (!emailTouched && v.length > 0) {
+                                            setEmailTouched(true);
+                                        }
+                                    }}
+                                    onBlur={() => setEmailTouched(true)}
                                 />
                             </View>
+                            {emailTouched && trimmedEmail.length > 0 && emailStatusMessage ? (
+                                <Text
+                                    style={[
+                                        styles.emailStatusText,
+                                        emailStatus === 'available' && styles.emailStatusSuccess,
+                                        (emailStatus === 'invalid' || emailStatus === 'taken') && styles.emailStatusError,
+                                        emailStatus === 'checking' && styles.emailStatusChecking,
+                                    ]}
+                                >
+                                    {emailStatusMessage}
+                                </Text>
+                            ) : null}
                         </View>
 
                         <View style={styles.inputContainer}>
@@ -216,7 +288,27 @@ const styles = StyleSheet.create({
         paddingHorizontal: 16,
         height: 54,
     },
+    inputWrapperError: {
+        borderColor: '#DC2626',
+    },
+    inputWrapperSuccess: {
+        borderColor: '#16A34A',
+    },
     input: { flex: 1, marginLeft: 10, fontSize: 15, color: '#111827' },
+    emailStatusText: {
+        marginTop: 6,
+        fontSize: 12,
+        fontWeight: '500',
+    },
+    emailStatusError: {
+        color: '#DC2626',
+    },
+    emailStatusSuccess: {
+        color: '#15803D',
+    },
+    emailStatusChecking: {
+        color: '#92400E',
+    },
     signupButton: { borderRadius: 12, overflow: 'hidden', marginTop: 10 },
     gradient: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', paddingVertical: 16, gap: 8 },
     buttonText: { color: '#FFF', fontSize: 17, fontWeight: '700' },

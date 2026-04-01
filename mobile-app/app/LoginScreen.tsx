@@ -31,10 +31,20 @@ export default function LoginScreen({ navigation }: Props) {
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
+  const [emailTouched, setEmailTouched] = useState(false);
+
+  const validateEmail = (value: string) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value);
+  const trimmedEmail = email.trim();
+  const showEmailError = emailTouched && trimmedEmail.length > 0 && !validateEmail(trimmedEmail);
 
   const handleLogin = async () => {
     if (!email || !password) {
       Alert.alert('Error', 'Please enter both email and password');
+      return;
+    }
+
+    if (!validateEmail(trimmedEmail)) {
+      Alert.alert('Error', 'Please enter a valid email address');
       return;
     }
 
@@ -43,7 +53,7 @@ export default function LoginScreen({ navigation }: Props) {
     try {
       // Sign in with Supabase
       const { data, error } = await supabase.auth.signInWithPassword({
-        email: email.trim(),
+        email: trimmedEmail,
         password: password,
       });
 
@@ -147,19 +157,28 @@ export default function LoginScreen({ navigation }: Props) {
             {/* Email Input */}
             <View style={styles.inputContainer}>
               <Text style={styles.label}>Email Address</Text>
-              <View style={styles.inputWrapper}>
+              <View style={[styles.inputWrapper, showEmailError && styles.inputWrapperError]}>
                 <Mail size={20} color={COLORS.primary} style={styles.inputIcon} />
                 <TextInput
                   style={styles.input}
                   placeholder="Enter your email"
                   placeholderTextColor="#9CA3AF"
                   value={email}
-                  onChangeText={setEmail}
+                  onChangeText={(value) => {
+                    setEmail(value);
+                    if (!emailTouched && value.length > 0) {
+                      setEmailTouched(true);
+                    }
+                  }}
+                  onBlur={() => setEmailTouched(true)}
                   keyboardType="email-address"
                   autoCapitalize="none"
                   autoComplete="email"
                 />
               </View>
+              {showEmailError ? (
+                <Text style={styles.errorText}>Please enter a valid email address.</Text>
+              ) : null}
             </View>
 
             {/* Password Input */}
@@ -365,6 +384,9 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     height: 56,
   },
+  inputWrapperError: {
+    borderColor: '#DC2626',
+  },
   inputIcon: {
     marginRight: 12,
   },
@@ -375,6 +397,12 @@ const styles = StyleSheet.create({
   },
   eyeIcon: {
     padding: 4,
+  },
+  errorText: {
+    marginTop: 6,
+    fontSize: 12,
+    color: '#DC2626',
+    fontWeight: '500',
   },
   forgotPassword: {
     alignSelf: 'flex-end',

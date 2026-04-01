@@ -34,6 +34,35 @@ export interface AuthResult {
 
 export class AuthService {
   /**
+   * Check whether an email is already used by an existing profile.
+   * Used for live signup validation.
+   */
+  async checkEmailExists(email: string): Promise<boolean> {
+    if (!isSupabaseConfigured()) return false;
+
+    const normalizedEmail = email.trim().toLowerCase();
+    if (!normalizedEmail) return false;
+
+    try {
+      const { data, error } = await supabase
+        .from('profiles')
+        .select('id')
+        .ilike('email', normalizedEmail)
+        .limit(1);
+
+      if (error) {
+        console.error('Error checking email availability:', error);
+        return false;
+      }
+
+      return (data ?? []).length > 0;
+    } catch (error) {
+      console.error('Unexpected email check error:', error);
+      return false;
+    }
+  }
+
+  /**
    * Sign up a new user
    * @param email - User email address
    * @param password - User password
