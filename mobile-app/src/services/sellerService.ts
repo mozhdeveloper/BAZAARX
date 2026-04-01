@@ -400,7 +400,7 @@ export class SellerService {
             // Only use columns that exist in sellers table
             let query = supabase
                 .from('sellers')
-                .select('*')
+                .select('*, business_profile:seller_business_profiles(city, province, postal_code, business_type)')
                 .eq('approval_status', 'verified');
 
             // Apply search filter

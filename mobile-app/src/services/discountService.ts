@@ -468,6 +468,110 @@ export class DiscountService {
   }
 
   /**
+   * Get all active global flash sale products (from global_flash_sale_slots and approved submissions)
+   * This is the CORRECT method that matches admin data
+   */
+  async getGlobalFlashSaleProducts(): Promise<any[]> {
+    if (!isSupabaseConfigured()) {
+      return [];
+    }
+
+    try {
+      const now = new Date().toISOString();
+
+      // 1. Fetch active global slots
+      const { data: slots, error: slotsError } = await supabase
+        .from('global_flash_sale_slots')
+        .select('*')
+        .eq('status', 'active')
+        .lte('start_time', now)
+        .gte('end_time', now);
+
+      if (slotsError) throw slotsError;
+      if (!slots || slots.length === 0) return [];
+
+      const slotIds = slots.map((s: any) => s.id);
+
+      // 2. Fetch approved submissions for these slots
+      const { data: submissions, error: subError } = await supabase
+        .from('flash_sale_submissions')
+        .select(`
+          *,
+          product:products (
+            id,
+            name,
+            price,
+            seller_id,
+            images:product_images (image_url, is_primary, sort_order),
+            variants:product_variants (stock, price),
+            seller:sellers!products_seller_id_fkey (id, store_name, verified_at),
+            category:categories!products_category_id_fkey (name)
+          )
+        `)
+        .in('slot_id', slotIds)
+        .eq('status', 'approved');
+
+      if (subError) throw subError;
+
+      // 3. Fetch real sold counts from the product_sold_counts view
+      const productIds = (submissions || [])
+        .map((sub: any) => sub.product?.id)
+        .filter(Boolean);
+      const soldCountsMap = new Map<string, number>();
+      if (productIds.length > 0) {
+        const { data: soldData } = await supabase
+          .from('product_sold_counts')
+          .select('product_id, sold_count')
+          .in('product_id', productIds);
+        (soldData || []).forEach((row: any) => {
+          soldCountsMap.set(row.product_id, row.sold_count || 0);
+        });
+      }
+
+      // 4. Map to product display objects
+      const slotMap = new Map(slots.map((s: any) => [s.id, s]));
+
+      return (submissions || []).map((sub: any) => {
+        const p = sub.product as any;
+        const slot = slotMap.get(sub.slot_id) as any;
+        const basePrice = Number(sub.submitted_price) || Number(p?.price) || 0;
+        const originalPrice = Number(p?.price) || 0;
+        const discountPct = originalPrice > 0 ? Math.round((1 - basePrice / originalPrice) * 100) : 0;
+
+        // Get primary image
+        const images = p?.images || [];
+        const primaryImg = images.find((i: any) => i.is_primary)?.image_url || images[0]?.image_url || '';
+
+        const totalStock = (p?.variants || []).reduce((sum: number, v: any) => sum + (v.stock || 0), 0);
+        const soldCount = soldCountsMap.get(p?.id) || 0;
+
+        return {
+          id: p?.id,
+          name: p?.name,
+          price: basePrice,
+          originalPrice,
+          image: primaryImg,
+          images: images.map((i: any) => i.image_url),
+          seller: p?.seller?.store_name || 'Store',
+          sellerId: p?.seller_id,
+          sellerVerified: !!p?.seller?.verified_at,
+          category: p?.category?.name || 'General',
+          stock: totalStock,
+          sold: soldCount,
+          campaignId: sub.slot_id,
+          campaignName: slot?.name || 'Flash Sale',
+          campaignBadgeColor: '#FF6A00',
+          campaignEndsAt: slot?.end_time,
+          discountBadgePercent: discountPct > 0 ? discountPct : undefined,
+        };
+      });
+    } catch (error) {
+      console.error('Error fetching global flash sale products:', error);
+      return [];
+    }
+  }
+
+  /**
    * Remove product from campaign
    */
   async removeProductFromCampaign(productDiscountId: string): Promise<void> {

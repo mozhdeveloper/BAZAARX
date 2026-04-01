@@ -419,7 +419,7 @@ export default function OrdersPage() {
         const aTime = a.cancelledAt ? getTimestamp(a.cancelledAt) : getTimestamp(a.createdAt);
         const bTime = b.cancelledAt ? getTimestamp(b.cancelledAt) : getTimestamp(b.createdAt);
         if (aTime !== bTime) return bTime - aTime;
-        return getTimestamp(b.createdAt) - getTimestamp(b.createdAt);
+        return getTimestamp(b.createdAt) - getTimestamp(a.createdAt);
       });
     }
 
@@ -428,15 +428,13 @@ export default function OrdersPage() {
         const aTime = a.returnRequest?.submittedAt ? getTimestamp(a.returnRequest.submittedAt) : getTimestamp(a.createdAt);
         const bTime = b.returnRequest?.submittedAt ? getTimestamp(b.returnRequest.submittedAt) : getTimestamp(b.createdAt);
         if (aTime !== bTime) return bTime - aTime;
-        return getTimestamp(b.createdAt) - getTimestamp(b.createdAt);
+        return getTimestamp(b.createdAt) - getTimestamp(a.createdAt);
       });
     }
 
-    // Default sort for "all" and other tabs:
-    // Sort by cancelledAt if the order is cancelled, otherwise by createdAt
     return filtered.sort((a, b) => {
-      const aTime = (a.status === "cancelled" && a.cancelledAt) ? getTimestamp(a.cancelledAt) : getTimestamp(a.createdAt);
-      const bTime = (b.status === "cancelled" && b.cancelledAt) ? getTimestamp(b.cancelledAt) : getTimestamp(b.createdAt);
+      const aTime = a.updatedAt ? getTimestamp(a.updatedAt) : getTimestamp(a.createdAt);
+      const bTime = b.updatedAt ? getTimestamp(b.updatedAt) : getTimestamp(b.createdAt);
 
       if (aTime !== bTime) return bTime - aTime;
       return getTimestamp(b.createdAt) - getTimestamp(a.createdAt);
