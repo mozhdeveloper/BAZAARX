@@ -44,8 +44,9 @@ export const announcementService = {
   async list(): Promise<Announcement[]> {
     const { data, error } = await supabase
       .from('announcements')
-      .select('*')
-      .order('created_at', { ascending: false });
+      .select('id, title, message, audience, type, is_active, admin_id, expires_at, created_at, updated_at')
+      .order('created_at', { ascending: false })
+      .limit(100);
     if (error) throw error;
     return data ?? [];
   },

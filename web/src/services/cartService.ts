@@ -35,7 +35,7 @@ export class CartService {
     try {
       const { data: cart, error } = await supabase
         .from('carts')
-        .select('*')
+        .select('id, buyer_id, created_at, updated_at')
         .eq('buyer_id', buyerId)
         .maybeSingle();
 
@@ -189,7 +189,7 @@ export class CartService {
         // Check if item already exists with the same variant
         let query = supabase
           .from('cart_items')
-          .select('*')
+          .select('id, cart_id, product_id, variant_id, quantity, created_at, updated_at')
           .eq('cart_id', cartId)
           .eq('product_id', productId);
 

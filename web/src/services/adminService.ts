@@ -63,9 +63,10 @@ export class AdminService {
         try {
             const { data, error } = await supabase
                 .from('sellers')
-                .select('*')
+                .select('id, store_name, approval_status, created_at, avatar_url')
                 .eq('approval_status', 'pending')
-                .order('created_at', { ascending: true });
+                .order('created_at', { ascending: true })
+                .limit(50);
 
             if (error) throw error;
             return data || [];
@@ -86,10 +87,10 @@ export class AdminService {
         try {
             // Get counts for different entities
             const [sellersCount, buyersCount, ordersCount, productsCount] = await Promise.all([
-                supabase.from('sellers').select('*', { count: 'exact', head: true }),
-                supabase.from('buyers').select('*', { count: 'exact', head: true }),
-                supabase.from('orders').select('*', { count: 'exact', head: true }),
-                supabase.from('products').select('*', { count: 'exact', head: true }),
+                supabase.from('sellers').select('id', { count: 'exact', head: true }),
+                supabase.from('buyers').select('id', { count: 'exact', head: true }),
+                supabase.from('orders').select('id', { count: 'exact', head: true }),
+                supabase.from('products').select('id', { count: 'exact', head: true }),
             ]);
 
             return {
@@ -116,8 +117,9 @@ export class AdminService {
         try {
             const { data, error } = await supabase
                 .from('buyers')
-                .select('*, profiles(*)')
-                .order('created_at', { ascending: false });
+                .select('id, created_at, avatar_url, profiles(id, first_name, last_name, email, phone)')
+                .order('created_at', { ascending: false })
+                .limit(100);
 
             if (error) throw error;
             return data || [];
@@ -139,8 +141,9 @@ export class AdminService {
         try {
             const { data, error } = await supabase
                 .from('orders')
-                .select('*, order_items(*)')
-                .order('created_at', { ascending: false });
+                .select('id, order_number, buyer_id, payment_status, shipment_status, created_at, order_items(id, product_id, price, price_discount, quantity, product_name)')
+                .order('created_at', { ascending: false })
+                .limit(100);
 
             if (error) throw error;
             return data || [];

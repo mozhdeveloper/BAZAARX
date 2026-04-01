@@ -171,7 +171,7 @@ class ChatService {
     if (orderId) {
       const { data: existing, error: findError } = await supabase
         .from('conversations')
-        .select('*')
+        .select('id, buyer_id, order_id, created_at, updated_at')
         .eq('buyer_id', buyerId)
         .eq('order_id', orderId)
         .single();
@@ -184,7 +184,7 @@ class ChatService {
     // Try to find by buyer_id and check if any messages involve this seller
     const { data: convList } = await supabase
       .from('conversations')
-      .select('*')
+      .select('id, buyer_id, order_id, created_at, updated_at')
       .eq('buyer_id', buyerId);
 
     for (const conv of convList || []) {
@@ -320,9 +320,10 @@ class ChatService {
   async getBuyerConversations(buyerId: string): Promise<Conversation[]> {
     const { data: conversations, error: convError } = await supabase
       .from('conversations')
-      .select('*')
+      .select('id, buyer_id, order_id, created_at, updated_at')
       .eq('buyer_id', buyerId)
-      .order('updated_at', { ascending: false });
+      .order('updated_at', { ascending: false })
+      .limit(50);
 
     if (convError) {
       console.error('[ChatService] Error fetching buyer conversations:', convError);
@@ -369,7 +370,7 @@ class ChatService {
 
     const { data: conversations, error: convError } = await supabase
       .from('conversations')
-      .select('*')
+      .select('id, buyer_id, order_id, created_at, updated_at')
       .in('id', conversationIds)
       .order('updated_at', { ascending: false });
 
@@ -402,9 +403,10 @@ class ChatService {
   async getMessages(conversationId: string): Promise<Message[]> {
     const { data, error } = await supabase
       .from('messages')
-      .select('*')
+      .select('id, conversation_id, sender_id, sender_type, content, message_content, created_at, is_read, message_type')
       .eq('conversation_id', conversationId)
-      .order('created_at', { ascending: true });
+      .order('created_at', { ascending: true })
+      .limit(100);
 
     if (error) {
       console.error('[ChatService] Error fetching messages:', error);
@@ -670,7 +672,7 @@ class ChatService {
 
           const { data: conv } = await supabase
             .from('conversations')
-            .select('*')
+            .select('id, buyer_id, order_id, created_at, updated_at')
             .eq('id', msg.conversation_id)
             .maybeSingle();
 

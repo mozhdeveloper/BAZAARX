@@ -1147,12 +1147,10 @@ export const useProductStore = create<ProductStore>()(
           .on(
             'postgres_changes',
             {
-              event: '*',
+              event: 'UPDATE',
               schema: 'public',
               table: 'products',
-              // Note: Supabase JS client handles basic equality filters on some versions,
-              // but for complex stuff we might need to refetch or filter client-side.
-              // For now, we'll refetch to ensure data consistency with relations (sellers).
+              ...(filters?.sellerId ? { filter: `seller_id=eq.${filters.sellerId}` } : {}),
             },
             async (payload) => {
               console.log('Product change received:', payload);

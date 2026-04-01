@@ -78,7 +78,8 @@ export const useAdminStats = create<AdminStatsState>((set) => ({
       const { data: paidOrders } = await supabase
         .from('order_items')
         .select('price, quantity, price_discount, order_id, orders!inner(payment_status)')
-        .eq('orders.payment_status', 'paid');
+        .eq('orders.payment_status', 'paid')
+        .limit(1000);
 
       const totalRevenue = (paidOrders || []).reduce((sum, item: any) => {
         return sum + ((Number(item.price) - Number(item.price_discount || 0)) * Number(item.quantity));
