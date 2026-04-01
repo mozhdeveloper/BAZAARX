@@ -57,7 +57,6 @@ import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 
 import { OrderDetailsModal } from "@/components/OrderDetailsModal";
 import { OrderStatusBadge } from "@/components/orders/OrderStatusBadge";
-import { PaymentStatusBadge } from "@/components/orders/PaymentStatusBadge";
 import { OrderDateFilter } from "@/components/orders/OrderDateFilter";
 import { orderExportService } from "@/services/orders/orderExportService";
 
@@ -627,14 +626,6 @@ export function SellerOrders() {
                               </Badge>
                             )}
                           </div>
-                        </TableCell>
-
-                        {/* Payment Method & Status */}
-                        <TableCell>
-<PaymentStatusBadge 
-  isPaid={order.paymentStatus === 'paid'} 
-  compact 
-/>
                         </TableCell>
 
                         {/* Total */}

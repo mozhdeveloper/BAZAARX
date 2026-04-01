@@ -732,14 +732,6 @@ export default function OrderDetailScreen({ route, navigation }: Props) {
                 )}
               </>
             )}
-            {!paymentTx && (
-              <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
-                <Text style={{ fontSize: 13, color: '#6B7280' }}>Status</Text>
-                <Text style={{ fontSize: 13, fontWeight: '600', color: order.isPaid ? '#065F46' : '#92400E' }}>
-                  {order.isPaid ? 'Paid' : 'Pending'}
-                </Text>
-              </View>
-            )}
           </View>
         </View>
 
