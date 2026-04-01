@@ -7,12 +7,12 @@ interface Props {
 export default function TrackingTimeline({ data }: Props) {
   const getStatusColor = (status: string): string => {
     const statusLower = status.toLowerCase();
-    
+
     if (statusLower.includes('deliver')) return 'bg-green-100 text-green-800';
     if (statusLower.includes('transit') || statusLower.includes('way')) return 'bg-blue-100 text-blue-800';
     if (statusLower.includes('pending')) return 'bg-yellow-100 text-yellow-800';
     if (statusLower.includes('fail')) return 'bg-red-100 text-red-800';
-    
+
     return 'bg-gray-100 text-gray-800';
   };
 
@@ -65,9 +65,8 @@ export default function TrackingTimeline({ data }: Props) {
               {/* Timeline dot and line */}
               <div className="flex flex-col items-center">
                 <div
-                  className={`w-4 h-4 rounded-full ${
-                    index === 0 ? 'bg-blue-600' : 'bg-gray-300'
-                  }`}
+                  className={`w-4 h-4 rounded-full ${index === 0 ? 'bg-blue-600' : 'bg-gray-300'
+                    }`}
                 ></div>
                 {index < data.events.length - 1 && (
                   <div className="w-1 h-12 bg-gray-300 my-2"></div>

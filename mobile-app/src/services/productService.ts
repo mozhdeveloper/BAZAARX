@@ -128,15 +128,29 @@ export class ProductService {
       let query = supabase
         .from('products')
         .select(`
-          *,
+          id,
+          name,
+          description,
+          price,
+          seller_id,
+          category_id,
+          approval_status,
+          disabled_at,
+          deleted_at,
+          created_at,
+          updated_at,
+          variant_label_1,
+          variant_label_2,
+          is_free_shipping,
+          weight,
           category:categories!products_category_id_fkey (
             id, name, slug, parent_id, is_active
           ),
-          images:product_images (*),
-          variants:product_variants (*),
+          images:product_images (id, image_url, alt_text, sort_order, is_primary),
+          variants:product_variants (id, sku, variant_name, size, color, option_1_value, option_2_value, price, stock, thumbnail_url),
           reviews (id, rating),
-          seller:sellers!products_seller_id_fkey (*, business_profile:seller_business_profiles (*)),
-          product_discounts (*, campaign:discount_campaigns (*))
+          seller:sellers!products_seller_id_fkey (id, store_name, approval_status, avatar_url),
+          product_discounts (id, discount_type, discount_value, sold_count, campaign:discount_campaigns (id, badge_text, badge_color, discount_type, discount_value, max_discount_amount, ends_at, status, starts_at))
         `)
         .is('deleted_at', null)
         .order('created_at', { ascending: false });
@@ -875,7 +889,7 @@ export class ProductService {
     try {
       const { data, error } = await supabase
         .from('categories')
-        .select('*')
+        .select('id, name, slug, parent_id, icon, image_url, sort_order, is_active, description, created_at, updated_at')
         .order('sort_order', { ascending: true });
 
       if (error) throw error;

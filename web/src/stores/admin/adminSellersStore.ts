@@ -28,14 +28,18 @@ export const useAdminSellers = create<SellersState>()(
             const primaryResult = await supabase
               .from('sellers')
               .select(`
-                *,
-                profiles:profiles!sellers_id_fkey(*),
-                business_profile:seller_business_profiles(*),
-                payout_account:seller_payout_accounts(*),
-                verification_documents:seller_verification_documents(*),
+                id, store_name, store_description, owner_name, avatar_url, store_banner_url,
+                approval_status, is_vacation_mode, is_permanently_blacklisted,
+                verified_at, created_at, updated_at, store_contact_number,
+                blacklisted_at, suspended_at, suspension_reason,
+                profiles:profiles!sellers_id_fkey(id, first_name, last_name, email),
+                business_profile:seller_business_profiles(seller_id, business_type, city, province),
+                payout_account:seller_payout_accounts(seller_id, account_name, bank_name, account_number),
+                verification_documents:seller_verification_documents(seller_id, business_permit_url, valid_id_url, proof_of_address_url, dti_registration_url, tax_id_url),
                 tier:seller_tiers(tier_level, bypasses_assessment)
               `)
-              .order('created_at', { ascending: false });
+              .order('created_at', { ascending: false })
+              .limit(200);
 
             sellersData = primaryResult.data as any[] | null;
             sellersError = primaryResult.error;
@@ -44,10 +48,12 @@ export const useAdminSellers = create<SellersState>()(
               const fallbackResult = await supabase
                 .from('sellers')
                 .select(`
-                  *,
-                  profiles:profiles!sellers_id_fkey(*)
+                  id, store_name, owner_name, avatar_url, approval_status,
+                  is_vacation_mode, is_permanently_blacklisted, created_at, updated_at,
+                  profiles:profiles!sellers_id_fkey(id, first_name, last_name, email)
                 `)
-                .order('created_at', { ascending: false });
+                .order('created_at', { ascending: false })
+                .limit(200);
 
               sellersData = fallbackResult.data as any[] | null;
               sellersError = fallbackResult.error;
@@ -66,7 +72,7 @@ export const useAdminSellers = create<SellersState>()(
             if (sellerIds.length > 0) {
               const { data: verificationRows, error: verificationError } = await supabase
                 .from('seller_verification_documents')
-                .select('*')
+                .select('seller_id, business_permit_url, valid_id_url, proof_of_address_url, dti_registration_url, tax_id_url, created_at')
                 .in('seller_id', sellerIds);
 
               if (verificationError) {

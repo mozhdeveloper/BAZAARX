@@ -541,9 +541,33 @@ export default function OrdersScreen({ navigation, route }: Props) {
           onPress: async () => {
             try {
               const realOrderId = (order as any).orderId || order.id;
+              
+              // Fetch order to check payment_status
+              const { data: orderData, error: fetchError } = await supabase
+                .from('orders')
+                .select('payment_status')
+                .eq('id', realOrderId)
+                .single();
+              
+              if (fetchError) throw fetchError;
+              
+              // Mark as paid when buyer confirms receipt (cash collected on delivery)
+              const needsPaymentUpdate = orderData.payment_status !== 'paid';
+              
+              const now = new Date().toISOString();
+              const updateData: Record<string, any> = { 
+                shipment_status: 'received' 
+              };
+              
+              // Mark as paid if not already paid
+              if (needsPaymentUpdate) {
+                updateData.payment_status = 'paid';
+                updateData.paid_at = now;
+              }
+              
               const { error } = await supabase
                 .from('orders')
-                .update({ shipment_status: 'received' })
+                .update(updateData)
                 .eq('id', realOrderId);
 
               if (error) throw error;

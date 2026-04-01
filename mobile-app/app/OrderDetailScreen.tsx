@@ -45,6 +45,21 @@ type Props = NativeStackScreenProps<RootStackParamList, 'OrderDetail'>;
 
 export default function OrderDetailScreen({ route, navigation }: Props) {
   const { order } = route.params;
+  
+  // Guard clause for invalid order
+  if (!order) {
+    return (
+      <View style={styles.container}>
+        <View style={styles.emptyContainer}>
+          <Text style={styles.emptyTitle}>Order not found</Text>
+          <Pressable style={styles.emptyButton} onPress={() => navigation.goBack()}>
+            <Text style={styles.emptyButtonText}>Go Back</Text>
+          </Pressable>
+        </View>
+      </View>
+    );
+  }
+
   const insets = useSafeAreaInsets();
   const updateOrderStatus = useOrderStore((state) => state.updateOrderStatus);
   const [showReviewModal, setShowReviewModal] = useState(false);
@@ -361,8 +376,8 @@ export default function OrderDetailScreen({ route, navigation }: Props) {
       const realOrderId = (order as any).orderId || order.id;
 
       // Find item by productId (now correctly passed from ReviewModal)
-      const item = order.items.find(i =>
-        i.id === orderItemId || (i as any).productId === productId || i.id === productId
+      const item = (order.items || []).find(i =>
+        i && (i.id === orderItemId || (i as any).productId === productId || i.id === productId)
       );
       if (!item) throw new Error('Product not found');
 
@@ -605,40 +620,43 @@ export default function OrderDetailScreen({ route, navigation }: Props) {
             </View>
             <Text style={styles.cardTitle}>Order Items</Text>
           </View>
-          {order.items.map((item, index) => (
-            <React.Fragment key={index}>
-              {index > 0 && <View style={styles.itemDivider} />}
-              <View style={styles.itemRow}>
-                <Pressable onPress={() => navigation.navigate('ProductDetail', { product: item })}>
-                  <Image
-                    source={{ uri: safeImageUri(item.image) }}
-                    style={styles.itemImage}
-                  />
-                </Pressable>
-                <View style={styles.itemInfo}>
-                  <Text style={styles.itemName}>{item.name}</Text>
-                  {item.selectedVariant && (item.selectedVariant.size || item.selectedVariant.color) && (
-                    <View style={{ flexDirection: 'row', gap: 8, marginTop: 2 }}>
-                      {item.selectedVariant.size && (
-                        <Text style={{ fontSize: 11, color: '#6b7280', backgroundColor: '#f3f4f6', paddingHorizontal: 6, paddingVertical: 2, borderRadius: 4 }}>
-                          {item.selectedVariant.size}
-                        </Text>
-                      )}
-                      {item.selectedVariant.color && (
-                        <Text style={{ fontSize: 11, color: '#6b7280', backgroundColor: '#f3f4f6', paddingHorizontal: 6, paddingVertical: 2, borderRadius: 4 }}>
-                          {item.selectedVariant.color}
-                        </Text>
-                      )}
-                    </View>
-                  )}
-                  <Text style={styles.itemVariant}>
-                    {item.quantity} × ₱{(item.price ?? 0).toLocaleString()}
-                  </Text>
+          {order.items.filter(item => item && item.name).map((item, index) => {
+            const displayIndex = order.items.filter(i => i && i.name).indexOf(item);
+            return (
+              <React.Fragment key={item.id || index}>
+                {displayIndex > 0 && <View style={styles.itemDivider} />}
+                <View style={styles.itemRow}>
+                  <Pressable onPress={() => navigation.navigate('ProductDetail', { product: item })}>
+                    <Image
+                      source={{ uri: safeImageUri(item.image) }}
+                      style={styles.itemImage}
+                    />
+                  </Pressable>
+                  <View style={styles.itemInfo}>
+                    <Text style={styles.itemName}>{item.name}</Text>
+                    {item.selectedVariant && (item.selectedVariant.size || item.selectedVariant.color) && (
+                      <View style={{ flexDirection: 'row', gap: 8, marginTop: 2 }}>
+                        {item.selectedVariant.size && (
+                          <Text style={{ fontSize: 11, color: '#6b7280', backgroundColor: '#f3f4f6', paddingHorizontal: 6, paddingVertical: 2, borderRadius: 4 }}>
+                            {item.selectedVariant.size}
+                          </Text>
+                        )}
+                        {item.selectedVariant.color && (
+                          <Text style={{ fontSize: 11, color: '#6b7280', backgroundColor: '#f3f4f6', paddingHorizontal: 6, paddingVertical: 2, borderRadius: 4 }}>
+                            {item.selectedVariant.color}
+                          </Text>
+                        )}
+                      </View>
+                    )}
+                    <Text style={styles.itemVariant}>
+                      {item.quantity} × ₱{(item.price ?? 0).toLocaleString()}
+                    </Text>
+                  </View>
+                  <Text style={styles.itemPrice}>₱{((item.price ?? 0) * (item.quantity || 1)).toLocaleString()}</Text>
                 </View>
-                <Text style={styles.itemPrice}>₱{((item.price ?? 0) * item.quantity).toLocaleString()}</Text>
-              </View>
-            </React.Fragment>
-          ))}
+              </React.Fragment>
+            );
+          })}
         </View>
 
         {/* Shipping Address Card */}
@@ -649,16 +667,18 @@ export default function OrderDetailScreen({ route, navigation }: Props) {
             </View>
             <Text style={styles.cardTitle}>Shipping Address</Text>
           </View>
-          <View style={styles.cardContent}>
-            <View style={styles.shippingInfoBlock}>
-              <Text style={styles.shippingName}>{order.shippingAddress.name}</Text>
-              <Text style={styles.shippingPhone}>{order.shippingAddress.phone}</Text>
-              <Text style={styles.shippingAddress}>
-                {order.shippingAddress.address}, {order.shippingAddress.city}, {order.shippingAddress.region} {order.shippingAddress.postalCode}
-              </Text>
-              <Text style={styles.shippingEmail}>{order.shippingAddress.email}</Text>
+          {order.shippingAddress && (
+            <View style={styles.cardContent}>
+              <View style={styles.shippingInfoBlock}>
+                <Text style={styles.shippingName}>{order.shippingAddress.name}</Text>
+                <Text style={styles.shippingPhone}>{order.shippingAddress.phone}</Text>
+                <Text style={styles.shippingAddress}>
+                  {order.shippingAddress.address}, {order.shippingAddress.city}, {order.shippingAddress.region} {order.shippingAddress.postalCode}
+                </Text>
+                <Text style={styles.shippingEmail}>{order.shippingAddress.email}</Text>
+              </View>
             </View>
-          </View>
+          )}
         </View>
 
         {/* Payment Details Card */}
@@ -1750,6 +1770,31 @@ const styles = StyleSheet.create({
   receiptConfirmText: {
     fontSize: 16,
     fontWeight: '700',
+    color: '#FFFFFF',
+  },
+
+  // Empty state styles
+  emptyContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: COLORS.background,
+  },
+  emptyTitle: {
+    fontSize: 18,
+    fontWeight: '600',
+    color: COLORS.textHeadline,
+    marginBottom: 16,
+  },
+  emptyButton: {
+    backgroundColor: COLORS.primary,
+    paddingHorizontal: 24,
+    paddingVertical: 12,
+    borderRadius: 12,
+  },
+  emptyButtonText: {
+    fontSize: 16,
+    fontWeight: '600',
     color: '#FFFFFF',
   },
 });

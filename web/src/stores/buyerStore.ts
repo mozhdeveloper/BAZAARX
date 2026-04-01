@@ -1274,7 +1274,7 @@ export const useBuyerStore = create<BuyerStore>()(persist(
       const { data, error } = await db
         .from('reviews')
         .select(`
-          *,
+          id, rating, comment, buyer_id, product_id, created_at,
           product:products(
             id,
             name,
@@ -1290,7 +1290,8 @@ export const useBuyerStore = create<BuyerStore>()(persist(
            )
         `)
         .eq('buyer_id', profile.id)
-        .order('created_at', { ascending: false });
+        .order('created_at', { ascending: false })
+        .limit(50);
       if (error) {
         console.error('Error fetching my reviews:', error.message);
         return;

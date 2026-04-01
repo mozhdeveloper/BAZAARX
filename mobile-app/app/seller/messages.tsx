@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import {
   View,
   Text,
@@ -13,7 +13,7 @@ import {
   RefreshControl,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { useNavigation } from '@react-navigation/native';
+import { useNavigation, useFocusEffect } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import type { SellerStackParamList } from './SellerStack';
 import {
@@ -48,6 +48,9 @@ export default function MessagesScreen() {
   const [conversations, setConversations] = useState<ChatConversation[]>([]);
   const [messages, setMessages] = useState<ChatMessage[]>([]);
 
+  // Ref for auto-scrolling the seller chat view to the latest message
+  const chatScrollRef = useRef<ScrollView>(null);
+
   // Load real conversations from database
   const loadConversations = useCallback(async () => {
     // Use seller.id from sellerStore (the seller's UUID), not user.id from authStore
@@ -75,6 +78,53 @@ export default function MessagesScreen() {
     loadConversations();
   }, [loadConversations]);
 
+  // Real-time chatlist: lightweight subscription to messages table.
+  // Updates conversation preview + unread badge instantly without async enrichment.
+  useEffect(() => {
+    if (!seller?.id) return;
+    return chatService.subscribeToAllNewMessages((newMsg) => {
+      setConversations(prev => {
+        const idx = prev.findIndex(c => c.id === newMsg.conversation_id);
+        if (idx === -1) return prev; // not this seller's conversation
+
+        const displayContent = newMsg.message_type === 'system'
+          ? newMsg.message_content || ''
+          : newMsg.content || '';
+
+        const updated = {
+          ...prev[idx],
+          last_message: displayContent,
+          last_message_at: newMsg.created_at,
+          last_sender_type: newMsg.sender_type,
+          // Increment badge only for messages from the buyer
+          seller_unread_count: newMsg.sender_type === 'buyer'
+            ? (prev[idx].seller_unread_count || 0) + 1
+            : prev[idx].seller_unread_count,
+        };
+
+        const newList = [...prev];
+        newList[idx] = updated;
+        return newList.sort((a, b) =>
+          new Date(b.last_message_at || b.updated_at).getTime() -
+          new Date(a.last_message_at || a.updated_at).getTime()
+        );
+      });
+    });
+  }, [seller?.id]);
+
+  // Silent refresh when returning to the chatlist from a conversation.
+  // Syncs unread badges after markAsRead was called in the chat view.
+  useFocusEffect(
+    useCallback(() => {
+      const sellerId = seller?.id;
+      if (!sellerId || loading) return;
+      chatService.getSellerConversations(sellerId)
+        .then(convs => setConversations(convs))
+        .catch(() => {});
+    }, [seller?.id, loading])
+  );
+
+
   // Load messages when conversation is selected
   useEffect(() => {
     if (!selectedConversation) return;
@@ -91,6 +141,13 @@ export default function MessagesScreen() {
 
     loadMessages();
   }, [selectedConversation, seller?.id]);
+
+  // Auto-scroll to the newest message when messages load or new ones arrive
+  useEffect(() => {
+    if (messages.length > 0) {
+      setTimeout(() => chatScrollRef.current?.scrollToEnd({ animated: false }), 80);
+    }
+  }, [messages]);
 
   // Subscribe to new messages
   useEffect(() => {
@@ -261,7 +318,15 @@ export default function MessagesScreen() {
               <Pressable
                 key={conv.id}
                 style={styles.conversationItem}
-                onPress={() => setSelectedConversation(conv.id)}
+                onPress={() => {
+                  // Instantly clear unread badge on tap
+                  if ((conv.seller_unread_count || 0) > 0) {
+                    setConversations(prev =>
+                      prev.map(c => c.id === conv.id ? { ...c, seller_unread_count: 0 } : c)
+                    );
+                  }
+                  setSelectedConversation(conv.id);
+                }}
               >
                 <View style={styles.avatar}>
                   <Text style={styles.avatarText}>
@@ -341,6 +406,7 @@ export default function MessagesScreen() {
 
       {/* Messages */}
       <ScrollView
+        ref={chatScrollRef}
         style={styles.messagesContainer}
         contentContainerStyle={styles.messagesContent}
         showsVerticalScrollIndicator={false}

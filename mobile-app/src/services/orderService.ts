@@ -551,9 +551,10 @@ export class OrderService {
     try {
       const { data, error } = await supabase
         .from('orders')
-        .select('*, order_items(*)')
+        .select('id, order_number, buyer_id, payment_status, shipment_status, paid_at, created_at, updated_at, order_items(id, product_id, product_name, price, price_discount, quantity, thumbnail_url)')
         .eq('buyer_id', buyerId)
-        .order('created_at', { ascending: false });
+        .order('created_at', { ascending: false })
+        .limit(50);
 
       if (error) throw error;
       const result = data || [];
@@ -578,13 +579,13 @@ export class OrderService {
       const { data, error } = await supabase
         .from('orders')
         .select(`
-          *,
+          id, order_number, buyer_id, payment_status, shipment_status, paid_at, order_type, created_at, updated_at, address_id,
           order_items(
-            *,
+            id, product_id, product_name, price, price_discount, quantity, thumbnail_url,
             variant:product_variants(id, variant_name, size, color, price, thumbnail_url)
           ),
           order_vouchers(
-            *,
+            id,
             voucher:vouchers(code, title, voucher_type)
           ),
           order_shipments(id, status, tracking_number, shipped_at, delivered_at, created_at),
@@ -592,7 +593,8 @@ export class OrderService {
           order_status_history(status, created_at)
         `)
         .eq('buyer_id', buyerId)
-        .order('created_at', { ascending: false });
+        .order('created_at', { ascending: false })
+        .limit(50);
 
       if (error) throw error;
 
@@ -1592,7 +1594,7 @@ export class OrderService {
     try {
       const { data: order, error: fetchError } = await supabase
         .from('orders')
-        .select('id, buyer_id, order_number, shipment_status')
+        .select('id, buyer_id, order_number, shipment_status, payment_status')
         .eq('id', orderId)
         .single();
 
@@ -1606,9 +1608,25 @@ export class OrderService {
         throw new Error(`Cannot confirm receipt. Order must be in "delivered" status. Current: ${order.shipment_status}`);
       }
 
+      // Mark as paid when buyer confirms receipt (cash collected on delivery)
+      // This handles COD orders - they become paid when received
+      const needsPaymentUpdate = order.payment_status !== 'paid';
+
+      const now = new Date().toISOString();
+      const updateData: Record<string, any> = { 
+        shipment_status: 'received', 
+        updated_at: now 
+      };
+      
+      // Mark as paid if not already paid
+      if (needsPaymentUpdate) {
+        updateData.payment_status = 'paid';
+        updateData.paid_at = now;
+      }
+
       const { error: updateError } = await supabase
         .from('orders')
-        .update({ shipment_status: 'received', updated_at: new Date().toISOString() })
+        .update(updateData)
         .eq('id', orderId);
 
       if (updateError) throw updateError;

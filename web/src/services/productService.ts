@@ -99,7 +99,21 @@ export class ProductService {
                 .from("products")
                 .select(
                     `
-          *,
+          id,
+          name,
+          description,
+          price,
+          seller_id,
+          category_id,
+          approval_status,
+          disabled_at,
+          deleted_at,
+          created_at,
+          updated_at,
+          variant_label_1,
+          variant_label_2,
+          is_free_shipping,
+          weight,
           category:categories!products_category_id_fkey (
             id,
             name,
@@ -211,12 +225,11 @@ export class ProductService {
                     query = query.or(`name.ilike.%${safeQuery}%,description.ilike.%${safeQuery}%`);
                 }
             }
-            if (filters?.limit) {
-                query = query.limit(filters.limit);
-            }
+            // Always apply a limit to prevent unbounded fetches
+            const effectiveLimit = filters?.limit || 30;
+            query = query.limit(effectiveLimit);
             if (filters?.offset) {
-                const limit = filters.limit || 10;
-                query = query.range(filters.offset, filters.offset + limit - 1);
+                query = query.range(filters.offset, filters.offset + effectiveLimit - 1);
             }
 
             const { data, error } = await query;

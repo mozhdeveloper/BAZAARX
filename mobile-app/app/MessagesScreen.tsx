@@ -1,4 +1,4 @@
-﻿import React, { useState, useEffect, useCallback, useMemo, useRef, memo } from 'react';
+import React, { useState, useEffect, useCallback, useMemo, useRef, memo } from 'react';
 import {
   View,
   Text,
@@ -13,7 +13,7 @@ import {
 import { Image } from 'expo-image';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Bot, ChevronLeft, MessageSquare, Search, Store, X } from 'lucide-react-native';
-import { useNavigation } from '@react-navigation/native';
+import { useNavigation, useFocusEffect } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { COLORS } from '../src/constants/theme';
 import AIChatModal from '../src/components/AIChatModal';
@@ -110,7 +110,6 @@ export default function MessagesScreen() {
   const [searchQuery, setSearchQuery] = useState('');
   const [debouncedQuery, setDebouncedQuery] = useState('');
 
-  // Shimmer animation â€” loops while skeleton is shown
   const shimmer = useRef(new Animated.Value(0)).current;
   useEffect(() => {
     const loop = Animated.loop(
@@ -123,7 +122,6 @@ export default function MessagesScreen() {
     return () => loop.stop();
   }, [shimmer]);
 
-  // Debounce search: update debouncedQuery 200ms after user stops typing
   useEffect(() => {
     const t = setTimeout(() => setDebouncedQuery(searchQuery), 200);
     return () => clearTimeout(t);
@@ -144,13 +142,46 @@ export default function MessagesScreen() {
 
   useEffect(() => { loadConversations(); }, [loadConversations]);
 
-  // Real-time: conversation last message / unread count
   useEffect(() => {
     if (!user?.id) return;
-    return chatService.subscribeToConversations(user.id, 'buyer', (updated) => {
-      setConversations(prev => prev.map(c => c.id === updated.id ? { ...c, ...updated } : c));
+    return chatService.subscribeToAllNewMessages((newMsg) => {
+      setConversations(prev => {
+        const idx = prev.findIndex(c => c.id === newMsg.conversation_id);
+        if (idx === -1) return prev;
+
+        const displayContent = newMsg.message_type === 'system'
+          ? newMsg.message_content || ''
+          : newMsg.content || '';
+
+        const updated = {
+          ...prev[idx],
+          last_message: displayContent,
+          last_message_at: newMsg.created_at,
+          last_sender_type: newMsg.sender_type,
+          buyer_unread_count: newMsg.sender_type === 'seller'
+            ? (prev[idx].buyer_unread_count || 0) + 1
+            : prev[idx].buyer_unread_count,
+        };
+
+        const newList = [...prev];
+        newList[idx] = updated;
+        return newList.sort((a, b) =>
+          new Date(b.last_message_at || b.updated_at).getTime() -
+          new Date(a.last_message_at || a.updated_at).getTime()
+        );
+      });
     });
   }, [user?.id]);
+
+  useFocusEffect(
+    useCallback(() => {
+      if (!user?.id || loading) return;
+      chatService.getBuyerConversations(user.id)
+        .then(convs => setConversations(convs))
+        .catch(() => { });
+    }, [user?.id, loading])
+  );
+
 
   // Real-time: presence dots
   useEffect(() => {
@@ -186,6 +217,11 @@ export default function MessagesScreen() {
   }, [uniqueConversations, debouncedQuery]);
 
   const handlePress = useCallback((conv: Conversation) => {
+    if ((conv.buyer_unread_count || 0) > 0) {
+      setConversations(prev =>
+        prev.map(c => c.id === conv.id ? { ...c, buyer_unread_count: 0 } : c)
+      );
+    }
     navigation.navigate('Chat', { conversation: conv, currentUserId: user?.id || '', userType: 'buyer' });
   }, [navigation, user?.id]);
 
