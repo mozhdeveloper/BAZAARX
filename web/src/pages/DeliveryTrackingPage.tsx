@@ -357,7 +357,7 @@ function DeliveryTrackingPage() {
             <div className="flex items-center gap-4">
               <Button
                 variant="ghost"
-                onClick={() => navigate("/orders")}
+                onClick={() => navigate(-1)}
                 className="p-2 hover:bg-gray-100"
               >
                 <ArrowLeft className="w-5 h-5" />
