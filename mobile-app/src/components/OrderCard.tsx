@@ -133,18 +133,6 @@ export const OrderCard: React.FC<OrderCardProps> = React.memo(({
             <Text style={styles.orderIdText}>ID: {order.transactionId}</Text>
             <Copy size={12} color="#6B7280" style={{ marginLeft: 4 }} />
           </Pressable>
-          {/* Payment Status Badge */}
-          <View style={{
-            paddingHorizontal: 6, paddingVertical: 2, borderRadius: 4, marginLeft: 8,
-            backgroundColor: order.isPaid ? '#D1FAE5' : '#FEF3C7',
-          }}>
-            <Text style={{
-              fontSize: 10, fontWeight: '700',
-              color: order.isPaid ? '#065F46' : '#92400E',
-            }}>
-              {order.isPaid ? '✓ Paid' : order.paymentMethod?.toLowerCase().includes('cod') ? 'COD' : 'Unpaid'}
-            </Text>
-          </View>
         </View>
       </View>
 

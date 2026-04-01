@@ -35,7 +35,6 @@ import {
 import { useOrderStore, useAuthStore, useProductStore, SellerOrder } from "@/stores/sellerStore";
 import { useChatStore } from "@/stores/chatStore";
 import { OrderStatusBadge } from "@/components/orders/OrderStatusBadge";
-import { PaymentStatusBadge } from "@/components/orders/PaymentStatusBadge";
 import { orderMutationService } from "@/services/orders/orderMutationService";
 import { orderReadService } from "@/services/orders/orderReadService";
 import { DeliveryService } from "@/services/deliveryService";
@@ -429,10 +428,6 @@ export function OrderDetailsModal({
                                             status={order.status}
                                             compact
                                         />
-<PaymentStatusBadge 
-  isPaid={order.paymentStatus === 'paid'}
-  compact
-/>
                                     </div>
                                     <div className="flex items-center gap-2 text-gray-500">
                                         <span className="font-medium text-gray-400">
