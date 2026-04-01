@@ -479,13 +479,13 @@ export default function OrdersScreen({ navigation, route }: Props) {
     // Early exit — no secondary filters
     if (selectedStatus === 'all' && !searchQuery.trim()) {
       return [...baseOrders].sort((a, b) => {
-        const dateA = new Date(a.createdAt).getTime();
-        const dateB = new Date(b.createdAt).getTime();
+        const dateA = new Date(a.updatedAt || a.createdAt).getTime();
+        const dateB = new Date(b.updatedAt || b.createdAt).getTime();
         if (dateA !== dateB) {
           return sortOrder === 'latest' ? dateB - dateA : dateA - dateB;
         }
-        return sortOrder === 'latest' 
-          ? b.transactionId.localeCompare(a.transactionId) 
+        return sortOrder === 'latest'
+          ? b.transactionId.localeCompare(a.transactionId)
           : a.transactionId.localeCompare(b.transactionId);
       });
     }
@@ -505,13 +505,13 @@ export default function OrdersScreen({ navigation, route }: Props) {
     }
 
     return [...result].sort((a, b) => {
-      const dateA = new Date(a.createdAt).getTime();
-      const dateB = new Date(b.createdAt).getTime();
+      const dateA = new Date(a.updatedAt || a.createdAt).getTime();
+      const dateB = new Date(b.updatedAt || b.createdAt).getTime();
       if (dateA !== dateB) {
         return sortOrder === 'latest' ? dateB - dateA : dateA - dateB;
       }
-      return sortOrder === 'latest' 
-        ? b.transactionId.localeCompare(a.transactionId) 
+      return sortOrder === 'latest'
+        ? b.transactionId.localeCompare(a.transactionId)
         : a.transactionId.localeCompare(b.transactionId);
     });
   }, [activeTab, dbOrders, ordersByUiStatus, selectedStatus, searchQuery, sortOrder]);
