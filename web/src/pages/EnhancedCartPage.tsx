@@ -552,6 +552,7 @@ export default function EnhancedCartPage() {
                                   <button
                                     onClick={() => setDeleteTarget({ type: 'single', id: item.id, variantId: item.selectedVariant?.id })}
                                     className="text-gray-400 hover:text-red-500 transition-colors"
+                                    aria-label="Remove item"
                                   >
                                     <Trash2 className="h-4 w-4" />
                                   </button>

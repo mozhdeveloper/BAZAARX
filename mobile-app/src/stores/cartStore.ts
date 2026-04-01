@@ -147,7 +147,7 @@ function mapDbCartItemsToCartItems(dbItems: any[]): CartItem[] {
         sellerId: sellerId,
         seller_id: sellerId,
         category: product.category?.name || '',
-        stock: (variant?.stock != null) ? variant.stock : (product.stock || 0),
+        stock: (variant?.stock != null && (variant.option_1_value || variant.option_2_value || variant.size || variant.color)) ? variant.stock : (product.stock || 0),
         isFreeShipping: !!product.is_free_shipping,
         quantity: ci.quantity || 1,
         selectedVariant,
