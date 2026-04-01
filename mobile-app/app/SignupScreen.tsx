@@ -42,7 +42,37 @@ export default function SignupScreen({ navigation }: Props) {
 
     const validateEmail = (email: string) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
     const validatePhone = (phone: string) => /^(\+63|0)?9\d{9}$/.test(phone.replace(/\s/g, ''));
+    const validatePassword = (password: string): { valid: boolean; errors: string[] } => {
+        const errors: string[] = [];
+
+        if (password.length < 8) {
+            errors.push('Password must be at least 8 characters long');
+        }
+        if (!/[A-Z]/.test(password)) {
+            errors.push('Password must contain at least one uppercase letter');
+        }
+        if (!/[a-z]/.test(password)) {
+            errors.push('Password must contain at least one lowercase letter');
+        }
+        if (!/\d/.test(password)) {
+            errors.push('Password must contain at least one number');
+        }
+        if (!/[!@#$%^&*(),.?":{}|<>\-_[\]\\/`~+=;']/.test(password)) {
+            errors.push('Password must contain at least one special character');
+        }
+        if (/\s/.test(password)) {
+            errors.push('Password must not contain spaces');
+        }
+
+        return {
+            valid: errors.length === 0,
+            errors,
+        };
+    };
+
     const trimmedEmail = formData.email.trim();
+    const livePasswordValidation = formData.password.length > 0 ? validatePassword(formData.password) : null;
+    const livePasswordError = livePasswordValidation && !livePasswordValidation.valid ? livePasswordValidation.errors[0] : '';
     const showEmailError = emailTouched && (emailStatus === 'invalid' || emailStatus === 'taken');
     const showEmailSuccess = emailTouched && emailStatus === 'available';
 
@@ -97,6 +127,12 @@ export default function SignupScreen({ navigation }: Props) {
 
         if (!validateEmail(email.trim())) {
             Alert.alert('Error', 'Invalid email address');
+            return;
+        }
+
+        const passwordValidation = validatePassword(password);
+        if (!passwordValidation.valid) {
+            Alert.alert('Error', passwordValidation.errors[0] || 'Password does not meet minimum security requirements.');
             return;
         }
 
@@ -230,6 +266,7 @@ export default function SignupScreen({ navigation }: Props) {
                                     {showPassword ? <EyeOff size={18} color="#9CA3AF" /> : <Eye size={18} color="#9CA3AF" />}
                                 </Pressable>
                             </View>
+                            {!!livePasswordError && <Text style={styles.passwordErrorText}>{livePasswordError}</Text>}
                         </View>
 
                         {/* Confirm Password */}
@@ -308,6 +345,12 @@ const styles = StyleSheet.create({
     },
     emailStatusChecking: {
         color: '#92400E',
+    },
+    passwordErrorText: {
+        marginTop: 6,
+        fontSize: 12,
+        fontWeight: '500',
+        color: '#DC2626',
     },
     signupButton: { borderRadius: 12, overflow: 'hidden', marginTop: 10 },
     gradient: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', paddingVertical: 16, gap: 8 },

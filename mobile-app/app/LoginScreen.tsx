@@ -31,11 +31,9 @@ export default function LoginScreen({ navigation }: Props) {
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
-  const [emailTouched, setEmailTouched] = useState(false);
 
   const validateEmail = (value: string) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value);
   const trimmedEmail = email.trim();
-  const showEmailError = emailTouched && trimmedEmail.length > 0 && !validateEmail(trimmedEmail);
 
   const handleLogin = async () => {
     if (!email || !password) {
@@ -157,28 +155,19 @@ export default function LoginScreen({ navigation }: Props) {
             {/* Email Input */}
             <View style={styles.inputContainer}>
               <Text style={styles.label}>Email Address</Text>
-              <View style={[styles.inputWrapper, showEmailError && styles.inputWrapperError]}>
+              <View style={styles.inputWrapper}>
                 <Mail size={20} color={COLORS.primary} style={styles.inputIcon} />
                 <TextInput
                   style={styles.input}
                   placeholder="Enter your email"
                   placeholderTextColor="#9CA3AF"
                   value={email}
-                  onChangeText={(value) => {
-                    setEmail(value);
-                    if (!emailTouched && value.length > 0) {
-                      setEmailTouched(true);
-                    }
-                  }}
-                  onBlur={() => setEmailTouched(true)}
+                  onChangeText={setEmail}
                   keyboardType="email-address"
                   autoCapitalize="none"
                   autoComplete="email"
                 />
               </View>
-              {showEmailError ? (
-                <Text style={styles.errorText}>Please enter a valid email address.</Text>
-              ) : null}
             </View>
 
             {/* Password Input */}
@@ -385,9 +374,6 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     height: 56,
   },
-  inputWrapperError: {
-    borderColor: '#DC2626',
-  },
   inputIcon: {
     marginRight: 12,
   },
@@ -398,12 +384,6 @@ const styles = StyleSheet.create({
   },
   eyeIcon: {
     padding: 4,
-  },
-  errorText: {
-    marginTop: 6,
-    fontSize: 12,
-    color: '#DC2626',
-    fontWeight: '500',
   },
   forgotPassword: {
     alignSelf: 'flex-end',

@@ -33,11 +33,42 @@ export default function SellerSignupScreen() {
 
     // Validation States
     const [emailStatus, setEmailStatus] = useState<'idle' | 'checking' | 'available' | 'taken'>('idle');
+    const [emailMode, setEmailMode] = useState<'new' | 'buyer-only' | 'blocked' | null>(null);
     const [storeStatus, setStoreStatus] = useState<'idle' | 'checking' | 'available' | 'taken'>('idle');
     const [emailMessage, setEmailMessage] = useState('');
     const [error, setError] = useState('');
 
     const validateEmail = (value: string) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value);
+    const validatePassword = (password: string): { valid: boolean; errors: string[] } => {
+        const errors: string[] = [];
+
+        if (password.length < 8) {
+            errors.push('Password must be at least 8 characters long');
+        }
+        if (!/[A-Z]/.test(password)) {
+            errors.push('Password must contain at least one uppercase letter');
+        }
+        if (!/[a-z]/.test(password)) {
+            errors.push('Password must contain at least one lowercase letter');
+        }
+        if (!/\d/.test(password)) {
+            errors.push('Password must contain at least one number');
+        }
+        if (!/[!@#$%^&*(),.?":{}|<>\-_[\]\\/`~+=;']/.test(password)) {
+            errors.push('Password must contain at least one special character');
+        }
+        if (/\s/.test(password)) {
+            errors.push('Password must not contain spaces');
+        }
+
+        return {
+            valid: errors.length === 0,
+            errors,
+        };
+    };
+
+    const livePasswordValidation = formData.password.length > 0 ? validatePassword(formData.password) : null;
+    const livePasswordError = livePasswordValidation && !livePasswordValidation.valid ? livePasswordValidation.errors[0] : '';
 
     // --- LIVE EMAIL CHECK ---
     useEffect(() => {
@@ -47,12 +78,14 @@ export default function SellerSignupScreen() {
             if (!normalizedEmail) {
                 setEmailStatus('idle');
                 setEmailMessage('');
+                setEmailMode(null);
                 return;
             }
 
             if (!validateEmail(normalizedEmail)) {
                 setEmailStatus('taken');
                 setEmailMessage('Please enter a valid email format.');
+                setEmailMode(null);
                 return;
             }
 
@@ -63,6 +96,7 @@ export default function SellerSignupScreen() {
                 if (!status.exists) {
                     setEmailStatus('available');
                     setEmailMessage('Email is available.');
+                    setEmailMode('new');
                     return;
                 }
 
@@ -72,11 +106,13 @@ export default function SellerSignupScreen() {
                 if (isBuyerOnly) {
                     setEmailStatus('available');
                     setEmailMessage('Existing buyer account found. You can continue to create a seller profile.');
+                    setEmailMode('buyer-only');
                     return;
                 }
 
                 const hasSellerRole = roles.includes('seller');
                 setEmailStatus('taken');
+                setEmailMode('blocked');
                 setEmailMessage(
                     hasSellerRole
                         ? 'This email is already registered as a seller. Please sign in instead.'
@@ -85,6 +121,7 @@ export default function SellerSignupScreen() {
             } catch (err) {
                 setEmailStatus('idle');
                 setEmailMessage('');
+                setEmailMode(null);
             }
         };
 
@@ -133,8 +170,22 @@ export default function SellerSignupScreen() {
                 setError("Passwords do not match");
                 return;
             }
-            if (formData.password.length < 6) {
-                setError("Password must be at least 6 characters");
+            if (emailMode === 'new') {
+                const passwordValidation = validatePassword(formData.password);
+                if (!passwordValidation.valid) {
+                    setError(passwordValidation.errors[0] || "Password does not meet minimum security requirements.");
+                    return;
+                }
+            }
+            if (emailMode === null && emailStatus === 'available') {
+                const passwordValidation = validatePassword(formData.password);
+                if (!passwordValidation.valid) {
+                    setError(passwordValidation.errors[0] || "Password does not meet minimum security requirements.");
+                    return;
+                }
+            }
+            if (emailMode === null && emailStatus === 'idle') {
+                setError("Please wait for email validation.");
                 return;
             }
             if (emailStatus === 'checking') {
@@ -360,6 +411,9 @@ export default function SellerSignupScreen() {
                                             {showPassword ? <EyeOff size={18} color="#9CA3AF" /> : <Eye size={18} color="#9CA3AF" />}
                                         </Pressable>
                                     </View>
+                                    {(emailMode !== 'buyer-only') && !!livePasswordError && (
+                                        <Text style={styles.passwordErrorText}>{livePasswordError}</Text>
+                                    )}
                                 </View>
 
                                 <View style={styles.inputGroup}>
@@ -630,6 +684,13 @@ const styles = StyleSheet.create({
     },
     emailStatusChecking: {
         color: '#92400E',
+    },
+    passwordErrorText: {
+        marginTop: 6,
+        marginLeft: 4,
+        fontSize: 12,
+        fontWeight: '600',
+        color: '#DC2626',
     },
 
     primaryButton: { borderRadius: 16, overflow: 'hidden', marginTop: 10, elevation: 4, shadowColor: '#D97706', shadowOffset: { width: 0, height: 8 }, shadowOpacity: 0.25, shadowRadius: 12 },
