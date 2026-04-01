@@ -213,7 +213,7 @@ export default function LoginScreen({ navigation }: Props) {
               <Text style={styles.forgotPasswordText}>Forgot Password?</Text>
             </Pressable>
 
-            {/* Test Credentials Panel */}
+            {/* Test Credentials Panel 
             <View style={styles.testCredsContainer}>
               <View style={styles.testCredsHeader}>
                 <Text style={styles.testCredsTitle}>🧪 Test Credentials — tap to fill</Text>
@@ -260,6 +260,7 @@ export default function LoginScreen({ navigation }: Props) {
                 </Pressable>
               </View>
             </View>
+            */}
 
             {/* Login Button */}
             <Pressable
