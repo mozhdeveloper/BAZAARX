@@ -153,9 +153,6 @@ export default function ProductDetailPage({ }: ProductDetailPageProps) {
         useState(false);
     const [showSizeGuide, setShowSizeGuide] = useState(false);
     const [isSizeGuideImageLoading, setIsSizeGuideImageLoading] = useState(false);
-
-    // Load followed shops from DB on mount
-    useEffect(() => { loadFollowedShops(); }, []);
     const [quantity, setQuantity] = useState(1);
     const [selectedImage, setSelectedImage] = useState(0);
     const [selectedVariantLabel2Index, setSelectedVariantLabel2Index] =
@@ -166,26 +163,26 @@ export default function ProductDetailPage({ }: ProductDetailPageProps) {
     const [isLoading, setIsLoading] = useState(false);
     const [warrantyInfo, setWarrantyInfo] = useState<WarrantyInfo | null>(null);
     const [isWarrantyLoading, setIsWarrantyLoading] = useState(false);
-
-    // Seed campaign discount instantly if we already have it cached
     const [activeCampaignDiscount, setActiveCampaignDiscount] = useState<ActiveDiscount | null>(
         () => (id ? campaignDiscountCache[id] : null) || null
     );
-
-    // Modal states for Add to Cart and Buy Now
     const [showCartModal, setShowCartModal] = useState(false);
     const [showBuyNowModal, setShowBuyNowModal] = useState(false);
     const [addedProductInfo, setAddedProductInfo] = useState<{
         name: string;
         image: string;
     } | null>(null);
+    const [replyingTo, setReplyingTo] = useState<number | null>(null);
+    const [replyText, setReplyText] = useState("");
+    const [reviewFilter, setReviewFilter] = useState("all");
+    const [reviews, setReviews] = useState<EnhancedReview[]>([]);
 
-    // Fetch product from database if it's a real product (UUID)
+    // ALL useEffect HOOKS FIRST
+    useEffect(() => { loadFollowedShops(); }, []);
+
     useEffect(() => {
         const fetchProduct = async () => {
-            // Basic check if it's a UUID (real product) or mock id
             if (!id || id.length < 10) return;
-
             setIsLoading(true);
             try {
                 const product = await productService.getProductById(id);
@@ -198,25 +195,25 @@ export default function ProductDetailPage({ }: ProductDetailPageProps) {
                 setIsLoading(false);
             }
         };
-
         fetchProduct();
     }, [id]);
 
-    // ── Resolve source product & build normalizedProduct via mappers ──────────
+    // ALL useMemo HOOKS SECOND
+    const storeProduct = useMemo(() => 
+        sellerProducts.find((p) => p.id === id),
+        [sellerProducts, id]
+    );
 
-    // 1. Try seller-store products (already mapped SellerProduct objects)
-    const storeProduct = sellerProducts.find((p) => p.id === id);
-
-    // 2. Try demo / buyer-store lists
-    const demoProduct =
+    const demoProduct = useMemo(() =>
         trendingProducts.find((p) => p.id === id) ||
         trendingProducts.find((p) => p.id === id?.split("-")[0]) ||
         bestSellerProducts.find((p) => p.id === id) ||
         bestSellerProducts.find((p) => p.id === id?.split("-")[0]) ||
         newArrivals.find((p) => p.id === id) ||
-        newArrivals.find((p) => p.id === id?.split("-")[0]);
+        newArrivals.find((p) => p.id === id?.split("-")[0]),
+        [trendingProducts, bestSellerProducts, newArrivals, id]
+    );
 
-    // 3. Build normalizedProduct through the appropriate typed mapper
     const normalizedProduct: NormalizedProductDetail | null = useMemo(() => {
         if (dbProduct) return mapDbProductToNormalizedLegacy(dbProduct);
         if (storeProduct) return mapSellerProductToNormalized(storeProduct);
@@ -231,74 +228,14 @@ export default function ProductDetailPage({ }: ProductDetailPageProps) {
         );
     }, [registries, normalizedProduct]);
 
-    // 4. Derive currentSeller from normalizedProduct
     const currentSeller = useMemo(() => {
         if (!normalizedProduct) return demoSellers[0];
         return buildCurrentSeller(normalizedProduct, demoSellers);
     }, [normalizedProduct]);
 
-    useEffect(() => {
-        let isMounted = true;
-
-        const loadActiveDiscount = async () => {
-            if (!normalizedProduct?.id) return;
-
-            try {
-                const discount = await discountService.getActiveProductDiscount(normalizedProduct.id);
-                if (isMounted && discount) {
-                    setActiveCampaignDiscount(discount);
-                    // Persist to cache so cart/checkout are also instantaneous
-                    updateCampaignDiscountCache({ [normalizedProduct.id]: discount });
-                } else if (isMounted && !discount) {
-                    setActiveCampaignDiscount(null);
-                }
-            } catch (error) {
-                console.error("Failed to fetch active campaign discount for product detail:", error);
-            }
-        };
-
-        loadActiveDiscount();
-        return () => {
-            isMounted = false;
-        };
-    }, [normalizedProduct?.id]);
-
-    // Fetch warranty information when product is loaded
-    useEffect(() => {
-        const fetchWarranty = async () => {
-            if (!normalizedProduct?.id) return;
-
-            setIsWarrantyLoading(true);
-            try {
-                const warranty = await warrantyService.getProductWarranty(normalizedProduct.id);
-                if (warranty) {
-                    setWarrantyInfo(warranty);
-                }
-            } catch (error) {
-                console.error("Error fetching warranty information:", error);
-            } finally {
-                setIsWarrantyLoading(false);
-            }
-        };
-
-        fetchWarranty();
-    }, [normalizedProduct?.id]);
-
-    // ── Variant helpers (operate on normalizedProduct directly) ─────────────
-
-    // Initialize first variant label 1 value when product loads
-    useEffect(() => {
-        if (normalizedProduct && !selectedVariantLabel1) {
-            if (normalizedProduct.label1Options.length > 0) {
-                setSelectedVariantLabel1(normalizedProduct.label1Options[0]);
-            }
-        }
-    }, [normalizedProduct?.id]);
-
-    const dbVariants = normalizedProduct?.variants || [];
-
-    // Helper to get the selected variant based on variant labels
-    const getSelectedVariant = () => {
+    // Define getSelectedVariant as a useCallback so it can be used in useEffects
+    const getSelectedVariant = useCallback(() => {
+        const dbVariants = normalizedProduct?.variants || [];
         if (dbVariants.length === 0) return null;
         if (dbVariants.length === 1) return dbVariants[0];
 
@@ -311,9 +248,6 @@ export default function ProductDetailPage({ }: ProductDetailPageProps) {
             const l1 = normalize(v.option_1_value ?? v.size ?? v.variantLabel1Value);
             const l2 = normalize(v.option_2_value ?? v.color ?? v.variantLabel2Value);
 
-            // Skip axis check only when the UI has no active selection for it.
-            // Do NOT skip when a variant row is missing the value — that was
-            // the bug: every variant matched regardless of what was clicked.
             const label1Match = !selectedVariantLabel1
                 ? true
                 : l1 === normalize(selectedVariantLabel1);
@@ -325,19 +259,80 @@ export default function ProductDetailPage({ }: ProductDetailPageProps) {
         });
 
         return matchedVariant || dbVariants[0];
-    };
+    }, [normalizedProduct, selectedVariantLabel1, selectedVariantLabel2Index]);
 
-    const getCampaignAdjustedPrice = (unitPrice: number) => {
-        return discountService.calculateLineDiscount(unitPrice, 1, activeCampaignDiscount).discountedUnitPrice;
-    };
+    // Memoize productData so it can be used in dependencies
+    const productData = useMemo(() => normalizedProduct || {
+        id: '',
+        name: 'Product',
+        price: 0,
+        rating: 0,
+        reviewCount: 0,
+        images: [],
+        image: '',
+        description: '',
+        label1Options: [],
+        label2Options: [],
+        variants: [],
+        stock: 0,
+        sold: 0,
+        variantLabel1: 'Variant',
+        variantLabel2: 'Color',
+        has_warranty: false,
+    }, [normalizedProduct]);
 
-    // ── Quantity & Stock Clamping ──────────────────────────────────────────
+    // REMAINING useEffect hooks
+    useEffect(() => {
+        let isMounted = true;
+        const loadActiveDiscount = async () => {
+            if (!normalizedProduct?.id) return;
+            try {
+                const discount = await discountService.getActiveProductDiscount(normalizedProduct.id);
+                if (isMounted && discount) {
+                    setActiveCampaignDiscount(discount);
+                    updateCampaignDiscountCache({ [normalizedProduct.id]: discount });
+                } else if (isMounted && !discount) {
+                    setActiveCampaignDiscount(null);
+                }
+            } catch (error) {
+                console.error("Failed to fetch active campaign discount for product detail:", error);
+            }
+        };
+        loadActiveDiscount();
+        return () => {
+            isMounted = false;
+        };
+    }, [normalizedProduct?.id]);
 
-    // Clamp quantity when selected variant changes or product loads
+    useEffect(() => {
+        const fetchWarranty = async () => {
+            if (!normalizedProduct?.id) return;
+            setIsWarrantyLoading(true);
+            try {
+                const warranty = await warrantyService.getProductWarranty(normalizedProduct.id);
+                if (warranty) {
+                    setWarrantyInfo(warranty);
+                }
+            } catch (error) {
+                console.error("Error fetching warranty information:", error);
+            } finally {
+                setIsWarrantyLoading(false);
+            }
+        };
+        fetchWarranty();
+    }, [normalizedProduct?.id]);
+
+    useEffect(() => {
+        if (normalizedProduct && !selectedVariantLabel1) {
+            if (normalizedProduct.label1Options.length > 0) {
+                setSelectedVariantLabel1(normalizedProduct.label1Options[0]);
+            }
+        }
+    }, [normalizedProduct?.id]);
+
     useEffect(() => {
         const currentVariant = getSelectedVariant();
         const maxStock = currentVariant?.stock ?? normalizedProduct?.stock ?? 0;
-
         if (maxStock === 0) {
             setQuantity(0);
         } else if (quantity > maxStock) {
@@ -345,8 +340,6 @@ export default function ProductDetailPage({ }: ProductDetailPageProps) {
         } else if (quantity === 0 && maxStock > 0) {
             setQuantity(1);
         }
-
-        // --- NEW: Switch main image if variant has one ---
         if (currentVariant?.thumbnail_url || currentVariant?.image) {
             const variantImg = currentVariant.thumbnail_url || currentVariant.image;
             const imgIndex = productData.images.findIndex(img => img === variantImg);
@@ -356,25 +349,15 @@ export default function ProductDetailPage({ }: ProductDetailPageProps) {
         }
     }, [selectedVariantLabel1, selectedVariantLabel2Index, normalizedProduct?.id]);
 
-    // productData is now just an alias for normalizedProduct – no more
-    // hardcoded enhancedProductData fallback. Every downstream reference to
-    // `productData.X` still works because the keys match NormalizedProductDetail.
-    const productData = normalizedProduct!;
+    // NOW NON-HOOK LOGIC AFTER ALL HOOKS
+    const dbVariants = normalizedProduct?.variants || [];
+
+    const getCampaignAdjustedPrice = (unitPrice: number) => {
+        return discountService.calculateLineDiscount(unitPrice, 1, activeCampaignDiscount).discountedUnitPrice;
+    };
 
     const productReviews =
-        reviewsData[normalizedProduct?.id || "1"] || reviewsData["1"];
-
-    const [reviews, setReviews] = useState<EnhancedReview[]>(() =>
-        productReviews.map((review) => ({
-            ...review,
-            isLiked: false,
-            replies: [],
-        })),
-    );
-
-    const [replyingTo, setReplyingTo] = useState<number | null>(null);
-    const [replyText, setReplyText] = useState("");
-    const [reviewFilter, setReviewFilter] = useState("all");
+        (normalizedProduct && reviewsData[normalizedProduct.id]) || reviewsData["1"];
 
     const handleQuantityInput = (e: React.ChangeEvent<HTMLInputElement>) => {
         const val = parseInt(e.target.value) || 0;
@@ -403,33 +386,20 @@ export default function ProductDetailPage({ }: ProductDetailPageProps) {
         }
     };
 
-    // Set chat target for floating bubble when viewing product
-    useEffect(() => {
-        if (normalizedProduct && currentSeller) {
-            useChatStore.getState().openChat({
-                sellerId: normalizedProduct.sellerId || "seller-001",
-                sellerName:
-                    normalizedProduct.seller ||
-                    currentSeller.name ||
-                    "Official Store",
-                sellerAvatar: currentSeller.avatar,
-                productId: normalizedProduct.id,
-                productName: normalizedProduct.name,
-                productImage:
-                    normalizedProduct.images?.[0] || normalizedProduct.image,
-            });
-            // Start in mini mode (just the bubble)
-            useChatStore.getState().setMiniMode(true);
-        }
+    // Show loading state while product is being fetched
+    if (!normalizedProduct && isLoading) {
+        return (
+            <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+                <div className="text-center">
+                    <div className="w-12 h-12 mb-4 border-4 border-gray-200 border-t-[#ff6a00] rounded-full animate-spin mx-auto"></div>
+                    <p className="text-gray-600">Loading product...</p>
+                </div>
+            </div>
+        );
+    }
 
-        // Cleanup - clear chat target when leaving page
-        return () => {
-            useChatStore.getState().closeChat();
-            useChatStore.getState().clearChatTarget();
-        };
-    }, [normalizedProduct?.id]);
-
-    if (!normalizedProduct) {
+    // Show product not found only after we've tried to load and it's still not there
+    if (!normalizedProduct && !isLoading) {
         return (
             <div className="min-h-screen bg-gray-50">
                 <div className="text-center">
@@ -454,12 +424,6 @@ export default function ProductDetailPage({ }: ProductDetailPageProps) {
             </div>
         );
     }
-
-    useEffect(() => {
-        if (showSizeGuide && normalizedProduct?.sizeGuideImage) {
-            setIsSizeGuideImageLoading(true);
-        }
-    }, [showSizeGuide, normalizedProduct?.sizeGuideImage]);
 
     const handleAddToCart = () => {
         // Check if user is logged in
@@ -735,6 +699,15 @@ export default function ProductDetailPage({ }: ProductDetailPageProps) {
             <Header />
 
             <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-2 md:py-6 -mt-6">
+                {!normalizedProduct ? (
+                    <div className="flex items-center justify-center min-h-[60vh]">
+                        <div className="flex flex-col items-center gap-4">
+                            <div className="w-12 h-12 rounded-full border-4 border-gray-200 border-t-[var(--brand-primary)] animate-spin" />
+                            <p className="text-[var(--text-muted)] font-medium">Loading product details...</p>
+                        </div>
+                    </div>
+                ) : (
+                    <>
                 <button
                     onClick={() => navigate('/shop')}
                     className="flex items-center gap-2 text-[var(--text-muted)] hover:text-[var(--brand-primary)] transition-colors mb-4 group"
@@ -787,7 +760,7 @@ export default function ProductDetailPage({ }: ProductDetailPageProps) {
                             {(() => {
                                 const currentVariant = getSelectedVariant();
                                 const basePrice = currentVariant?.price ?? productData.price;
-                                const originalPrice = activeCampaignDiscount ? basePrice : (productData.originalPrice && productData.originalPrice > basePrice ? productData.originalPrice : basePrice);
+                                const originalPrice = activeCampaignDiscount ? basePrice : basePrice;
                                 const discountedPrice = getCampaignAdjustedPrice(basePrice);
                                 if (originalPrice <= discountedPrice) return null;
                                 const percentOff = activeCampaignDiscount?.discountType === 'percentage'
@@ -886,7 +859,7 @@ export default function ProductDetailPage({ }: ProductDetailPageProps) {
                                         const discountedPrice = getCampaignAdjustedPrice(basePrice);
                                         const originalPrice = activeCampaignDiscount
                                             ? basePrice
-                                            : (productData.originalPrice && productData.originalPrice > basePrice ? productData.originalPrice : basePrice);
+                                            : basePrice;
                                         const hasDiscount = originalPrice > discountedPrice;
 
                                         return (
@@ -1401,14 +1374,14 @@ export default function ProductDetailPage({ }: ProductDetailPageProps) {
                         )}
                     </div>
                 </div>
+                    </>
+                )}
             </main>
-
-            <BazaarFooter />
 
             {/* Size Guide Modal */}
             {showSizeGuide && (
-                <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm animate-in fade-in duration-200">
-                    <div className="bg-white rounded-[2rem] w-full max-w-2xl p-8 shadow-2xl animate-in zoom-in-95 duration-200 border border-[var(--border)]/40 max-h-[90vh] overflow-y-auto">
+                    <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm animate-in fade-in duration-200">
+                        <div className="bg-white rounded-[2rem] w-full max-w-2xl p-8 shadow-2xl animate-in zoom-in-95 duration-200 border border-[var(--border)]/40 max-h-[90vh] overflow-y-auto">
                         <div className="flex items-center justify-between mb-6">
                             <div className="flex items-center gap-3">
                                 <div className="w-10 h-10 rounded-xl bg-[var(--brand-wash)] flex items-center justify-center">
@@ -1426,7 +1399,7 @@ export default function ProductDetailPage({ }: ProductDetailPageProps) {
 
                         {/* Size Table */}
                         <div className="overflow-x-auto rounded-2xl border border-[var(--border)]/40 mb-6">
-                            {productData.sizeGuideImage ? (
+                            {(productData as any).sizeGuideImage ? (
                                 <div className="relative min-h-[220px] flex items-center justify-center bg-white">
                                     {isSizeGuideImageLoading && (
                                         <div className="absolute inset-0 z-10 flex flex-col items-center justify-center bg-white/90">
@@ -1437,7 +1410,7 @@ export default function ProductDetailPage({ }: ProductDetailPageProps) {
                                         </div>
                                     )}
                                     <img loading="lazy"
-                                        src={productData.sizeGuideImage}
+                                        src={(productData as any).sizeGuideImage}
                                         alt="Size Guide"
                                         className={cn(
                                             "max-w-full h-auto object-contain transition-opacity duration-300",
@@ -1537,8 +1510,8 @@ export default function ProductDetailPage({ }: ProductDetailPageProps) {
                 </div>
             )}
             {/* Create Registry Modal */}
-            {isCreateRegistryModalOpen && (
-                <Suspense fallback={null}>
+            <Suspense fallback={null}>
+                {isCreateRegistryModalOpen && (
                     <CreateRegistryModal
                         isOpen={isCreateRegistryModalOpen}
                         onClose={() => setIsCreateRegistryModalOpen(false)}
@@ -1551,7 +1524,7 @@ export default function ProductDetailPage({ }: ProductDetailPageProps) {
                                 imageUrl: "https://images.unsplash.com/photo-1513201099705-a9746e1e201f?w=400&h=400&fit=crop",
                                 category: category,
                                 products: [],
-                                privacy: 'link',
+                                privacy: 'link' as const,
                                 delivery
                             };
                             createRegistry(newRegistry);
@@ -1566,12 +1539,12 @@ export default function ProductDetailPage({ }: ProductDetailPageProps) {
                             });
                         }}
                     />
-                </Suspense>
-            )}
+                )}
+            </Suspense>
 
             {/* Cart Modal */}
-            {addedProductInfo && (
-                <Suspense fallback={null}>
+            <Suspense fallback={null}>
+                {addedProductInfo && (
                     <CartModal
                         isOpen={showCartModal}
                         onClose={() => setShowCartModal(false)}
@@ -1579,12 +1552,12 @@ export default function ProductDetailPage({ }: ProductDetailPageProps) {
                         productImage={addedProductInfo.image}
                         cartItemCount={cartItems.length}
                     />
-                </Suspense>
-            )}
+                )}
+            </Suspense>
 
             {/* Buy Now Modal */}
-            {normalizedProduct && (
-                <Suspense fallback={null}>
+            <Suspense fallback={null}>
+                {normalizedProduct && (
                     <BuyNowModal
                         isOpen={showBuyNowModal}
                         onClose={() => setShowBuyNowModal(false)}
@@ -1592,7 +1565,7 @@ export default function ProductDetailPage({ }: ProductDetailPageProps) {
                             id: normalizedProduct.id,
                             name: productData.name,
                             price: getCampaignAdjustedPrice(productData.price),
-                            originalPrice: activeCampaignDiscount ? productData.price : productData.originalPrice,
+                            originalPrice: activeCampaignDiscount ? productData.price : productData.price,
                             image:
                                 productData.images?.[0] ||
                                 normalizedProduct.image ||
@@ -1611,8 +1584,10 @@ export default function ProductDetailPage({ }: ProductDetailPageProps) {
                             proceedToCheckout(qty, variant);
                         }}
                     />
-                </Suspense>
-            )}
+                )}
+            </Suspense>
+
+            <BazaarFooter />
         </div>
     );
 }
