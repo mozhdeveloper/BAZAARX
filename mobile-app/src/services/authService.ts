@@ -32,7 +32,85 @@ export interface AuthResult {
   session?: any;
 }
 
+export interface EmailRoleStatus {
+  exists: boolean;
+  userId: string | null;
+  roles: UserRole[];
+}
+
 export class AuthService {
+  /**
+   * Get role status for an email for role-aware signup checks.
+   */
+  async getEmailRoleStatus(email: string): Promise<EmailRoleStatus> {
+    if (!isSupabaseConfigured()) {
+      return { exists: false, userId: null, roles: [] };
+    }
+
+    const normalizedEmail = email.trim().toLowerCase();
+    if (!normalizedEmail) {
+      return { exists: false, userId: null, roles: [] };
+    }
+
+    try {
+      const { data: profileRows, error: profileError } = await supabase
+        .from('profiles')
+        .select('id')
+        .ilike('email', normalizedEmail)
+        .limit(1);
+
+      if (profileError || !profileRows || profileRows.length === 0) {
+        return { exists: false, userId: null, roles: [] };
+      }
+
+      const userId = (profileRows[0] as { id: string }).id;
+      const { data: roleRows, error: roleError } = await supabase
+        .from('user_roles')
+        .select('role')
+        .eq('user_id', userId);
+
+      if (roleError) {
+        console.error('Error fetching role status by email:', roleError);
+        return { exists: true, userId, roles: [] };
+      }
+
+      const roles = ((roleRows ?? []) as Array<{ role: UserRole }>).map((row) => row.role);
+      return { exists: true, userId, roles };
+    } catch (error) {
+      console.error('Unexpected email role status error:', error);
+      return { exists: false, userId: null, roles: [] };
+    }
+  }
+
+  /**
+   * Check whether an email is already used by an existing profile.
+   * Used for live signup validation.
+   */
+  async checkEmailExists(email: string): Promise<boolean> {
+    if (!isSupabaseConfigured()) return false;
+
+    const normalizedEmail = email.trim().toLowerCase();
+    if (!normalizedEmail) return false;
+
+    try {
+      const { data, error } = await supabase
+        .from('profiles')
+        .select('id')
+        .ilike('email', normalizedEmail)
+        .limit(1);
+
+      if (error) {
+        console.error('Error checking email availability:', error);
+        return false;
+      }
+
+      return (data ?? []).length > 0;
+    } catch (error) {
+      console.error('Unexpected email check error:', error);
+      return false;
+    }
+  }
+
   /**
    * Sign up a new user
    * @param email - User email address
