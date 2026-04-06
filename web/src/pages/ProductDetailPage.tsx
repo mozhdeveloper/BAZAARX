@@ -350,6 +350,8 @@ export default function ProductDetailPage({ }: ProductDetailPageProps) {
     }, [selectedVariantLabel1, selectedVariantLabel2Index, normalizedProduct?.id]);
 
     // NOW NON-HOOK LOGIC AFTER ALL HOOKS
+    const dbVariants = normalizedProduct?.variants || [];
+
     const getCampaignAdjustedPrice = (unitPrice: number) => {
         return discountService.calculateLineDiscount(unitPrice, 1, activeCampaignDiscount).discountedUnitPrice;
     };
@@ -758,7 +760,7 @@ export default function ProductDetailPage({ }: ProductDetailPageProps) {
                             {(() => {
                                 const currentVariant = getSelectedVariant();
                                 const basePrice = currentVariant?.price ?? productData.price;
-                                const originalPrice = activeCampaignDiscount ? basePrice : (productData.originalPrice && productData.originalPrice > basePrice ? productData.originalPrice : basePrice);
+                                const originalPrice = activeCampaignDiscount ? basePrice : basePrice;
                                 const discountedPrice = getCampaignAdjustedPrice(basePrice);
                                 if (originalPrice <= discountedPrice) return null;
                                 const percentOff = activeCampaignDiscount?.discountType === 'percentage'
@@ -857,7 +859,7 @@ export default function ProductDetailPage({ }: ProductDetailPageProps) {
                                         const discountedPrice = getCampaignAdjustedPrice(basePrice);
                                         const originalPrice = activeCampaignDiscount
                                             ? basePrice
-                                            : (productData.originalPrice && productData.originalPrice > basePrice ? productData.originalPrice : basePrice);
+                                            : basePrice;
                                         const hasDiscount = originalPrice > discountedPrice;
 
                                         return (
@@ -1397,7 +1399,7 @@ export default function ProductDetailPage({ }: ProductDetailPageProps) {
 
                         {/* Size Table */}
                         <div className="overflow-x-auto rounded-2xl border border-[var(--border)]/40 mb-6">
-                            {productData.sizeGuideImage ? (
+                            {(productData as any).sizeGuideImage ? (
                                 <div className="relative min-h-[220px] flex items-center justify-center bg-white">
                                     {isSizeGuideImageLoading && (
                                         <div className="absolute inset-0 z-10 flex flex-col items-center justify-center bg-white/90">
@@ -1408,7 +1410,7 @@ export default function ProductDetailPage({ }: ProductDetailPageProps) {
                                         </div>
                                     )}
                                     <img loading="lazy"
-                                        src={productData.sizeGuideImage}
+                                        src={(productData as any).sizeGuideImage}
                                         alt="Size Guide"
                                         className={cn(
                                             "max-w-full h-auto object-contain transition-opacity duration-300",
@@ -1522,7 +1524,7 @@ export default function ProductDetailPage({ }: ProductDetailPageProps) {
                                 imageUrl: "https://images.unsplash.com/photo-1513201099705-a9746e1e201f?w=400&h=400&fit=crop",
                                 category: category,
                                 products: [],
-                                privacy: 'link',
+                                privacy: 'link' as const,
                                 delivery
                             };
                             createRegistry(newRegistry);
@@ -1563,7 +1565,7 @@ export default function ProductDetailPage({ }: ProductDetailPageProps) {
                             id: normalizedProduct.id,
                             name: productData.name,
                             price: getCampaignAdjustedPrice(productData.price),
-                            originalPrice: activeCampaignDiscount ? productData.price : productData.originalPrice,
+                            originalPrice: activeCampaignDiscount ? productData.price : productData.price,
                             image:
                                 productData.images?.[0] ||
                                 normalizedProduct.image ||
