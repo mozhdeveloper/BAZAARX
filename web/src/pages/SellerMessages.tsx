@@ -12,6 +12,7 @@ import {
   ChevronLeft, MessageCircle, Loader2,
 } from 'lucide-react';
 import { chatService, Conversation as DBConversation, Message as DBMessage } from '../services/chatService';
+import { validateChatImage } from '../utils/chatMediaUtils';
 
 // Updated Interfaces to fix TypeScript errors
 interface Message {
@@ -19,9 +20,11 @@ interface Message {
   senderId: string;
   text?: string;
   images?: string[];
+  media_url?: string;
+  media_type?: string;
   timestamp: Date;
   isRead: boolean;
-  message_type?: 'user' | 'system';
+  message_type?: 'user' | 'system' | 'text' | 'image';
   message_content?: string;
 }
 
@@ -44,11 +47,13 @@ export default function SellerMessages() {
   const [searchQuery, setSearchQuery] = useState('');
   const [previewImage, setPreviewImage] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
 
   const [dbConversations, setDbConversations] = useState<DBConversation[]>([]);
   const [dbMessages, setDbMessages] = useState<DBMessage[]>([]);
   const [loading, setLoading] = useState(true);
   const [sending, setSending] = useState(false);
+  const [uploading, setUploading] = useState(false);
 
   const useRealData = dbConversations.length > 0;
 
@@ -152,7 +157,7 @@ export default function SellerMessages() {
               c.id === newMsg.conversation_id
                 ? {
                   ...c,
-                  last_message: newMsg.content,
+                  last_message: newMsg.content === '[Image]' ? '📷 Photo' : newMsg.content,
                   last_message_at: newMsg.created_at,
                   // Only increment unread badge if this conversation isn't currently open
                   seller_unread_count: newMsg.conversation_id !== selectedConversation
@@ -179,7 +184,7 @@ export default function SellerMessages() {
           id: conv.id,
           buyerName: conv.buyer_name || conv.buyer?.full_name || conv.buyer_email || 'Unknown Customer',
           buyerImage: conv.buyer_avatar || conv.buyer?.avatar_url,
-          lastMessage: conv.last_message || '',
+          lastMessage: conv.last_message === '[Image]' ? '📷 Photo' : conv.last_message || '',
           lastMessageTime: conv.last_message_at ? new Date(conv.last_message_at) : new Date(),
           unreadCount: conv.seller_unread_count || 0,
           isOnline: conv.is_online,
@@ -187,9 +192,11 @@ export default function SellerMessages() {
           messages: convMessages.map(msg => ({
             id: msg.id,
             senderId: msg.sender_type || '',
-            text: msg.content,
+            text: msg.content !== '[Image]' ? msg.content : undefined,
             message_type: msg.message_type,
             images: msg.image_url ? [msg.image_url] : undefined,
+            media_url: msg.media_url,
+            media_type: msg.media_type,
             timestamp: new Date(msg.created_at),
             isRead: msg.is_read
           }))
@@ -207,11 +214,16 @@ export default function SellerMessages() {
     if (!messageText.trim() && (!imageUrls || imageUrls.length === 0) || !selectedConversation) return;
 
     if (useRealData && seller?.id) {
+      const msgText = messageText.trim();
+      // Clear immediately — don’t wait for DB round-trip
+      if (!textOverride) {
+        setNewMessage('');
+        if (textareaRef.current) textareaRef.current.style.height = 'auto';
+      }
       setSending(true);
       try {
-        const result = await chatService.sendMessage(selectedConversation, seller.id, 'seller', messageText.trim());
+        const result = await chatService.sendMessage(selectedConversation, seller.id, 'seller', msgText);
         if (result) {
-          setNewMessage('');
           setDbMessages(prev =>
             prev.some(msg => msg.id === result.id) ? prev : [...prev, result]
           );
@@ -220,7 +232,7 @@ export default function SellerMessages() {
             sortByLastMessage(
               prev.map(c =>
                 c.id === selectedConversation
-                  ? { ...c, last_message: messageText.trim(), last_message_at: new Date().toISOString() }
+                  ? { ...c, last_message: msgText, last_message_at: new Date().toISOString() }
                   : c
               )
             )
@@ -236,16 +248,44 @@ export default function SellerMessages() {
 
   const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = Array.from(e.target.files || []);
-    if (files.length > 0) {
-      const uploadPromises = files.map(file => new Promise<string>((resolve) => {
-        const reader = new FileReader();
-        reader.onload = (event) => resolve(event.target?.result as string);
-        reader.readAsDataURL(file);
-      }));
-      const urls = await Promise.all(uploadPromises);
-      handleSendMessage(undefined, '', urls);
-      if (fileInputRef.current) fileInputRef.current.value = '';
+    if (!files.length || !selectedConversation || !seller?.id) return;
+
+    for (const file of files) {
+      const { valid, error } = validateChatImage(file);
+      if (!valid) {
+        console.error('[SellerMessages] Invalid file:', error);
+        if (fileInputRef.current) fileInputRef.current.value = '';
+        return;
+      }
+
+      setUploading(true);
+      const url = await chatService.uploadChatMedia(file, selectedConversation);
+      setUploading(false);
+
+      if (!url) {
+        console.error('[SellerMessages] Upload failed');
+        continue;
+      }
+
+      const result = await chatService.sendMessage(
+        selectedConversation, seller.id, 'seller', '[Image]', undefined, url, 'image'
+      );
+
+      if (result) {
+        setDbMessages(prev => prev.some(m => m.id === result.id) ? prev : [...prev, result]);
+        setDbConversations(prev =>
+          sortByLastMessage(
+            prev.map(c =>
+              c.id === selectedConversation
+                ? { ...c, last_message: '📷 Photo', last_message_at: result.created_at }
+                : c
+            )
+          )
+        );
+      }
     }
+
+    if (fileInputRef.current) fileInputRef.current.value = '';
   };
 
   const filteredConversations = normalizedDbConversations.filter(conv =>
@@ -391,9 +431,16 @@ export default function SellerMessages() {
                           <div className={`max-w-[80%] flex flex-col ${isSeller ? 'items-end' : 'items-start'}`}>
                             <div
                               title={fullTimestamp}
-                              className={`px-5 py-4 shadow-sm group relative cursor-default ${isSeller ? 'bg-gradient-to-br from-[var(--brand-primary)] to-[var(--brand-primary-dark)] text-white rounded-xl rounded-tr-sm shadow-orange-500/20' : 'bg-white text-gray-800 border border-gray-100 rounded-xl rounded-tl-sm shadow-[0_2px_8px_rgba(0,0,0,0.04)]'}`}
+                              className={`max-w-full px-5 py-4 shadow-sm group relative cursor-default ${isSeller ? 'bg-gradient-to-br from-[var(--brand-primary)] to-[var(--brand-primary-dark)] text-white rounded-xl rounded-tr-sm shadow-orange-500/20' : 'bg-white text-gray-800 border border-gray-100 rounded-xl rounded-tl-sm shadow-[0_2px_8px_rgba(0,0,0,0.04)]'}`}
                             >
-                              {msg.images && msg.images.length > 0 && (
+                              {/* Image from media_url (new messages) */}
+                              {msg.media_url && (msg.media_type === 'image' || msg.message_type === 'image') && (
+                                <div className="mb-2 cursor-pointer" onClick={() => setPreviewImage(msg.media_url!)}>
+                                  <img loading="lazy" src={msg.media_url} alt="Sent" className="w-40 h-40 object-cover rounded-lg hover:opacity-90" />
+                                </div>
+                              )}
+                              {/* Legacy images array (old image_url rows) */}
+                              {msg.images && msg.images.length > 0 && !msg.media_url && (
                                 <div className={`grid gap-1 mb-2 ${msg.images.length > 1 ? 'grid-cols-2' : 'grid-cols-1'}`}>
                                   {msg.images.map((img: string, imgIdx: number) => (
                                     <div key={imgIdx} className={`${msg.images && msg.images.length > 1 ? 'w-24 h-24' : 'w-40 h-40'} overflow-hidden rounded-lg cursor-pointer hover:opacity-90`} onClick={() => setPreviewImage(img)}>
@@ -402,7 +449,7 @@ export default function SellerMessages() {
                                   ))}
                                 </div>
                               )}
-                              {msg.text && <p className="text-[15px] leading-relaxed">{msg.text}</p>}
+                              {msg.text && <p className="text-[15px] leading-relaxed whitespace-pre-wrap break-words">{msg.text}</p>}
                               {/* Hover timestamp tooltip */}
                               <span className={`absolute bottom-full mb-1 ${isSeller ? 'right-0' : 'left-0'} hidden group-hover:block text-[10px] text-white bg-gray-700/90 rounded px-2 py-0.5 whitespace-nowrap z-10`}>
                                 {fullTimestamp}
@@ -422,14 +469,34 @@ export default function SellerMessages() {
 
                 <div className="p-4 bg-white border-t border-orange-100">
                   <form onSubmit={handleSendMessage} className="flex items-center gap-3 p-2 bg-gray-50/80 rounded-[20px] border border-gray-100 focus-within:border-orange-300 focus-within:bg-white focus-within:ring-4 focus-within:ring-orange-500/10 transition-all shadow-sm">
-                    <input type="file" ref={fileInputRef} onChange={handleImageUpload} accept="image/*" multiple className="hidden" />
-                    <Button type="button" variant="ghost" size="icon" className="text-gray-400 hover:text-[var(--brand-primary)] hover:bg-orange-50 rounded-full h-10 w-10 transition-colors" onClick={() => fileInputRef.current?.click()}>
-                      <ImageIcon className="w-5 h-5" />
+                    <input type="file" ref={fileInputRef} onChange={handleImageUpload} accept="image/jpeg,image/png,image/webp" multiple className="hidden" />
+                    <Button type="button" variant="ghost" size="icon" className="text-gray-400 hover:text-[var(--brand-primary)] hover:bg-orange-50 rounded-full h-10 w-10 transition-colors" onClick={() => fileInputRef.current?.click()} disabled={uploading}>
+                      {uploading ? <Loader2 className="w-5 h-5 animate-spin" /> : <ImageIcon className="w-5 h-5" />}
                     </Button>
-                    <Input value={newMessage} onChange={(e) => setNewMessage(e.target.value)} placeholder="Reply to customer..." className="flex-1 bg-transparent border-none focus-visible:ring-0 text-gray-700 shadow-none h-10 font-medium placeholder:text-gray-400" />
+                    <textarea
+                      ref={textareaRef}
+                      value={newMessage}
+                      onChange={(e) => setNewMessage(e.target.value)}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter' && !e.shiftKey) {
+                          e.preventDefault();
+                          handleSendMessage();
+                        }
+                      }}
+                      placeholder="Reply to customer..."
+                      rows={1}
+                      className="flex-1 bg-transparent border-none focus-visible:ring-0 text-gray-700 shadow-none min-h-[40px] max-h-[120px] resize-none overflow-y-auto py-2.5 text-sm font-medium placeholder:text-gray-400 outline-none"
+                      style={{ height: 'auto' }}
+                      onInput={(e) => {
+                        const t = e.currentTarget;
+                        t.style.height = 'auto';
+                        t.style.height = `${Math.min(t.scrollHeight, 120)}px`;
+                      }}
+                      disabled={sending || uploading}
+                    />
                     <div className="flex items-center gap-1 pr-1">
-                      <Button type="submit" className="bg-gradient-to-r from-[var(--brand-primary)] to-[var(--brand-primary-dark)] hover:shadow-lg hover:shadow-orange-500/30 text-white rounded-xl h-10 w-10 p-0 transition-all transform hover:scale-105 active:scale-95" disabled={!newMessage.trim()}>
-                        <Send className="w-4 h-4 ml-0.5" />
+                      <Button type="submit" className="bg-gradient-to-r from-[var(--brand-primary)] to-[var(--brand-primary-dark)] hover:shadow-lg hover:shadow-orange-500/30 text-white rounded-xl h-10 w-10 p-0 transition-all transform hover:scale-105 active:scale-95" disabled={!newMessage.trim() || sending || uploading}>
+                        {(sending || uploading) ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4 ml-0.5" />}
                       </Button>
                     </div>
                   </form>
