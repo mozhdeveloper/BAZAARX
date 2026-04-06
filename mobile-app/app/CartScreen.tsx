@@ -153,9 +153,13 @@ export default function CartScreen({ navigation, route }: any) {
 
   // Helper: resolve effective stock for a cart item
   const getItemStock = useCallback((item: CartItem): number | null => {
-    if (item.selectedVariant?.variantId && item.variants) {
-      const v = item.variants.find(v => v.id === item.selectedVariant?.variantId);
-      if (v) return v.stock;
+    if (item.selectedVariant?.variantId) {
+      if (item.variants) {
+        const v = item.variants.find(v => v.id === item.selectedVariant?.variantId);
+        if (v) return v.stock;
+      }
+      // Variant selected but not found in local variants array — don't use base product stock
+      return null;
     }
     return item.stock ?? null;
   }, []);
