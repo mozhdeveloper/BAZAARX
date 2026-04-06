@@ -57,7 +57,6 @@ import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 
 import { OrderDetailsModal } from "@/components/OrderDetailsModal";
 import { OrderStatusBadge } from "@/components/orders/OrderStatusBadge";
-import { PaymentStatusBadge } from "@/components/orders/PaymentStatusBadge";
 import { OrderDateFilter } from "@/components/orders/OrderDateFilter";
 import { orderExportService } from "@/services/orders/orderExportService";
 
@@ -520,9 +519,6 @@ export function SellerOrders() {
                     <TableHead className="py-5 text-sm text-[var(--secondary-foreground)]">
                       Status
                     </TableHead>
-                    <TableHead className="py-5 text-sm text-[var(--secondary-foreground)]">
-                      Payment
-                    </TableHead>
                     <TableHead className="py-5 text-sm text-[var(--secondary-foreground)] text-right">
                       Total
                     </TableHead>
@@ -534,7 +530,7 @@ export function SellerOrders() {
                 <TableBody>
                   {paginatedOrders.length === 0 ? (
                     <TableRow>
-                      <TableCell colSpan={7} className="h-32 text-center text-gray-500">
+                      <TableCell colSpan={6} className="h-32 text-center text-gray-500">
                         No orders found matching your criteria.
                       </TableCell>
                     </TableRow>
@@ -627,14 +623,6 @@ export function SellerOrders() {
                               </Badge>
                             )}
                           </div>
-                        </TableCell>
-
-                        {/* Payment Method & Status */}
-                        <TableCell>
-<PaymentStatusBadge 
-  isPaid={order.paymentStatus === 'paid'} 
-  compact 
-/>
                         </TableCell>
 
                         {/* Total */}

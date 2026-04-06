@@ -19,6 +19,8 @@ interface CartItemRowProps {
 
 export const CartItemRow: React.FC<CartItemRowProps> = React.memo(({
   item,
+  onIncrement,
+  onDecrement,
   onRemove,
   onEdit,
   onPress,
@@ -30,9 +32,13 @@ export const CartItemRow: React.FC<CartItemRowProps> = React.memo(({
     item.selectedVariant.size ||
     item.selectedVariant.color
   ));
-  // Resolve stock: prefer matched variant stock, fallback to product stock
+  // Resolve stock: only use variant-level stock when the product has real selectable variants,
+  // otherwise always use product-level stock to avoid bare default variants returning wrong stock=0
   const stock = (() => {
-    if (item.selectedVariant?.variantId && item.variants) {
+    const hasRealVariants = !!(item.variants && item.variants.some(v =>
+      v.option_1_value || v.option_2_value || v.size || v.color
+    ));
+    if (hasRealVariants && item.selectedVariant?.variantId && item.variants) {
       const v = item.variants.find(v => v.id === item.selectedVariant?.variantId);
       if (v) return v.stock;
     }
@@ -42,10 +48,13 @@ export const CartItemRow: React.FC<CartItemRowProps> = React.memo(({
   const lowStockThreshold = item.low_stock_threshold ?? 10;
   const isLowStock = stock !== null && stock > 0 && stock <= lowStockThreshold;
 
-  // Out of stock + has variant → show Change Variant button on the right
-  const showChangeVariantBtn = isOutOfStock && hasVariant && !!onEdit;
-  // Out of stock + no variant → show Remove button on the right
-  const showRemoveBtn = isOutOfStock && !hasVariant;
+  // Out of stock + has variant + at least one other variant has stock > 0 → show Change Variant
+  const hasInStockVariant = !!(item.variants && item.variants.some(v =>
+    (v.option_1_value || v.option_2_value || v.size || v.color) && v.stock > 0
+  ));
+  const showChangeVariantBtn = isOutOfStock && hasVariant && hasInStockVariant && !!onEdit;
+  // Out of stock + no selectable variants → show Remove button
+  const showRemoveBtn = isOutOfStock && !showChangeVariantBtn;
 
   const variantParts = (() => {
     if (!item.selectedVariant) return [];
@@ -105,6 +114,26 @@ export const CartItemRow: React.FC<CartItemRowProps> = React.memo(({
             )}
           </View>
         </Pressable>
+
+        {/* Quantity stepper — only when in stock */}
+        {!isOutOfStock && (
+          <View style={styles.quantityRow}>
+            <Pressable
+              onPress={onDecrement}
+              style={({ pressed }) => [styles.qtyBtn, { opacity: pressed ? 0.6 : 1 }]}
+            >
+              <Text style={styles.qtyBtnText}>−</Text>
+            </Pressable>
+            <Text style={styles.qtyCount}>{item.quantity}</Text>
+            <Pressable
+              onPress={onIncrement}
+              disabled={stock !== null && item.quantity >= stock}
+              style={({ pressed }) => [styles.qtyBtn, { opacity: (stock !== null && item.quantity >= stock) ? 0.35 : pressed ? 0.6 : 1 }]}
+            >
+              <Text style={styles.qtyBtnText}>+</Text>
+            </Pressable>
+          </View>
+        )}
 
         {/* Action buttons below price — only when out of stock */}
         {(showRemoveBtn || showChangeVariantBtn) && (
@@ -225,7 +254,36 @@ const styles = StyleSheet.create({
     color: '#DC2626',
   },
 
-  // NEW STYLES
+  quantityRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginTop: 6,
+    alignSelf: 'flex-start',
+    borderWidth: 1,
+    borderColor: '#E5E7EB',
+    borderRadius: 8,
+    overflow: 'hidden',
+  },
+  qtyBtn: {
+    width: 30,
+    height: 28,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#F9FAFB',
+  },
+  qtyBtnText: {
+    fontSize: 16,
+    color: '#374151',
+    fontWeight: '500',
+    lineHeight: 18,
+  },
+  qtyCount: {
+    minWidth: 32,
+    textAlign: 'center',
+    fontSize: 13,
+    fontWeight: '600',
+    color: '#111827',
+  },
   variantChip: {
     flexDirection: 'row',
     alignItems: 'center',

@@ -802,7 +802,7 @@ export default function WishlistScreen() {
                             <View style={styles.categoriesList}>
                                 {displayedCategories.length === 0 ? (
                                     <View style={styles.emptyContainer}>
-                                        <View style={[styles.emptyIconCircle, { backgroundColor: `${BRAND_COLOR}10` }]}>
+                                        <View style={[styles.emptyIconCircle, { backgroundColor: '#F3F4F6' }]}>
                                             <FolderHeart size={48} color={BRAND_COLOR} strokeWidth={1.5} />
                                         </View>
                                         <Text style={styles.emptyTitle}>Your Wishlist is Empty</Text>

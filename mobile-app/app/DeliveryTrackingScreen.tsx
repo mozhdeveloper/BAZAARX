@@ -107,7 +107,7 @@ export default function DeliveryTrackingScreen({ route, navigation }: Props) {
           filter: `order_id=eq.${orderUuid}`
         }, (payload) => {
           console.log('New status update:', payload);
-          
+
           const newEntry: OrderStatusEntry = {
             id: payload.new.id,
             status: payload.new.status,
@@ -118,7 +118,7 @@ export default function DeliveryTrackingScreen({ route, navigation }: Props) {
 
           // Get the bucket for this status
           const newBucket = getStatusBucket(payload.new.status);
-          
+
           setTimeline(prev => {
             // If delivered, show popup
             if (payload.new.status.toLowerCase().includes('delivered')) {
@@ -225,7 +225,7 @@ export default function DeliveryTrackingScreen({ route, navigation }: Props) {
         // Merge with initial node, removing duplicate buckets
         setTimeline(prev => {
           const combined = [...prev, ...data];
-          
+
           // Remove duplicate buckets - keep only the latest entry for each bucket
           const bucketMap = new Map<string, OrderStatusEntry>();
           for (const item of combined) {
@@ -241,7 +241,7 @@ export default function DeliveryTrackingScreen({ route, navigation }: Props) {
               bucketMap.set(item.id, item);
             }
           }
-          
+
           const unique = Array.from(bucketMap.values());
           return unique.sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime());
         });
@@ -449,7 +449,7 @@ export default function DeliveryTrackingScreen({ route, navigation }: Props) {
                         isCancelledItem && { color: '#EF4444' },
                       ]}
                     >
-                      {item.status}
+                      {item.status.charAt(0).toUpperCase() + item.status.slice(1).replace(/_/g, ' ')}
                     </Text>
                     <Text style={styles.timelineStepTime}>{formatDate(item.created_at)}</Text>
                     {item.description && (

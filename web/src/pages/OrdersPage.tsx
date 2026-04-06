@@ -41,7 +41,6 @@ import { orderMutationService } from "../services/orders/orderMutationService";
 import { returnService } from "../services/returnService";
 import { warrantyService } from "../services/warrantyService";
 import { OrderStatusBadge } from "../components/orders/OrderStatusBadge";
-import { PaymentStatusBadge } from "../components/orders/PaymentStatusBadge";
 import {
   BuyerReturnSubmissionPayload,
   isBuyerOrderWithinReturnWindow,
@@ -614,7 +613,6 @@ export default function OrdersPage() {
 
                       <div className="flex items-center gap-2 sm:gap-3 self-end sm:self-auto">
                         <OrderStatusBadge status={order.returnRequest?.status || order.status} compact />
-                        <PaymentStatusBadge isPaid={order.isPaid} compact />
                         <span className="hidden sm:inline text-xs text-gray-300">|</span>
                         <span className="text-sm text-gray-500 font-mono hidden sm:inline">{order.orderNumber || order.id}</span>
                       </div>
@@ -740,7 +738,6 @@ export default function OrdersPage() {
                           </span>
                         )}
                         <OrderStatusBadge status={order.returnRequest?.status || order.status} compact />
-                        <PaymentStatusBadge isPaid={order.isPaid} compact />
                         <span className="hidden sm:inline text-xs text-gray-300">|</span>
                         <span className="text-sm text-gray-500 font-mono hidden sm:inline">{order.orderNumber || order.id}</span>
                       </div>
@@ -1095,10 +1092,6 @@ export default function OrdersPage() {
             <OrderStatusBadge
               status={selectedOrderData.returnRequest?.status || selectedOrderData.status}
               className="mb-2"
-            />
-            <PaymentStatusBadge 
-              isPaid={selectedOrderData.isPaid} 
-              className="mb-6"
             />
 
             {/* Items */}

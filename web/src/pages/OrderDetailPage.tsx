@@ -833,8 +833,6 @@ export default function OrderDetailPage() {
     doc.setFont('helvetica', 'normal');
     doc.setFontSize(9);
     doc.text(getPaymentLabel(order.paymentMethod.type), 25, y + 16);
-    doc.setTextColor(order.isPaid ? 22 : 220, order.isPaid ? 163 : 38, order.isPaid ? 74 : 38);
-    doc.text(order.isPaid ? 'PAID' : 'Pending Payment', 25, y + 22);
 
     // Status Box
     const statusX = 25 + (pageWidth - 50) / 2;

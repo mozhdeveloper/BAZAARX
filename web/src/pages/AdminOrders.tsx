@@ -81,7 +81,7 @@ const AdminOrders: React.FC = () => {
 
     setIsLoading(true);
     try {
-      const { data, error } = await supabase
+      const { data: ordersData, error } = await supabase
         .from('orders')
         .select(`
           id,
@@ -92,7 +92,6 @@ const AdminOrders: React.FC = () => {
           created_at,
           notes,
           address_id,
-          buyer:buyer_id(profile:id(first_name, last_name, email, phone)),
           order_items(id, product_name, price, quantity, price_discount, product_id, products(seller_id, sellers(store_name))),
           shipping_addresses:address_id(city, province)
         `)
@@ -101,7 +100,23 @@ const AdminOrders: React.FC = () => {
 
       if (error) throw error;
 
-      const mappedOrders = (data || []).map((o: any) => {
+      const buyerIds = [...new Set((ordersData || []).map((o: any) => o.buyer_id).filter(Boolean))];
+      
+      let buyerProfiles: Record<string, any> = {};
+      if (buyerIds.length > 0) {
+        const { data: profilesData } = await supabase
+          .from('profiles')
+          .select('id, first_name, last_name, email, phone')
+          .in('id', buyerIds);
+        
+        if (profilesData) {
+          profilesData.forEach((p: any) => {
+            buyerProfiles[p.id] = p;
+          });
+        }
+      }
+
+      const mappedOrders = (ordersData || []).map((o: any) => {
         const items = (o.order_items || []).map((item: any) => ({
           name: item.product_name || 'Product',
           quantity: item.quantity || 1,
@@ -114,9 +129,8 @@ const AdminOrders: React.FC = () => {
         const total = subtotal - totalDiscount;
         const status = mapStatus(o.payment_status, o.shipment_status);
 
-        // Get seller name from first item
         const sellerName = o.order_items?.[0]?.products?.sellers?.store_name || 'Unknown';
-        const profile = o.buyer?.profile;
+        const profile = o.buyer_id ? buyerProfiles[o.buyer_id] : null;
         const buyerName = profile ? `${profile.first_name || ''} ${profile.last_name || ''}`.trim() : 'Unknown';
         const address = o.shipping_addresses ? `${o.shipping_addresses.city || ''}, ${o.shipping_addresses.province || ''}` : 'N/A';
 
@@ -629,12 +643,6 @@ const AdminOrders: React.FC = () => {
                 <div>
                   <Label>Status</Label>
                   <div className="mt-1">{getStatusBadge(selectedOrder.status)}</div>
-                </div>
-                <div>
-                  <Label>Payment Status</Label>
-                  <Badge className={selectedOrder.paymentStatus === 'paid' ? 'bg-green-100 text-green-700' : 'bg-yellow-100 text-yellow-700'}>
-                    {selectedOrder.paymentStatus}
-                  </Badge>
                 </div>
               </div>
 
