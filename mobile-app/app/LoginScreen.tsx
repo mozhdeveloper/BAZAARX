@@ -10,12 +10,12 @@ import {
   ScrollView,
   Alert,
   ActivityIndicator,
-  Linking,
   Image,
+  Modal,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
-import { ShoppingBag, Mail, Lock, Eye, EyeOff, ArrowRight, Store } from 'lucide-react-native';
+import { Mail, Lock, Eye, EyeOff, ArrowRight, Store, X, Beaker } from 'lucide-react-native';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import type { RootStackParamList } from '../App';
 import { useAuthStore } from '../src/stores/authStore';
@@ -24,13 +24,21 @@ import { COLORS } from '../src/constants/theme';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'Login'>;
 
+const TEST_ACCOUNTS = [
+  { emoji: '👩', label: 'Buyer 1 — Anna Cruz', email: 'buyer1@gmail.com', password: 'Test@123456' },
+  { emoji: '👨', label: 'Buyer 2 — Juan Reyes', email: 'buyer2@gmail.com', password: 'Test@123456' },
+  { emoji: '👩', label: 'Buyer 3 — Sofia Lim', email: 'buyer3@gmail.com', password: 'Test@123456' },
+];
 
 export default function LoginScreen({ navigation }: Props) {
-  // const login = useAuthStore((state) => state.login); // Deprecated
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
+  const [showTestModal, setShowTestModal] = useState(false);
+
+  const validateEmail = (value: string) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value);
+  const trimmedEmail = email.trim();
 
   const handleLogin = async () => {
     if (!email || !password) {
@@ -38,12 +46,16 @@ export default function LoginScreen({ navigation }: Props) {
       return;
     }
 
+    if (!validateEmail(trimmedEmail)) {
+      Alert.alert('Error', 'Please enter a valid email address');
+      return;
+    }
+
     setIsLoading(true);
 
     try {
-      // Sign in with Supabase
       const { data, error } = await supabase.auth.signInWithPassword({
-        email: email.trim(),
+        email: trimmedEmail,
         password: password,
       });
 
@@ -54,7 +66,6 @@ export default function LoginScreen({ navigation }: Props) {
       }
 
       if (data.user) {
-        // Verify buyer role exists
         const { data: buyerData, error: buyerError } = await supabase
           .from('buyers')
           .select('id, bazcoins, avatar_url')
@@ -68,7 +79,6 @@ export default function LoginScreen({ navigation }: Props) {
           return;
         }
 
-        // Get profile data
         const { data: profileData } = await supabase
           .from('profiles')
           .select('id, first_name, last_name, email, phone')
@@ -80,7 +90,6 @@ export default function LoginScreen({ navigation }: Props) {
         const fullName = `${firstName} ${lastName}`.trim() || 'BazaarX User';
         const bazcoins = (buyerData as any)?.bazcoins ?? 0;
 
-        // Sync user to global store
         useAuthStore.getState().setUser({
           id: data.user.id,
           name: fullName,
@@ -92,13 +101,11 @@ export default function LoginScreen({ navigation }: Props) {
           bazcoins: bazcoins
         });
 
-        // Update last login
         await supabase
           .from('profiles')
           .update({ last_login_at: new Date().toISOString() })
           .eq('id', data.user.id);
 
-        // Fetch orders
         const { useOrderStore } = await import('../src/stores/orderStore');
         useOrderStore.getState().fetchOrders(data.user.id);
 
@@ -112,9 +119,10 @@ export default function LoginScreen({ navigation }: Props) {
     }
   };
 
-  const fillDemoCredentials = () => {
-    setEmail('buyer@bazaarx.ph');
-    setPassword('password');
+  const autofillCredentials = (selectedEmail: string, selectedPassword: string) => {
+    setEmail(selectedEmail);
+    setPassword(selectedPassword);
+    setShowTestModal(false);
   };
 
   return (
@@ -140,15 +148,23 @@ export default function LoginScreen({ navigation }: Props) {
             <Text style={[styles.brandName, { color: COLORS.textHeadline }]}>BazaarX</Text>
             <Text style={[styles.welcomeText, { color: COLORS.textHeadline }]}>Welcome back!</Text>
             <Text style={[styles.subtitle, { color: COLORS.textMuted }]}>Sign in to continue shopping</Text>
-          </View>
+          </View>          
+
+          {/* Developer Tool: Test Accounts Trigger */}
+          <Pressable 
+            style={styles.demoTriggerButton}
+            onPress={() => setShowTestModal(true)}
+          >
+            <Beaker size={16} color="#6B7280" />
+            <Text style={styles.demoTriggerText}>Load Demo Credentials</Text>
+          </Pressable>
 
           {/* Login Form */}
           <View style={styles.form}>
-            {/* Email Input */}
             <View style={styles.inputContainer}>
               <Text style={styles.label}>Email Address</Text>
               <View style={styles.inputWrapper}>
-                <Mail size={20} color={COLORS.primary} style={styles.inputIcon} />
+                <Mail size={20} color="#FF6A00" style={styles.inputIcon} />
                 <TextInput
                   style={styles.input}
                   placeholder="Enter your email"
@@ -162,11 +178,10 @@ export default function LoginScreen({ navigation }: Props) {
               </View>
             </View>
 
-            {/* Password Input */}
             <View style={styles.inputContainer}>
               <Text style={styles.label}>Password</Text>
               <View style={styles.inputWrapper}>
-                <Lock size={20} color="#EA580C" style={styles.inputIcon} />
+                <Lock size={20} color="#FF6A00" style={styles.inputIcon} />
                 <TextInput
                   style={styles.input}
                   placeholder="Enter your password"
@@ -189,67 +204,17 @@ export default function LoginScreen({ navigation }: Props) {
               </View>
             </View>
 
-            {/* Forgot Password */}
-            <Pressable style={styles.forgotPassword}>
+            <Pressable style={styles.forgotPassword} onPress={() => navigation.navigate('ForgotPassword')}>
               <Text style={styles.forgotPasswordText}>Forgot Password?</Text>
             </Pressable>
 
-            {/* Test Credentials Panel */}
-            <View style={styles.testCredsContainer}>
-              <View style={styles.testCredsHeader}>
-                <Text style={styles.testCredsTitle}>🧪 Test Credentials — tap to fill</Text>
-              </View>
-              {[
-                { emoji: '👩', label: 'Buyer 1 — Anna Cruz', email: 'buyer1@gmail.com', password: 'Test@123456' },
-                { emoji: '👨', label: 'Buyer 2 — Juan Reyes', email: 'buyer2@gmail.com', password: 'Test@123456' },
-                { emoji: '👩', label: 'Buyer 3 — Sofia Lim', email: 'buyer3@gmail.com', password: 'Test@123456' },
-              ].map((cred) => (
-                <Pressable
-                  key={cred.email}
-                  style={styles.testCredButton}
-                  onPress={() => {
-                    setEmail(cred.email);
-                    setPassword(cred.password);
-                  }}
-                >
-                  <View style={styles.testCredAvatar}>
-                    <Text style={styles.testCredAvatarText}>{cred.emoji}</Text>
-                  </View>
-                  <View style={styles.testCredLeft}>
-                    <Text style={styles.testCredLabel}>{cred.label}</Text>
-                    <Text style={styles.testCredEmail}>{cred.email}</Text>
-                  </View>
-                  <View style={styles.testCredPwBadge}>
-                    <Text style={styles.testCredPw}>Test@123456</Text>
-                  </View>
-                </Pressable>
-              ))}
-              <View style={styles.testCredsDivider} />
-              <View style={styles.testCredsPortalRow}>
-                <Pressable
-                  style={[styles.testCredsPortalBtn, { backgroundColor: '#FFF7ED', borderColor: '#FED7AA' }]}
-                  onPress={() => navigation.navigate('SellerAuthChoice')}
-                >
-                  <Store size={14} color="#D97706" />
-                  <Text style={[styles.testCredsPortalText, { color: '#92400E' }]}>Seller Portal</Text>
-                </Pressable>
-                <Pressable
-                  style={[styles.testCredsPortalBtn, { backgroundColor: '#EFF6FF', borderColor: '#BFDBFE' }]}
-                  onPress={() => navigation.navigate('AdminStack')}
-                >
-                  <Text style={[styles.testCredsPortalText, { color: '#1E40AF' }]}>🛡️ Admin Portal</Text>
-                </Pressable>
-              </View>
-            </View>
-
-            {/* Login Button */}
             <Pressable
               style={[styles.loginButton, isLoading && styles.loginButtonDisabled]}
               onPress={handleLogin}
               disabled={isLoading}
             >
               <LinearGradient
-                colors={['#D97706', '#B45309']} // Amber Gradient
+                colors={['#FF6A00', '#E65F00']}
                 style={styles.buttonGradient}
                 start={{ x: 0, y: 0 }}
                 end={{ x: 1, y: 0 }}
@@ -266,7 +231,7 @@ export default function LoginScreen({ navigation }: Props) {
             </Pressable>
           </View>
 
-          {/* Register Link */}
+          {/* Footer Actions */}
           <View style={styles.registerSection}>
             <Text style={styles.registerText}>Don't have an account? </Text>
             <Pressable onPress={() => navigation.navigate('Signup')}>
@@ -274,7 +239,6 @@ export default function LoginScreen({ navigation }: Props) {
             </Pressable>
           </View>
 
-          {/* Guest Access */}
           <Pressable
             style={styles.guestButton}
             onPress={() => {
@@ -285,17 +249,55 @@ export default function LoginScreen({ navigation }: Props) {
             <Text style={styles.guestButtonText}>Continue as Guest</Text>
           </Pressable>
 
-          {/* Seller Portal Link */}
           <Pressable
             style={styles.sellerPortalButton}
             onPress={() => navigation.navigate('SellerAuthChoice')}
           >
-            <Store size={20} color="#FF5722" strokeWidth={2.5} />
+            <Store size={20} color="#FF6A00" strokeWidth={2.5} />
             <Text style={styles.sellerPortalText}>Start Selling</Text>
-            <ArrowRight size={18} color="#FF5722" />
+            <ArrowRight size={18} color="#FF6A00" />
           </Pressable>
+
         </ScrollView>
       </KeyboardAvoidingView>
+
+      {/* Demo Credentials Modal */}
+      <Modal
+        visible={showTestModal}
+        transparent
+        animationType="slide"
+        onRequestClose={() => setShowTestModal(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalContent}>
+            <View style={styles.modalHeader}>
+              <Text style={styles.modalTitle}>Select Demo Account</Text>
+              <Pressable onPress={() => setShowTestModal(false)} style={styles.modalCloseButton}>
+                <X size={24} color="#111827" />
+              </Pressable>
+            </View>
+
+            {TEST_ACCOUNTS.map((acc, index) => (
+              <Pressable 
+                key={index} 
+                style={styles.testAccountRow} 
+                onPress={() => autofillCredentials(acc.email, acc.password)}
+              >
+                <View style={styles.testAccountAvatar}>
+                  <Text style={styles.testAccountEmoji}>{acc.emoji}</Text>
+                </View>
+                <View style={styles.testAccountInfo}>
+                  <Text style={styles.testAccountLabel}>{acc.label}</Text>
+                  <Text style={styles.testAccountEmail}>{acc.email}</Text>
+                </View>
+                <View style={styles.testAccountBadge}>
+                  <Text style={styles.testAccountBadgeText}>Auto-fill</Text>
+                </View>
+              </Pressable>
+            ))}
+          </View>
+        </View>
+      </Modal>
 
     </SafeAreaView>
   );
@@ -304,7 +306,7 @@ export default function LoginScreen({ navigation }: Props) {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: COLORS.background,
+    backgroundColor: COLORS.background || '#F9FAFB',
   },
   keyboardView: {
     flex: 1,
@@ -316,7 +318,7 @@ const styles = StyleSheet.create({
   logoSection: {
     alignItems: 'center',
     marginTop: 20,
-    marginBottom: 32,
+    marginBottom: 20,
   },
   logoContainer: {
     width: 120,
@@ -330,35 +332,35 @@ const styles = StyleSheet.create({
   brandName: {
     fontSize: 32,
     fontWeight: '800',
-    color: COLORS.textHeadline, // Warm Brown
+    color: '#111827',
     marginBottom: 8,
   },
   welcomeText: {
     fontSize: 20,
-    fontWeight: '600',
-    color: COLORS.textHeadline, // Warm Brown
+    fontWeight: '700',
+    color: '#111827',
     marginBottom: 4,
   },
   subtitle: {
     fontSize: 14,
-    color: COLORS.textMuted,
+    color: '#6B7280',
   },
   form: {
     marginBottom: 24,
   },
   inputContainer: {
-    marginBottom: 20,
+    marginBottom: 16,
   },
   label: {
     fontSize: 14,
     fontWeight: '600',
-    color: '#374151',
+    color: '#111827',
     marginBottom: 8,
   },
   inputWrapper: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#F9FAFB',
+    backgroundColor: '#FFFFFF',
     borderWidth: 1,
     borderColor: '#E5E7EB',
     borderRadius: 12,
@@ -383,11 +385,16 @@ const styles = StyleSheet.create({
   forgotPasswordText: {
     fontSize: 14,
     color: '#FF6A00',
-    fontWeight: '600',
+    fontWeight: '700',
   },
   loginButton: {
-    borderRadius: 12,
+    borderRadius: 28, // Updated to Pill Shape per guidelines
     overflow: 'hidden',
+    shadowColor: '#FF6A00',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.2,
+    shadowRadius: 8,
+    elevation: 4,
   },
   loginButtonDisabled: {
     opacity: 0.6,
@@ -421,10 +428,11 @@ const styles = StyleSheet.create({
   },
   guestButton: {
     paddingVertical: 14,
-    borderRadius: 12,
+    borderRadius: 28,
     borderWidth: 1,
     borderColor: '#E5E7EB',
     alignItems: 'center',
+    backgroundColor: '#FFFFFF',
   },
   guestButtonText: {
     fontSize: 16,
@@ -432,126 +440,108 @@ const styles = StyleSheet.create({
     color: '#6B7280',
   },
   sellerPortalButton: {
-    marginTop: 24,
+    marginTop: 16,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
     gap: 8,
     backgroundColor: '#FFF5F0',
-    paddingVertical: 16,
+    paddingVertical: 14,
     paddingHorizontal: 24,
-    borderRadius: 12,
-    borderWidth: 2,
-    borderColor: '#FF5722',
-    shadowColor: '#FF5722',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 2,
+    borderRadius: 28,
+    borderWidth: 1,
+    borderColor: '#FF6A00',
   },
   sellerPortalText: {
     fontSize: 16,
     fontWeight: '700',
-    color: '#FF5722',
+    color: '#FF6A00',
   },
-  // ── Test Credentials Panel ──────────────────────────────────────────
-  testCredsContainer: {
-    backgroundColor: '#FFFBEB',
-    borderWidth: 1.5,
-    borderColor: '#FCD34D',
-    borderRadius: 14,
-    padding: 14,
-    marginBottom: 20,
-  },
-  testCredsHeader: {
+  
+  // ── Demo Trigger ──────────────────────────────────────────
+  demoTriggerButton: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
     gap: 6,
-    marginBottom: 12,
+    padding: 10,
   },
-  testCredsTitle: {
+  demoTriggerText: {
     fontSize: 13,
-    fontWeight: '800',
-    color: '#92400E',
-    textTransform: 'uppercase',
-    letterSpacing: 0.8,
-  },
-  testCredButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#FFFFFF',
-    borderWidth: 1,
-    borderColor: '#FDE68A',
-    borderRadius: 10,
-    paddingVertical: 10,
-    paddingHorizontal: 12,
-    marginBottom: 8,
-    shadowColor: '#F59E0B',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.12,
-    shadowRadius: 3,
-    elevation: 2,
-  },
-  testCredAvatar: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
-    backgroundColor: '#FEF3C7',
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginRight: 10,
-  },
-  testCredAvatarText: {
-    fontSize: 16,
-  },
-  testCredLeft: {
-    flex: 1,
-  },
-  testCredLabel: {
-    fontSize: 13,
-    fontWeight: '700',
-    color: '#1F2937',
-  },
-  testCredEmail: {
-    fontSize: 11,
     color: '#6B7280',
-    marginTop: 1,
+    fontWeight: '500',
   },
-  testCredPwBadge: {
-    backgroundColor: '#D1FAE5',
-    borderWidth: 1,
-    borderColor: '#6EE7B7',
-    borderRadius: 6,
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-  },
-  testCredPw: {
-    fontSize: 11,
-    fontWeight: '700',
-    color: '#065F46',
-  },
-  testCredsDivider: {
-    height: 1,
-    backgroundColor: '#FDE68A',
-    marginVertical: 10,
-  },
-  testCredsPortalRow: {
-    flexDirection: 'row',
-    gap: 8,
-  },
-  testCredsPortalBtn: {
+
+  // ── Modal Styles ──────────────────────────────────────────
+  modalOverlay: {
     flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.5)', // Per guidelines
+    justifyContent: 'flex-end',
+  },
+  modalContent: {
+    backgroundColor: '#FFFFFF',
+    borderTopLeftRadius: 24, // Per guidelines
+    borderTopRightRadius: 24,
+    padding: 24,
+    paddingBottom: Platform.OS === 'ios' ? 40 : 24,
+  },
+  modalHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 20,
+  },
+  modalTitle: {
+    fontSize: 20,
+    fontWeight: '700',
+    color: '#111827',
+  },
+  modalCloseButton: {
+    padding: 4,
+  },
+  testAccountRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'center',
-    gap: 5,
-    paddingVertical: 10,
-    borderRadius: 10,
-    borderWidth: 1.5,
+    paddingVertical: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: '#E5E7EB',
   },
-  testCredsPortalText: {
+  testAccountAvatar: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: '#FFF5F0',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: 16,
+  },
+  testAccountEmoji: {
+    fontSize: 20,
+  },
+  testAccountInfo: {
+    flex: 1,
+  },
+  testAccountLabel: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#111827',
+    marginBottom: 2,
+  },
+  testAccountEmail: {
+    fontSize: 14,
+    color: '#6B7280',
+  },
+  testAccountBadge: {
+    backgroundColor: '#F9FAFB',
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: '#E5E7EB',
+  },
+  testAccountBadgeText: {
     fontSize: 12,
-    fontWeight: '700',
+    fontWeight: '600',
+    color: '#FF6A00',
   },
 });

@@ -55,6 +55,8 @@ export type RootStackParamList = {
   AddressSetup: { signupData: any };
   Login: undefined;
   Signup: undefined;
+  ForgotPassword: undefined;
+  ResetPassword: undefined;
   SellerLogin: undefined;
   SellerSignup: undefined;
   SellerAuthChoice: undefined;
@@ -127,6 +129,7 @@ const linking: LinkingOptions<RootStackParamList> = {
   prefixes: ['bazaarx://'],
   config: {
     screens: {
+      ResetPassword: 'reset-password',
       PaymentCallback: {
         path: 'payment/:type',
         parse: {
@@ -350,6 +353,16 @@ export default function App() {
               <Stack.Screen
                 name="Signup"
                 component={SignupScreen}
+                options={{ animation: 'slide_from_bottom' }}
+              />
+              <Stack.Screen
+                name="ForgotPassword"
+                getComponent={() => require('./app/ForgotPasswordScreen').default}
+                options={{ animation: 'slide_from_bottom' }}
+              />
+              <Stack.Screen
+                name="ResetPassword"
+                getComponent={() => require('./app/ResetPasswordScreen').default}
                 options={{ animation: 'slide_from_bottom' }}
               />
               <Stack.Screen

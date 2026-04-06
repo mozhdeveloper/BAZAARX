@@ -33,29 +33,95 @@ export default function SellerSignupScreen() {
 
     // Validation States
     const [emailStatus, setEmailStatus] = useState<'idle' | 'checking' | 'available' | 'taken'>('idle');
+    const [emailMode, setEmailMode] = useState<'new' | 'buyer-only' | 'blocked' | null>(null);
     const [storeStatus, setStoreStatus] = useState<'idle' | 'checking' | 'available' | 'taken'>('idle');
+    const [emailMessage, setEmailMessage] = useState('');
     const [error, setError] = useState('');
+
+    const validateEmail = (value: string) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value);
+    const validatePassword = (password: string): { valid: boolean; errors: string[] } => {
+        const errors: string[] = [];
+
+        if (password.length < 8) {
+            errors.push('Password must be at least 8 characters long');
+        }
+        if (!/[A-Z]/.test(password)) {
+            errors.push('Password must contain at least one uppercase letter');
+        }
+        if (!/[a-z]/.test(password)) {
+            errors.push('Password must contain at least one lowercase letter');
+        }
+        if (!/\d/.test(password)) {
+            errors.push('Password must contain at least one number');
+        }
+        if (!/[!@#$%^&*(),.?":{}|<>\-_[\]\\/`~+=;']/.test(password)) {
+            errors.push('Password must contain at least one special character');
+        }
+        if (/\s/.test(password)) {
+            errors.push('Password must not contain spaces');
+        }
+
+        return {
+            valid: errors.length === 0,
+            errors,
+        };
+    };
+
+    const livePasswordValidation = formData.password.length > 0 ? validatePassword(formData.password) : null;
+    const livePasswordError = livePasswordValidation && !livePasswordValidation.valid ? livePasswordValidation.errors[0] : '';
 
     // --- LIVE EMAIL CHECK ---
     useEffect(() => {
         const checkEmail = async () => {
-            if (formData.email.length < 5 || !formData.email.includes('@')) {
+            const normalizedEmail = formData.email.trim().toLowerCase();
+
+            if (!normalizedEmail) {
                 setEmailStatus('idle');
+                setEmailMessage('');
+                setEmailMode(null);
+                return;
+            }
+
+            if (!validateEmail(normalizedEmail)) {
+                setEmailStatus('taken');
+                setEmailMessage('Please enter a valid email format.');
+                setEmailMode(null);
                 return;
             }
 
             setEmailStatus('checking');
             try {
-                const { data, error: fetchError } = await supabase
-                    .from('profiles')
-                    .select('email')
-                    .eq('email', formData.email.trim().toLowerCase())
-                    .maybeSingle();
+                const status = await authService.getEmailRoleStatus(normalizedEmail);
 
-                if (fetchError) throw fetchError;
-                setEmailStatus(data ? 'taken' : 'available');
+                if (!status.exists) {
+                    setEmailStatus('available');
+                    setEmailMessage('Email is available.');
+                    setEmailMode('new');
+                    return;
+                }
+
+                const roles = status.roles;
+                const isBuyerOnly = roles.length > 0 && roles.every((role) => role === 'buyer');
+
+                if (isBuyerOnly) {
+                    setEmailStatus('available');
+                    setEmailMessage('Existing buyer account found. You can continue to create a seller profile.');
+                    setEmailMode('buyer-only');
+                    return;
+                }
+
+                const hasSellerRole = roles.includes('seller');
+                setEmailStatus('taken');
+                setEmailMode('blocked');
+                setEmailMessage(
+                    hasSellerRole
+                        ? 'This email is already registered as a seller. Please sign in instead.'
+                        : 'This email is already registered with restricted roles. Use another email.'
+                );
             } catch (err) {
                 setEmailStatus('idle');
+                setEmailMessage('');
+                setEmailMode(null);
             }
         };
 
@@ -96,12 +162,34 @@ export default function SellerSignupScreen() {
                 setError("Please fill in all fields");
                 return;
             }
+            if (!validateEmail(formData.email.trim())) {
+                setError("Please enter a valid email address");
+                return;
+            }
             if (formData.password !== formData.confirmPassword) {
                 setError("Passwords do not match");
                 return;
             }
-            if (formData.password.length < 6) {
-                setError("Password must be at least 6 characters");
+            if (emailMode === 'new') {
+                const passwordValidation = validatePassword(formData.password);
+                if (!passwordValidation.valid) {
+                    setError(passwordValidation.errors[0] || "Password does not meet minimum security requirements.");
+                    return;
+                }
+            }
+            if (emailMode === null && emailStatus === 'available') {
+                const passwordValidation = validatePassword(formData.password);
+                if (!passwordValidation.valid) {
+                    setError(passwordValidation.errors[0] || "Password does not meet minimum security requirements.");
+                    return;
+                }
+            }
+            if (emailMode === null && emailStatus === 'idle') {
+                setError("Please wait for email validation.");
+                return;
+            }
+            if (emailStatus === 'checking') {
+                setError("Checking email status. Please wait.");
                 return;
             }
             if (emailStatus === 'taken') {
@@ -128,34 +216,80 @@ export default function SellerSignupScreen() {
         setError("");
 
         try {
-            // Use authService for proper profile and user_roles creation
-            const result = await authService.signUp(
-                formData.email.trim(),
-                formData.password,
-                {
-                    first_name: formData.storeName,
-                    phone: formData.phone,
-                    user_type: 'seller',
-                    email: formData.email.trim(),
-                    password: formData.password,
+            const normalizedEmail = formData.email.trim().toLowerCase();
+            const latestStatus = await authService.getEmailRoleStatus(normalizedEmail);
+            const roles = latestStatus.roles;
+            const isBuyerOnly = latestStatus.exists && roles.length > 0 && roles.every((role) => role === 'buyer');
+
+            let userId: string;
+
+            if (isBuyerOnly) {
+                if (!latestStatus.userId) {
+                    throw new Error('Unable to find buyer account for this email.');
                 }
-            );
 
-            if (!result || !result.user) throw new Error('Signup failed. Please try again.');
+                const { data: signInData, error: signInError } = await supabase.auth.signInWithPassword({
+                    email: normalizedEmail,
+                    password: formData.password,
+                });
 
-            const userId = result.user.id;
+                if (signInError || !signInData.user) {
+                    throw new Error('Incorrect password for existing buyer account.');
+                }
 
-            // Insert Seller record
-            const { error: sellerError } = await supabase.from('sellers').insert({
-                id: userId,
-                store_name: formData.storeName,
-                business_name: formData.storeName,
-                store_description: formData.storeDescription,
-                business_address: formData.storeAddress,
-                approval_status: 'pending'
-            });
+                if (signInData.user.id !== latestStatus.userId) {
+                    throw new Error('Account mismatch detected. Please try again.');
+                }
 
-            if (sellerError) throw sellerError;
+                const sellerResult = await authService.registerBuyerAsSeller(latestStatus.userId, {
+                    store_name: formData.storeName,
+                    store_description: formData.storeDescription,
+                    owner_name: formData.storeName,
+                });
+
+                if (!sellerResult) {
+                    throw new Error('Failed to upgrade buyer account to seller.');
+                }
+
+                userId = latestStatus.userId;
+
+                await supabase
+                    .from('sellers')
+                    .update({
+                        business_name: formData.storeName,
+                        business_address: formData.storeAddress,
+                    } as any)
+                    .eq('id', userId);
+            } else {
+                // Use authService for proper profile and user_roles creation
+                const result = await authService.signUp(
+                    normalizedEmail,
+                    formData.password,
+                    {
+                        first_name: formData.storeName,
+                        phone: formData.phone,
+                        user_type: 'seller',
+                        email: normalizedEmail,
+                        password: formData.password,
+                    }
+                );
+
+                if (!result || !result.user) throw new Error('Signup failed. Please try again.');
+
+                userId = result.user.id;
+
+                // Insert Seller record
+                const { error: sellerError } = await supabase.from('sellers').insert({
+                    id: userId,
+                    store_name: formData.storeName,
+                    business_name: formData.storeName,
+                    store_description: formData.storeDescription,
+                    business_address: formData.storeAddress,
+                    approval_status: 'pending'
+                });
+
+                if (sellerError) throw sellerError;
+            }
 
             // Sync data to store - IMPORTANT: Include the seller ID
             updateSellerInfo({
@@ -245,6 +379,18 @@ export default function SellerSignupScreen() {
                                         {emailStatus === 'available' && <CheckCircle2 size={18} color="#10B981" />}
                                         {emailStatus === 'taken' && <XCircle size={18} color="#EF4444" />}
                                     </View>
+                                    {(emailStatus === 'checking' || !!emailMessage) && (
+                                        <Text
+                                            style={[
+                                                styles.emailStatusText,
+                                                emailStatus === 'available' && styles.emailStatusSuccess,
+                                                emailStatus === 'taken' && styles.emailStatusError,
+                                                emailStatus === 'checking' && styles.emailStatusChecking,
+                                            ]}
+                                        >
+                                            {emailStatus === 'checking' ? 'Checking email availability...' : emailMessage}
+                                        </Text>
+                                    )}
                                 </View>
 
                                 <View style={styles.inputGroup}>
@@ -265,6 +411,9 @@ export default function SellerSignupScreen() {
                                             {showPassword ? <EyeOff size={18} color="#9CA3AF" /> : <Eye size={18} color="#9CA3AF" />}
                                         </Pressable>
                                     </View>
+                                    {(emailMode !== 'buyer-only') && !!livePasswordError && (
+                                        <Text style={styles.passwordErrorText}>{livePasswordError}</Text>
+                                    )}
                                 </View>
 
                                 <View style={styles.inputGroup}>
@@ -521,6 +670,28 @@ const styles = StyleSheet.create({
         backgroundColor: '#FEF2F2',
     },
     input: { flex: 1, fontSize: 16, color: '#111827', fontWeight: '600' },
+    emailStatusText: {
+        marginTop: 6,
+        marginLeft: 4,
+        fontSize: 12,
+        fontWeight: '600',
+    },
+    emailStatusSuccess: {
+        color: '#059669',
+    },
+    emailStatusError: {
+        color: '#DC2626',
+    },
+    emailStatusChecking: {
+        color: '#92400E',
+    },
+    passwordErrorText: {
+        marginTop: 6,
+        marginLeft: 4,
+        fontSize: 12,
+        fontWeight: '600',
+        color: '#DC2626',
+    },
 
     primaryButton: { borderRadius: 16, overflow: 'hidden', marginTop: 10, elevation: 4, shadowColor: '#D97706', shadowOffset: { width: 0, height: 8 }, shadowOpacity: 0.25, shadowRadius: 12 },
     buttonGradient: { height: 56, justifyContent: 'center', alignItems: 'center', flexDirection: 'row', gap: 10 },
