@@ -745,37 +745,31 @@ export const useBuyerStore = create<BuyerStore>()(persist(
     },
 
     updateCartQuantity: async (productId, quantity, variantId) => {
-      // Find the specific item to check its current stock levels
       const item = get().cartItems.find(i =>
         i.id === productId && i.selectedVariant?.id === variantId
       );
 
       if (!item) return;
 
-      // 1. Enforce Stock Limit: Determine the max allowed based on available stock
-      // Checks variant-specific stock first, then falls back to base product stock
-      const maxStock = item.selectedVariant?.stock ?? item.stock ?? 0;
-      const sanitizedQuantity = Math.min(Math.max(0, quantity), maxStock);
-
-      // 2. If quantity is set to 0, trigger removal
-      if (sanitizedQuantity <= 0) {
+      // If quantity is 0 or less, trigger removal
+      if (quantity <= 0) {
         get().removeFromCart(productId, variantId);
         return;
       }
 
       const previousCartItems = get().cartItems;
 
-      // 3. Optimistic Update: Update UI immediately using the sanitized quantity
+      // Optimistic Update
       set((state) => ({
         cartItems: state.cartItems.map(i =>
           (i.id === productId && i.selectedVariant?.id === variantId)
-            ? { ...i, quantity: sanitizedQuantity }
+            ? { ...i, quantity }
             : i
         )
       }));
       get().groupCartBySeller();
 
-      // 4. Background Sync: Update the database without refetching the whole list
+      // Background Sync
       const user = await getCurrentUser();
       if (user) {
         try {
@@ -786,16 +780,12 @@ export const useBuyerStore = create<BuyerStore>()(persist(
               i.product_id === productId &&
               (variantId ? i.variant_id === variantId : !i.variant_id)
             );
-
             if (itemToUpdate) {
-              await cartService.updateCartItemQuantity(itemToUpdate.id, sanitizedQuantity);
-              // Note: Full silent refetch is intentionally omitted here to prevent
-              // race conditions/state jumping during rapid user clicks.
+              await cartService.updateCartItemQuantity(itemToUpdate.id, quantity);
             }
           }
         } catch (error) {
           console.error('Error updating quantity in database:', error);
-          // Rollback local state on sync failure
           set({ cartItems: previousCartItems });
           get().groupCartBySeller();
         }
@@ -1996,9 +1986,10 @@ export const useBuyerStore = create<BuyerStore>()(persist(
       profile: state.profile,
       addresses: state.addresses,
       followedShops: state.followedShops,
-      cartItems: state.cartItems,
+      // cartItems intentionally excluded — always sourced from DB via initializeCart
       reviews: state.reviews,
       conversations: state.conversations,
+      campaignDiscountCache: state.campaignDiscountCache,
       // registries intentionally excluded – sourced from backend, not local storage
     })
   }

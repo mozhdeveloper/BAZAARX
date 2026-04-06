@@ -1,28 +1,3 @@
-import { useState, useEffect, useRef, useMemo, useCallback, lazy, Suspense } from "react";
-import { motion, AnimatePresence } from "framer-motion";
-import { useBuyerStore } from "../stores/buyerStore";
-import { discountService } from "@/services/discountService";
-import Header from "../components/Header";
-import { Button } from "../components/ui/button";
-import { Input } from "../components/ui/input";
-import { Badge } from "../components/ui/badge";
-import { Checkbox } from "../components/ui/checkbox";
-import {
-  Minus,
-  Plus,
-  Trash2,
-  ShoppingBag,
-  Tag,
-  Store,
-  AlertCircle,
-  ChevronLeft,
-  ChevronRight,
-} from "lucide-react";
-import { useNavigate, useLocation } from "react-router-dom";
-import { prefetchRoute } from "@/lib/prefetch";
-const VariantSelectionModal = lazy(() =>
-    import("../components/ui/variant-selection-modal").then((m) => ({ default: m.VariantSelectionModal }))
-);
 import {
   Dialog,
   DialogContent,
@@ -31,7 +6,33 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import { prefetchRoute } from "@/lib/prefetch";
+import { supabase } from "@/lib/supabase";
+import { discountService } from "@/services/discountService";
 import type { ActiveDiscount } from "@/types/discount";
+import { AnimatePresence, motion } from "framer-motion";
+import {
+  AlertCircle,
+  ChevronLeft,
+  ChevronRight,
+  Minus,
+  Plus,
+  ShoppingBag,
+  Store,
+  Tag,
+  Trash2,
+} from "lucide-react";
+import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useLocation, useNavigate } from "react-router-dom";
+import Header from "../components/Header";
+import { Badge } from "../components/ui/badge";
+import { Button } from "../components/ui/button";
+import { Checkbox } from "../components/ui/checkbox";
+import { Input } from "../components/ui/input";
+import { useBuyerStore } from "../stores/buyerStore";
+const VariantSelectionModal = lazy(() =>
+    import("../components/ui/variant-selection-modal").then((m) => ({ default: m.VariantSelectionModal }))
+);
 
 export default function EnhancedCartPage() {
   const navigate = useNavigate();
@@ -65,6 +66,72 @@ export default function EnhancedCartPage() {
   const [voucherCode, setVoucherCode] = useState("");
   const [voucherError, setVoucherError] = useState("");
   const [isApplyingVoucher, setIsApplyingVoucher] = useState(false);
+
+  // Live stock fetched from product_variants table — keyed by variant ID or product ID
+  const [liveVariantStock, setLiveVariantStock] = useState<Record<string, number>>({});
+
+  const cartVariantIdsKey = useMemo(() =>
+    cartItems.map(i => i.selectedVariant?.id).filter(Boolean).join('|'),
+  [cartItems]);
+
+  // Product IDs for items that have NO selected variant (stock = sum of all their variants)
+  const cartNoVariantProductIdsKey = useMemo(() =>
+    cartItems.filter(i => !i.selectedVariant?.id).map(i => i.id).filter(Boolean).join('|'),
+  [cartItems]);
+
+  useEffect(() => {
+    const variantIds = cartVariantIdsKey ? cartVariantIdsKey.split('|') : [];
+    if (variantIds.length === 0) return;
+    let isMounted = true;
+    supabase
+      .from('product_variants')
+      .select('id, stock')
+      .in('id', variantIds)
+      .then(({ data }) => {
+        if (!isMounted || !data) return;
+        const map: Record<string, number> = {};
+        data.forEach((v: any) => { map[v.id] = v.stock ?? 0; });
+        setLiveVariantStock(prev => ({ ...prev, ...map }));
+      });
+    return () => { isMounted = false; };
+  }, [cartVariantIdsKey]);
+
+  // For no-variant items, fetch all variants by product_id and sum their stock
+  useEffect(() => {
+    const productIds = cartNoVariantProductIdsKey ? cartNoVariantProductIdsKey.split('|') : [];
+    if (productIds.length === 0) return;
+    let isMounted = true;
+    supabase
+      .from('product_variants')
+      .select('product_id, stock')
+      .in('product_id', productIds)
+      .then(({ data }) => {
+        if (!isMounted || !data) return;
+        const map: Record<string, number> = {};
+        data.forEach((v: any) => {
+          map[v.product_id] = (map[v.product_id] ?? 0) + (v.stock ?? 0);
+        });
+        setLiveVariantStock(prev => ({ ...prev, ...map }));
+      });
+    return () => { isMounted = false; };
+  }, [cartNoVariantProductIdsKey]);
+
+  // Resolve effective stock — always from live product_variants data
+  const getItemStock = useCallback((item: any): number | null => {
+    if (item.selectedVariant?.id) {
+      // Variant item: look up by variant ID
+      if (item.selectedVariant.id in liveVariantStock) return liveVariantStock[item.selectedVariant.id];
+      return null; // live data not yet loaded — don't assume out of stock
+    }
+    // No-variant item: look up by product ID (summed from all variants)
+    if (item.id in liveVariantStock) return liveVariantStock[item.id];
+    return null; // live data not yet loaded
+  }, [liveVariantStock]);
+
+  const isItemOutOfStock = useCallback((item: any): boolean => {
+    const s = getItemStock(item);
+    return s !== null && s === 0;
+  }, [getItemStock]);
 
   // Campaign discounts — seeded immediately from Zustand cache, updated in background
   const [activeCampaignDiscounts, setActiveCampaignDiscounts] = useState<Record<string, ActiveDiscount>>(
@@ -197,9 +264,11 @@ export default function EnhancedCartPage() {
 
   const totalAmount = selectedTotal + shippingTotal; // Use selected total + shipping for display
 
-  // Calculate "Select All" state
-  const allSelected = cartItems.length > 0 && cartItems.every(item => item.selected);
-  const someSelected = cartItems.some(item => item.selected) && !allSelected;
+  // Calculate "Select All" state — out-of-stock items excluded from selectable set
+  const selectableItems = useMemo(() => cartItems.filter(i => !isItemOutOfStock(i)), [cartItems, isItemOutOfStock]);
+  const allSelected = selectableItems.length > 0 && selectableItems.every(item => item.selected);
+  const someSelected = selectableItems.some(item => item.selected) && !allSelected;
+  const hasOutOfStockSelected = useMemo(() => cartItems.filter(i => i.selected).some(i => isItemOutOfStock(i)), [cartItems, isItemOutOfStock]);
 
   const handleApplyVoucher = useCallback(async (sellerId?: string) => {
     if (!voucherCode.trim()) {
@@ -330,7 +399,13 @@ export default function EnhancedCartPage() {
             <div className="sticky top-4 z-10 bg-[var(--brand-wash)]/95 backdrop-blur-sm py-2 flex items-center justify-end gap-2 -mb-4">
               <Checkbox
                 checked={allSelected || (someSelected ? "indeterminate" : false)}
-                onCheckedChange={(checked) => selectAllItems(checked === true)}
+                onCheckedChange={(checked) => {
+                  selectableItems.forEach(item => {
+                    if (item.selected !== (checked === true)) {
+                      toggleItemSelection(item.id, item.selectedVariant?.id);
+                    }
+                  });
+                }}
               />
               <span className="text-xs font-small text-[var(--text-muted)] mr-auto">Select All Items ({totalItems})</span>
 
@@ -364,8 +439,12 @@ export default function EnhancedCartPage() {
                         <div className="flex items-center justify-between gap-4 w-full">
                           <div className="flex items-center gap-3">
                             <Checkbox
-                              checked={group.items.every(item => item.selected)}
-                              onCheckedChange={(checked) => toggleSellerSelection(sellerId, checked === true)}
+                              checked={group.items.filter(i => !isItemOutOfStock(i)).length > 0 && group.items.filter(i => !isItemOutOfStock(i)).every(i => i.selected)}
+                              onCheckedChange={(checked) => {
+                                group.items.filter(i => !isItemOutOfStock(i)).forEach(i => {
+                                  if (i.selected !== (checked === true)) toggleItemSelection(i.id, i.selectedVariant?.id);
+                                });
+                              }}
                             />
                             <div
                               className="flex items-center gap-2 cursor-pointer group/seller"
@@ -417,15 +496,16 @@ export default function EnhancedCartPage() {
                             <div className="flex items-center gap-3 flex-1 min-w-0">
                               <Checkbox
                                 checked={item.selected || false}
-                                onCheckedChange={() => toggleItemSelection(item.id, item.selectedVariant?.id)}
+                                disabled={isItemOutOfStock(item)}
+                                onCheckedChange={() => !isItemOutOfStock(item) && toggleItemSelection(item.id, item.selectedVariant?.id)}
                               />
 
                               {/* Product Image */}
                               {item.image ? (
-                                <img loading="lazy" 
+                                <img loading="lazy"
                                   src={item.image}
                                   alt=""
-                                  className="w-16 h-16 object-cover rounded-md border border-[var(--brand-wash-gold)]/30 cursor-pointer hover:opacity-80 transition-opacity"
+                                  className="w-16 h-16 object-cover rounded-md border border-[var(--brand-wash-gold)]/30 cursor-pointer hover:opacity-80 transition-opacity shrink-0"
                                   onClick={() => navigate(`/product/${item.id}`)}
                                 />
                               ) : (
@@ -439,12 +519,29 @@ export default function EnhancedCartPage() {
 
                               {/* Product Details */}
                               <div className="flex-1 min-w-0">
-                                <h4
-                                  className="font-medium text-[var(--text-headline)] text-sm mb-1 truncate cursor-pointer hover:text-[var(--brand-primary)] transition-colors"
-                                  onClick={() => navigate(`/product/${item.id}`)}
-                                >
-                                  {item.name}
-                                </h4>
+                                <div className="flex items-center gap-2 mb-1">
+                                  <h4
+                                    className="font-medium text-[var(--text-headline)] text-sm truncate cursor-pointer hover:text-[var(--brand-primary)] transition-colors"
+                                    onClick={() => navigate(`/product/${item.id}`)}
+                                  >
+                                    {item.name}
+                                  </h4>
+                                  {(() => {
+                                    const stock = getItemStock(item);
+                                    if (stock === null) return null;
+                                    if (stock === 0) return (
+                                      <Badge className="text-[10px] h-4 px-1.5 shrink-0 bg-red-100 text-red-600 border border-red-200 hover:bg-red-100">
+                                        Out of Stock
+                                      </Badge>
+                                    );
+                                    if (stock <= 5) return (
+                                      <span className="text-[10px] text-orange-500 font-medium shrink-0">
+                                        Only {stock} left
+                                      </span>
+                                    );
+                                    return null;
+                                  })()}
+                                </div>
                                 {item.variants &&
                                   item.variants.length > 0 &&
                                   item.variants.some(
@@ -515,18 +612,18 @@ export default function EnhancedCartPage() {
                                     );
                                   })()}
 
-                                  <div className="flex items-center gap-2 border border-gray-200 rounded-md bg-white">
+                                  <div className={`flex items-center gap-2 border rounded-md bg-white ${isItemOutOfStock(item) ? 'border-red-200' : 'border-gray-200'}`}>
                                     <Button
                                       variant="ghost"
                                       size="sm"
                                       onClick={() => {
-                                        // If quantity is 1, prompt for deletion instead of updating to 0
                                         if (item.quantity === 1) {
                                           setDeleteTarget({ type: 'single', id: item.id, variantId: item.selectedVariant?.id });
                                         } else {
                                           updateCartQuantity(item.id, item.quantity - 1, item.selectedVariant?.id);
                                         }
                                       }}
+                                      disabled={isItemOutOfStock(item)}
                                       className="h-6 w-6 p-0 hover:bg-base hover:text-red-500"
                                     >
                                       <Minus className="h-3 w-3" />
@@ -543,8 +640,7 @@ export default function EnhancedCartPage() {
                                         updateCartQuantity(item.id, item.quantity + 1, item.selectedVariant?.id)
                                       }
                                       className="h-6 w-6 p-0 hover:bg-base hover:text-green-500"
-                                      // Disable the button if the current quantity has reached stock limit
-                                      disabled={item.quantity >= (item.selectedVariant?.stock ?? item.stock ?? 0)}
+                                      disabled={isItemOutOfStock(item) || item.quantity >= (getItemStock(item) ?? item.selectedVariant?.stock ?? item.stock ?? 0)}
                                     >
                                       <Plus className="h-3 w-3" />
                                     </Button>
@@ -677,11 +773,17 @@ export default function EnhancedCartPage() {
                 onClick={() => navigate("/checkout")}
                 onMouseEnter={() => prefetchRoute(() => import("./CheckoutPage"))}
                 size="lg"
-                disabled={selectedCount === 0}
+                disabled={selectedCount === 0 || hasOutOfStockSelected}
                 className="w-full bg-[var(--brand-primary)] hover:bg-[var(--brand-accent)] text-white disabled:bg-[var(--text-muted)] disabled:cursor-not-allowed"
               >
                 Proceed to Checkout ({selectedCount})
               </Button>
+              {hasOutOfStockSelected && (
+                <p className="text-xs text-red-500 text-center mt-2 flex items-center justify-center gap-1">
+                  <AlertCircle className="h-3 w-3" />
+                  Remove out-of-stock items to proceed
+                </p>
+              )}
             </div>
           </motion.div>
         </div>
