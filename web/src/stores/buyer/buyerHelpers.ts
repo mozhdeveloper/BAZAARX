@@ -203,7 +203,7 @@ export const mapDbItemToCartItem = (item: any): CartItem | null => {
     quantity: item.quantity,
     selectedVariant,
     notes: item.notes || "",
-    selected: true,
+    selected: false,
     registryId: item.registry_id || undefined,
     createdAt: item.created_at || new Date().toISOString(),
   };
