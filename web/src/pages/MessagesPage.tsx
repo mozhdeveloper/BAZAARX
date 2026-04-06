@@ -15,6 +15,7 @@ import Header from '../components/Header';
 
 const quickReplies = ["Is this available?", "Can I see real photos?", "Do you offer COD?", "Is this authentic?"];
 import { chatService, Conversation as DBConversation, Message as DBMessage } from '../services/chatService';
+import { validateChatImage } from '../utils/chatMediaUtils';
 
 export default function MessagesPage() {
   const navigate = useNavigate();
@@ -34,11 +35,13 @@ export default function MessagesPage() {
   const [searchQuery, setSearchQuery] = useState('');
   const [previewImage, setPreviewImage] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
 
   const [dbConversations, setDbConversations] = useState<DBConversation[]>([]);
   const [dbMessages, setDbMessages] = useState<DBMessage[]>([]);
   const [loading, setLoading] = useState(true);
   const [sending, setSending] = useState(false);
+  const [uploading, setUploading] = useState(false);
 
   const useRealData = dbConversations.length > 0;
 
@@ -131,7 +134,7 @@ export default function MessagesPage() {
                 c.id === newMsg.conversation_id
                   ? {
                     ...c,
-                    last_message: newMsg.content,
+                    last_message: newMsg.content === '[Image]' ? '📷 Photo' : newMsg.content,
                     last_message_at: newMsg.created_at,
                     // Only increment unread badge if this conversation isn't open
                     buyer_unread_count: newMsg.conversation_id !== selectedConversation
@@ -243,11 +246,15 @@ export default function MessagesPage() {
     if (!messageText.trim() && (!imageUrls || imageUrls.length === 0) || !selectedConversation) return;
 
     if (useRealData && profile?.id) {
+      const msgText = messageText.trim();
+      if (!textOverride) {
+        setNewMessage('');
+        if (textareaRef.current) textareaRef.current.style.height = 'auto';
+      }
       setSending(true);
       try {
-        const result = await chatService.sendMessage(selectedConversation, profile.id, 'buyer', messageText.trim());
+        const result = await chatService.sendMessage(selectedConversation, profile.id, 'buyer', msgText);
         if (result) {
-          setNewMessage('');
           setDbMessages(prev =>
             prev.some(msg => msg.id === result.id) ? prev : [...prev, result]
           );
@@ -256,7 +263,7 @@ export default function MessagesPage() {
             sortByLastMessage(
               prev.map(c =>
                 c.id === selectedConversation
-                  ? { ...c, last_message: messageText.trim(), last_message_at: new Date().toISOString(), last_sender_type: 'buyer' }
+                  ? { ...c, last_message: msgText, last_message_at: new Date().toISOString(), last_sender_type: 'buyer' }
                   : c
               )
             )
@@ -275,16 +282,66 @@ export default function MessagesPage() {
 
   const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = Array.from(e.target.files || []);
-    if (files.length > 0) {
-      const uploadPromises = files.map(file => new Promise<string>((resolve) => {
-        const reader = new FileReader();
-        reader.onload = (event) => resolve(event.target?.result as string);
-        reader.readAsDataURL(file);
-      }));
-      const urls = await Promise.all(uploadPromises);
-      handleSendMessage(undefined, '', urls);
-      if (fileInputRef.current) fileInputRef.current.value = '';
+    if (!files.length || !selectedConversation || !profile?.id) return;
+
+    for (const file of files) {
+      // Layer 1: client-side validation
+      const { valid, error } = validateChatImage(file);
+      if (!valid) {
+        console.error('[MessagesPage] Invalid file:', error);
+        if (fileInputRef.current) fileInputRef.current.value = '';
+        return;
+      }
+
+      setUploading(true);
+      // Layer 2: upload to Supabase Storage (server-side MIME whitelist enforced by bucket)
+      const url = await chatService.uploadChatMedia(file, selectedConversation);
+      setUploading(false);
+
+      if (!url) {
+        console.error('[MessagesPage] Upload failed');
+        continue;
+      }
+
+      // Optimistic message — show immediately with local URL
+      const tempId = `temp-${Date.now()}`;
+      const tempMsg: DBMessage = {
+        id: tempId,
+        conversation_id: selectedConversation,
+        sender_id: profile.id,
+        sender_type: 'buyer',
+        content: '[Image]',
+        media_url: url,
+        media_type: 'image',
+        is_read: false,
+        created_at: new Date().toISOString(),
+        message_type: 'image',
+      };
+      setDbMessages(prev => [...prev, tempMsg]);
+
+      const result = await chatService.sendMessage(
+        selectedConversation, profile.id, 'buyer', '[Image]', undefined, url, 'image'
+      );
+
+      if (result) {
+        setDbMessages(prev =>
+          prev.some(m => m.id === result.id)
+            ? prev.filter(m => m.id !== tempId)
+            : prev.map(m => m.id === tempId ? result : m)
+        );
+        setDbConversations(prev =>
+          sortByLastMessage(
+            prev.map(c =>
+              c.id === selectedConversation
+                ? { ...c, last_message: '📷 Photo', last_message_at: result.created_at, last_sender_type: 'buyer' }
+                : c
+            )
+          )
+        );
+      }
     }
+
+    if (fileInputRef.current) fileInputRef.current.value = '';
   };
 
 
@@ -368,7 +425,7 @@ export default function MessagesPage() {
                         </span>
                       </div>
                       <p className={`text-sm truncate ${conv.buyer_unread_count > 0 ? 'text-[var(--text-headline)] font-semibold' : 'text-[var(--text-muted)]'}`}>
-                        {conv.last_sender_type === 'buyer' ? <span className="font-medium">You: </span> : null}{conv.last_message || 'Start a conversation'}
+                        {conv.last_sender_type === 'buyer' ? <span className="font-medium">You: </span> : null}{conv.last_message === '[Image]' ? '📷 Photo' : (conv.last_message || 'Start a conversation')}
                       </p>
                     </div>
                     {conv.buyer_unread_count > 0 && (
@@ -513,9 +570,20 @@ export default function MessagesPage() {
                           <div className={`max-w-[80%] flex flex-col ${isBuyer ? 'items-end' : 'items-start'}`}>
                             <div
                               title={fullTimestamp}
-                              className={`px-4 py-3 rounded-2xl shadow-sm cursor-default group relative ${isBuyer ? 'bg-[var(--brand-primary)] text-white rounded-tr-sm' : 'bg-[var(--bg-secondary)] text-[var(--text-primary)] rounded-tl-sm border border-[var(--brand-wash-gold)]/20'}`}
+                              className={`max-w-full px-4 py-3 rounded-2xl shadow-sm cursor-default group relative ${isBuyer ? 'bg-[var(--brand-primary)] text-white rounded-tr-sm' : 'bg-[var(--bg-secondary)] text-[var(--text-primary)] rounded-tl-sm border border-[var(--brand-wash-gold)]/20'}`}
                             >
-                              <p className="text-sm leading-relaxed">{msg.content}</p>
+                              {msg.media_url && (msg.message_type === 'image' || msg.media_type === 'image') && (
+                                <img
+                                  src={msg.media_url}
+                                  alt="Attachment"
+                                  loading="lazy"
+                                  className="max-w-[240px] max-h-[240px] rounded-lg object-cover cursor-pointer mb-1 border border-white/10"
+                                  onClick={() => setPreviewImage(msg.media_url!)}
+                                />
+                              )}
+                              {msg.content && msg.content !== '[Image]' && (
+                                <p className="text-sm leading-relaxed whitespace-pre-wrap break-words">{msg.content}</p>
+                              )}
                               {/* Hover timestamp tooltip */}
                               <span className={`absolute bottom-full mb-1 ${isBuyer ? 'right-0' : 'left-0'} hidden group-hover:block text-[10px] text-white bg-gray-700/90 rounded px-2 py-0.5 whitespace-nowrap z-10`}>
                                 {fullTimestamp}
@@ -537,7 +605,7 @@ export default function MessagesPage() {
                     return (
                       <div key={msg.id} className={`flex ${isBuyer ? 'justify-end' : 'justify-start'}`}>
                         <div className={`max-w-[80%] flex flex-col ${isBuyer ? 'items-end' : 'items-start'}`}>
-                          <div className={`px-4 py-3 rounded-2xl shadow-sm ${isBuyer ? 'bg-[var(--brand-primary)] text-white rounded-tr-none' : 'bg-[var(--bg-secondary)] text-[var(--text-primary)] border border-[var(--brand-wash-gold)]/20 rounded-tl-none'}`}>
+                          <div className={`max-w-full px-4 py-3 rounded-2xl shadow-sm ${isBuyer ? 'bg-[var(--brand-primary)] text-white rounded-tr-none' : 'bg-[var(--bg-secondary)] text-[var(--text-primary)] border border-[var(--brand-wash-gold)]/20 rounded-tl-none'}`}>
                             {msg.images && msg.images.length > 0 && (
                               <div className={`grid gap-1 mb-2 ${msg.images.length > 1 ? 'grid-cols-2' : 'grid-cols-1'}`}>
                                 {msg.images.map((img, idx) => (
@@ -547,7 +615,7 @@ export default function MessagesPage() {
                                 ))}
                               </div>
                             )}
-                            {msg.text && <p className="text-[15px] leading-relaxed">{msg.text}</p>}
+                            {msg.text && <p className="text-[15px] leading-relaxed whitespace-pre-wrap break-words">{msg.text}</p>}
                           </div>
                           <span className="text-[10px] font-bold text-gray-400 uppercase mt-1.5 px-1">
                             {new Date(msg.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
@@ -568,13 +636,33 @@ export default function MessagesPage() {
                   ))}
                 </div>
                 <form onSubmit={handleSendMessage} className="flex items-center gap-2 p-1 bg-[var(--brand-wash)] rounded-2xl border border-[var(--brand-wash-gold)]/20 focus-within:border-[var(--brand-primary)] transition-all">
-                  <input type="file" ref={fileInputRef} onChange={handleImageUpload} accept="image/*" multiple className="hidden" />
-                  <Button type="button" variant="ghost" size="icon" className="text-[var(--text-muted)] hover:text-[var(--brand-primary)] rounded-full" onClick={() => fileInputRef.current?.click()} disabled={sending}>
-                    <ImageIcon className="h-5 w-5" />
+                  <input type="file" ref={fileInputRef} onChange={handleImageUpload} accept="image/jpeg,image/png,image/webp" multiple className="hidden" />
+                  <Button type="button" variant="ghost" size="icon" className="text-[var(--text-muted)] hover:text-[var(--brand-primary)] rounded-full" onClick={() => fileInputRef.current?.click()} disabled={sending || uploading}>
+                    {uploading ? <Loader2 className="h-5 w-5 animate-spin" /> : <ImageIcon className="h-5 w-5" />}
                   </Button>
-                  <Input value={newMessage} onChange={(e) => setNewMessage(e.target.value)} placeholder="Type a message..." className="flex-1 bg-transparent border-none focus-visible:ring-0 text-[var(--text-primary)] shadow-none h-10" disabled={sending} />
+                  <textarea
+                    ref={textareaRef}
+                    value={newMessage}
+                    onChange={(e) => setNewMessage(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter' && !e.shiftKey) {
+                        e.preventDefault();
+                        handleSendMessage();
+                      }
+                    }}
+                    placeholder="Type a message..."
+                    rows={1}
+                    className="flex-1 bg-transparent border-none focus-visible:ring-0 text-[var(--text-primary)] shadow-none min-h-[40px] max-h-[120px] resize-none overflow-y-auto py-2.5 text-sm font-medium placeholder:text-gray-400 outline-none"
+                    style={{ height: 'auto' }}
+                    onInput={(e) => {
+                      const t = e.currentTarget;
+                      t.style.height = 'auto';
+                      t.style.height = `${Math.min(t.scrollHeight, 120)}px`;
+                    }}
+                    disabled={sending || uploading}
+                  />
                   <div className="flex items-center gap-1 pr-1">
-                    <Button type="submit" className="bg-[var(--brand-primary)] hover:bg-[var(--brand-primary-dark)] text-white rounded-xl h-10 w-10 p-0 shadow-lg shadow-[var(--brand-primary)]/20" disabled={!newMessage.trim() || sending}>
+                    <Button type="submit" className="bg-[var(--brand-primary)] hover:bg-[var(--brand-primary-dark)] text-white rounded-xl h-10 w-10 p-0 shadow-lg shadow-[var(--brand-primary)]/20" disabled={!newMessage.trim() || sending || uploading}>
                       {sending ? <Loader2 className="h-5 w-5 animate-spin" /> : <Send className="h-5 w-5" />}
                     </Button>
                   </div>

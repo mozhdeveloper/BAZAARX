@@ -18,10 +18,12 @@ export interface Message {
   sender_id: string;
   sender_type: 'buyer' | 'seller';
   content: string;
-  image_url?: string;
+  image_url?: string;        // LEGACY — kept for backward compat
+  media_url?: string;        // NEW — public URL of uploaded image
+  media_type?: 'image';      // NEW — images only in this release
   is_read: boolean;
   created_at: string;
-  message_type?: 'user' | 'system';
+  message_type?: 'user' | 'system' | 'text' | 'image';
   message_content?: string;
   order_event_type?: string;
 }
@@ -176,7 +178,7 @@ class ChatService {
     // Get last message - use maybeSingle to handle conversations with no messages yet
     const { data: lastMsg } = await supabase
       .from('messages')
-      .select('content, created_at')
+      .select('content, created_at, media_url, media_type, message_type, message_content')
       .eq('conversation_id', conversationId)
       .order('created_at', { ascending: false })
       .limit(1)
@@ -197,7 +199,10 @@ class ChatService {
       .eq('sender_type', 'buyer')
       .eq('is_read', false);
 
-    const displayContent = lastMsg?.content || '';
+    const displayContent =
+      lastMsg?.message_type === 'system' ? (lastMsg?.message_content || '') :
+      (lastMsg?.content === '[Image]' || lastMsg?.media_type === 'image' || lastMsg?.message_type === 'image') ? '📷 Photo' :
+      lastMsg?.content || '';
 
     return {
       lastMessage: displayContent || '',
@@ -447,7 +452,7 @@ class ChatService {
           seller_id: sellerId,
           seller_store_name: seller?.store_name,
           seller_avatar: seller?.avatar_url,
-          last_message: lastMsg?.content || '',
+          last_message: lastMsg ? (lastMsg.content === '[Image]' ? '📷 Photo' : lastMsg.content || '') : '',
           last_message_at: lastMsg?.created_at || conv.updated_at,
           last_sender_type: lastMsg?.sender_type,
           buyer_unread_count: unreadByConvId.get(conv.id) || 0,
@@ -543,7 +548,7 @@ class ChatService {
           ...conv,
           seller_id: sellerId,
           buyer_name: buyerName,
-          last_message: lastMsg.content || '',
+          last_message: lastMsg.content === '[Image]' ? '📷 Photo' : lastMsg.content || '',
           last_message_at: lastMsg.created_at || conv.updated_at,
           last_sender_type: lastMsg.sender_type,
           seller_unread_count: sellerUnreadByConvId.get(conv.id) || 0,
@@ -589,7 +594,7 @@ class ChatService {
   async getMessages(conversationId: string): Promise<Message[]> {
     const { data, error } = await supabase
       .from('messages')
-      .select('id, conversation_id, sender_id, sender_type, content, created_at, is_read, message_type')
+      .select('id, conversation_id, sender_id, sender_type, content, image_url, media_url, media_type, created_at, is_read, message_type, message_content')
       .eq('conversation_id', conversationId)
       .order('created_at', { ascending: true })
       .limit(100);
@@ -601,7 +606,10 @@ class ChatService {
 
     return (data || []).map((msg: any) => ({
       ...msg,
-      content: msg.content
+      // Normalize legacy image_url into media_url for old rows
+      media_url: msg.media_url || msg.image_url || undefined,
+      media_type: msg.media_type || (msg.image_url && !msg.media_url ? 'image' : undefined),
+      content: msg.message_type === 'system' ? (msg.message_content || '') : msg.content,
     }));
   }
 
@@ -614,7 +622,9 @@ class ChatService {
     senderId: string,
     senderType: 'buyer' | 'seller',
     content: string,
-    imageUrl?: string
+    imageUrl?: string,   // legacy param
+    mediaUrl?: string,   // new — Supabase Storage public URL
+    mediaType?: 'image'  // new — images only
   ): Promise<Message | null> {
     const { data: message, error: msgError } = await supabase
       .from('messages')
@@ -624,6 +634,9 @@ class ChatService {
         sender_type: senderType,
         content,
         image_url: imageUrl,
+        media_url: mediaUrl || null,
+        media_type: mediaType || null,
+        message_type: mediaType === 'image' ? 'image' : undefined,
         is_read: false,
       })
       .select()
@@ -697,7 +710,7 @@ class ChatService {
           event: 'sidebar_update',
           payload: {
             conversationId,
-            lastMessage: content,
+            lastMessage: mediaType === 'image' ? '📷 Photo' : content,
             lastMessageAt: message?.created_at ?? new Date().toISOString(),
             senderType,
           },
@@ -709,6 +722,24 @@ class ChatService {
     }
 
     return message;
+  }
+
+  /**
+   * Upload a chat image to Supabase Storage.
+   * Returns the public URL, or null if the upload failed.
+   */
+  async uploadChatMedia(file: File, conversationId: string): Promise<string | null> {
+    const ext = file.name.split('.').pop()?.toLowerCase() || 'jpg';
+    const path = `${conversationId}/${Date.now()}-${Math.random().toString(36).slice(2)}.${ext}`;
+    const { error } = await supabase.storage
+      .from('chat_media')
+      .upload(path, file, { contentType: file.type, upsert: false });
+    if (error) {
+      console.error('[ChatService] Media upload error:', error);
+      return null;
+    }
+    const { data } = supabase.storage.from('chat_media').getPublicUrl(path);
+    return data?.publicUrl ?? null;
   }
 
   /**
@@ -756,6 +787,11 @@ class ChatService {
           console.log('🔥 REALTIME PAYLOAD RECEIVED:', payload);
           const newMsg = payload.new as Message;
           if (!newMsg?.id) return;
+          // Normalize legacy image_url into media_url for old rows arriving via Realtime
+          if (!newMsg.media_url && newMsg.image_url) {
+            newMsg.media_url = newMsg.image_url;
+            (newMsg as any).media_type = 'image';
+          }
           console.log('📩 subscribeToMessages: delivering to callback, sender_type:', newMsg.sender_type);
           onMessage(newMsg);
         }
