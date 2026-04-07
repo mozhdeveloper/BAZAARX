@@ -293,20 +293,9 @@ export default function ShopScreen({ navigation, route }: Props) {
   const onRefresh = useCallback(async () => {
     console.log('[ShopScreen] Pull-to-refresh started');
     setIsRefreshing(true);
+    flashListRef.current?.scrollToOffset({ animated: false, offset: 0 });
 
-    // Store current filter state to preserve during refresh
-    const currentFilters = {
-      sort: selectedSort,
-      featured: isFeaturedView,
-      category: selectedCategory,
-      search: searchQuery,
-      minPrice: minPrice,
-      maxPrice: maxPrice,
-    };
-
-    // Only clear shuffle order to force re-randomization, keep filters intact
     shuffledIdsRef.current = [];
-    console.log('[ShopScreen] Cleared shuffle order, preserving filters:', currentFilters);
 
     try {
       const [productsResult, categoriesResult] = await Promise.allSettled([
@@ -322,9 +311,7 @@ export default function ShopScreen({ navigation, route }: Props) {
         const mapped: Product[] = (productsResult.value || []).map((row: any) => normalizeProductForShop(row));
         const uniqueMapped = Array.from(new Map(mapped.map((item) => [item.id, item])).values());
         setDbProducts(uniqueMapped);
-        console.log('[ShopScreen] Loaded', uniqueMapped.length, 'products');
 
-        // Force immediate re-randomization with new data (for default sort)
         if (uniqueMapped.length > 0) {
           const ids = uniqueMapped.map(p => p.id);
           for (let i = ids.length - 1; i > 0; i--) {
@@ -332,7 +319,6 @@ export default function ShopScreen({ navigation, route }: Props) {
             [ids[i], ids[j]] = [ids[j], ids[i]];
           }
           shuffledIdsRef.current = ids;
-          console.log('[ShopScreen] Products re-randomized');
         }
       }
 
@@ -341,31 +327,10 @@ export default function ShopScreen({ navigation, route }: Props) {
         setCategoryChips([DEFAULT_CATEGORY_CHIPS[0], ...mappedChips]);
       }
 
-      // Scroll to top after refresh completes only if no active filters
-      const hasActiveFilters = currentFilters.sort !== 'default' ||
-                              currentFilters.featured ||
-                              currentFilters.category !== 'all' ||
-                              currentFilters.search !== '' ||
-                              currentFilters.minPrice !== '0' ||
-                              currentFilters.maxPrice !== '100000';
-
-      if (!hasActiveFilters) {
-        setTimeout(() => {
-          flashListRef.current?.scrollToOffset({
-            animated: true,
-            offset: 0
-          });
-          console.log('[ShopScreen] Scrolled to top after refresh (no filters)');
-        }, 200);
-      } else {
-        console.log('[ShopScreen] Keeping scroll position due to active filters');
-      }
-
     } catch (err) {
       console.error('[ShopScreen] Error refreshing data:', err);
     } finally {
       setIsRefreshing(false);
-      console.log('[ShopScreen] Pull-to-refresh completed, filters preserved');
     }
   }, [selectedSort, isFeaturedView, selectedCategory, searchQuery, minPrice, maxPrice]);
 
@@ -626,7 +591,10 @@ export default function ShopScreen({ navigation, route }: Props) {
 
   useEffect(() => {
     setIsProductsLoading(true);
-    const timer = setTimeout(() => setIsProductsLoading(false), 300);
+    const timer = setTimeout(() => {
+      setIsProductsLoading(false);
+      flashListRef.current?.scrollToOffset({ animated: false, offset: 0 });
+    }, 300);
     return () => clearTimeout(timer);
   }, [selectedCategory, selectedSort, isFeaturedView, minPrice, maxPrice, searchQuery]);
 
@@ -766,10 +734,13 @@ export default function ShopScreen({ navigation, route }: Props) {
             onPress={async () => {
               setSelectedSort('default');
               setIsFeaturedView(false);
+              setSelectedCategory('all');
+              setSearchQuery('');
               setMinPrice('0'); setMaxPrice('100000');
               setMinInput('0'); setMaxInput('100000');
               setMultiSliderValue([0, 100000]);
               try { await AsyncStorage.removeItem('shopSortState'); } catch (e) { /* ignore */ }
+              navigation.setParams({ searchQuery: undefined, category: undefined, view: undefined });
             }}
             style={{ paddingHorizontal: 8, paddingVertical: 6, justifyContent: 'center' }}
           >
@@ -854,10 +825,30 @@ export default function ShopScreen({ navigation, route }: Props) {
 
       {/* Featured Sort Indicator — replaced by filter chips above */}
 
+      {/* Skeleton overlay for filter/sort changes and pull-to-refresh */}
+      {(isProductsLoading || isRefreshing) && (
+        <View style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, zIndex: 10, backgroundColor: COLORS.background, paddingHorizontal: 20, paddingTop: insets.top + 110 }}>
+          {[...Array(3)].map((_, row) => (
+            <View key={`skel-row-${row}`} style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 12 }}>
+              {[0, 1].map((col) => (
+                <View key={`skel-${row}-${col}`} style={{ width: (width - 40 - 12) / 2, backgroundColor: '#FFF', borderRadius: 16, overflow: 'hidden', borderWidth: 1, borderColor: '#F3F4F6' }}>
+                  <View style={{ aspectRatio: 1, backgroundColor: '#E5E7EB' }} />
+                  <View style={{ padding: 12, gap: 8 }}>
+                    <View style={{ height: 14, backgroundColor: '#E5E7EB', borderRadius: 6, width: '85%' }} />
+                    <View style={{ height: 12, backgroundColor: '#E5E7EB', borderRadius: 6, width: '60%' }} />
+                    <View style={{ height: 16, backgroundColor: '#E5E7EB', borderRadius: 6, width: '40%' }} />
+                  </View>
+                </View>
+              ))}
+            </View>
+          ))}
+        </View>
+      )}
+
       {/* Product list as root scroll — enables virtualization */}
       <FlashList
         ref={flashListRef}
-        data={(isLoading || isProductsLoading) ? [] : filteredProducts}
+        data={isLoading ? [] : filteredProducts}
         keyExtractor={keyExtractor}
         ListHeaderComponent={listHeaderComponent}
         ListFooterComponent={<View style={{ height: 60 }} />}
@@ -869,24 +860,7 @@ export default function ShopScreen({ navigation, route }: Props) {
             tintColor={BRAND_COLOR}
           />
         }
-        ListEmptyComponent={
-          isProductsLoading ? (
-            <View style={{ paddingHorizontal: 20, paddingTop: 10 }}>
-              <View style={{ flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'space-between' }}>
-                {[...Array(6)].map((_, i) => (
-                  <View key={`skel-${i}`} style={{ width: (width - 40 - 12) / 2, marginBottom: 12, backgroundColor: '#FFF', borderRadius: 16, overflow: 'hidden', borderWidth: 1, borderColor: '#F3F4F6' }}>
-                    <View style={{ aspectRatio: 1, backgroundColor: '#E5E7EB' }} />
-                    <View style={{ padding: 12, gap: 8 }}>
-                      <View style={{ height: 14, backgroundColor: '#E5E7EB', borderRadius: 6, width: '85%' }} />
-                      <View style={{ height: 12, backgroundColor: '#E5E7EB', borderRadius: 6, width: '60%' }} />
-                      <View style={{ height: 16, backgroundColor: '#E5E7EB', borderRadius: 6, width: '40%' }} />
-                    </View>
-                  </View>
-                ))}
-              </View>
-            </View>
-          ) : listEmptyComponent
-        }
+        ListEmptyComponent={listEmptyComponent}
         numColumns={2}
         masonry={true}
         onEndReachedThreshold={0.5}

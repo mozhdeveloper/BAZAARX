@@ -422,11 +422,70 @@ export default function ShopPage() {
 
   // flashSaleProducts comes from the real discount campaigns (state above)
 
+  // Build ShopProduct[] directly from fetched featured/boosted data.
+  // This bypasses the store's 30-product query limit, ensuring ALL featured
+  // products (e.g. older ones) appear in the "See All" view.
+  const featuredProductsAsShopProducts = useMemo<ShopProduct[]>(() => {
+    if (!isFeaturedView) return [];
+    const seen = new Set<string>();
+    const items: ShopProduct[] = [];
+
+    const addItem = (product: any, isBoosted: boolean) => {
+      if (!product || seen.has(product.id)) return;
+      seen.add(product.id);
+      const reviews = product.reviews || [];
+      const avgRating = reviews.length > 0
+        ? Math.round((reviews.reduce((s: number, r: any) => s + r.rating, 0) / reviews.length) * 10) / 10
+        : 0;
+      const totalStock = product.variants?.reduce((sum: number, v: any) => sum + (v.stock || 0), 0) || 0;
+      const primaryImage = product.images?.find((img: any) => img.is_primary) || product.images?.[0];
+      const imageUrl = primaryImage?.image_url || 'https://placehold.co/400x400?text=No+Image';
+      items.push({
+        id: product.id,
+        name: product.name || '',
+        price: Number(product.price ?? 0),
+        originalPrice: product.original_price ?? undefined,
+        image: imageUrl,
+        images: (product.images || []).map((img: any) => img.image_url).filter(Boolean),
+        rating: avgRating,
+        sold: product.sold_count || 0,
+        reviewsCount: reviews.length,
+        category: product.category?.name || '',
+        seller: product.seller?.store_name || 'BazaarX Store',
+        sellerId: product.seller_id || '',
+        isVerified: true,
+        isFreeShipping: product.is_free_shipping ?? false,
+        stock: totalStock,
+        variants: (product.variants || []).map((v: any) => ({
+          id: v.id,
+          name: v.variant_name,
+          price: Number(v.price ?? product.price ?? 0),
+          stock: v.stock || 0,
+        })),
+        isVacationMode: product.seller?.is_vacation_mode === true,
+        createdAt: product.created_at || '',
+      });
+    };
+
+    for (const bp of boostedProducts) {
+      addItem((bp as any).product, true);
+    }
+    for (const fp of featuredProducts) {
+      addItem((fp as any).product, false);
+    }
+
+    return items;
+  }, [isFeaturedView, featuredProducts, boostedProducts]);
+
   const productsFilteredWithoutCategory = useMemo<ShopProduct[]>(() => {
-    let result = pricedProducts.filter((product) => {
+    // In featured view, source directly from featuredProductsAsShopProducts
+    // to avoid the store's 30-product query limit cutting off older products.
+    const sourceProducts = isFeaturedView ? featuredProductsAsShopProducts : pricedProducts;
+
+    const result = sourceProducts.filter((product) => {
       const matchesSearch =
         product.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        product.category.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        (product.category || '').toLowerCase().includes(searchQuery.toLowerCase()) ||
         product.seller.toLowerCase().includes(searchQuery.toLowerCase());
 
       const matchesPrice =
@@ -437,16 +496,8 @@ export default function ShopPage() {
       return matchesSearch && matchesPrice && matchesRating;
     });
 
-    if (isFeaturedView) {
-      const featuredProductIds = new Set([
-        ...featuredProducts.map(fp => fp.product_id),
-        ...boostedProducts.map(bp => bp.product_id)
-      ]);
-      result = result.filter(p => featuredProductIds.has(p.id));
-    }
-
     return result;
-  }, [pricedProducts, searchQuery, isFeaturedView, priceRange, minRating, featuredProducts, boostedProducts]);
+  }, [pricedProducts, featuredProductsAsShopProducts, searchQuery, isFeaturedView, priceRange, minRating]);
 
   // Category count map that reacts to active filters
   const filteredCategoryCountMap = useMemo(() => {
