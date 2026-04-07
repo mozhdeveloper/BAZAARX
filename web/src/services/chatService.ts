@@ -19,11 +19,11 @@ export interface Message {
   sender_type: 'buyer' | 'seller';
   content: string;
   image_url?: string;        // LEGACY — kept for backward compat
-  media_url?: string;        // NEW — public URL of uploaded image
-  media_type?: 'image';      // NEW — images only in this release
+  media_url?: string;        // Public URL of uploaded media
+  media_type?: 'image' | 'video' | 'document';
   is_read: boolean;
   created_at: string;
-  message_type?: 'user' | 'system' | 'text' | 'image';
+  message_type?: 'user' | 'system' | 'text' | 'image' | 'video' | 'document';
   message_content?: string;
   order_event_type?: string;
 }
@@ -199,10 +199,16 @@ class ChatService {
       .eq('sender_type', 'buyer')
       .eq('is_read', false);
 
-    const displayContent =
-      lastMsg?.message_type === 'system' ? (lastMsg?.message_content || '') :
-      (lastMsg?.content === '[Image]' || lastMsg?.media_type === 'image' || lastMsg?.message_type === 'image') ? '📷 Photo' :
-      lastMsg?.content || '';
+    const mediaPreviewMap: Record<string, string> = {
+      image: '📷 Photo',
+      video: '🎬 Video',
+      document: '📄 Document',
+    };
+    const displayContent = !lastMsg ? '' :
+      lastMsg.message_type === 'system' ? (lastMsg.message_content || '') :
+        mediaPreviewMap[lastMsg.media_type || ''] ||
+        (['[Image]', '[Video]', '[Document]'].includes(lastMsg.content || '') ? mediaPreviewMap[lastMsg.message_type || ''] || lastMsg.content : null) ||
+        lastMsg.content || '';
 
     return {
       lastMessage: displayContent || '',
@@ -623,8 +629,8 @@ class ChatService {
     senderType: 'buyer' | 'seller',
     content: string,
     imageUrl?: string,   // legacy param
-    mediaUrl?: string,   // new — Supabase Storage public URL
-    mediaType?: 'image'  // new — images only
+    mediaUrl?: string,   // Supabase Storage public URL
+    mediaType?: 'image' | 'video' | 'document'
   ): Promise<Message | null> {
     const { data: message, error: msgError } = await supabase
       .from('messages')
@@ -633,12 +639,12 @@ class ChatService {
         sender_id: senderId,
         sender_type: senderType,
         content,
-        image_url: imageUrl,
+        image_url: imageUrl || null,
         media_url: mediaUrl || null,
         media_type: mediaType || null,
-        message_type: mediaType === 'image' ? 'image' : undefined,
+        message_type: mediaType || 'text',
         is_read: false,
-      })
+      } as any)
       .select()
       .single();
 
@@ -729,8 +735,8 @@ class ChatService {
    * Returns the public URL, or null if the upload failed.
    */
   async uploadChatMedia(file: File, conversationId: string): Promise<string | null> {
-    const ext = file.name.split('.').pop()?.toLowerCase() || 'jpg';
-    const path = `${conversationId}/${Date.now()}-${Math.random().toString(36).slice(2)}.${ext}`;
+    const sanitizedName = file.name.replace(/[^a-zA-Z0-9._-]/g, '_');
+    const path = `${conversationId}/${Date.now()}_${sanitizedName}`;
     const { error } = await supabase.storage
       .from('chat_media')
       .upload(path, file, { contentType: file.type, upsert: false });

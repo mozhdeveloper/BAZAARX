@@ -852,8 +852,13 @@ export interface Message {
   sender_type: 'buyer' | 'seller';
   content: string;
   image_url: string | null;
+  media_url: string | null;
+  media_type: 'image' | 'video' | 'document' | null;
   is_read: boolean;
   created_at: string;
+  message_type: 'user' | 'system' | 'text' | 'image' | 'video' | 'document' | null;
+  message_content: string | null;
+  order_event_type: string | null;
 }
 
 // ============================================================================
