@@ -11,6 +11,7 @@
 import { supabase } from '../lib/supabase';
 import { RealtimeChannel } from '@supabase/supabase-js';
 import { notificationService } from './notificationService';
+import { decode } from 'base64-arraybuffer';
 
 export interface Message {
   id: string;
@@ -19,9 +20,11 @@ export interface Message {
   sender_type: 'buyer' | 'seller';
   content: string;
   image_url?: string;
+  media_url?: string;
+  media_type?: 'image' | 'video' | 'document';
   is_read: boolean;
   created_at: string;
-  message_type?: 'user' | 'system';
+  message_type?: 'user' | 'system' | 'text' | 'image' | 'video' | 'document';
   message_content?: string;
   order_event_type?: string;
 }
@@ -130,7 +133,7 @@ class ChatService {
     // Get last message
     const { data: lastMsg } = await supabase
       .from('messages')
-      .select('content, message_content, message_type, sender_type, created_at')
+      .select('content, message_content, message_type, media_type, sender_type, created_at')
       .eq('conversation_id', conversationId)
       .order('created_at', { ascending: false })
       .limit(1)
@@ -151,7 +154,16 @@ class ChatService {
       .eq('sender_type', 'buyer')
       .eq('is_read', false);
 
-    const displayContent = lastMsg?.message_type === 'system' ? lastMsg?.message_content : (lastMsg?.content || lastMsg?.message_content || '');
+    const mediaPreviewMap: Record<string, string> = {
+      image: '📷 Photo',
+      video: '🎬 Video',
+      document: '📄 Document',
+    };
+    const displayContent = !lastMsg ? '' :
+      lastMsg.message_type === 'system' ? (lastMsg.message_content || '') :
+        mediaPreviewMap[(lastMsg as any).media_type || ''] ||
+        (['[Image]', '[Video]', '[Document]'].includes(lastMsg.content || '') ? mediaPreviewMap[lastMsg.message_type || ''] || lastMsg.content : null) ||
+        lastMsg.content || lastMsg.message_content || '';
 
     return {
       lastMessage: displayContent || '',
@@ -403,7 +415,7 @@ class ChatService {
   async getMessages(conversationId: string): Promise<Message[]> {
     const { data, error } = await supabase
       .from('messages')
-      .select('id, conversation_id, sender_id, sender_type, content, message_content, created_at, is_read, message_type')
+      .select('id, conversation_id, sender_id, sender_type, content, message_content, created_at, is_read, message_type, image_url, media_url, media_type')
       .eq('conversation_id', conversationId)
       .order('created_at', { ascending: true })
       .limit(100);
@@ -415,7 +427,10 @@ class ChatService {
 
     return (data || []).map((msg: any) => ({
       ...msg,
-      content: msg.message_type === 'system' ? msg.message_content : msg.content
+      // Normalize legacy image_url into media_url for old rows
+      media_url: msg.media_url || msg.image_url || undefined,
+      media_type: msg.media_type || (msg.image_url && !msg.media_url ? 'image' : undefined),
+      content: msg.message_type === 'system' ? msg.message_content : msg.content,
     }));
   }
 
@@ -428,7 +443,9 @@ class ChatService {
     senderId: string,
     senderType: 'buyer' | 'seller',
     content: string,
-    imageUrl?: string
+    imageUrl?: string,
+    mediaUrl?: string,
+    mediaType?: 'image' | 'video' | 'document'
   ): Promise<Message | null> {
     const { data: message, error: msgError } = await supabase
       .from('messages')
@@ -437,9 +454,12 @@ class ChatService {
         sender_id: senderId,
         sender_type: senderType,
         content,
-        image_url: imageUrl,
+        image_url: imageUrl || null,
+        media_url: mediaUrl || null,
+        media_type: mediaType || null,
+        message_type: mediaType || 'text',
         is_read: false,
-      })
+      } as any)
       .select()
       .single();
 
@@ -507,6 +527,40 @@ class ChatService {
     }
 
     return message as unknown as Message;
+  }
+
+  /**
+   * Upload a chat media file to Supabase Storage.
+   * Accepts a base64 string (from expo-file-system ReadAsStringAsync).
+   * Returns the public URL, or null on failure.
+   */
+  async uploadChatMedia(
+    base64Data: string,
+    conversationId: string,
+    fileName: string,
+    mimeType: string
+  ): Promise<string | null> {
+    try {
+      const ext = fileName.split('.').pop()?.toLowerCase() || 'bin';
+      // Preserve original filename with a timestamp prefix (matches web behaviour)
+      const safeName = fileName.replace(/[^a-zA-Z0-9._-]/g, '_');
+      const path = `${conversationId}/${Date.now()}_${safeName}`;
+
+      const { error } = await supabase.storage
+        .from('chat_media')
+        .upload(path, decode(base64Data), { contentType: mimeType, upsert: false });
+
+      if (error) {
+        console.error('[ChatService] Media upload error:', error);
+        return null;
+      }
+
+      const { data } = supabase.storage.from('chat_media').getPublicUrl(path);
+      return data?.publicUrl ?? null;
+    } catch (e) {
+      console.error('[ChatService] uploadChatMedia exception:', e);
+      return null;
+    }
   }
 
   /**

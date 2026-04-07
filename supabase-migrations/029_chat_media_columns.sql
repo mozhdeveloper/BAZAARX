@@ -52,3 +52,7 @@ WHERE message_type = 'user'
 -- ============================================================
 -- PART B END
 -- ============================================================
+
+ALTER TYPE message_type_enum ADD VALUE IF NOT EXISTS 'video';
+ALTER TYPE message_type_enum ADD VALUE IF NOT EXISTS 'document';
+
