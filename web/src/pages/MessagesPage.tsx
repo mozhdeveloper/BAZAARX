@@ -7,15 +7,26 @@ import { Avatar, AvatarFallback, AvatarImage } from '../components/ui/avatar';
 import { Badge } from '../components/ui/badge';
 import {
   Search, Send, MoreVertical, ChevronLeft, Ticket, Image as ImageIcon,
-  Store, Trash2, ExternalLink, MessageSquare, Loader2
+  Store, Trash2, ExternalLink, MessageSquare, Loader2, FileText, X,
+  Paperclip, Play,
 } from 'lucide-react';
+import ChatMediaModal, { type MediaPreview } from '../components/ChatMediaModal';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { useBuyerStore, demoSellers, Conversation } from '../stores/buyerStore';
 import Header from '../components/Header';
 
 const quickReplies = ["Is this available?", "Can I see real photos?", "Do you offer COD?", "Is this authentic?"];
 import { chatService, Conversation as DBConversation, Message as DBMessage } from '../services/chatService';
-import { validateChatImage } from '../utils/chatMediaUtils';
+import { validateChatMedia, type ChatMediaType } from '../utils/chatMediaUtils';
+
+// Extract original filename from Supabase storage URL (strips timestamp prefix)
+const extractFileName = (url: string, fallback = 'Document.pdf') => {
+  try {
+    const raw = decodeURIComponent(url.split('/').pop()?.split('?')[0] || fallback);
+    const match = raw.match(/^\d+_(.+)$/);
+    return match ? match[1] : raw;
+  } catch { return fallback; }
+};
 
 export default function MessagesPage() {
   const navigate = useNavigate();
@@ -33,8 +44,9 @@ export default function MessagesPage() {
   };
   const [newMessage, setNewMessage] = useState('');
   const [searchQuery, setSearchQuery] = useState('');
-  const [previewImage, setPreviewImage] = useState<string | null>(null);
+  const [previewMedia, setPreviewMedia] = useState<MediaPreview | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const docInputRef = useRef<HTMLInputElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
   const [dbConversations, setDbConversations] = useState<DBConversation[]>([]);
@@ -42,6 +54,7 @@ export default function MessagesPage() {
   const [loading, setLoading] = useState(true);
   const [sending, setSending] = useState(false);
   const [uploading, setUploading] = useState(false);
+  const [pendingMedia, setPendingMedia] = useState<{ file: File; previewUrl: string; mediaType: ChatMediaType } | null>(null);
 
   const useRealData = dbConversations.length > 0;
 
@@ -280,68 +293,87 @@ export default function MessagesPage() {
     if (!textOverride && !imageUrls) setNewMessage('');
   };
 
-  const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleMediaUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = Array.from(e.target.files || []);
     if (!files.length || !selectedConversation || !profile?.id) return;
 
-    for (const file of files) {
-      // Layer 1: client-side validation
-      const { valid, error } = validateChatImage(file);
-      if (!valid) {
-        console.error('[MessagesPage] Invalid file:', error);
-        if (fileInputRef.current) fileInputRef.current.value = '';
-        return;
-      }
-
-      setUploading(true);
-      // Layer 2: upload to Supabase Storage (server-side MIME whitelist enforced by bucket)
-      const url = await chatService.uploadChatMedia(file, selectedConversation);
-      setUploading(false);
-
-      if (!url) {
-        console.error('[MessagesPage] Upload failed');
-        continue;
-      }
-
-      // Optimistic message — show immediately with local URL
-      const tempId = `temp-${Date.now()}`;
-      const tempMsg: DBMessage = {
-        id: tempId,
-        conversation_id: selectedConversation,
-        sender_id: profile.id,
-        sender_type: 'buyer',
-        content: '[Image]',
-        media_url: url,
-        media_type: 'image',
-        is_read: false,
-        created_at: new Date().toISOString(),
-        message_type: 'image',
-      };
-      setDbMessages(prev => [...prev, tempMsg]);
-
-      const result = await chatService.sendMessage(
-        selectedConversation, profile.id, 'buyer', '[Image]', undefined, url, 'image'
-      );
-
-      if (result) {
-        setDbMessages(prev =>
-          prev.some(m => m.id === result.id)
-            ? prev.filter(m => m.id !== tempId)
-            : prev.map(m => m.id === tempId ? result : m)
-        );
-        setDbConversations(prev =>
-          sortByLastMessage(
-            prev.map(c =>
-              c.id === selectedConversation
-                ? { ...c, last_message: '📷 Photo', last_message_at: result.created_at, last_sender_type: 'buyer' }
-                : c
-            )
-          )
-        );
-      }
+    const file = files[0]; // Preview one at a time
+    const { valid, mediaType, error } = validateChatMedia(file);
+    if (!valid || !mediaType) {
+      console.error('[MessagesPage] Invalid file:', error);
+      if (fileInputRef.current) fileInputRef.current.value = '';
+      if (docInputRef.current) docInputRef.current.value = '';
+      return;
     }
 
+    // Stage for preview instead of sending immediately
+    const previewUrl = URL.createObjectURL(file);
+    setPendingMedia({ file, previewUrl, mediaType });
+
     if (fileInputRef.current) fileInputRef.current.value = '';
+    if (docInputRef.current) docInputRef.current.value = '';
+  };
+
+  const cancelPendingMedia = () => {
+    if (pendingMedia) {
+      URL.revokeObjectURL(pendingMedia.previewUrl);
+      setPendingMedia(null);
+    }
+  };
+
+  const confirmSendMedia = async () => {
+    if (!pendingMedia || !selectedConversation || !profile?.id) return;
+    const { file, mediaType } = pendingMedia;
+    setPendingMedia(null); // Close modal immediately
+
+    setUploading(true);
+    const url = await chatService.uploadChatMedia(file, selectedConversation);
+    setUploading(false);
+
+    if (!url) {
+      console.error('[MessagesPage] Upload failed');
+      return;
+    }
+
+    const placeholderMap = { image: '[Image]', video: '[Video]', document: '[Document]' } as const;
+    const previewMap = { image: '📷 Photo', video: '🎬 Video', document: '📄 Document' } as const;
+    const placeholder = placeholderMap[mediaType];
+
+    const tempId = `temp-${Date.now()}`;
+    const tempMsg: DBMessage = {
+      id: tempId,
+      conversation_id: selectedConversation,
+      sender_id: profile.id,
+      sender_type: 'buyer',
+      content: placeholder,
+      media_url: url,
+      media_type: mediaType,
+      is_read: false,
+      created_at: new Date().toISOString(),
+      message_type: mediaType,
+    };
+    setDbMessages(prev => [...prev, tempMsg]);
+
+    const result = await chatService.sendMessage(
+      selectedConversation, profile.id, 'buyer', placeholder, undefined, url, mediaType
+    );
+
+    if (result) {
+      setDbMessages(prev =>
+        prev.some(m => m.id === result.id)
+          ? prev.filter(m => m.id !== tempId)
+          : prev.map(m => m.id === tempId ? result : m)
+      );
+      setDbConversations(prev =>
+        sortByLastMessage(
+          prev.map(c =>
+            c.id === selectedConversation
+              ? { ...c, last_message: previewMap[mediaType], last_message_at: result.created_at, last_sender_type: 'buyer' }
+              : c
+          )
+        )
+      );
+    }
   };
 
 
@@ -572,16 +604,46 @@ export default function MessagesPage() {
                               title={fullTimestamp}
                               className={`max-w-full px-4 py-3 rounded-2xl shadow-sm cursor-default group relative ${isBuyer ? 'bg-[var(--brand-primary)] text-white rounded-tr-sm' : 'bg-[var(--bg-secondary)] text-[var(--text-primary)] rounded-tl-sm border border-[var(--brand-wash-gold)]/20'}`}
                             >
-                              {msg.media_url && (msg.message_type === 'image' || msg.media_type === 'image') && (
+                              {/* Image */}
+                              {(msg.media_url || msg.image_url) && (msg.message_type === 'image' || msg.media_type === 'image' || (!msg.media_type && msg.image_url)) && (
                                 <img
-                                  src={msg.media_url}
+                                  src={msg.media_url || msg.image_url!}
                                   alt="Attachment"
                                   loading="lazy"
-                                  className="max-w-[240px] max-h-[240px] rounded-lg object-cover cursor-pointer mb-1 border border-white/10"
-                                  onClick={() => setPreviewImage(msg.media_url!)}
+                                  className="max-w-[220px] max-h-[220px] rounded-lg object-cover cursor-pointer mb-1 border border-white/10 hover:opacity-90 transition-opacity"
+                                  onClick={() => setPreviewMedia({ type: 'image', url: (msg.media_url || msg.image_url)! })}
                                 />
                               )}
-                              {msg.content && msg.content !== '[Image]' && (
+                              {/* Video — thumbnail with play overlay */}
+                              {msg.media_url && (msg.message_type === 'video' || msg.media_type === 'video') && (
+                                <div
+                                  className="relative max-w-[280px] rounded-lg overflow-hidden mb-1 cursor-pointer group"
+                                  onClick={() => setPreviewMedia({ type: 'video', url: msg.media_url! })}
+                                >
+                                  <video src={msg.media_url} preload="metadata" className="w-full max-h-[200px] object-cover" muted playsInline />
+                                  <div className="absolute inset-0 bg-black/30 flex items-center justify-center group-hover:bg-black/40 transition-colors">
+                                    <div className="w-12 h-12 bg-white/90 rounded-full flex items-center justify-center shadow-lg">
+                                      <Play className="w-5 h-5 text-gray-800 ml-0.5" fill="currentColor" />
+                                    </div>
+                                  </div>
+                                </div>
+                              )}
+                              {/* Document — filename card */}
+                              {msg.media_url && (msg.message_type === 'document' || msg.media_type === 'document') && (
+                                <div
+                                  onClick={() => setPreviewMedia({ type: 'document', url: msg.media_url!, fileName: extractFileName(msg.media_url!) })}
+                                  className={`flex items-center gap-3 px-3 py-2.5 rounded-lg mb-1 cursor-pointer transition-colors ${isBuyer ? 'bg-white/10 hover:bg-white/20 text-white' : 'bg-gray-100 hover:bg-gray-200 text-gray-700'}`}
+                                >
+                                  <div className={`w-9 h-9 rounded-lg flex items-center justify-center flex-shrink-0 ${isBuyer ? 'bg-white/15' : 'bg-red-50'}`}>
+                                    <FileText className={`w-4 h-4 ${isBuyer ? 'text-white' : 'text-red-500'}`} />
+                                  </div>
+                                  <div className="min-w-0">
+                                    <p className="text-sm font-medium truncate max-w-[180px]">{extractFileName(msg.media_url!)}</p>
+                                    <p className={`text-[10px] ${isBuyer ? 'text-white/50' : 'text-gray-400'}`}>PDF Document</p>
+                                  </div>
+                                </div>
+                              )}
+                              {msg.content && !(msg.media_url && ['[Image]', '[Video]', '[Document]'].includes(msg.content)) && !(msg.image_url && msg.content === '[Image]') && (
                                 <p className="text-sm leading-relaxed whitespace-pre-wrap break-words">{msg.content}</p>
                               )}
                               {/* Hover timestamp tooltip */}
@@ -609,7 +671,7 @@ export default function MessagesPage() {
                             {msg.images && msg.images.length > 0 && (
                               <div className={`grid gap-1 mb-2 ${msg.images.length > 1 ? 'grid-cols-2' : 'grid-cols-1'}`}>
                                 {msg.images.map((img, idx) => (
-                                  <div key={idx} className={`${msg.images && msg.images.length > 1 ? 'w-24 h-24' : 'w-40 h-40'} overflow-hidden rounded-lg cursor-pointer hover:opacity-90`} onClick={() => setPreviewImage(img)}>
+                                  <div key={idx} className={`${msg.images && msg.images.length > 1 ? 'w-24 h-24' : 'w-40 h-40'} overflow-hidden rounded-lg cursor-pointer hover:opacity-90`} onClick={() => setPreviewMedia({ type: 'image', url: img })}>
                                     <img loading="lazy" src={img} alt="Sent" className="w-full h-full object-cover" />
                                   </div>
                                 ))}
@@ -636,9 +698,13 @@ export default function MessagesPage() {
                   ))}
                 </div>
                 <form onSubmit={handleSendMessage} className="flex items-center gap-2 p-1 bg-[var(--brand-wash)] rounded-2xl border border-[var(--brand-wash-gold)]/20 focus-within:border-[var(--brand-primary)] transition-all">
-                  <input type="file" ref={fileInputRef} onChange={handleImageUpload} accept="image/jpeg,image/png,image/webp" multiple className="hidden" />
+                  <input type="file" ref={fileInputRef} onChange={handleMediaUpload} accept="image/jpeg,image/png,image/webp,video/mp4,video/quicktime" multiple className="hidden" />
+                  <input type="file" ref={docInputRef} onChange={handleMediaUpload} accept="application/pdf" className="hidden" />
                   <Button type="button" variant="ghost" size="icon" className="text-[var(--text-muted)] hover:text-[var(--brand-primary)] rounded-full" onClick={() => fileInputRef.current?.click()} disabled={sending || uploading}>
                     {uploading ? <Loader2 className="h-5 w-5 animate-spin" /> : <ImageIcon className="h-5 w-5" />}
+                  </Button>
+                  <Button type="button" variant="ghost" size="icon" className="text-[var(--text-muted)] hover:text-[var(--brand-primary)] rounded-full -ml-1" onClick={() => docInputRef.current?.click()} disabled={sending || uploading}>
+                    <Paperclip className="h-5 w-5" />
                   </Button>
                   <textarea
                     ref={textareaRef}
@@ -687,15 +753,85 @@ export default function MessagesPage() {
       </div>
 
       <AnimatePresence>
-        {previewImage && (
-          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 z-50 flex items-center justify-center bg-black/90 p-4" onClick={() => setPreviewImage(null)}>
-            <motion.button className="absolute top-6 right-6 text-white p-2 hover:bg-white/10 rounded-full" onClick={() => setPreviewImage(null)}>
-              <ChevronLeft className="w-8 h-8 rotate-180" />
-            </motion.button>
-            <motion.img initial={{ scale: 0.9, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} exit={{ scale: 0.9, opacity: 0 }} src={previewImage} className="max-w-full max-h-full object-contain rounded-lg shadow-2xl" onClick={(e) => e.stopPropagation()} />
+        {pendingMedia && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4"
+            onClick={cancelPendingMedia}
+          >
+            <motion.div
+              initial={{ scale: 0.9, opacity: 0, y: 20 }}
+              animate={{ scale: 1, opacity: 1, y: 0 }}
+              exit={{ scale: 0.9, opacity: 0, y: 20 }}
+              transition={{ type: 'spring', duration: 0.4 }}
+              className="relative bg-white rounded-2xl shadow-2xl w-full max-w-md overflow-hidden"
+              onClick={(e) => e.stopPropagation()}
+            >
+              {/* Header */}
+              <div className="flex items-center justify-between px-5 py-4 border-b border-gray-100">
+                <h3 className="text-base font-semibold text-gray-900">
+                  {pendingMedia.mediaType === 'image' ? 'Send Image' : pendingMedia.mediaType === 'video' ? 'Send Video' : 'Send Document'}
+                </h3>
+                <button
+                  onClick={cancelPendingMedia}
+                  className="p-1.5 rounded-full hover:bg-gray-100 text-gray-400 hover:text-gray-600 transition-colors"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+
+              {/* Preview area */}
+              <div className="flex items-center justify-center p-5 bg-gray-50 min-h-[200px] max-h-[400px]">
+                {pendingMedia.mediaType === 'image' && (
+                  <img
+                    src={pendingMedia.previewUrl}
+                    alt="Preview"
+                    className="max-w-full max-h-[360px] object-contain rounded-lg"
+                  />
+                )}
+                {pendingMedia.mediaType === 'video' && (
+                  <video
+                    src={pendingMedia.previewUrl}
+                    controls
+                    autoPlay
+                    className="max-w-full max-h-[360px] rounded-lg"
+                  />
+                )}
+                {pendingMedia.mediaType === 'document' && (
+                  <div className="flex flex-col items-center gap-3 py-6">
+                    <div className="w-16 h-16 bg-orange-50 rounded-2xl flex items-center justify-center">
+                      <FileText className="w-8 h-8 text-[var(--brand-primary)]" />
+                    </div>
+                    <p className="text-gray-900 font-medium text-sm text-center max-w-[280px] truncate">{pendingMedia.file.name}</p>
+                    <p className="text-gray-400 text-xs">{(pendingMedia.file.size / (1024 * 1024)).toFixed(1)} MB</p>
+                  </div>
+                )}
+              </div>
+
+              {/* Footer */}
+              <div className="flex items-center justify-end gap-3 px-5 py-4 border-t border-gray-100">
+                <button
+                  onClick={cancelPendingMedia}
+                  className="px-5 py-2.5 rounded-xl text-gray-600 hover:bg-gray-100 font-medium text-sm transition-colors"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={confirmSendMedia}
+                  className="px-5 py-2.5 rounded-xl bg-[var(--brand-primary)] hover:bg-[var(--brand-primary-dark)] text-white font-semibold text-sm shadow-sm hover:shadow-md transition-all flex items-center gap-2"
+                >
+                  <Send className="w-4 h-4" />
+                  Send
+                </button>
+              </div>
+            </motion.div>
           </motion.div>
         )}
       </AnimatePresence>
+
+      <ChatMediaModal media={previewMedia} onClose={() => setPreviewMedia(null)} />
     </div>
   );
 }

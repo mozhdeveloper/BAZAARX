@@ -2,14 +2,28 @@ import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react'
 import {
   View, Text, StyleSheet, TextInput, Pressable, FlatList,
   KeyboardAvoidingView, Platform, ActivityIndicator, Image, ListRenderItemInfo,
+  Alert, Linking,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { ChevronLeft, Send, Store, User, Ticket } from 'lucide-react-native';
+import { ChevronLeft, Send, Store, User, Ticket, ImageIcon, FileText, Play, Paperclip } from 'lucide-react-native';
 import { useNavigation, useRoute } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { COLORS } from '../constants/theme';
 import { chatService, Conversation, Message } from '../services/chatService';
+import { getMimeFromExtension, detectMediaTypeFromExtension, CHAT_MEDIA_LIMITS, ALL_PLACEHOLDERS, MEDIA_PLACEHOLDER_MAP, type ChatMediaType } from '../utils/chatMediaUtils';
 import type { RootStackParamList } from '../../App';
+import * as ImagePicker from 'expo-image-picker';
+import * as DocumentPicker from 'expo-document-picker';
+import * as FileSystem from 'expo-file-system';
+
+// Strip timestamp prefix from filename: "1712345678_report.pdf" → "report.pdf"
+const extractFileName = (url: string, fallback = 'Document.pdf') => {
+  try {
+    const raw = decodeURIComponent(url.split('/').pop()?.split('?')[0] || fallback);
+    const match = raw.match(/^\d+_(.+)$/);
+    return match ? match[1] : raw;
+  } catch { return fallback; }
+};
 
 // ─── Typed list items ──────────────────────────────────────────────────────────
 type MessageItem = { type: 'message'; data: Message; id: string };
@@ -51,6 +65,7 @@ export default function ChatScreen({ conversation, currentUserId, userType, onBa
   const [messages, setMessages] = useState<Message[]>([]);
   const [newMessage, setNewMessage] = useState('');
   const [loading, setLoading] = useState(true);
+  const [uploading, setUploading] = useState(false);
 
   // ─── Build flat data array for inverted FlatList ──────────────────────────
   // Messages are kept in chronological order (oldest → newest).
@@ -169,6 +184,121 @@ export default function ChatScreen({ conversation, currentUserId, userType, onBa
     }
   };
 
+  // ─── Media Pickers ────────────────────────────────────────────────────────
+  const pickMedia = async () => {
+    if (!conversationId || !effectiveUserId) return;
+    const result = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: ['images', 'videos'],
+      quality: 0.8,
+      videoMaxDuration: 120,
+    });
+    if (result.canceled || !result.assets?.[0]) return;
+
+    const asset = result.assets[0];
+    const ext = asset.uri.split('.').pop()?.toLowerCase() || 'jpg';
+    const mediaType: ChatMediaType = asset.type === 'video' ? 'video' : 'image';
+    const mime = getMimeFromExtension(ext);
+
+    // Validate size
+    const fileInfo = await FileSystem.getInfoAsync(asset.uri);
+    const maxSize = CHAT_MEDIA_LIMITS[mediaType].maxSize;
+    if (fileInfo.exists && 'size' in fileInfo && fileInfo.size > maxSize) {
+      Alert.alert('File too large', `Max ${maxSize / (1024 * 1024)} MB for ${mediaType}s`);
+      return;
+    }
+
+    setUploading(true);
+    try {
+      const base64 = await FileSystem.readAsStringAsync(asset.uri, {
+        encoding: 'base64',
+      });
+      const fileName = `${Date.now()}.${ext}`;
+      const url = await chatService.uploadChatMedia(base64, conversationId, fileName, mime);
+      if (!url) {
+        Alert.alert('Upload failed', 'Could not upload the file. Please try again.');
+        return;
+      }
+
+      const placeholder = MEDIA_PLACEHOLDER_MAP[mediaType];
+      // Optimistic message
+      const tempId = `temp-${Date.now()}`;
+      const tempMsg: Message = {
+        id: tempId, conversation_id: conversationId, sender_id: effectiveUserId,
+        sender_type: effectiveUserType, content: placeholder, media_url: url,
+        media_type: mediaType, is_read: false, created_at: new Date().toISOString(),
+        message_type: mediaType,
+      };
+      setMessages(prev => [...prev, tempMsg]);
+
+      const sentMsg = await chatService.sendMessage(
+        conversationId, effectiveUserId, effectiveUserType, placeholder, undefined, url, mediaType
+      );
+      if (sentMsg) {
+        setMessages(prev =>
+          prev.some(m => m.id === sentMsg.id)
+            ? prev.filter(m => m.id !== tempId)
+            : prev.map(m => m.id === tempId ? sentMsg : m)
+        );
+      }
+    } catch (err) {
+      console.error('[ChatScreen] pickMedia error:', err);
+    } finally {
+      setUploading(false);
+    }
+  };
+
+  const pickDocument = async () => {
+    if (!conversationId || !effectiveUserId) return;
+    const result = await DocumentPicker.getDocumentAsync({
+      type: 'application/pdf',
+      copyToCacheDirectory: true,
+    });
+    if (result.canceled || !result.assets?.[0]) return;
+
+    const asset = result.assets[0];
+    if (asset.size && asset.size > CHAT_MEDIA_LIMITS.document.maxSize) {
+      Alert.alert('File too large', 'Max 10 MB for documents');
+      return;
+    }
+
+    setUploading(true);
+    try {
+      const base64 = await FileSystem.readAsStringAsync(asset.uri, {
+        encoding: 'base64',
+      });
+      const fileName = asset.name || `${Date.now()}.pdf`;
+      const url = await chatService.uploadChatMedia(base64, conversationId, fileName, 'application/pdf');
+      if (!url) {
+        Alert.alert('Upload failed', 'Could not upload the document. Please try again.');
+        return;
+      }
+
+      const tempId = `temp-${Date.now()}`;
+      const tempMsg: Message = {
+        id: tempId, conversation_id: conversationId, sender_id: effectiveUserId,
+        sender_type: effectiveUserType, content: '[Document]', media_url: url,
+        media_type: 'document', is_read: false, created_at: new Date().toISOString(),
+        message_type: 'document',
+      };
+      setMessages(prev => [...prev, tempMsg]);
+
+      const sentMsg = await chatService.sendMessage(
+        conversationId, effectiveUserId, effectiveUserType, '[Document]', undefined, url, 'document'
+      );
+      if (sentMsg) {
+        setMessages(prev =>
+          prev.some(m => m.id === sentMsg.id)
+            ? prev.filter(m => m.id !== tempId)
+            : prev.map(m => m.id === tempId ? sentMsg : m)
+        );
+      }
+    } catch (err) {
+      console.error('[ChatScreen] pickDocument error:', err);
+    } finally {
+      setUploading(false);
+    }
+  };
+
   // ─── Helpers ──────────────────────────────────────────────────────────────
   const formatTime = (dateString: string) =>
     new Date(dateString).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
@@ -199,11 +329,43 @@ export default function ChatScreen({ conversation, currentUserId, userType, onBa
 
     const isMe = msg.sender_type === effectiveUserType;
     const isPending = msg.id.startsWith('temp-');
+    const imgUrl = msg.media_url || msg.image_url;
+    const hasMedia = !!msg.media_url;
+    const isImage = msg.media_type === 'image' || msg.message_type === 'image' || (!msg.media_type && !!msg.image_url);
+    const isVideo = msg.media_type === 'video' || msg.message_type === 'video';
+    const isDoc = msg.media_type === 'document' || msg.message_type === 'document';
+    const isPlaceholder = ALL_PLACEHOLDERS.includes(msg.content);
+    const showText = msg.content && !(isPlaceholder && (hasMedia || !!msg.image_url));
     return (
       <View style={[styles.messageBubble, isMe ? styles.myMessage : styles.theirMessage]}>
-        <Text style={[styles.messageText, isMe ? styles.myMessageText : styles.theirMessageText]}>
-          {msg.content}
-        </Text>
+        {/* Image — media_url or legacy image_url */}
+        {imgUrl && isImage && (
+          <Image source={{ uri: imgUrl }} style={styles.mediaBubbleImage} resizeMode="cover" />
+        )}
+        {/* Video */}
+        {hasMedia && isVideo && (
+          <Pressable onPress={() => msg.media_url && Linking.openURL(msg.media_url)} style={styles.videoThumb}>
+            <Play size={28} color="#FFFFFF" />
+            <Text style={styles.videoLabel}>Tap to play</Text>
+          </Pressable>
+        )}
+        {hasMedia && isDoc && (
+          <Pressable onPress={() => msg.media_url && Linking.openURL(msg.media_url)} style={[styles.docBubble, isMe ? styles.docBubbleMy : styles.docBubbleTheir]}>
+            <FileText size={18} color={isMe ? '#FFFFFF' : COLORS.primary} />
+            <View style={{ flex: 1, minWidth: 0 }}>
+              <Text style={[styles.docText, isMe ? styles.docTextMy : styles.docTextTheir]} numberOfLines={1}>
+                {extractFileName(msg.media_url!)}
+              </Text>
+              <Text style={[styles.docSubText, isMe ? styles.docSubTextMy : styles.docSubTextTheir]}>PDF · Tap to open</Text>
+            </View>
+          </Pressable>
+        )}
+        {/* Text (hide placeholders only when media is present) */}
+        {showText && (
+          <Text style={[styles.messageText, isMe ? styles.myMessageText : styles.theirMessageText]}>
+            {msg.content}
+          </Text>
+        )}
         <Text style={[styles.messageTime, isMe ? styles.myMessageTime : styles.theirMessageTime]}>
           {isPending ? '·' : formatTime(msg.created_at)}
         </Text>
@@ -269,8 +431,14 @@ export default function ChatScreen({ conversation, currentUserId, userType, onBa
 
       <View style={[styles.inputContainer, { paddingBottom: Math.max(insets.bottom, 12) }]}>
         <View style={styles.inputBar}>
+          <Pressable onPress={pickMedia} style={styles.attachButton} disabled={uploading}>
+            {uploading ? <ActivityIndicator size="small" color={COLORS.primary} /> : <ImageIcon size={22} color="#9CA3AF" />}
+          </Pressable>
+          <Pressable onPress={pickDocument} style={styles.attachButton} disabled={uploading}>
+            <Paperclip size={22} color="#9CA3AF" />
+          </Pressable>
           <TextInput style={styles.input} value={newMessage} onChangeText={setNewMessage} placeholder="Type a message..." multiline />
-          <Pressable onPress={() => handleSend()} style={[styles.sendButton, !newMessage.trim() && styles.sendButtonDisabled]} disabled={!newMessage.trim()}>
+          <Pressable onPress={() => handleSend()} style={[styles.sendButton, (!newMessage.trim() || uploading) && styles.sendButtonDisabled]} disabled={!newMessage.trim() || uploading}>
             <Send size={20} color="#FFFFFF" strokeWidth={2.5} />
           </Pressable>
         </View>
@@ -319,4 +487,17 @@ const styles = StyleSheet.create({
   input: { flex: 1, backgroundColor: '#F2F2F2', borderRadius: 999, paddingHorizontal: 20, paddingVertical: 12, fontSize: 15, color: '#1F2937' },
   sendButton: { width: 44, height: 44, borderRadius: 22, backgroundColor: COLORS.primary, justifyContent: 'center', alignItems: 'center' },
   sendButtonDisabled: { backgroundColor: '#E5E7EB' },
+  attachButton: { width: 40, height: 40, borderRadius: 20, justifyContent: 'center', alignItems: 'center' },
+  mediaBubbleImage: { width: 200, height: 200, borderRadius: 12, marginBottom: 4 },
+  videoThumb: { width: 200, height: 140, borderRadius: 12, backgroundColor: '#1F2937', justifyContent: 'center', alignItems: 'center', marginBottom: 4 },
+  videoLabel: { color: '#FFFFFF', fontSize: 12, fontWeight: '600', marginTop: 6 },
+  docBubble: { flexDirection: 'row', alignItems: 'center', gap: 8, paddingHorizontal: 14, paddingVertical: 10, borderRadius: 10, marginBottom: 4 },
+  docBubbleMy: { backgroundColor: 'rgba(255,255,255,0.15)' },
+  docBubbleTheir: { backgroundColor: '#F3F4F6' },
+  docText: { fontSize: 14, fontWeight: '600' },
+  docTextMy: { color: '#FFFFFF' },
+  docTextTheir: { color: COLORS.primary },
+  docSubText: { fontSize: 11, marginTop: 1 },
+  docSubTextMy: { color: 'rgba(255,255,255,0.6)' },
+  docSubTextTheir: { color: '#9CA3AF' },
 });

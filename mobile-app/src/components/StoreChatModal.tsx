@@ -14,8 +14,9 @@ import {
     TouchableWithoutFeedback,
     Dimensions,
     Image,
+    Linking,
 } from 'react-native';
-import { ChevronLeft, Send, MoreVertical, Store, Ticket } from 'lucide-react-native';
+import { ChevronLeft, Send, MoreVertical, Store, Ticket, FileText, Play } from 'lucide-react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { COLORS } from '../constants/theme';
 import { useNavigation } from '@react-navigation/native';
@@ -289,25 +290,51 @@ export default function StoreChatModal({ visible, onClose, storeName, sellerId }
                                             </Text>
                                         </View>
                                     )}
-                                    {realMessages.map((msg) => (
-                                        <View key={msg.id} style={[
-                                            styles.messageBubble,
-                                            msg.sender_type === 'buyer' ? styles.userBubble : styles.storeBubble,
-                                        ]}>
-                                            <Text style={[
-                                                styles.messageText,
-                                                msg.sender_type === 'buyer' ? styles.userText : styles.storeText,
+                                    {realMessages.map((msg) => {
+                                        const isBuyer = msg.sender_type === 'buyer';
+                                        const imgUrl = msg.media_url || msg.image_url;
+                                        const hasMedia = !!msg.media_url;
+                                        const isImage = msg.media_type === 'image' || msg.message_type === 'image' || (!msg.media_type && !!msg.image_url);
+                                        const isVideo = msg.media_type === 'video' || msg.message_type === 'video';
+                                        const isDoc = msg.media_type === 'document' || msg.message_type === 'document';
+                                        const isPlaceholder = ['[Image]', '[Video]', '[Document]'].includes(msg.content);
+                                        return (
+                                            <View key={msg.id} style={[
+                                                styles.messageBubble,
+                                                isBuyer ? styles.userBubble : styles.storeBubble,
                                             ]}>
-                                                {msg.content}
-                                            </Text>
-                                            <Text style={[
-                                                styles.timestamp,
-                                                msg.sender_type === 'buyer' ? styles.userTimestamp : styles.storeTimestamp
-                                            ]}>
-                                                {new Date(msg.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                                            </Text>
-                                        </View>
-                                    ))}
+                                                {imgUrl && isImage && (
+                                                    <Image source={{ uri: imgUrl }} style={{ width: 200, height: 200, borderRadius: 12, marginBottom: 4 }} resizeMode="cover" />
+                                                )}
+                                                {hasMedia && isVideo && (
+                                                    <Pressable onPress={() => msg.media_url && Linking.openURL(msg.media_url)} style={{ width: 200, height: 140, borderRadius: 12, backgroundColor: '#1F2937', justifyContent: 'center', alignItems: 'center', marginBottom: 4 }}>
+                                                        <Play size={28} color="#FFFFFF" />
+                                                        <Text style={{ color: '#FFF', fontSize: 12, fontWeight: '600', marginTop: 6 }}>Tap to play</Text>
+                                                    </Pressable>
+                                                )}
+                                                {hasMedia && isDoc && (
+                                                    <Pressable onPress={() => msg.media_url && Linking.openURL(msg.media_url)} style={{ flexDirection: 'row', alignItems: 'center', gap: 8, paddingHorizontal: 14, paddingVertical: 10, borderRadius: 10, marginBottom: 4, backgroundColor: isBuyer ? 'rgba(255,255,255,0.15)' : '#F3F4F6' }}>
+                                                        <FileText size={18} color={isBuyer ? '#FFFFFF' : COLORS.primary} />
+                                                        <Text style={{ fontSize: 14, fontWeight: '600', color: isBuyer ? '#FFFFFF' : COLORS.primary }}>View PDF</Text>
+                                                    </Pressable>
+                                                )}
+                                                {msg.content && !(isPlaceholder && (hasMedia || !!msg.image_url)) && (
+                                                    <Text style={[
+                                                        styles.messageText,
+                                                        isBuyer ? styles.userText : styles.storeText,
+                                                    ]}>
+                                                        {msg.content}
+                                                    </Text>
+                                                )}
+                                                <Text style={[
+                                                    styles.timestamp,
+                                                    isBuyer ? styles.userTimestamp : styles.storeTimestamp
+                                                ]}>
+                                                    {new Date(msg.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                                                </Text>
+                                            </View>
+                                        );
+                                    })}
                                 </>
                             )}
 
