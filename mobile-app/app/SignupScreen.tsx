@@ -147,14 +147,28 @@ export default function SignupScreen({ navigation }: Props) {
             return;
         }
 
-        // DEFER SIGNUP: Navigate to Terms with form data
-        navigation.replace('Terms', { signupData: {
-            email: email.trim(),
-            password,
-            firstName,
-            lastName,
-            phone
-        }});
+        // PERFORM SIGNUP
+        setLoading(true);
+        try {
+            const result = await authService.signUp(email.trim(), password, {
+                first_name: firstName,
+                last_name: lastName,
+                phone,
+                user_type: 'buyer',
+                email: email.trim(),
+                password,
+            });
+
+            if (result?.user) {
+                // Navigate to Email verification (OTP already sent during signUp)
+                navigation.replace('EmailVerification', { email: email.trim(), otpAlreadySent: true });
+            }
+        } catch (error: any) {
+            console.error('Signup Error:', error);
+            Alert.alert('Error', error.message || 'Failed to create account.');
+        } finally {
+            setLoading(false);
+        }
     };
 
     return (

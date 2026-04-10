@@ -509,11 +509,18 @@ export class AuthService {
         .eq('id', userId)
         .single();
 
-      if (error) throw error;
+      if (error) {
+        // If error is "row not found" (PGRST116), it's a valid "empty" result
+        if (error.code === 'PGRST116') return null;
+        throw error;
+      }
       return data;
-    } catch (error) {
-      console.error('Error fetching profile:', error);
-      throw new Error('Failed to load profile.');
+    } catch (error: any) {
+      // Don't log if it's just a row-not-found case that we might have missed in previous check
+      if (error?.code !== 'PGRST116') {
+        console.error('Error fetching profile:', error);
+      }
+      return null;
     }
   }
 
@@ -534,11 +541,16 @@ export class AuthService {
         .eq('id', userId)
         .single();
 
-      if (error) throw error;
+      if (error) {
+        if (error.code === 'PGRST116') return null;
+        throw error;
+      }
       return data as unknown as Buyer;
-    } catch (error) {
-      console.error('Error fetching buyer profile:', error);
-      throw new Error('Failed to load buyer profile.');
+    } catch (error: any) {
+      if (error?.code !== 'PGRST116') {
+        console.error('Error fetching buyer profile:', error);
+      }
+      return null;
     }
   }
 
@@ -559,11 +571,16 @@ export class AuthService {
         .eq('id', userId)
         .single();
 
-      if (error) throw error;
+      if (error) {
+        if (error.code === 'PGRST116') return null;
+        throw error;
+      }
       return data as unknown as Seller;
-    } catch (error) {
-      console.error('Error fetching seller profile:', error);
-      throw new Error('Failed to load seller profile.');
+    } catch (error: any) {
+      if (error?.code !== 'PGRST116') {
+        console.error('Error fetching seller profile:', error);
+      }
+      return null;
     }
   }
 
@@ -617,6 +634,70 @@ export class AuthService {
     } catch (error) {
       console.error('Error updating profile:', error);
       throw new Error('Failed to update profile.');
+    }
+  }
+
+  /**
+   * Send OTP to user's email
+   * @param email - User email
+   */
+  async sendOTP(email: string): Promise<boolean> {
+    if (!isSupabaseConfigured()) {
+      console.warn('Supabase not configured - cannot send OTP');
+      return false;
+    }
+
+    try {
+      const { error } = await supabase.auth.signInWithOtp({
+        email,
+      });
+
+      if (error) throw error;
+      return true;
+    } catch (error) {
+      console.error('Error sending OTP:', error);
+      throw new Error('Failed to send OTP. Please try again.');
+    }
+  }
+
+  /**
+   * Verify OTP code sent to user's email
+   * @param email - User email
+   * @param token - OTP code
+   * @returns Promise with user session data or null
+   */
+  async verifyOTP(email: string, token: string): Promise<{ user: any; session: any } | null> {
+    if (!isSupabaseConfigured()) {
+      console.warn('Supabase not configured - cannot verify OTP');
+      return null;
+    }
+
+    try {
+      const { data, error } = await supabase.auth.verifyOtp({
+        email,
+        token,
+        type: 'email' as const,
+      });
+
+      if (error) throw error;
+
+      // Update last login
+      if (data.user) {
+        const { error: updateError } = await supabase
+          .from('profiles')
+          .update({ last_login_at: new Date().toISOString() })
+          .eq('id', data.user.id);
+
+        if (updateError) {
+          console.warn('Failed to update last_login_at:', updateError);
+          // Don't throw — OTP verification succeeded
+        }
+      }
+
+      return { user: data.user, session: data.session };
+    } catch (error) {
+      console.error('Error verifying OTP:', error);
+      throw new Error('Invalid or expired OTP. Please try again.');
     }
   }
 

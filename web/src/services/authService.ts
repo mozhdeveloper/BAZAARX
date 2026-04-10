@@ -146,10 +146,10 @@ export class AuthService {
     }
 
     // Handle legacy full_name format
-    const first_name = 'first_name' in userData ? userData.first_name : 
-                       ('full_name' in userData ? (userData as LegacySignUpData).full_name?.split(' ')[0] : null);
+    const first_name = 'first_name' in userData ? userData.first_name :
+      ('full_name' in userData ? (userData as LegacySignUpData).full_name?.split(' ')[0] : null);
     const last_name = 'last_name' in userData ? userData.last_name :
-                      ('full_name' in userData ? (userData as LegacySignUpData).full_name?.split(' ').slice(1).join(' ') : null);
+      ('full_name' in userData ? (userData as LegacySignUpData).full_name?.split(' ').slice(1).join(' ') : null);
 
     const passwordValidation = validatePassword(password);
     if (!passwordValidation.valid) {
@@ -512,6 +512,67 @@ export class AuthService {
       throw new Error('Failed to sign in. Please check your credentials.');
     }
   }
+
+  async sendOTP(email: string): Promise<boolean> {
+    if (!isSupabaseConfigured()) {
+      console.warn('Supabase not configured - cannot send OTP');
+      return true;
+    }
+
+    try {
+      const { error } = await supabase.auth.signInWithOtp({
+        email: email,
+      });
+
+      if (error) {
+        console.error('Error sending OTP:', error);
+        throw new Error('Failed to send OTP. Please try again.');
+      } else {
+        console.log('OTP sent successfully to', email);
+        return true;
+      }
+    } catch (error) {
+      console.error('Error sending OTP:', error);
+      throw new Error('Failed to send OTP. Please try again.');
+    }
+  }
+
+  /**
+ * Verify OTP code sent to user's email
+ * @param email - User email
+ * @param token - OTP code
+ * @returns Promise with user session data or null
+ */
+  async verifyOTP(email: string, token: string): Promise<{ user: any; session: any } | null> {
+    if (!isSupabaseConfigured()) {
+      console.warn('Supabase not configured - cannot verify OTP');
+      return null;
+    }
+
+    try {
+      const { data, error } = await supabase.auth.verifyOtp({
+        email,
+        token,
+        type: 'email',
+      });
+
+      if (error) throw error;
+
+      // Update last login
+      if (data.user) {
+        await (supabase
+          .from('profiles') as any)
+          .update({ last_login_at: new Date().toISOString() })
+          .eq('id', data.user.id);
+      }
+
+      return { user: data.user, session: data.session };
+    } catch (error) {
+      console.error('Error verifying OTP:', error);
+      throw new Error('Invalid or expired OTP. Please try again.');
+    }
+  }
+
 
   /**
    * Sign in with OAuth provider
