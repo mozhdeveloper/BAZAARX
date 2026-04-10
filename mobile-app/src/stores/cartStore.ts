@@ -60,27 +60,41 @@ function mapDbCartItemsToCartItems(dbItems: any[]): CartItem[] {
 
       // Calculate discounted price from active campaign
       let discountedPrice = originalPrice;
-      const productDiscounts = product.product_discounts || [];
-      const now = new Date();
+      
+      // First, check if discount info is embedded in personalized_options (for newly added items)
+      if (ci.personalized_options?.discountInfo) {
+        // Use embedded discount info to reconstruct discounted price
+        const discountInfo = ci.personalized_options.discountInfo;
+        const basePrice = discountInfo.originalPrice || originalPrice;
+        if (discountInfo.discountType === 'percentage') {
+          discountedPrice = Math.round(basePrice * (1 - discountInfo.discountValue / 100));
+        } else if (discountInfo.discountType === 'fixed_amount') {
+          discountedPrice = Math.max(0, basePrice - discountInfo.discountValue);
+        }
+      } else {
+        // Fallback: Calculate discounted price from active campaign in product_discounts
+        const productDiscounts = product.product_discounts || [];
+        const now = new Date();
 
-      const activeDiscount = productDiscounts.find((pd: any) => {
-        const campaign = pd.campaign;
-        if (!campaign || campaign.status !== 'active') return false;
-        const startsAt = new Date(campaign.starts_at);
-        const endsAt = new Date(campaign.ends_at);
-        return now >= startsAt && now <= endsAt;
-      });
+        const activeDiscount = productDiscounts.find((pd: any) => {
+          const campaign = pd.campaign;
+          if (!campaign || campaign.status !== 'active') return false;
+          const startsAt = new Date(campaign.starts_at);
+          const endsAt = new Date(campaign.ends_at);
+          return now >= startsAt && now <= endsAt;
+        });
 
-      if (activeDiscount) {
-        const campaign = activeDiscount.campaign;
-        const dType = activeDiscount.discount_type || campaign.discount_type;
-        const dValue = Number(activeDiscount.discount_value || campaign.discount_value);
+        if (activeDiscount) {
+          const campaign = activeDiscount.campaign;
+          const dType = activeDiscount.discount_type || campaign.discount_type;
+          const dValue = Number(activeDiscount.discount_value || campaign.discount_value);
 
-        if (dType === 'percentage') {
-          // No maxDiscountAmount cap — matches calculateLineDiscount and product detail screen
-          discountedPrice = Math.round(originalPrice * (1 - dValue / 100));
-        } else if (dType === 'fixed_amount') {
-          discountedPrice = Math.max(0, originalPrice - dValue);
+          if (dType === 'percentage') {
+            // No maxDiscountAmount cap — matches calculateLineDiscount and product detail screen
+            discountedPrice = Math.round(originalPrice * (1 - dValue / 100));
+          } else if (dType === 'fixed_amount') {
+            discountedPrice = Math.max(0, originalPrice - dValue);
+          }
         }
       }
 
@@ -124,14 +138,7 @@ function mapDbCartItemsToCartItems(dbItems: any[]): CartItem[] {
       }
 
       // Store campaign discount info if active
-      const hasActiveDiscount = discountedPrice < originalPrice;
-      const campaignDiscount = hasActiveDiscount ? {
-        campaignId: activeDiscount?.campaign?.id,
-        campaignName: activeDiscount?.campaign?.badge_text || 'Discount',
-        discountType: activeDiscount?.discount_type || activeDiscount?.campaign?.discount_type,
-        discountValue: activeDiscount?.discount_value || activeDiscount?.campaign?.discount_value,
-        maxDiscountAmount: activeDiscount?.campaign?.max_discount_amount,
-      } : undefined;
+      // (Now handled via embedded discountInfo in personalizedOptions)
 
       return {
         id: product.id || ci.product_id,
@@ -159,8 +166,6 @@ function mapDbCartItemsToCartItems(dbItems: any[]): CartItem[] {
         variant_label_2: product.variant_label_2,
         option1Values: product.option1Values || [],
         option2Values: product.option2Values || [],
-        // Campaign discount info
-        campaignDiscount,
       } as CartItem;
     });
 }
@@ -248,16 +253,27 @@ export const useCartStore = create<CartStore>()(
           // Extract variantId string from selectedVariant object (fix UUID error)
           const variantId = selectedVariant?.variantId || null;
 
-          // Build personalized options from selected variant
-          const personalizedOptions = selectedVariant ? {
-            ...(selectedVariant.color ? { color: selectedVariant.color } : {}),
-            ...(selectedVariant.size ? { size: selectedVariant.size } : {}),
-            ...(selectedVariant.variantId ? { variantId: selectedVariant.variantId } : {}),
-            ...(selectedVariant.option1Label ? { option1Label: selectedVariant.option1Label } : {}),
-            ...(selectedVariant.option1Value ? { option1Value: selectedVariant.option1Value } : {}),
-            ...(selectedVariant.option2Label ? { option2Label: selectedVariant.option2Label } : {}),
-            ...(selectedVariant.option2Value ? { option2Value: selectedVariant.option2Value } : {}),
-          } : null;
+          // Build personalized options from selected variant, including discount info for persistence
+          const discount = (product as any).activeCampaignDiscount;
+          const personalizedOptions = {
+            // Variant selection fields
+            ...(selectedVariant?.color ? { color: selectedVariant.color } : {}),
+            ...(selectedVariant?.size ? { size: selectedVariant.size } : {}),
+            ...(selectedVariant?.variantId ? { variantId: selectedVariant.variantId } : {}),
+            ...(selectedVariant?.option1Label ? { option1Label: selectedVariant.option1Label } : {}),
+            ...(selectedVariant?.option1Value ? { option1Value: selectedVariant.option1Value } : {}),
+            ...(selectedVariant?.option2Label ? { option2Label: selectedVariant.option2Label } : {}),
+            ...(selectedVariant?.option2Value ? { option2Value: selectedVariant.option2Value } : {}),
+            // Discount info to preserve calculated discount
+            ...(discount ? {
+              discountInfo: {
+                campaignId: discount.campaignId,
+                discountType: discount.discountType,
+                discountValue: discount.discountValue,
+                originalPrice: (product as any).originalPrice || product.price || 0,
+              }
+            } : {}),
+          };
 
           try {
             const added = await cartService.addItem(

@@ -767,13 +767,15 @@ export default function ProductDetailScreen({ route, navigation }: Props) {
     if (variantModalAction === 'cart') {
       addItem({
         ...product,
+        originalPrice: variantPrice || 0,
         price: discountedPrice,
+        activeCampaignDiscount: activeCampaignDiscount || undefined,
         selectedVariant: {
           ...variantObj,
           variantId,
         },
         quantity: newQuantity
-      });
+      } as any);
 
       // Show Added Modal after exit animation completes
       setTimeout(() => {
@@ -788,12 +790,14 @@ export default function ProductDetailScreen({ route, navigation }: Props) {
     } else {
       setQuickOrder({
         ...product,
+        originalPrice: variantPrice || 0,
         price: discountedPrice,
+        activeCampaignDiscount: activeCampaignDiscount || undefined,
         selectedVariant: {
           ...variantObj,
           variantId,
         },
-      }, newQuantity);
+      } as any, newQuantity);
       navigation.navigate('Checkout', {});
     }
 
@@ -832,13 +836,15 @@ export default function ProductDetailScreen({ route, navigation }: Props) {
 
     const discountedPrice = discountService.calculateLineDiscount(product.price || 0, 1, activeCampaignDiscount).discountedUnitPrice;
 
-    // Add to cart
+    // Add to cart with discount info embedded so it persists in the cart
     addItem({
       ...product,
+      originalPrice: product.price || 0,
       price: discountedPrice,
+      activeCampaignDiscount: activeCampaignDiscount || undefined,
       selectedVariant,
       quantity
-    });
+    } as any);
 
     const variantText = selectedVariant
       ? ` (${[selectedVariant.color, selectedVariant.size].filter(Boolean).join(', ')})`
@@ -876,8 +882,14 @@ export default function ProductDetailScreen({ route, navigation }: Props) {
 
     const discountedPrice = discountService.calculateLineDiscount(product.price || 0, 1, activeCampaignDiscount).discountedUnitPrice;
 
-    // Set quick order with variant info
-    setQuickOrder({ ...product, price: discountedPrice, selectedVariant }, quantity);
+    // Set quick order with variant info and discount embedded
+    setQuickOrder({
+      ...product,
+      originalPrice: product.price || 0,
+      price: discountedPrice,
+      activeCampaignDiscount: activeCampaignDiscount || undefined,
+      selectedVariant
+    } as any, quantity);
     navigation.navigate('Checkout', {});
   }, [hasVariants, isGuest, product, quantity, activeCampaignDiscount, selectedColor, selectedSize, navigation, setQuickOrder]);
 
