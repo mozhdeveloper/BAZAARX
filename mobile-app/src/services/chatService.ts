@@ -133,7 +133,7 @@ class ChatService {
     // Get last message
     const { data: lastMsg } = await supabase
       .from('messages')
-      .select('content, message_content, message_type, media_type, sender_type, created_at')
+      .select('content, message_content, message_type, sender_type, created_at')
       .eq('conversation_id', conversationId)
       .order('created_at', { ascending: false })
       .limit(1)
@@ -160,10 +160,10 @@ class ChatService {
       document: '📄 Document',
     };
     const displayContent = !lastMsg ? '' :
-      lastMsg.message_type === 'system' ? (lastMsg.message_content || '') :
-        mediaPreviewMap[(lastMsg as any).media_type || ''] ||
-        (['[Image]', '[Video]', '[Document]'].includes(lastMsg.content || '') ? mediaPreviewMap[lastMsg.message_type || ''] || lastMsg.content : null) ||
-        lastMsg.content || lastMsg.message_content || '';
+      (lastMsg as any).message_type === 'system' ? ((lastMsg as any).message_content || '') :
+        mediaPreviewMap[(lastMsg as any).media_type || (lastMsg as any).message_type || ''] ||
+        (['[Image]', '[Video]', '[Document]'].includes((lastMsg as any).content || '') ? mediaPreviewMap[(lastMsg as any).message_type || ''] || (lastMsg as any).content : null) ||
+        (lastMsg as any).content || (lastMsg as any).message_content || '';
 
     return {
       lastMessage: displayContent || '',

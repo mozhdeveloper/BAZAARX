@@ -19,7 +19,7 @@ import * as FileSystem from 'expo-file-system/legacy';
 import { decode } from 'base64-arraybuffer';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
-import { ArrowLeft, Package, MapPin, CreditCard, Receipt, CheckCircle, MessageCircle, Send, X, Truck, Clock, CheckCircle2, RotateCcw, Tag } from 'lucide-react-native';
+import { ArrowLeft, Package, MapPin, CreditCard, Receipt, CheckCircle, MessageCircle, Send, X, Truck, Clock, CheckCircle2, RotateCcw, Tag, ArrowRight } from 'lucide-react-native';
 import { COLORS } from '../src/constants/theme';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import type { RootStackParamList } from '../App';
@@ -510,32 +510,7 @@ export default function OrderDetailScreen({ route, navigation }: Props) {
         contentContainerStyle={{ paddingBottom: 20 }}
         showsVerticalScrollIndicator={false}
       >
-        {/* Interactive Status Banner - Hide for cancelled orders */}
-        {(() => {
-          const uiStatus = order.buyerUiStatus || order.status;
-          const isCancelled = uiStatus === 'cancelled';
-          
-          if (isCancelled) return null;
-          
-          return (
-            <Pressable
-              style={[styles.statusBanner, { backgroundColor: getStatusColor() }]}
-              onPress={() => navigation.navigate('DeliveryTracking', { order })}
-            >
-              <View style={styles.statusContent}>
-                <View style={styles.statusLeft}>
-                  <Text style={styles.statusTitle}>{getStatusText()}</Text>
-                  <Text style={styles.tapToTrack}>Tap to Track {'>'}</Text>
-                </View>
-                <View style={styles.statusIconContainer}>
-                  <StatusIcon size={48} color="#FFFFFF" strokeWidth={1.5} />
-                </View>
-              </View>
-            </Pressable>
-          );
-        })()}
-
-        {/* Status Timeline Card */}
+        {/* SECTION 1: ORDER STATUS (Consolidated) */}
         {(() => {
           const uiStatus = order.buyerUiStatus || order.status;
           const isCancelled = uiStatus === 'cancelled';
@@ -544,304 +519,182 @@ export default function OrderDetailScreen({ route, navigation }: Props) {
           const isReturned = uiStatus === 'returned';
           const isReceived = uiStatus === 'received' || uiStatus === 'reviewed';
 
+          if (isCancelled) {
+             return (
+               <View style={styles.trackingCard}>
+                  <View style={[styles.trackingBadge, { backgroundColor: '#FEE2E2' }]}>
+                    <Text style={[styles.trackingBadgeText, { color: '#DC2626' }]}>CANCELLED</Text>
+                  </View>
+                  <Text style={styles.trackingLocationText}>Order ID #{order.id?.slice(0, 8).toUpperCase()}</Text>
+                  {(order as any).cancellationReason && (
+                    <Text style={[styles.trackingStatusDetail, { color: '#DC2626', marginTop: 8 }]}>
+                      {(order as any).cancellationReason}
+                    </Text>
+                  )}
+               </View>
+             );
+          }
+
+          const latestEvent = deliveryTracking?.events?.[0];
+          const originCity = deliveryTracking?.booking?.pickupAddress?.city || 'Origin';
+          const destCity = deliveryTracking?.booking?.deliveryAddress?.city || order.shippingAddress?.city || 'Destination';
+          const orderIdStr = (order as any).transactionId || (order as any).orderId || order.id?.slice(0, 8).toUpperCase();
+          
+          let progress = 0;
+          if (uiStatus === 'pending') progress = 0.1;
+          else if (['confirmed', 'processing'].includes(uiStatus)) progress = 0.3;
+          else if (uiStatus === 'shipped') progress = 0.6;
+          else if (['delivered', 'received', 'reviewed'].includes(uiStatus)) progress = 1;
+
+          const formatEventTime = (ts?: string | null) => {
+            if (!ts) return '';
+            const d = new Date(ts);
+            return d.toLocaleString('en-US', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' });
+          };
+
           const formatTs = (ts?: string | null) => {
             if (!ts) return null;
             const d = new Date(ts);
-            return d.toLocaleString('en-US', { month: 'short', day: 'numeric', year: 'numeric', hour: '2-digit', minute: '2-digit' });
+            return d.toLocaleString('en-US', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' });
           };
 
-          const steps = isCancelled
-            ? [
-              { label: 'Order Placed', ts: formatTs(order.createdAt), done: true, icon: CheckCircle2 },
-              { label: 'Cancelled', ts: formatTs(order.cancelledAt) || 'Pending', done: true, icon: X, red: true },
-            ]
-            : [
+          const steps = [
               { label: 'Order Placed', ts: formatTs(order.createdAt), done: true, icon: CheckCircle2 },
               { label: 'Confirmed', ts: formatTs(order.confirmedAt), done: uiStatus !== 'pending', icon: CheckCircle2 },
               { label: 'Shipped', ts: formatTs(order.shippedAt), done: isShipped, icon: Truck },
               { label: 'Delivered', ts: formatTs(order.deliveredAt), done: isDelivered, icon: CheckCircle2 },
-              ...(isReceived ? [{ label: 'Received', ts: formatTs((order as any).receivedAt), done: true, icon: CheckCircle2 }] : []),
-              ...(isReturned ? [{ label: 'Return Requested', ts: null, done: true, icon: RotateCcw, amber: true }] : []),
-            ];
-
-          const showCancellationReason = isCancelled && (order as any).cancellationReason;
+          ];
 
           return (
-            <View style={{ backgroundColor: '#FFFFFF', marginHorizontal: 16, marginTop: 12, marginBottom: 16, borderRadius: 12, padding: 16, shadowColor: '#000', shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.05, shadowRadius: 4, elevation: 2 }}>
-              <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 14, gap: 8 }}>
-                <View style={{ width: 30, height: 30, borderRadius: 15, backgroundColor: '#FEF3C7', justifyContent: 'center', alignItems: 'center' }}>
-                  <Clock size={16} color={COLORS.primary} />
+            <View style={styles.trackingCard}>
+              <Pressable onPress={() => navigation.navigate('DeliveryTracking', { order })}>
+                <View style={styles.trackingBadge}>
+                  <Text style={styles.trackingBadgeText}>{getStatusText().toUpperCase() || 'IN TRANSIT'}</Text>
                 </View>
-                <Text style={{ fontSize: 14, fontWeight: '600', color: '#1a1a1a' }}>Order Timeline</Text>
-              </View>
-              {steps.map((step, idx) => {
-                const StepIcon = step.icon;
-                const dotColor = !step.done ? '#d1d5db' : (step as any).red ? '#ef4444' : (step as any).amber ? COLORS.primary : COLORS.primary;
-                const labelColor = !step.done ? '#9ca3af' : (step as any).red ? '#ef4444' : '#1a1a1a';
-                return (
-                  <View key={idx} style={{ flexDirection: 'row', alignItems: 'flex-start' }}>
-                    {/* Dot column */}
-                    <View style={{ width: 24, alignItems: 'center' }}>
-                      <View style={{ width: 22, height: 22, borderRadius: 11, backgroundColor: step.done ? dotColor : '#f3f4f6', justifyContent: 'center', alignItems: 'center', borderWidth: step.done ? 0 : 1.5, borderColor: '#e5e7eb' }}>
-                        <StepIcon size={11} color={step.done ? '#fff' : '#9ca3af'} strokeWidth={2.5} />
-                      </View>
-                      {idx < steps.length - 1 && (
-                        <View style={{ width: 2, height: 24, backgroundColor: step.done ? COLORS.primary + '60' : '#e5e7eb', marginTop: 2 }} />
-                      )}
-                    </View>
-                    {/* Label column */}
-                    <View style={{ flex: 1, paddingLeft: 10, paddingBottom: idx < steps.length - 1 ? 4 : 0 }}>
-                      <Text style={{ fontSize: 13, fontWeight: '600', color: labelColor }}>{step.label}</Text>
-                      {step.ts ? (
-                        <Text style={{ fontSize: 11, color: '#6b7280', marginTop: 1 }}>{step.ts}</Text>
-                      ) : !step.done ? (
-                        <Text style={{ fontSize: 11, color: '#d1d5db', marginTop: 1 }}>Pending</Text>
-                      ) : null}
-                    </View>
-                  </View>
-                );
-              })}
-              {showCancellationReason && (
-                <View style={{ marginTop: 8, paddingHorizontal: 34, paddingBottom: 4 }}>
-                  <Text style={{ fontSize: 12, color: '#DC2626', fontWeight: '500' }}>
-                    {(order as any).cancellationReason}
+
+                <View style={styles.trackingLocationRow}>
+                  <Text style={styles.trackingLocationText}>{originCity}</Text>
+                  <ArrowRight size={20} color="#F59E0B" style={{ marginHorizontal: 8 }} />
+                  <Text style={styles.trackingLocationText}>{destCity}</Text>
+                </View>
+
+                <Text style={styles.trackingOrderId}>Order ID #{orderIdStr}</Text>
+
+                <View style={styles.trackingProgressContainer}>
+                  <View style={[styles.trackingProgressBar, { width: `${progress * 100}%` }]} />
+                </View>
+
+                <View style={styles.trackingFooter}>
+                  <Text style={styles.trackingStatusDetail}>
+                    {latestEvent?.description || getStatusText()}
+                  </Text>
+                  <Text style={styles.trackingTimestamp}>
+                    {formatEventTime(latestEvent?.eventAt || order.createdAt)}
                   </Text>
                 </View>
-              )}
+              </Pressable>
+
+              <View style={[styles.sectionDivider, { backgroundColor: '#FDE68A' }]} />
+
+              {/* Compact Timeline integrated */}
+              <View style={{ gap: 12 }}>
+                <Text style={styles.miniHeader}>Status History</Text>
+                {steps.filter(s => s.done).reverse().slice(0, 3).map((step, idx) => (
+                  <View key={idx} style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
+                    <step.icon size={14} color={COLORS.primary} />
+                    <View style={{ flex: 1 }}>
+                       <Text style={{ fontSize: 13, color: '#78350F', fontWeight: '500' }}>{step.label}</Text>
+                       {step.ts && <Text style={{ fontSize: 11, color: '#A8A29E' }}>{step.ts}</Text>}
+                    </View>
+                  </View>
+                ))}
+              </View>
             </View>
           );
         })()}
 
-        {/* Order Items Card */}
-        <View style={styles.card}>
-          <View style={styles.cardHeader}>
-            <View style={styles.iconCircle}>
-              <Package size={20} color={COLORS.primary} />
+        {/* SECTION 2: LOGISTICS & FULFILLMENT (Consolidated) */}
+        <View style={styles.consolidatedCard}>
+          <Text style={styles.cardSectionHeader}>Shipping & Delivery</Text>
+          
+          {/* Shipping Address Sub-section */}
+          {order.shippingAddress && (
+            <View style={{ marginBottom: 16 }}>
+              <Text style={styles.metaLabel}>Recipient</Text>
+              <Text style={styles.primaryInfo}>{order.shippingAddress.name}</Text>
+              <Text style={styles.secondaryInfo}>{order.shippingAddress.phone}</Text>
+              <Text style={styles.secondaryInfo}>
+                {order.shippingAddress.address}, {order.shippingAddress.city}, {order.shippingAddress.region}
+              </Text>
             </View>
-            <Text style={styles.cardTitle}>Order Items</Text>
-          </View>
-          {order.items.filter(item => item && item.name).map((item, index) => {
-            const displayIndex = order.items.filter(i => i && i.name).indexOf(item);
-            return (
-              <React.Fragment key={item.id || index}>
-                {displayIndex > 0 && <View style={styles.itemDivider} />}
-                <View style={styles.itemRow}>
-                  <Pressable onPress={() => navigation.navigate('ProductDetail', { product: item })}>
-                    <Image
-                      source={{ uri: safeImageUri(item.image) }}
-                      style={styles.itemImage}
-                    />
-                  </Pressable>
-                  <View style={styles.itemInfo}>
-                    <Text style={styles.itemName}>{item.name}</Text>
-                    {item.selectedVariant && (item.selectedVariant.size || item.selectedVariant.color) && (
-                      <View style={{ flexDirection: 'row', gap: 8, marginTop: 2 }}>
-                        {item.selectedVariant.size && (
-                          <Text style={{ fontSize: 11, color: '#6b7280', backgroundColor: '#f3f4f6', paddingHorizontal: 6, paddingVertical: 2, borderRadius: 4 }}>
-                            {item.selectedVariant.size}
-                          </Text>
-                        )}
-                        {item.selectedVariant.color && (
-                          <Text style={{ fontSize: 11, color: '#6b7280', backgroundColor: '#f3f4f6', paddingHorizontal: 6, paddingVertical: 2, borderRadius: 4 }}>
-                            {item.selectedVariant.color}
-                          </Text>
-                        )}
-                      </View>
-                    )}
-                    <Text style={styles.itemVariant}>
-                      {item.quantity} × ₱{(item.price ?? 0).toLocaleString()}
+          )}
+
+          {/* Delivery Details Sub-section */}
+          {deliveryTracking?.booking && (
+            <View style={{ borderTopWidth: 1, borderTopColor: '#E5E7EB', paddingTop: 16 }}>
+               <Text style={styles.metaLabel}>Courier Information</Text>
+               <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <View>
+                    <Text style={styles.primaryInfo}>{deliveryTracking.booking.courierName}</Text>
+                    <Text style={[styles.secondaryInfo, { color: COLORS.primary, fontWeight: '700' }]}>
+                      {deliveryTracking.booking.trackingNumber}
                     </Text>
                   </View>
-                  <Text style={styles.itemPrice}>₱{((item.price ?? 0) * (item.quantity || 1)).toLocaleString()}</Text>
-                </View>
-              </React.Fragment>
-            );
-          })}
-        </View>
-
-        {/* Shipping Address Card */}
-        <View style={styles.card}>
-          <View style={styles.cardHeader}>
-            <View style={styles.iconCircle}>
-              <MapPin size={20} color={COLORS.primary} />
-            </View>
-            <Text style={styles.cardTitle}>Shipping Address</Text>
-          </View>
-          {order.shippingAddress && (
-            <View style={styles.cardContent}>
-              <View style={styles.shippingInfoBlock}>
-                <Text style={styles.shippingName}>{order.shippingAddress.name}</Text>
-                <Text style={styles.shippingPhone}>{order.shippingAddress.phone}</Text>
-                <Text style={styles.shippingAddress}>
-                  {order.shippingAddress.address}, {order.shippingAddress.city}, {order.shippingAddress.region} {order.shippingAddress.postalCode}
-                </Text>
-                <Text style={styles.shippingEmail}>{order.shippingAddress.email}</Text>
-              </View>
+                  {deliveryTracking.booking.estimatedDelivery && (
+                    <View style={{ alignItems: 'flex-end' }}>
+                      <Text style={styles.metaLabel}>Estimated Delivery</Text>
+                      <Text style={styles.primaryInfo}>
+                        {new Date(deliveryTracking.booking.estimatedDelivery).toLocaleDateString()}
+                      </Text>
+                    </View>
+                  )}
+               </View>
             </View>
           )}
         </View>
 
-        {/* Payment Details Card */}
-        <View style={styles.card}>
-          <View style={styles.cardHeader}>
-            <View style={styles.iconCircle}>
-              <CreditCard size={20} color={COLORS.primary} />
-            </View>
-            <Text style={styles.cardTitle}>Payment Details</Text>
-          </View>
-          <View style={styles.cardContent}>
-            <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 8 }}>
-              <Text style={{ fontSize: 13, color: '#6B7280' }}>Method</Text>
-              <Text style={{ fontSize: 13, fontWeight: '600', color: '#1F2937' }}>{order.paymentMethod}</Text>
-            </View>
-            {paymentTx && (
-              <>
-                <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 8 }}>
-                  <Text style={{ fontSize: 13, color: '#6B7280' }}>Status</Text>
-                  <View style={{
-                    paddingHorizontal: 8, paddingVertical: 2, borderRadius: 6,
-                    backgroundColor: paymentTx.status === 'paid' ? '#D1FAE5' : paymentTx.status === 'failed' ? '#FEE2E2' : '#FEF3C7',
-                  }}>
-                    <Text style={{
-                      fontSize: 11, fontWeight: '700',
-                      color: paymentTx.status === 'paid' ? '#065F46' : paymentTx.status === 'failed' ? '#991B1B' : '#92400E',
-                    }}>
-                      {paymentTx.status.charAt(0).toUpperCase() + paymentTx.status.slice(1)}
-                    </Text>
-                  </View>
+        {/* SECTION 3: ITEMS & PRICING (Consolidated) */}
+        <View style={styles.consolidatedCard}>
+          <Text style={styles.cardSectionHeader}>Items & Payment</Text>
+          
+          <View style={{ gap: 16, marginBottom: 20 }}>
+            {order.items.filter(item => item && item.name).map((item, index) => (
+              <View key={item.id || index} style={styles.compactItemRow}>
+                <Image source={{ uri: safeImageUri(item.image) }} style={styles.compactItemImage} />
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.compactItemName} numberOfLines={1}>{item.name}</Text>
+                  <Text style={styles.metaLabel}>{item.quantity} x ₱{item.price?.toLocaleString()}</Text>
                 </View>
-                <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 8 }}>
-                  <Text style={{ fontSize: 13, color: '#6B7280' }}>Amount</Text>
-                  <Text style={{ fontSize: 13, fontWeight: '600', color: '#1F2937' }}>₱{paymentTx.amount.toLocaleString()}</Text>
-                </View>
-                {paymentTx.gatewayPaymentIntentId && (
-                  <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 8 }}>
-                    <Text style={{ fontSize: 13, color: '#6B7280' }}>Transaction ID</Text>
-                    <Text style={{ fontSize: 11, color: '#9CA3AF', fontFamily: Platform.OS === 'ios' ? 'Menlo' : 'monospace' }}>
-                      {paymentTx.gatewayPaymentIntentId.slice(0, 16)}...
-                    </Text>
-                  </View>
-                )}
-                {paymentTx.paidAt && (
-                  <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
-                    <Text style={{ fontSize: 13, color: '#6B7280' }}>Paid On</Text>
-                    <Text style={{ fontSize: 13, color: '#1F2937' }}>
-                      {new Date(paymentTx.paidAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
-                    </Text>
-                  </View>
-                )}
-              </>
-            )}
+                <Text style={styles.compactItemPrice}>₱{((item.price || 0) * item.quantity).toLocaleString()}</Text>
+              </View>
+            ))}
           </View>
-        </View>
 
-        {/* Delivery Tracking Card - Hide for cancelled orders */}
-        {deliveryTracking?.booking && uiStatus !== 'cancelled' && (
-          <View style={styles.card}>
-            <View style={styles.cardHeader}>
-              <View style={styles.iconCircle}>
-                <Truck size={20} color={COLORS.primary} />
-              </View>
-              <Text style={styles.cardTitle}>Delivery Details</Text>
-            </View>
-            <View style={styles.cardContent}>
-              <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 8 }}>
-                <Text style={{ fontSize: 13, color: '#6B7280' }}>Courier</Text>
-                <Text style={{ fontSize: 13, fontWeight: '600', color: '#1F2937' }}>{deliveryTracking.booking.courierName}</Text>
-              </View>
-              <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 8 }}>
-                <Text style={{ fontSize: 13, color: '#6B7280' }}>Tracking #</Text>
-                <Text style={{ fontSize: 13, fontWeight: '600', color: COLORS.primary, fontFamily: Platform.OS === 'ios' ? 'Menlo' : 'monospace' }}>
-                  {deliveryTracking.booking.trackingNumber}
-                </Text>
-              </View>
-              <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 8 }}>
-                <Text style={{ fontSize: 13, color: '#6B7280' }}>Status</Text>
-                <View style={{
-                  paddingHorizontal: 8, paddingVertical: 2, borderRadius: 6,
-                  backgroundColor: deliveryTracking.booking.status === 'delivered' ? '#D1FAE5' : '#DBEAFE',
-                }}>
-                  <Text style={{
-                    fontSize: 11, fontWeight: '700',
-                    color: deliveryTracking.booking.status === 'delivered' ? '#065F46' : '#1E40AF',
-                  }}>
-                    {deliveryTracking.booking.status.split('_').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' ')}
-                  </Text>
+          <View style={{ borderTopWidth: 1, borderTopColor: '#E5E7EB', paddingTop: 16, gap: 12 }}>
+             <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
+                <Text style={styles.metaLabel}>Payment Method</Text>
+                <Text style={styles.primaryInfo}>{order.paymentMethod}</Text>
+             </View>
+             
+             <View style={styles.summaryRow}>
+                <Text style={styles.summaryLabel}>Subtotal</Text>
+                <Text style={styles.summaryValue}>₱{(order as any).subtotal?.toLocaleString()}</Text>
+             </View>
+             <View style={styles.summaryRow}>
+                <Text style={styles.summaryLabel}>Shipping</Text>
+                <Text style={styles.summaryValue}>{order.shippingFee === 0 ? 'FREE' : `₱${order.shippingFee.toLocaleString()}`}</Text>
+             </View>
+             {order.voucherInfo && (
+                <View style={styles.summaryRow}>
+                   <Text style={[styles.summaryLabel, { color: '#10B981' }]}>Voucher ({order.voucherInfo.code})</Text>
+                   <Text style={[styles.summaryValue, { color: '#10B981' }]}>-₱{order.voucherInfo.discountAmount?.toLocaleString()}</Text>
                 </View>
-              </View>
-              {deliveryTracking.booking.estimatedDelivery && (
-                <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
-                  <Text style={{ fontSize: 13, color: '#6B7280' }}>Est. Delivery</Text>
-                  <Text style={{ fontSize: 13, color: '#1F2937' }}>
-                    {new Date(deliveryTracking.booking.estimatedDelivery).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
-                  </Text>
-                </View>
-              )}
-            </View>
-          </View>
-        )}
+             )}
 
-        {/* Order Summary Card */}
-        <View style={styles.card}>
-          <View style={styles.cardHeader}>
-            <View style={styles.iconCircle}>
-              <Receipt size={20} color={COLORS.primary} />
-            </View>
-            <Text style={styles.cardTitle}>Order Summary</Text>
-          </View>
-          <View style={styles.cardContent}>
-            {/* Show original items total if there's campaign discount */}
-            {((order as any).campaignDiscounts && (order as any).campaignDiscounts.length > 0) && (
-              <>
-                <View style={styles.summaryRow}>
-                  <Text style={[styles.summaryLabel, { color: '#6B7280' }]}>Original Price</Text>
-                  <Text style={[styles.summaryValue, { color: '#6B7280', textDecorationLine: 'line-through' }]}>
-                    ₱{(((order as any).subtotal || 0) + ((order as any).campaignDiscounts?.[0]?.discountAmount || 0)).toLocaleString()}
-                  </Text>
-                </View>
-                <View style={styles.summaryRow}>
-                  <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-                    <Tag size={14} color="#DC2626" />
-                    <Text style={[styles.summaryLabel, { marginLeft: 4 }]}>Campaign Discount</Text>
-                  </View>
-                  <Text style={[styles.summaryValue, { color: '#DC2626' }]}>
-                    -₱{((order as any).campaignDiscounts?.[0]?.discountAmount || 0).toLocaleString()}
-                  </Text>
-                </View>
-              </>
-            )}
-            <View style={styles.summaryRow}>
-              <Text style={styles.summaryLabel}>Subtotal</Text>
-              <Text style={styles.summaryValue}>₱{((order as any).subtotal || 0).toLocaleString()}</Text>
-            </View>
-            <View style={styles.summaryRow}>
-              <Text style={styles.summaryLabel}>Shipping Fee</Text>
-              <Text style={[
-                styles.summaryValue,
-                order.shippingFee === 0 && styles.freeShipping
-              ]}>
-                {order.shippingFee === 0 ? 'FREE' : `₱${order.shippingFee.toLocaleString()}`}
-              </Text>
-            </View>
-            {order.voucherInfo && (order.voucherInfo.discountAmount || 0) > 0 && (
-              <View style={styles.summaryRow}>
-                <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-                  <Tag size={14} color="#10B981" />
-                  <Text style={[styles.summaryLabel, { marginLeft: 4 }]}>Voucher</Text>
-                  <Text style={[styles.summaryLabel, { marginLeft: 4, color: '#6B7280' }]}>
-                    ({order.voucherInfo.code})
-                  </Text>
-                </View>
-                <Text style={[styles.summaryValue, { color: '#10B981' }]}>
-                  -₱{order.voucherInfo.discountAmount?.toLocaleString()}
-                </Text>
-              </View>
-            )}
-            <View style={styles.dividerLine} />
-            <View style={styles.totalRow}>
-              <Text style={styles.totalLabel}>Total Amount</Text>
-              <Text style={styles.totalValue}>₱{order.total.toLocaleString()}</Text>
-            </View>
+             <View style={[styles.totalRow, { marginTop: 4, paddingTop: 12, borderTopWidth: 1, borderTopColor: '#E5E7EB' }]}>
+                <Text style={styles.totalLabel}>Total Amount</Text>
+                <Text style={styles.totalValue}>₱{order.total.toLocaleString()}</Text>
+             </View>
           </View>
         </View>
       </ScrollView>
@@ -1220,189 +1073,149 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: '#F5F5F7',
   },
-  // ===== STATUS BANNER =====
-  statusBanner: {
+  // ===== CONSOLIDATED CARDS (WHITE & GRAY) =====
+  consolidatedCard: {
+    backgroundColor: '#FFFFFF',
     marginHorizontal: 16,
-    marginTop: 20,
-    marginBottom: 16,
+    marginTop: 12,
+    marginBottom: 8,
     borderRadius: 20,
     padding: 24,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.15,
-    shadowRadius: 12,
-    elevation: 6,
+    borderWidth: 1,
+    borderColor: '#E5E7EB',
   },
-  statusContent: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-  },
-  statusLeft: {
-    flex: 1,
-  },
-  statusTitle: {
-    fontSize: 22,
-    fontWeight: '700',
-    color: '#FFFFFF',
-    marginBottom: 8,
+  cardSectionHeader: {
+    fontSize: 16,
+    fontWeight: '800',
+    color: '#111827',
+    marginBottom: 20,
     letterSpacing: 0.5,
   },
-  statusTimestamp: {
-    fontSize: 14,
-    color: 'rgba(255, 255, 255, 0.9)',
-    fontWeight: '500',
+  sectionDivider: {
+    height: 1,
+    backgroundColor: '#E5E7EB',
+    marginVertical: 20,
   },
-  statusIconContainer: {
-    marginLeft: 16,
-  },
-  // ===== CHAT BUTTON =====
-  chatButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: '#FFFFFF',
-    marginHorizontal: 16,
-    marginBottom: 16,
-    paddingVertical: 14,
-    borderRadius: 20,
-    borderWidth: 1.5,
-    borderColor: COLORS.primary,
-    shadowColor: COLORS.primary,
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 8,
-    elevation: 3,
-    gap: 8,
-  },
-  chatButtonPressed: {
-    transform: [{ scale: 0.98 }],
-    opacity: 0.9,
-  },
-  chatButtonText: {
-    fontSize: 15,
-    fontWeight: '700',
-    color: COLORS.primary,
+  metaLabel: {
+    fontSize: 12,
+    color: '#6B7280',
+    fontWeight: '600',
     letterSpacing: 0.3,
+    marginBottom: 2,
+    textTransform: 'uppercase',
   },
-  // ===== WHITE CARDS =====
-  card: {
-    backgroundColor: '#FFFFFF',
-    marginHorizontal: 16,
-    marginBottom: 16,
-    borderRadius: 20,
-    padding: 20,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.08,
-    shadowRadius: 12,
-    elevation: 4,
+  primaryInfo: {
+    fontSize: 15,
+    color: '#111827',
+    fontWeight: '700',
   },
-  cardHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginBottom: 18,
+  secondaryInfo: {
+    fontSize: 14,
+    color: '#374151',
+    fontWeight: '400',
   },
-  iconCircle: {
-    width: 40,
-    height: 40,
-    borderRadius: 12,
-    backgroundColor: '#FFF3F0',
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginRight: 12,
-  },
-  cardTitle: {
-    fontSize: 18,
+  miniHeader: {
+    fontSize: 13,
     fontWeight: '800',
-    color: '#D97706', // Amber standard
-    letterSpacing: 0.2,
+    color: '#7C2D12',
+    marginBottom: 4,
+    textTransform: 'uppercase',
   },
-  cardContent: {
-    gap: 6,
-  },
-  // ===== ORDER ITEMS =====
-  itemRow: {
+  // ===== COMPACT ITEMS =====
+  compactItemRow: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 12,
   },
-  itemDivider: {
-    height: 1,
-    backgroundColor: '#F0F0F0',
-    marginVertical: 14,
+  compactItemImage: {
+    width: 60,
+    height: 60,
+    borderRadius: 12,
+    backgroundColor: '#FFF6E5',
   },
-  itemImage: {
-    width: 68,
-    height: 68,
-    borderRadius: 14,
-    backgroundColor: '#F9FAFB',
-  },
-  itemInfo: {
-    flex: 1,
-  },
-  itemName: {
-    fontSize: 16,
+  compactItemName: {
+    fontSize: 14,
     fontWeight: '700',
-    color: COLORS.textHeadline,
-    marginBottom: 6,
-    lineHeight: 22,
+    color: '#111827',
   },
-  itemVariant: {
+  compactItemPrice: {
+    fontSize: 16,
+    fontWeight: '800',
+    color: '#111827',
+  },
+  // ===== TRACKING CARD STYLES =====
+  trackingCard: {
+    backgroundColor: '#FFFBF0',
+    marginHorizontal: 16,
+    marginTop: 20,
+    marginBottom: 16,
+    borderRadius: 24,
+    padding: 24,
+    shadowColor: '#F59E0B',
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.2,
+    shadowRadius: 12,
+    elevation: 6,
+    borderWidth: 1,
+    borderColor: '#FDE68A',
+  },
+  trackingBadge: {
+    backgroundColor: '#FFE0B2',
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 10,
+    alignSelf: 'flex-start',
+    marginBottom: 20,
+  },
+  trackingBadgeText: {
+    color: '#7C2D12',
+    fontSize: 12,
+    fontWeight: '800',
+    letterSpacing: 0.5,
+  },
+  trackingLocationRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 6,
+  },
+  trackingLocationText: {
+    color: '#7C2D12',
+    fontSize: 22,
+    fontWeight: '700',
+  },
+  trackingOrderId: {
+    color: '#A8A29E',
     fontSize: 13,
-    color: COLORS.textMuted,
     fontWeight: '500',
+    marginBottom: 24,
   },
-  itemPrice: {
-    fontSize: 18,
-    fontWeight: '800',
-    color: COLORS.primary,
+  trackingProgressContainer: {
+    height: 10,
+    backgroundColor: '#FFF6E5',
+    borderRadius: 5,
+    width: '100%',
+    marginBottom: 24,
+    overflow: 'hidden',
+    borderWidth: 1,
+    borderColor: '#FDE68A',
   },
-  // ===== SHIPPING ADDRESS =====
-  addressName: {
-    fontSize: 18,
-    fontWeight: '800',
-    color: COLORS.textHeadline,
-    marginBottom: 6,
+  trackingProgressBar: {
+    height: '100%',
+    backgroundColor: '#FB8C00',
+    borderRadius: 5,
   },
-  addressPhone: {
-    fontSize: 15,
-    color: COLORS.textPrimary,
-    fontWeight: '600',
-    marginBottom: 8,
-  },
-  shippingInfoBlock: {
+  trackingFooter: {
     gap: 4,
   },
-  shippingName: {
-    fontSize: 16,
-    fontWeight: '700',
-    color: COLORS.textHeadline,
-  },
-  shippingPhone: {
+  trackingStatusDetail: {
+    color: '#78350F',
     fontSize: 14,
-    color: COLORS.textPrimary,
-    marginBottom: 4,
-  },
-  shippingAddress: {
-    fontSize: 14,
-    color: COLORS.textPrimary,
-    lineHeight: 20,
-  },
-  shippingEmail: {
-    fontSize: 14,
-    color: COLORS.textMuted,
-    marginTop: 4,
-  },
-  tapToTrack: {
-    fontSize: 14,
-    color: 'rgba(255, 255, 255, 0.9)',
     fontWeight: '500',
   },
-  addressLine: {
-    fontSize: 14,
-    color: COLORS.textMuted,
-    lineHeight: 20,
+  trackingTimestamp: {
+    color: '#EA580C',
+    fontSize: 15,
+    fontWeight: '700',
   },
   // ===== PAYMENT METHOD =====
   paymentText: {

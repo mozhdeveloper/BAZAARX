@@ -10,7 +10,9 @@
       "Bash(npm run *)",
       "Bash(findstr *)",
       "Bash(npx *)",
-      "Bash(select-object *)"
+      "Bash(select-object *)",
+      "Bash(mkdir *)",
+      "Bash(npm *)"
     ]
   },
   "$version": 3

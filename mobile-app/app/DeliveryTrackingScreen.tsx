@@ -9,17 +9,26 @@ import {
   Animated,
   Image,
   Modal,
+  Platform,
+  UIManager,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { ArrowLeft, Warehouse, Home, Truck, CheckCircle, Package, Plane } from 'lucide-react-native';
+import { ArrowLeft, Warehouse, Home, Truck, CheckCircle, Package, Plane, MapPin, Phone, MessageCircle } from 'lucide-react-native';
 import { LinearGradient } from 'expo-linear-gradient';
-import { useOrderStore } from '../src/stores/orderStore';
 import { useDeliveryStore } from '../src/stores/deliveryStore';
 import { COLORS } from '../src/constants/theme';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import type { RootStackParamList } from '../App';
 import { supabase, isSupabaseConfigured } from '../src/lib/supabase';
 import type { DeliveryTrackingResult } from '../src/types/delivery.types';
+import OrderTrackingMap from '../src/components/delivery/OrderTrackingMap';
+import { STATIC_CHECKPOINTS } from '../src/data/delivery/static-checkpoints';
+import type { Checkpoint } from '../src/data/delivery/static-checkpoints';
+
+// Enable LayoutAnimation on Android
+if (Platform.OS === 'android' && UIManager.setLayoutAnimationEnabledExperimental) {
+  UIManager.setLayoutAnimationEnabledExperimental(true);
+}
 
 type Props = NativeStackScreenProps<RootStackParamList, 'DeliveryTracking'>;
 
@@ -52,7 +61,8 @@ const getStatusBucket = (status: string): string | null => {
   return null;
 };
 
-const { width } = Dimensions.get('window');
+const { width, height } = Dimensions.get('window');
+const BOTTOM_CARD_MIN_HEIGHT = height * 0.42;
 
 export default function DeliveryTrackingScreen({ route, navigation }: Props) {
   const { order } = route.params;
@@ -62,6 +72,9 @@ export default function DeliveryTrackingScreen({ route, navigation }: Props) {
   const [deliveryInfo, setDeliveryInfo] = useState<DeliveryTrackingResult | null>(null);
   const fetchTrackingByOrderId = useDeliveryStore((s) => s.fetchTrackingByOrderId);
   const deliveryStoreTracking = useDeliveryStore((s) => s.tracking);
+  const [selectedCheckpoint, setSelectedCheckpoint] = useState<Checkpoint | null>(null);
+  const [isCardCollapsed, setIsCardCollapsed] = useState(false);
+  const cardTranslateY = useRef(new Animated.Value(0)).current;
 
   const pulseAnim = useRef(new Animated.Value(1)).current;
 
@@ -140,7 +153,6 @@ export default function DeliveryTrackingScreen({ route, navigation }: Props) {
 
             if (existingBucketIndex !== -1) {
               // Bucket already filled - update existing entry instead of adding new
-              console.log(`[DeliveryTracking] Bucket "${newBucket}" already filled, updating existing entry`);
               const updated = [...prev];
               updated[existingBucketIndex] = newEntry;
               return updated.sort((a, b) =>
@@ -149,7 +161,6 @@ export default function DeliveryTrackingScreen({ route, navigation }: Props) {
             }
 
             // Bucket not filled - add new entry
-            console.log(`[DeliveryTracking] Adding new bucket "${newBucket}"`);
             return [...prev, newEntry].sort((a, b) =>
               new Date(a.created_at).getTime() - new Date(b.created_at).getTime()
             );
@@ -227,29 +238,22 @@ export default function DeliveryTrackingScreen({ route, navigation }: Props) {
           const combined = [...prev, ...data];
 
           // Remove duplicate buckets - keep only the latest entry for each bucket
-          const bucketMap = new Map<string, OrderStatusEntry>();
+          const bucketMap = Object.create(null);
           for (const item of combined) {
             const bucket = getStatusBucket(item.status);
             if (bucket) {
-              // If bucket exists, keep the one with the latest created_at
-              const existing = bucketMap.get(bucket);
+              const existing = bucketMap[bucket];
               if (!existing || new Date(item.created_at).getTime() > new Date(existing.created_at).getTime()) {
-                bucketMap.set(bucket, item);
+                bucketMap[bucket] = item;
               }
             } else {
-              // Unknown bucket - keep as is with ID as key
-              bucketMap.set(item.id, item);
+              bucketMap[item.id] = item;
             }
           }
 
-          const unique = Array.from(bucketMap.values());
+          const unique = Object.values(bucketMap) as OrderStatusEntry[];
           return unique.sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime());
         });
-
-        // Check if already delivered
-        if (data.some(item => item.status.toLowerCase().includes('delivered'))) {
-          // Maybe show delivered state immediately
-        }
       }
     } catch (err) {
       console.error('Error fetching timeline:', err);
@@ -287,183 +291,293 @@ export default function DeliveryTrackingScreen({ route, navigation }: Props) {
   const isDelivered = timeline.some(t => t.status.toLowerCase().includes('delivered') || t.status.toLowerCase().includes('received'));
   const currentStatusIndex = timeline.length - 1;
 
+  // Determine which checkpoint route to use based on order status
+  const getCheckpointRoute = () => {
+    // Phase 2: Replace with real data from database
+    if (isCancelled) return null;
+    return STATIC_CHECKPOINTS.metro_manila;
+  };
+
+  // Handle marker press on map
+  const handleMarkerPress = (checkpoint: Checkpoint) => {
+    setSelectedCheckpoint(checkpoint);
+    console.log('[DeliveryTrackingScreen] Marker pressed:', checkpoint.label);
+  };
+
+  const checkpointRoute = getCheckpointRoute();
+
   // Debug: Log timeline with bucket info
   useEffect(() => {
-    console.log('[DeliveryTrackingScreen] Timeline Map:', timeline.map((item, index) => ({
-      id: item.id,
-      status: item.status,
-      bucket: getStatusBucket(item.status),
-      description: item.description,
-      created_at: item.created_at,
-      location: item.location,
-      index,
-      isLast: index === timeline.length - 1,
+    console.log('[DeliveryTrackingScreen] Timeline:', timeline.map((item, index) => ({
+      id: item.id, status: item.status, bucket: getStatusBucket(item.status), index,
     })));
   }, [timeline]);
 
+  // Get the current status label for the top card
+  const currentStatusLabel = timeline.length > 0 ? timeline[timeline.length - 1].status : 'Loading...';
+  const currentStatusBucket = getStatusBucket(currentStatusLabel);
+
+  const toggleCard = () => {
+    const toValue = isCardCollapsed ? 0 : BOTTOM_CARD_MIN_HEIGHT - 100;
+    Animated.spring(cardTranslateY, {
+      toValue,
+      useNativeDriver: true,
+      friction: 8,
+      tension: 40,
+    }).start();
+    setIsCardCollapsed(!isCardCollapsed);
+  };
 
   return (
     <View style={styles.container}>
-      {/* Edge-to-Edge Soft Amber Header */}
-      <LinearGradient
-        colors={['#FFFBF5', '#FDF2E9', '#FFFBF5']} // Soft Parchment Header
-        start={{ x: 0, y: 0 }}
-        end={{ x: 1, y: 1 }}
-        style={[styles.header, { paddingTop: insets.top + 16 }]}
-      >
-        <View style={styles.headerContent}>
-          <Pressable onPress={() => navigation.goBack()} style={styles.backButton}>
-            <ArrowLeft size={24} color={COLORS.textHeadline} strokeWidth={2.5} />
-          </Pressable>
-          <View style={styles.headerCenter}>
-            <Text style={[styles.headerTitle, { color: COLORS.textHeadline }]}>Track Order</Text>
-            <Text style={[styles.headerSubtitle, { color: COLORS.textPrimary }]}>#{order.transactionId}</Text>
-          </View>
-          <View style={{ width: 40 }} />
+
+      {/* ── LAYER 1: Full-screen background map ── */}
+      {!isCancelled && checkpointRoute ? (
+        <View style={StyleSheet.absoluteFill}>
+          <OrderTrackingMap
+            origin={checkpointRoute.origin}
+            destination={checkpointRoute.destination}
+            checkpoints={checkpointRoute.checkpoints}
+            currentStep={currentStatusIndex}
+            showCourierMarker={false}
+            onMarkerPress={handleMarkerPress}
+            height={height}
+          />
         </View>
-      </LinearGradient>
+      ) : (
+        // Fallback background for cancelled orders
+        <LinearGradient
+          colors={['#F3F4F6', '#E5E7EB']}
+          style={StyleSheet.absoluteFill}
+        />
+      )}
 
-      <ScrollView
-        style={styles.scrollView}
-        contentContainerStyle={{ paddingBottom: 40 }}
-        showsVerticalScrollIndicator={false}
+      {/* ── LAYER 2: Top gradient scrim so the header is legible ── */}
+      <LinearGradient
+        colors={['rgba(0,0,0,0.35)', 'rgba(0,0,0,0.1)', 'transparent']}
+        style={[styles.topScrim, { height: insets.top + 100 }]}
+        pointerEvents="none"
+      />
+
+      {/* ── LAYER 3: Floating Header ── */}
+      <View style={[styles.floatingHeader, { paddingTop: insets.top + 8 }]}>
+        <Pressable onPress={() => navigation.goBack()} style={styles.headerIconBtn}>
+          <ArrowLeft size={20} color="#FFFFFF" strokeWidth={2.5} />
+        </Pressable>
+
+        <Text style={styles.headerTitle}>Tracking</Text>
+
+        <Pressable style={styles.headerIconBtn}>
+          <MapPin size={20} color="#FFFFFF" strokeWidth={2.5} />
+        </Pressable>
+      </View>
+
+      {/* ── LAYER 4: Bottom Details Sheet ── */}
+      <Animated.View
+        style={[
+          styles.bottomSheet,
+          {
+            paddingBottom: insets.bottom + 16,
+            transform: [{ translateY: cardTranslateY }]
+          }
+        ]}
       >
-        {/* Courier Info Card */}
-        {deliveryInfo?.booking && (
-          <View style={[styles.deliveryCard, { marginBottom: 0 }]}>
-            <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 12, gap: 10 }}>
-              <View style={{ width: 36, height: 36, borderRadius: 18, backgroundColor: '#FEF3C7', justifyContent: 'center', alignItems: 'center' }}>
-                <Truck size={18} color={COLORS.primary} />
-              </View>
-              <View style={{ flex: 1 }}>
-                <Text style={{ fontSize: 15, fontWeight: '700', color: '#1F2937' }}>{deliveryInfo.booking.courierName}</Text>
-                <Text style={{ fontSize: 12, color: '#6B7280' }}>{deliveryInfo.booking.serviceType.replace('_', ' ').toUpperCase()}</Text>
-              </View>
-              <View style={{
-                paddingHorizontal: 8, paddingVertical: 3, borderRadius: 6,
-                backgroundColor: deliveryInfo.booking.status === 'delivered' ? '#D1FAE5' : '#DBEAFE',
-              }}>
-                <Text style={{
-                  fontSize: 11, fontWeight: '700',
-                  color: deliveryInfo.booking.status === 'delivered' ? '#065F46' : '#1E40AF',
-                }}>
-                  {deliveryInfo.booking.status.split('_').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' ')}
-                </Text>
-              </View>
-            </View>
-            {deliveryInfo.booking.trackingNumber && !isCancelled && (
-              <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 6 }}>
-                <Text style={{ fontSize: 13, color: '#6B7280' }}>Tracking #</Text>
-                <Text style={{ fontSize: 13, fontWeight: '600', color: COLORS.primary }}>{deliveryInfo.booking.trackingNumber}</Text>
-              </View>
-            )}
-            {deliveryInfo.booking.estimatedDelivery && !isCancelled && (
-              <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
-                <Text style={{ fontSize: 13, color: '#6B7280' }}>Est. Delivery</Text>
-                <Text style={{ fontSize: 13, fontWeight: '600', color: '#1F2937' }}>
-                  {new Date(deliveryInfo.booking.estimatedDelivery).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
-                </Text>
-              </View>
-            )}
+        {/* ── Toggle Handle Button ── */}
+        <Pressable
+          onPress={toggleCard}
+          style={styles.toggleHandle}
+          hitSlop={{ top: 20, bottom: 40, left: 20, right: 20 }}
+        >
+          <View style={styles.handleBar} />
+        </Pressable>
+
+        {/* ── Order Number Row ── */}
+        <View style={styles.orderRow}>
+          <View>
+            <Text style={styles.orderLabel}>Order Number</Text>
+            <Text style={styles.orderNumber}>#{order.transactionId || order.orderId || order.id?.slice(0, 8).toUpperCase()}</Text>
           </View>
-        )}
+          <View style={styles.distanceChip}>
+            <MapPin size={14} color={COLORS.primary} />
+            <Text style={styles.distanceText}>{isCancelled ? 'Cancelled' : (currentStatusBucket || currentStatusLabel)}</Text>
+          </View>
+        </View>
 
-        {/* Delivery Estimate & Visual Journey Card */}
-        <View style={styles.deliveryCard}>
-          {isDelivered ? (
-            // Delivered State: Show Proof of Delivery
-            <>
-              <View style={styles.deliveredHeader}>
-                <Text style={styles.deliveredTitle}>Item Delivered</Text>
+        <View style={styles.divider} />
+
+        {/* ── Scrollable Details ── */}
+        <ScrollView
+          showsVerticalScrollIndicator={false}
+          contentContainerStyle={{ paddingBottom: 8 }}
+          style={styles.scrollArea}
+        >
+          {/* ── Courier Info Row ── */}
+          {deliveryInfo?.booking ? (
+            <View style={styles.courierRow}>
+              {/* Avatar */}
+              <View style={styles.courierAvatar}>
+                <Truck size={22} color={COLORS.primary} strokeWidth={2} />
               </View>
 
-              <View style={styles.proofSection}>
-                <Text style={styles.proofLabel}>Proof of Delivery:</Text>
-                <Image
-                  source={{ uri: 'https://images.unsplash.com/photo-1586880244406-556ebe35f282?w=600&h=400&fit=crop' }}
-                  style={styles.proofImage}
-                  resizeMode="cover"
-                />
-                <Text style={styles.proofCaption}>Photo captured by driver at delivery.</Text>
+              <View style={styles.courierInfo}>
+                <Text style={styles.courierName}>{deliveryInfo.booking.courierName}</Text>
+                <Text style={styles.courierRole}>{deliveryInfo.booking.serviceType.replace(/_/g, ' ').toUpperCase()}</Text>
               </View>
-            </>
-          ) : isCancelled ? (
-            // Cancelled State: Show cancellation message
-            <View style={styles.estimateSection}>
-              <Text style={[styles.estimateLabel, { color: '#DC2626' }]}>Order Cancelled</Text>
-              <Text style={[styles.estimateDate, { color: '#6B7280' }]}>No delivery will be made</Text>
+
+              <View style={styles.courierActions}>
+                <Pressable style={styles.actionBtnOutline}>
+                  <MessageCircle size={18} color={COLORS.primary} strokeWidth={2} />
+                </Pressable>
+                <Pressable style={styles.actionBtnFilled}>
+                  <Phone size={18} color="#FFFFFF" strokeWidth={2} />
+                </Pressable>
+              </View>
             </View>
           ) : (
-            <View style={styles.estimateSection}>
-              <Text style={styles.estimateLabel}>Estimated Delivery</Text>
-              <Text style={styles.estimateDate}>{order.scheduledDate || 'Calculating...'}</Text>
+            <View style={styles.courierRow}>
+              <View style={styles.courierAvatar}>
+                <Truck size={22} color={COLORS.primary} strokeWidth={2} />
+              </View>
+              <View style={styles.courierInfo}>
+                <Text style={styles.courierName}>Courier</Text>
+                <Text style={styles.courierRole}>STANDARD DELIVERY</Text>
+              </View>
             </View>
           )}
-        </View>
 
-        {/* Dynamic Delivery Timeline Card */}
-        <View style={styles.timelineCard}>
-          <Text style={styles.timelineTitle}>Delivery Timeline</Text>
-          {timeline.length === 0 ? (
-            <Text style={{ color: '#6B7280', textAlign: 'center' }}>Loading tracking info...</Text>
-          ) : (
-            timeline.map((item, index) => {
-              const isLast = index === timeline.length - 1;
-              const StatusIcon = getStatusIcon(item.status);
-              const isCancelledItem = item.status.toLowerCase().includes('cancelled');
+          {/* ── Info Items ── */}
+          <View style={styles.infoSection}>
+            {/* Address */}
+            <View style={styles.infoItem}>
+              <View style={styles.infoIconWrap}>
+                <MapPin size={16} color={COLORS.primary} strokeWidth={2} />
+              </View>
+              <View style={styles.infoVertLine} />
+              <View style={styles.infoTextWrap}>
+                <Text style={styles.infoLabel}>Delivery address</Text>
+                <Text style={styles.infoValue} numberOfLines={2}>
+                  {deliveryInfo?.booking?.deliveryAddress
+                    ? `${(deliveryInfo.booking.deliveryAddress as any).city || ''}, ${(deliveryInfo.booking.deliveryAddress as any).province || ''}`
+                    : 'Your address'}
+                </Text>
+              </View>
+            </View>
 
-              return (
-                <View key={item.id || index} style={styles.timelineItem}>
-                  {/* Left Column (Icon & Line) */}
-                  <View style={styles.timelineLeft}>
-                    {/* Icon Circle */}
-                    {isLast ? (
-                      <Animated.View
+            {/* ETA / Estimated Delivery */}
+            <View style={[styles.infoItem, { marginBottom: 0 }]}>
+              <View style={styles.infoIconWrap}>
+                <Package size={16} color={COLORS.primary} strokeWidth={2} />
+              </View>
+              <View style={styles.infoTextWrap}>
+                <Text style={styles.infoLabel}>
+                  {isCancelled ? 'Status' : isDelivered ? 'Delivered on' : 'Estimated delivery'}
+                </Text>
+                <Text style={styles.infoValue}>
+                  {isCancelled
+                    ? 'Order was cancelled'
+                    : isDelivered
+                      ? 'Package delivered'
+                      : deliveryInfo?.booking?.estimatedDelivery
+                        ? new Date(deliveryInfo.booking.estimatedDelivery).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
+                        : order.scheduledDate || 'Calculating...'}
+                </Text>
+              </View>
+            </View>
+
+            {/* Tracking Number if available */}
+            {deliveryInfo?.booking?.trackingNumber && !isCancelled && (
+              <View style={[styles.infoItem, { marginBottom: 0, marginTop: 12 }]}>
+                <View style={styles.infoIconWrap}>
+                  <Home size={16} color={COLORS.primary} strokeWidth={2} />
+                </View>
+                <View style={styles.infoTextWrap}>
+                  <Text style={styles.infoLabel}>Tracking number</Text>
+                  <Text style={[styles.infoValue, { color: COLORS.primary, fontWeight: '700' }]}>
+                    {deliveryInfo.booking.trackingNumber}
+                  </Text>
+                </View>
+              </View>
+            )}
+          </View>
+
+          {/* ── Proof of Delivery (if Delivered) ── */}
+          {isDelivered && (
+            <View style={styles.proofCard}>
+              <Text style={styles.proofLabel}>Proof of Delivery</Text>
+              <Image
+                source={{ uri: 'https://images.unsplash.com/photo-1586880244406-556ebe35f282?w=600&h=400&fit=crop' }}
+                style={styles.proofImage}
+                resizeMode="cover"
+              />
+              <Text style={styles.proofCaption}>Photo captured by driver at delivery.</Text>
+            </View>
+          )}
+
+          {/* ── Delivery Timeline ── */}
+          <View style={styles.timelineSection}>
+            <Text style={styles.timelineTitle}>Delivery Timeline</Text>
+            {timeline.length === 0 ? (
+              <Text style={{ color: '#6B7280', textAlign: 'center', paddingVertical: 16 }}>Loading tracking info...</Text>
+            ) : (
+              timeline.map((item, index) => {
+                const isLast = index === timeline.length - 1;
+                const StatusIcon = getStatusIcon(item.status);
+                const isCancelledItem = item.status.toLowerCase().includes('cancelled');
+
+                return (
+                  <View key={item.id || index} style={styles.timelineItem}>
+                    {/* Left Column */}
+                    <View style={styles.timelineLeft}>
+                      {isLast ? (
+                        <Animated.View
+                          style={[
+                            styles.currentStepRing,
+                            isCancelledItem && { backgroundColor: '#EF4444', shadowColor: '#EF4444' },
+                            { transform: [{ scale: pulseAnim }] },
+                          ]}
+                        >
+                          <View style={[styles.currentStepCenter, isCancelledItem && { backgroundColor: '#EF4444' }]}>
+                            <StatusIcon size={14} color="#FFFFFF" strokeWidth={2.5} />
+                          </View>
+                        </Animated.View>
+                      ) : (
+                        <View style={[styles.completedStep, isCancelledItem && { backgroundColor: '#EF4444' }]}>
+                          <CheckCircle size={18} color="#FFFFFF" strokeWidth={3} fill={isCancelledItem ? '#EF4444' : COLORS.primary} />
+                        </View>
+                      )}
+                      {index < timeline.length - 1 && (
+                        <View style={[styles.timelineLine, isCancelledItem ? { backgroundColor: '#EF4444' } : styles.timelineLineActive]} />
+                      )}
+                    </View>
+
+                    {/* Right Column */}
+                    <View style={styles.timelineRight}>
+                      <Text
                         style={[
-                          styles.currentStepRing,
-                          { transform: [{ scale: pulseAnim }] },
+                          styles.timelineStepTitle,
+                          isLast ? styles.timelineStepTitleCurrent : styles.timelineStepTitleCompleted,
+                          isCancelledItem && { color: '#EF4444' },
                         ]}
                       >
-                        <View style={[styles.currentStepCenter, isCancelledItem && { backgroundColor: '#EF4444' }]}>
-                          <StatusIcon size={16} color="#FFFFFF" strokeWidth={2.5} />
-                        </View>
-                      </Animated.View>
-                    ) : (
-                      <View style={[styles.completedStep, isCancelledItem && { backgroundColor: '#EF4444' }]}>
-                        <CheckCircle size={20} color="#FFFFFF" strokeWidth={3} fill={isCancelledItem ? '#EF4444' : COLORS.primary} />
-                      </View>
-                    )}
-
-                    {/* Connecting Line */}
-                    {index < timeline.length - 1 && (
-                      <View style={[styles.timelineLine, isCancelledItem ? { backgroundColor: '#EF4444' } : styles.timelineLineActive]} />
-                    )}
+                        {item.status.charAt(0).toUpperCase() + item.status.slice(1).replace(/_/g, ' ')}
+                      </Text>
+                      <Text style={styles.timelineStepTime}>{formatDate(item.created_at)}</Text>
+                      {item.description && (
+                        <Text style={styles.timelineDescription}>{item.description}</Text>
+                      )}
+                      {item.location && (
+                        <Text style={styles.timelineLocation}>📍 {item.location}</Text>
+                      )}
+                    </View>
                   </View>
+                );
+              })
+            )}
+          </View>
+        </ScrollView>
+      </Animated.View>
 
-                  {/* Right Column (Content) */}
-                  <View style={styles.timelineRight}>
-                    <Text
-                      style={[
-                        styles.timelineStepTitle,
-                        isLast ? styles.timelineStepTitleCurrent : styles.timelineStepTitleCompleted,
-                        isCancelledItem && { color: '#EF4444' },
-                      ]}
-                    >
-                      {item.status.charAt(0).toUpperCase() + item.status.slice(1).replace(/_/g, ' ')}
-                    </Text>
-                    <Text style={styles.timelineStepTime}>{formatDate(item.created_at)}</Text>
-                    {item.description && (
-                      <Text style={styles.timelineDescription}>{item.description}</Text>
-                    )}
-                  </View>
-                </View>
-              );
-            })
-          )}
-        </View>
-      </ScrollView>
-
-      {/* Redirect Popup - Package Arrived */}
+      {/* ── Package Arrived Popup ── */}
       <Modal
         visible={showRedirectPopup}
         animationType="fade"
@@ -472,25 +586,15 @@ export default function DeliveryTrackingScreen({ route, navigation }: Props) {
       >
         <View style={styles.popupOverlay}>
           <View style={styles.popupContainer}>
-            {/* Green Checkmark Icon */}
             <View style={styles.checkmarkCircle}>
               <CheckCircle size={64} color="#10B981" strokeWidth={2.5} />
             </View>
-
-            {/* Title */}
             <Text style={styles.popupTitle}>Package Arrived!</Text>
-
-            {/* Body */}
             <Text style={styles.popupBody}>
               Your order has been delivered successfully. Please confirm receipt in your orders page.
             </Text>
-
-            {/* Go to To-Receive Button */}
             <Pressable
-              style={({ pressed }) => [
-                styles.popupButton,
-                pressed && styles.popupButtonPressed
-              ]}
+              style={({ pressed }) => [styles.popupButton, pressed && styles.popupButtonPressed]}
               onPress={handleGoToToReceive}
             >
               <Text style={styles.popupButtonText}>Go to To-Receive</Text>
@@ -505,134 +609,262 @@ export default function DeliveryTrackingScreen({ route, navigation }: Props) {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: COLORS.background,
+    backgroundColor: '#E8EDF2',
   },
 
-  // ===== EDGE-TO-EDGE ORANGE HEADER =====
-  header: {
-    paddingBottom: 25,
-    borderBottomLeftRadius: 30,
-    borderBottomRightRadius: 30,
-    elevation: 2,
-    shadowColor: '#000',
-    shadowOpacity: 0.05,
-    shadowRadius: 5,
+  // ── TOP GRADIENT SCRIM ──
+  topScrim: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    zIndex: 10,
   },
-  headerContent: {
+
+  // ── FLOATING HEADER ──
+  floatingHeader: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    zIndex: 20,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    paddingHorizontal: 20,
+    paddingHorizontal: 16,
+    paddingBottom: 12,
   },
-  backButton: {
+  headerIconBtn: {
     width: 40,
     height: 40,
+    borderRadius: 20,
+    backgroundColor: 'rgba(255,255,255,0.22)',
     alignItems: 'center',
     justifyContent: 'center',
-  },
-  headerCenter: {
-    flex: 1,
-    alignItems: 'center',
   },
   headerTitle: {
     fontSize: 18,
     fontWeight: '700',
     color: '#FFFFFF',
     letterSpacing: 0.3,
-  },
-  headerSubtitle: {
-    fontSize: 14,
-    color: 'rgba(255, 255, 255, 0.8)',
-    marginTop: 2,
-    fontWeight: '500',
+    textShadowColor: 'rgba(0,0,0,0.3)',
+    textShadowOffset: { width: 0, height: 1 },
+    textShadowRadius: 4,
   },
 
-  // ===== SCROLL VIEW =====
-  scrollView: {
+  // ── BOTTOM SHEET ──
+  bottomSheet: {
+    position: 'absolute',
+    bottom: 0,
+    left: 0,
+    right: 0,
+    backgroundColor: '#FFFFFF',
+    borderTopLeftRadius: 28,
+    borderTopRightRadius: 28,
+    minHeight: BOTTOM_CARD_MIN_HEIGHT,
+    maxHeight: BOTTOM_CARD_MIN_HEIGHT + 60,
+    paddingTop: 10,
+    paddingHorizontal: 20,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: -6 },
+    shadowOpacity: 0.1,
+    shadowRadius: 16,
+    elevation: 20,
+  },
+
+  toggleHandle: {
+    alignSelf: 'center',
+    paddingTop: 2,
+    paddingBottom: 16,
+    width: '100%',
+    alignItems: 'center',
+  },
+  handleBar: {
+    width: 36,
+    height: 4,
+    borderRadius: 2,
+    backgroundColor: '#E5E7EB',
+  },
+
+  // ── ORDER ROW ──
+  orderRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 14,
+  },
+  orderLabel: {
+    fontSize: 12,
+    color: '#9CA3AF',
+    fontWeight: '500',
+    marginBottom: 2,
+  },
+  orderNumber: {
+    fontSize: 22,
+    fontWeight: '800',
+    color: '#111827',
+    letterSpacing: 0.5,
+  },
+  distanceChip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    backgroundColor: '#FEF3C7',
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 20,
+  },
+  distanceText: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: COLORS.primary,
+  },
+
+  divider: {
+    height: 1,
+    backgroundColor: '#F3F4F6',
+    marginBottom: 14,
+  },
+
+  scrollArea: {
     flex: 1,
   },
 
-  // ===== DELIVERY ESTIMATE & JOURNEY CARD =====
-  deliveryCard: {
-    backgroundColor: '#FFFFFF',
-    marginHorizontal: 16,
-    marginTop: 20,
+  // ── COURIER ROW ──
+  courierRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
     marginBottom: 16,
-    padding: 24,
-    borderRadius: 16,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.08,
-    shadowRadius: 12,
-    elevation: 4,
+    gap: 12,
   },
-  estimateSection: {
-    marginBottom: 0,
+  courierAvatar: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    backgroundColor: '#FEF3C7',
+    alignItems: 'center',
+    justifyContent: 'center',
   },
-  estimateLabel: {
-    fontSize: 14,
-    color: '#6B7280',
-    fontWeight: '500',
-    marginBottom: 6,
+  courierInfo: {
+    flex: 1,
   },
-  estimateDate: {
-    fontSize: 24,
+  courierName: {
+    fontSize: 15,
     fontWeight: '700',
     color: '#111827',
-    letterSpacing: 0.3,
+  },
+  courierRole: {
+    fontSize: 12,
+    color: '#9CA3AF',
+    fontWeight: '500',
+    marginTop: 2,
+  },
+  courierActions: {
+    flexDirection: 'row',
+    gap: 8,
+  },
+  actionBtnOutline: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    borderWidth: 1.5,
+    borderColor: COLORS.primary,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  actionBtnFilled: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: COLORS.primary,
+    alignItems: 'center',
+    justifyContent: 'center',
+    shadowColor: COLORS.primary,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.35,
+    shadowRadius: 8,
+    elevation: 4,
   },
 
-  // ===== DELIVERED STATE =====
-  deliveredHeader: {
-    marginBottom: 24,
+  // ── INFO SECTION ──
+  infoSection: {
+    backgroundColor: '#F9FAFB',
+    borderRadius: 14,
+    padding: 14,
+    marginBottom: 16,
+    gap: 2,
   },
-  deliveredTitle: {
-    fontSize: 24,
-    fontWeight: '700',
-    color: '#10B981',
-    letterSpacing: 0.3,
+  infoItem: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    marginBottom: 12,
+    gap: 12,
   },
-  proofSection: {
-    marginTop: 8,
+  infoIconWrap: {
+    width: 30,
+    height: 30,
+    borderRadius: 15,
+    backgroundColor: '#FEF3C7',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginTop: 2,
+  },
+  infoVertLine: {
+    position: 'absolute',
+    left: 14,
+    top: 34,
+    width: 2,
+    height: 20,
+    backgroundColor: '#E5E7EB',
+  },
+  infoTextWrap: {
+    flex: 1,
+  },
+  infoLabel: {
+    fontSize: 12,
+    color: '#9CA3AF',
+    fontWeight: '500',
+    marginBottom: 2,
+  },
+  infoValue: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#111827',
+  },
+
+  // ── PROOF OF DELIVERY ──
+  proofCard: {
+    marginBottom: 16,
   },
   proofLabel: {
     fontSize: 14,
     color: '#6B7280',
     fontWeight: '600',
-    marginBottom: 12,
+    marginBottom: 10,
   },
   proofImage: {
     width: '100%',
-    height: 200,
+    height: 160,
     borderRadius: 12,
     backgroundColor: '#F3F4F6',
-    marginBottom: 12,
+    marginBottom: 8,
   },
   proofCaption: {
-    fontSize: 13,
+    fontSize: 12,
     color: '#9CA3AF',
     fontWeight: '500',
     textAlign: 'center',
   },
 
-  // ===== ENHANCED VERTICAL TIMELINE CARD =====
-  timelineCard: {
-    backgroundColor: '#FFFFFF',
-    marginHorizontal: 16,
-    marginBottom: 16,
-    padding: 24,
-    borderRadius: 16,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.08,
-    shadowRadius: 12,
-    elevation: 4,
+  // ── TIMELINE ──
+  timelineSection: {
+    paddingBottom: 8,
   },
   timelineTitle: {
-    fontSize: 18,
+    fontSize: 16,
     fontWeight: '700',
     color: '#111827',
-    marginBottom: 24,
+    marginBottom: 16,
   },
   timelineItem: {
     flexDirection: 'row',
@@ -640,84 +872,85 @@ const styles = StyleSheet.create({
   },
   timelineLeft: {
     alignItems: 'center',
-    marginRight: 16,
-    width: 32,
+    marginRight: 14,
+    width: 30,
   },
-
-  // Completed Step: Solid orange circle with white tick
   completedStep: {
-    width: 32,
-    height: 32,
-    borderRadius: 16,
+    width: 30,
+    height: 30,
+    borderRadius: 15,
     backgroundColor: COLORS.primary,
     alignItems: 'center',
     justifyContent: 'center',
   },
-
-  // Current Step: Larger glowing orange ring with solid center
   currentStepRing: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
+    width: 34,
+    height: 34,
+    borderRadius: 17,
     backgroundColor: COLORS.primary,
     alignItems: 'center',
     justifyContent: 'center',
     shadowColor: COLORS.primary,
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.4,
-    shadowRadius: 10,
+    shadowRadius: 8,
     elevation: 6,
   },
   currentStepCenter: {
-    width: 24,
-    height: 24,
-    borderRadius: 12,
+    width: 22,
+    height: 22,
+    borderRadius: 11,
     backgroundColor: '#FFFFFF',
     alignItems: 'center',
     justifyContent: 'center',
   },
-
-  // Timeline Connecting Lines
   timelineLine: {
     flex: 1,
-    width: 3,
+    width: 2,
     backgroundColor: '#E5E7EB',
-    marginVertical: 8,
+    marginVertical: 6,
   },
   timelineLineActive: {
     backgroundColor: COLORS.primary,
   },
-
   timelineRight: {
     flex: 1,
-    paddingBottom: 24,
+    paddingBottom: 20,
   },
   timelineStepTitle: {
-    fontSize: 16,
+    fontSize: 14,
     fontWeight: '600',
     color: '#374151',
-    marginBottom: 4,
+    marginBottom: 2,
   },
   timelineStepTitleCurrent: {
     color: COLORS.primary,
     fontWeight: '700',
+    fontSize: 15,
   },
   timelineStepTitleCompleted: {
     color: '#374151',
     fontWeight: '600',
   },
   timelineStepTime: {
-    fontSize: 13,
+    fontSize: 12,
     color: '#9CA3AF',
     fontWeight: '500',
     marginBottom: 2,
   },
   timelineDescription: {
-    fontSize: 13,
+    fontSize: 12,
     color: '#6B7280',
+    lineHeight: 18,
+    marginTop: 2,
+  },
+  timelineLocation: {
+    fontSize: 11,
+    color: '#9CA3AF',
+    marginTop: 2,
   },
 
-  // ===== POPUP MODAL =====
+  // ── POPUP ──
   popupOverlay: {
     flex: 1,
     backgroundColor: 'rgba(0,0,0,0.5)',
