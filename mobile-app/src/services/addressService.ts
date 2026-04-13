@@ -503,3 +503,114 @@ export class AddressService {
 }
 
 export const addressService = AddressService.getInstance();
+
+// ---------------------------------------------------------------------------
+// BX-09-004 — Address Validation
+// ---------------------------------------------------------------------------
+
+export interface AddressValidationError {
+    field: keyof Address | 'general';
+    message: string;
+}
+
+export interface AddressValidationResult {
+    valid: boolean;
+    /**
+     * null  = coordinates not available, serviceability unknown (don't block)
+     * true  = coordinates confirmed inside Philippines
+     * false = coordinates confirmed outside Philippines (block checkout)
+     */
+    serviceable: boolean | null;
+    errors: AddressValidationError[];
+}
+
+/** Philippine mobile number: 09XXXXXXXXX or +639XXXXXXXXX */
+const PH_PHONE_RE = /^(09|\+639)\d{9}$/;
+
+/** Philippine 4-digit postal/zip code */
+const PH_ZIP_RE = /^\d{4}$/;
+
+/**
+ * Validate a checkout delivery address.
+ *
+ * Pure and synchronous — uses coordinates already stored by the
+ * LocationModal / react-native-maps map-pin flow. No network calls.
+ *
+ * Returns { valid, serviceable, errors[] }. Caller is responsible for
+ * deciding whether to block (valid === false || serviceable === false).
+ */
+export function validateCheckoutAddress(address: Address): AddressValidationResult {
+    const errors: AddressValidationError[] = [];
+
+    // ------------------------------------------------------------------
+    // 1. Required-field checks
+    // ------------------------------------------------------------------
+    const required: { field: keyof Address; label: string }[] = [
+        { field: 'firstName',  label: 'Recipient first name' },
+        { field: 'lastName',   label: 'Recipient last name' },
+        { field: 'phone',      label: 'Mobile number' },
+        { field: 'street',     label: 'Street / house number' },
+        { field: 'barangay',   label: 'Barangay' },
+        { field: 'city',       label: 'City / municipality' },
+        { field: 'province',   label: 'Province' },
+        { field: 'region',     label: 'Region' },
+        { field: 'zipCode',    label: 'Postal code' },
+    ];
+
+    for (const { field, label } of required) {
+        const value = address[field];
+        if (!value || String(value).trim() === '') {
+            errors.push({ field, message: `${label} is required` });
+        }
+    }
+
+    // ------------------------------------------------------------------
+    // 2. Format checks (only run when field is non-empty)
+    // ------------------------------------------------------------------
+    const phone = address.phone?.trim() ?? '';
+    if (phone && !PH_PHONE_RE.test(phone)) {
+        errors.push({
+            field: 'phone',
+            message: 'Enter a valid PH mobile number (e.g. 09XXXXXXXXX or +639XXXXXXXXX)',
+        });
+    }
+
+    const zip = address.zipCode?.trim() ?? '';
+    if (zip && !PH_ZIP_RE.test(zip)) {
+        errors.push({
+            field: 'zipCode',
+            message: 'Enter a valid 4-digit postal code',
+        });
+    }
+
+    // ------------------------------------------------------------------
+    // 3. Serviceability — uses GPS coordinates from react-native-maps
+    //    (stored via LocationModal map-pin flow in shipping_addresses.coordinates)
+    // ------------------------------------------------------------------
+    let serviceable: boolean | null = null; // unknown when no coords
+
+    if (address.coordinates?.latitude != null && address.coordinates?.longitude != null) {
+        // Inline PH bounding-box check (mirrors getZoneFromCoords in shippingService.ts)
+        // Kept inline here to avoid a circular import; the values are geographic constants.
+        const { latitude, longitude } = address.coordinates;
+        const inPH =
+            latitude >= 4.5 && latitude <= 21.2 &&
+            longitude >= 116.9 && longitude <= 126.6;
+
+        serviceable = inPH;
+
+        if (!inPH) {
+            errors.push({
+                field: 'general',
+                message: 'This address appears to be outside the Philippines and is not serviceable',
+            });
+        }
+    }
+
+    return {
+        valid: errors.filter(e => e.field !== 'general').length === 0,
+        serviceable,
+        errors,
+    };
+}
+
