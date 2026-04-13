@@ -204,6 +204,15 @@ export const MasonryProductCard: React.FC<MasonryProductCardProps> = React.memo(
           </View>
           <Text style={masonryStyles.soldText}>{(product.sold || product.sales_count || (product as any).sold_count || 0).toLocaleString()} sold</Text>
         </View>
+
+        {/* Seller Name */}
+        {product.seller && (
+          <View style={masonryStyles.sellerRow}>
+            <Text style={masonryStyles.sellerText} numberOfLines={1}>
+              {typeof product.seller === 'string' ? product.seller : (product.seller.store_name || 'Verified Seller')}
+            </Text>
+          </View>
+        )}
       </View>
     </Pressable>
   );
@@ -480,5 +489,16 @@ const masonryStyles = StyleSheet.create({
   tagText: {
     fontSize: 9,
     fontWeight: '600',
-  }
+  },
+  sellerRow: {
+    marginTop: 6,
+    paddingTop: 6,
+    borderTopWidth: 1,
+    borderTopColor: '#F3F4F6',
+  },
+  sellerText: {
+    fontSize: 11,
+    color: '#6B7280',
+    fontWeight: '500',
+  },
 });

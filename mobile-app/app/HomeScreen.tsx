@@ -715,7 +715,7 @@ export default function HomeScreen({ navigation }: Props) {
                 if (trimmedQuery) {
                   saveRecentSearch(trimmedQuery);
                   setIsSearchFocused(false);
-                  navigation.navigate('SearchResults', { searchQuery: trimmedQuery });
+                  navigation.navigate('ProductListing', { searchQuery: trimmedQuery });
                 }
               }}
             />
@@ -757,7 +757,7 @@ export default function HomeScreen({ navigation }: Props) {
                     onPress={() => {
                       saveRecentSearch(term);
                       setIsSearchFocused(false);
-                      navigation.navigate('SearchResults', { searchQuery: term });
+                      navigation.navigate('ProductListing', { searchQuery: term });
                     }}
                   >
                     <Clock size={16} color="#9CA3AF" />
