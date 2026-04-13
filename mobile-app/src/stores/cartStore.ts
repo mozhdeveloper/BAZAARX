@@ -290,35 +290,9 @@ export const useCartStore = create<CartStore>()(
             return (added as any)?.id as string | undefined;
           } catch (e: any) {
             const msg = String(e?.message || e || '');
-            // For missing product FK errors, treat as non-fatal and silently fall back to local cart entry
-            if (msg.includes('Product not found') || msg.includes('violates foreign key')) {
-              const localItem: CartItem = {
-                id: product.id,
-                cartItemId: `local-${Date.now()}-${Math.random().toString(36).slice(2,8)}`,
-                name: product.name || 'Product',
-                description: product.description || '',
-                price: typeof product.price === 'number' ? product.price : parseFloat(String(product.price) || '0'),
-                originalPrice: typeof product.price === 'number' ? product.price : parseFloat(String(product.price) || '0'),
-                image: product.image || PLACEHOLDER_PRODUCT,
-                images: product.images || [],
-                seller: product.seller || 'Shop',
-                sellerId: (product as any).sellerId || '',
-                category: (product as any).category || '',
-                stock: (product as any).stock || 0,
-                isFreeShipping: !!(product as any).isFreeShipping,
-                quantity: (product as any).quantity || 1,
-                selectedVariant: (product as any).selectedVariant || null,
-                variants: (product as any).variants || [],
-              } as CartItem;
-
-              // Add local item WITHOUT calling initializeForCurrentUser() to prevent overwrite
-              set(state => ({ items: [localItem, ...state.items] }));
-              return localItem.cartItemId;
-            } else {
-              console.error('[CartStore] Failed to add item:', msg || e);
-              set({ error: msg || 'Failed to add item to cart' });
-              return undefined;
-            }
+            console.error('[CartStore] Failed to add item:', msg || e);
+            set({ error: msg || 'Failed to add item to cart' });
+            return undefined;
           }
         };
         
