@@ -28,7 +28,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { COLORS } from '../src/constants/theme';
 import { supabase } from '../src/lib/supabase';
 import { processCheckout, getCheckoutContext } from '@/services/checkoutService';
-import { addressService } from '@/services/addressService';
+import { addressService, type Address } from '@/services/addressService';
 import { voucherService, calculateVoucherDiscount, getVoucherErrorMessage } from '@/services/voucherService';
 import { useCartStore } from '../src/stores/cartStore';
 import { useAuthStore } from '../src/stores/authStore';
@@ -44,23 +44,6 @@ type Props = NativeStackScreenProps<RootStackParamList, 'Checkout'>;
 const { height: SCREEN_HEIGHT } = Dimensions.get('window');
 
 type CheckoutStep = 'shipping' | 'payment' | 'confirmation';
-
-interface Address {
-  id: string;
-  user_id: string;
-  label: string;
-  first_name: string;
-  last_name: string;
-  phone: string;
-  street: string;
-  barangay: string;
-  city: string;
-  province: string;
-  region: string;
-  postal_code: string;
-  is_default: boolean;
-  coordinates?: any;
-}
 
 export default function CheckoutScreen({ navigation, route }: Props) {
   const { items, getTotal, clearCart, quickOrder, clearQuickOrder, getQuickOrderTotal, initializeForCurrentUser } = useCartStore();
@@ -78,25 +61,27 @@ export default function CheckoutScreen({ navigation, route }: Props) {
   // Override address state if it's a gift
   React.useEffect(() => {
     if (isGift) {
-      const registryAddress: Address = {
-        id: 'registry-hidden-1',
-        user_id: user?.id || 'guest',
+      const registryAddress: Omit<Address, 'id'> = {
         label: 'Registry Address',
-        first_name: recipientName,
-        last_name: '(Hidden)',
+        firstName: recipientName,
+        lastName: '(Hidden)',
         phone: '****',
         street: 'Confidential Registry Address',
         barangay: '',
         city: registryLocation,
         province: '',
         region: '',
-        postal_code: '0000',
-        is_default: false
+        zipCode: '0000',
+        landmark: '',
+        deliveryInstructions: '',
+        addressType: 'residential',
+        isDefault: false,
+        coordinates: null,
       };
 
       // AUTO-SELECT this address so validation passes
-      setSelectedAddress(registryAddress);
-      setTempSelectedAddress(registryAddress);
+      setSelectedAddress(registryAddress as Address & { id: string });
+      setTempSelectedAddress(registryAddress as Address & { id: string });
     }
   }, [isGift, recipientName, registryLocation, user?.id]);
 
@@ -179,23 +164,38 @@ export default function CheckoutScreen({ navigation, route }: Props) {
   const [cityList, setCityList] = useState<any[]>([]);
   const [barangayList, setBarangayList] = useState<any[]>([]);
 
-  const initialAddressState: Omit<Address, 'id'> = {
-    user_id: user?.id || '',
+  // Memoize initialAddressState to prevent recreation on every render
+  const initialAddressState: Omit<Address, 'id'> = useMemo(() => ({
     label: '',
-    first_name: '',
-    last_name: '',
+    firstName: '',
+    lastName: '',
     phone: '',
     street: '',
     barangay: '',
     city: '',
     province: '',
     region: '',
-    postal_code: '',
-    is_default: false,
+    zipCode: '',
+    landmark: '',
+    deliveryInstructions: '',
+    addressType: 'residential',
+    isDefault: false,
     coordinates: null,
-  };
+  }), []);
 
   const [newAddress, setNewAddress] = useState<Omit<Address, 'id'>>(initialAddressState);
+
+  // Debug logging for address state changes
+  useEffect(() => {
+    console.log('[CheckoutScreen] newAddress state updated:', {
+      firstName: newAddress.firstName,
+      lastName: newAddress.lastName,
+      phone: newAddress.phone,
+      street: newAddress.street,
+      city: newAddress.city,
+      region: newAddress.region,
+    });
+  }, [newAddress]);
 
   // Get selected items from navigation params (from CartScreen)
   const selectedItemsFromCart: CartItem[] = params?.selectedItems || [];
@@ -210,6 +210,11 @@ export default function CheckoutScreen({ navigation, route }: Props) {
   // Check for vacation sellers
   const [vacationSellers, setVacationSellers] = useState<string[]>([]);
   const hasVacationSeller = vacationSellers.length > 0;
+
+  // Check for unavailable items (stock validation)
+  const [unavailableItems, setUnavailableItems] = useState<Array<{ id: string; name: string; reason: string }>>([]);
+  const [isValidatingStock, setIsValidatingStock] = useState(false);
+  const hasUnavailableItems = unavailableItems.length > 0;
 
   useEffect(() => {
     const checkVacationSellers = async () => {
@@ -230,6 +235,63 @@ export default function CheckoutScreen({ navigation, route }: Props) {
     };
 
     checkVacationSellers();
+  }, [checkoutItems]);
+
+  // Validate stock for all checkout items on mount
+  useEffect(() => {
+    const validateCheckoutItemsStock = async () => {
+      if (checkoutItems.length === 0) {
+        setUnavailableItems([]);
+        return;
+      }
+
+      setIsValidatingStock(true);
+      const unavailable: Array<{ id: string; name: string; reason: string }> = [];
+
+      try {
+        for (const item of checkoutItems) {
+          const itemId = (item as any).id || (item as any).productId;
+          if (!itemId) continue;
+
+          let currentStock = 0;
+
+          if ((item as any).selectedVariant?.variantId) {
+            const { data: variantData } = await (supabase as any)
+              .from('product_variants')
+              .select('stock')
+              .eq('id', (item as any).selectedVariant.variantId)
+              .single();
+
+            currentStock = variantData?.stock ?? 0;
+          } else {
+            const { data: variantsData } = await (supabase as any)
+              .from('product_variants')
+              .select('stock')
+              .eq('product_id', itemId);
+
+            currentStock = (variantsData ?? []).reduce((sum: number, v: any) => sum + (v.stock ?? 0), 0);
+          }
+
+          if (currentStock < (item.quantity || 1)) {
+            unavailable.push({
+              id: itemId,
+              name: item.name || 'Unknown Product',
+              reason: currentStock === 0 
+                ? 'Out of stock' 
+                : `Only ${currentStock} available (you selected ${item.quantity})`
+            });
+          }
+        }
+
+        setUnavailableItems(unavailable);
+      } catch (error) {
+        console.error('[Checkout] Stock validation error:', error);
+      } finally {
+        setIsValidatingStock(false);
+      }
+    };
+
+    validateCheckoutItemsStock();
   }, [checkoutItems]);
 
   // Pre-fetch addresses + seller metadata via Edge Function on mount.
@@ -329,16 +391,32 @@ export default function CheckoutScreen({ navigation, route }: Props) {
     }, {} as Record<string, typeof checkoutItems>);
   }, [checkoutItems]);
 
+  // Calculate per-store shipping fees
+  const perStoreShippingFees = useMemo(() => {
+    const fees: Record<string, number> = {};
+    
+    Object.entries(groupedCheckoutItems).forEach(([seller, items]) => {
+      // Calculate subtotal for this store
+      const storeSubtotal = items.reduce((sum, item) => sum + (item.price || 0) * item.quantity, 0);
+      // Apply shipping rule: free if >= 500, otherwise 50
+      fees[seller] = storeSubtotal >= 500 ? 0 : 50;
+    });
+    
+    return fees;
+  }, [groupedCheckoutItems]);
+
   // Optimize total calculation with useMemo
   const { subtotal, shippingFee, discount, total, totalSavings } = useMemo(() => {
     // subtotal is the discounted price (what customer sees)
     const subtotal = checkoutSubtotal;
-    let shippingFee = subtotal > 500 ? 0 : 50;
+    // Sum all per-store shipping fees
+    const perStoreTotal = Object.values(perStoreShippingFees).reduce((sum, fee) => sum + fee, 0);
+    let shippingFee = perStoreTotal;
     let discount = 0;
 
     // Apply voucher discount (on discounted subtotal)
     if (appliedVoucher) {
-      const originalShippingFee = subtotal > 500 ? 0 : 50;
+      const originalShippingFee = perStoreTotal;
 
       if (appliedVoucher.type === 'percentage') {
         discount = calculateVoucherDiscount(appliedVoucher, subtotal);
@@ -354,7 +432,7 @@ export default function CheckoutScreen({ navigation, route }: Props) {
     const totalSavings = campaignDiscountTotal + (discount || 0) + (bazcoinDiscount || 0);
 
     return { subtotal, shippingFee, discount, total, totalSavings };
-  }, [checkoutSubtotal, appliedVoucher, bazcoinDiscount, campaignDiscountTotal]);
+  }, [checkoutSubtotal, appliedVoucher, bazcoinDiscount, campaignDiscountTotal, perStoreShippingFees]);
 
   useEffect(() => {
     regions().then(res => setRegionList(res));
@@ -579,27 +657,43 @@ export default function CheckoutScreen({ navigation, route }: Props) {
           created.province || created.region,
         ].filter(Boolean).join(', ');
 
-        // Create Address object for state
+        // Create Address object for state (with camelCase fields)
         const newAddr: Address = {
           id: created.id,
-          user_id: user.id,
           label: created.label || 'Home',
-          first_name: created.firstName || '',
-          last_name: created.lastName || '',
+          firstName: created.firstName || '',
+          lastName: created.lastName || '',
           phone: created.phone || '',
           street: created.street || '',
           barangay: created.barangay || '',
           city: created.city || '',
           province: created.province || '',
           region: created.region || '',
-          postal_code: created.zipCode || '',
-          is_default: created.isDefault || false,
+          zipCode: created.zipCode || '',
+          isDefault: created.isDefault || false,
           coordinates: coords || null,
+          deliveryInstructions: created.deliveryInstructions || '',
+          landmark: created.landmark || '',
+          addressType: created.addressType || 'residential',
         };
+
+        console.log('[🔍 ADDRESS DEBUG 6] LocationModal address object created:', {
+          firstName: newAddr.firstName,
+          lastName: newAddr.lastName,
+          phone: newAddr.phone,
+          id: newAddr.id
+        });
 
         // Update local state
         setAddresses(prev => [...prev, newAddr]);
+        console.log('[🔍 ADDRESS DEBUG 7] Addresses state updated with new address');
+        
         setSelectedAddress(newAddr);
+        console.log('[🔍 ADDRESS DEBUG 8] Selected address set to:', {
+          firstName: newAddr.firstName,
+          lastName: newAddr.lastName,
+          phone: newAddr.phone
+        });
 
         // Save to AsyncStorage for HomeScreen sync
         await AsyncStorage.setItem('currentDeliveryAddress', formattedAddress);
@@ -623,7 +717,9 @@ export default function CheckoutScreen({ navigation, route }: Props) {
       Alert.alert('Error', 'Failed to save address. Please try again.');
     } finally {
       setIsSaving(false);
+      console.log('[🔍 ADDRESS DEBUG 9] LocationModal closing, isSaving set to false');
       setShowLocationModal(false);
+      console.log('[🔍 ADDRESS DEBUG 10] showLocationModal set to false');
     }
   }, [user, addresses.length]);
 
@@ -651,7 +747,7 @@ export default function CheckoutScreen({ navigation, route }: Props) {
           city: details.city || '',
           province: details.province || '',
           region: details.region || '',
-          postal_code: details.postalCode || '',
+          zipCode: details.postalCode || '',
           coordinates: details.coordinates || null,
         };
 
@@ -731,10 +827,10 @@ export default function CheckoutScreen({ navigation, route }: Props) {
 
     setNewAddress({
       ...initialAddressState,
-      first_name: user?.name?.split(' ')[0] || '',
-      last_name: user?.name?.split(' ').slice(1).join(' ') || '',
+      firstName: user?.name?.split(' ')[0] || '',
+      lastName: user?.name?.split(' ').slice(1).join(' ') || '',
       phone: user?.phone || '',
-      is_default: addresses.length === 0,
+      isDefault: addresses.length === 0,
       ...prefillData,
     });
 
@@ -843,7 +939,7 @@ export default function CheckoutScreen({ navigation, route }: Props) {
                   city: matchingCity.city_name || city,
                   barangay: matchingBarangay?.brgy_name || barangay,
                   street: fullStreet,
-                  postal_code: postalCode,
+                  zipCode: postalCode,
                   coordinates: {
                     latitude: mapRegion.latitude,
                     longitude: mapRegion.longitude,
@@ -857,7 +953,7 @@ export default function CheckoutScreen({ navigation, route }: Props) {
                   city: city,
                   barangay: barangay,
                   street: fullStreet,
-                  postal_code: postalCode,
+                  zipCode: postalCode,
                   coordinates: {
                     latitude: mapRegion.latitude,
                     longitude: mapRegion.longitude,
@@ -909,8 +1005,8 @@ export default function CheckoutScreen({ navigation, route }: Props) {
                   barangay.toLowerCase().includes(b.brgy_name?.toLowerCase())
                 );
 
-                setNewAddress({
-                  ...newAddress,
+                setNewAddress(prev => ({
+                  ...prev,
                   region: regionName,
                   province: matchingProvince.province_name,
                   city: matchingCity.city_name || city,
@@ -921,10 +1017,10 @@ export default function CheckoutScreen({ navigation, route }: Props) {
                     latitude: mapRegion.latitude,
                     longitude: mapRegion.longitude,
                   },
-                });
+                }));
               } else {
-                setNewAddress({
-                  ...newAddress,
+                setNewAddress(prev => ({
+                  ...prev,
                   region: regionName,
                   province: matchingProvince.province_name,
                   city: city,
@@ -935,11 +1031,11 @@ export default function CheckoutScreen({ navigation, route }: Props) {
                     latitude: mapRegion.latitude,
                     longitude: mapRegion.longitude,
                   },
-                });
+                }));
               }
             } else {
-              setNewAddress({
-                ...newAddress,
+              setNewAddress(prev => ({
+                ...prev,
                 region: regionName,
                 province: province,
                 city: city,
@@ -950,12 +1046,12 @@ export default function CheckoutScreen({ navigation, route }: Props) {
                   latitude: mapRegion.latitude,
                   longitude: mapRegion.longitude,
                 },
-              });
+              }));
             }
           } else {
             // No matching region found, just fill what we have
-            setNewAddress({
-              ...newAddress,
+            setNewAddress(prev => ({
+              ...prev,
               street: fullStreet,
               barangay: barangay,
               city: city,
@@ -965,35 +1061,44 @@ export default function CheckoutScreen({ navigation, route }: Props) {
                 latitude: mapRegion.latitude,
                 longitude: mapRegion.longitude,
               },
-            });
+            }));
           }
         }
       } else {
         // No address data returned, just save coordinates
-        setNewAddress({
-          ...newAddress,
+        setNewAddress(prev => ({
+          ...prev,
           coordinates: {
             latitude: mapRegion.latitude,
             longitude: mapRegion.longitude,
           },
-        });
+        }));
       }
     } catch (error) {
       console.log('[Checkout] Reverse geocoding error:', error);
       // Still save coordinates even if geocoding fails
-      setNewAddress({
-        ...newAddress,
+      setNewAddress(prev => ({
+        ...prev,
         coordinates: {
           latitude: mapRegion.latitude,
           longitude: mapRegion.longitude,
         },
-      });
+      }));
     } finally {
       setIsGeocoding(false);
       setMapSearchQuery('');
       setMapSearchResults([]);
       setShowMapSearchResults(false);
       setIsMapModalOpen(false);
+      
+      // Ensure contact fields are filled with user data when form modal opens
+      setNewAddress(prev => ({
+        ...prev,
+        firstName: prev.firstName || user?.name?.split(' ')[0] || '',
+        lastName: prev.lastName || user?.name?.split(' ').slice(1).join(' ') || '',
+        phone: prev.phone || user?.phone || '',
+      }));
+      
       setTimeout(() => setIsAddressModalOpen(true), 150);
     }
   };
@@ -1057,15 +1162,43 @@ export default function CheckoutScreen({ navigation, route }: Props) {
     if (!user) return;
     setIsSaving(true);
 
-    // Validate required fields - for Metro Manila, province is optional since region covers it
-    const isMetroManila = newAddress.region?.toLowerCase().includes('metro manila') || newAddress.region?.toLowerCase().includes('ncr');
-    const requiresProvince = !isMetroManila;
+    // Validate required fields - trim whitespace to prevent empty/whitespace-only submissions
+    const trimmedFirstName = (newAddress.firstName || '').trim();
+    const trimmedLastName = (newAddress.lastName || '').trim();
+    const trimmedPhone = (newAddress.phone || '').trim();
+    const trimmedStreet = (newAddress.street || '').trim();
+    const trimmedCity = (newAddress.city || '').trim();
+    const trimmedRegion = (newAddress.region || '').trim();
 
-    if (!newAddress.first_name || !newAddress.phone || !newAddress.street || !newAddress.city || !newAddress.region) {
-      Alert.alert('Incomplete Form', 'Please fill in all required fields: Name, Phone, Street, Region, and City.');
+    // DEBUG: Log the values being saved
+    console.log('[CheckoutScreen] Before Save - Form Values:', {
+      newAddress_firstName: newAddress.firstName,
+      newAddress_lastName: newAddress.lastName,
+      newAddress_phone: newAddress.phone,
+      trimmedFirstName,
+      trimmedLastName,
+      trimmedPhone,
+      timestamp: new Date().toISOString(),
+    });
+
+    // Check if all required fields are filled
+    if (!trimmedFirstName || !trimmedLastName || !trimmedPhone || !trimmedStreet || !trimmedCity || !trimmedRegion) {
+      let missingFields = [];
+      if (!trimmedFirstName) missingFields.push('First Name');
+      if (!trimmedLastName) missingFields.push('Last Name');
+      if (!trimmedPhone) missingFields.push('Phone Number');
+      if (!trimmedStreet) missingFields.push('Street/House Number');
+      if (!trimmedCity) missingFields.push('City/Municipality');
+      if (!trimmedRegion) missingFields.push('Region');
+      
+      Alert.alert('Incomplete Form', `Please fill in all required fields: ${missingFields.join(', ')}`);
       setIsSaving(false);
       return;
     }
+
+    // Validate for Metro Manila (province optional)
+    const isMetroManila = newAddress.region?.toLowerCase().includes('metro manila') || newAddress.region?.toLowerCase().includes('ncr');
+    const requiresProvince = !isMetroManila;
 
     if (requiresProvince && !newAddress.province) {
       Alert.alert('Incomplete Form', 'Please select a Province.');
@@ -1074,49 +1207,52 @@ export default function CheckoutScreen({ navigation, route }: Props) {
     }
 
     try {
-      const created = await addressService.createAddress(user.id, {
-        label: newAddress.label || 'Other',
-        firstName: newAddress.first_name,
-        lastName: newAddress.last_name,
-        phone: newAddress.phone,
-        street: newAddress.street,
-        barangay: newAddress.barangay,
-        city: newAddress.city,
-        // For Metro Manila, use region as province (database NOT NULL constraint)
-        province: isMetroManila ? newAddress.region : newAddress.province,
-        region: newAddress.region,
-        // Ensure postal_code has a value (database NOT NULL constraint)
-        zipCode: newAddress.postal_code || '0000',
-        isDefault: newAddress.is_default,
-        coordinates: newAddress.coordinates,
-        addressType: 'residential',
-        landmark: null,
-        deliveryInstructions: null,
+      // DEBUG: Log what we're sending to the service
+      console.log('[CheckoutScreen] Sending to addressService:', {
+        firstName: trimmedFirstName,
+        lastName: trimmedLastName,
+        phone: trimmedPhone,
+        street: trimmedStreet,
       });
 
-      const createdLocal: Address = {
-        id: created.id,
-        user_id: user.id,
-        label: created.label,
-        first_name: created.firstName,
-        last_name: created.lastName,
+      const created = await addressService.createAddress(user.id, {
+        label: newAddress.label || 'Other',
+        firstName: trimmedFirstName,
+        lastName: trimmedLastName,
+        phone: trimmedPhone,
+        street: trimmedStreet,
+        barangay: newAddress.barangay,
+        city: trimmedCity,
+        // For Metro Manila, use region as province (database NOT NULL constraint)
+        province: isMetroManila ? newAddress.region : newAddress.province,
+        region: trimmedRegion,
+        // Ensure zipCode has a value (database NOT NULL constraint)
+        zipCode: newAddress.zipCode || '0000',
+        isDefault: newAddress.isDefault,
+        coordinates: newAddress.coordinates,
+        addressType: newAddress.addressType,
+        landmark: newAddress.landmark || '',
+        deliveryInstructions: newAddress.deliveryInstructions || '',
+      });
+
+      // DEBUG: Log what was actually saved to the database
+      console.log('[CheckoutScreen] Address Successfully Saved to DB:', {
+        firstName: created.firstName,
+        lastName: created.lastName,
         phone: created.phone,
         street: created.street,
-        barangay: created.barangay,
         city: created.city,
-        province: created.province,
-        region: created.region,
-        postal_code: created.zipCode,
-        is_default: created.isDefault,
-        coordinates: created.coordinates,
-      };
+      });
 
-      setAddresses(prev => [createdLocal, ...prev]);
-      setSelectedAddress(createdLocal);
-      setTempSelectedAddress(createdLocal);
+      setAddresses(prev => [created, ...prev]);
+      setSelectedAddress(created);
+      setTempSelectedAddress(created);
 
-      // Sync to AsyncStorage so HomeScreen can display the address
-      const formattedAddress = `${created.street}, ${created.city}`;
+        console.log('[🔍 ADDRESS DEBUG 4] Address created and selected:', {
+          created: { firstName: created.firstName, lastName: created.lastName, phone: created.phone, id: created.id },
+          timestamp: new Date().toISOString()
+        });
+      const formattedAddress = `${created.firstName} ${created.lastName}, ${created.phone}`;
       await AsyncStorage.setItem('currentDeliveryAddress', formattedAddress);
       if (created.coordinates) {
         await AsyncStorage.setItem('currentDeliveryCoordinates', JSON.stringify(created.coordinates));
@@ -1149,47 +1285,97 @@ export default function CheckoutScreen({ navigation, route }: Props) {
     }
   };
 
+  // Track which user had their addresses initialized to prevent re-fetching for same user
+  // Reset when user changes
+  const initializedUserId = useRef<string | null>(null);
+
   // Fetch addresses and Bazcoins via service layer
   useEffect(() => {
     if (!user?.id) return;
 
+    // Only initialize addresses when user changes, not on every dependency update
+    // This prevents re-fetching addresses for the same user
+    if (initializedUserId.current === user.id) {
+      // This user's addresses already loaded, don't re-fetch
+      return;
+    }
+
     const fetchData = async () => {
       setIsLoadingAddresses(true);
+      
+      // CRITICAL: If user already has a selectedAddress set (e.g., just created one), 
+      // DO NOT override it with defaults or re-fetch from database
+      if (selectedAddress) {
+        console.log('[🔍 ADDRESS DEBUG 3] Selected address already exists, skipping re-fetch:', {
+          current: { firstName: selectedAddress.firstName, lastName: selectedAddress.lastName, phone: selectedAddress.phone },
+        });
+        initializedUserId.current = user.id;
+        setIsLoadingAddresses(false);
+        const coins = await addressService.getBazcoins(user.id);
+        setAvailableBazcoins(coins || 0);
+        return;
+      }
+      
       try {
         // Fetch all saved addresses
         const serviceAddresses = await addressService.getAddresses(user.id);
+        console.log('[🔍 ADDRESS DEBUG 1] Fetched addresses from service:', serviceAddresses?.map(a => ({
+          id: a.id,
+          firstName: a.firstName,
+          lastName: a.lastName,
+          phone: a.phone,
+          isDefault: a.isDefault
+        })));
+
         const addressData: Address[] = (serviceAddresses || []).map(a => ({
           id: a.id,
-          user_id: user.id,
+          userId: user.id,
           label: a.label,
-          first_name: a.firstName,
-          last_name: a.lastName,
+          firstName: a.firstName,
+          lastName: a.lastName,
           phone: a.phone,
           street: a.street,
           barangay: a.barangay,
           city: a.city,
           province: a.province,
           region: a.region,
-          postal_code: a.zipCode,
-          is_default: a.isDefault,
+          zipCode: a.zipCode,
+          isDefault: a.isDefault,
           coordinates: a.coordinates,
+          deliveryInstructions: a.deliveryInstructions || '',
+          landmark: a.landmark || '',
+          addressType: a.addressType || 'residential',
         }));
         setAddresses(addressData);
+
+        console.log('[🔍 ADDRESS DEBUG 2] Addresses state updated, selectedAddress is:', selectedAddress);
 
         // If this is a gift, DO NOT overwrite the selected address with defaults
         // The other useEffect handles setting the registry address
         if (isGift) {
+          initializedUserId.current = user.id;
           setIsLoadingAddresses(false);
           return;
         }
 
-        // Initial Address Selection Priority:
+        // CRITICAL: If user already has a selectedAddress set (e.g., just created one), 
+        // DO NOT override it with defaults
+        if (selectedAddress) {
+          console.log('[🔍 ADDRESS DEBUG 3] Selected address already exists, skipping re-initialization:', selectedAddress);
+          initializedUserId.current = user.id;
+          setIsLoadingAddresses(false);
+          const coins = await addressService.getBazcoins(user.id);
+          setAvailableBazcoins(coins || 0);
+          return;
+        }
+
+        // Initial Address Selection Priority (only if NO address manually selected yet):
         // 1) Default saved address (Highest reliability for regular checkout)
         // 2) Address from HomeScreen location modal (via route params)
         // 3) "Current Location" from database (saved by HomeScreen)
         // 4) AsyncStorage fallback (if route params not available)
         // 5) First saved address (last resort)
-        const defaultSavedAddr = addressData.find(a => a.is_default);
+        const defaultSavedAddr = addressData.find(a => a.isDefault);
 
         let homeScreenAddress = params?.deliveryAddress;
         let homeScreenCoords = params?.deliveryCoordinates;
@@ -1239,6 +1425,7 @@ export default function CheckoutScreen({ navigation, route }: Props) {
           // Use default address if user had set one explicitly
           setSelectedAddress(defaultSavedAddr);
           setTempSelectedAddress(defaultSavedAddr);
+          console.log('[🔍 ADDRESS DEBUG 5a] Setting default address:', { firstName: defaultSavedAddr.firstName, lastName: defaultSavedAddr.lastName, phone: defaultSavedAddr.phone });
         } else if (homeScreenAddress && homeScreenAddress !== 'Select Location') {
           // Check if this matches a saved address (including "Current Location" from DB)
           const matchingAddress = addressData.find(addr =>
@@ -1251,27 +1438,31 @@ export default function CheckoutScreen({ navigation, route }: Props) {
             // Use the matching saved address
             setSelectedAddress(matchingAddress);
             setTempSelectedAddress(matchingAddress);
+            console.log('[🔍 ADDRESS DEBUG 5b] Setting matching HomeScreen address:', { firstName: matchingAddress.firstName, lastName: matchingAddress.lastName });
           } else {
             // Create a temporary address object from HomeScreen's location
             // Use parsed details from map if available, otherwise parse the address string
             const tempAddr: Address = {
               id: 'temp-' + Date.now(),
-              user_id: user.id,
               label: 'Current Location',
-              first_name: user.name?.split(' ')[0] || 'User',
-              last_name: user.name?.split(' ').slice(1).join(' ') || '',
+              firstName: user.name?.split(' ')[0] || 'User',
+              lastName: user.name?.split(' ').slice(1).join(' ') || '',
               phone: user.phone || '',
               street: locationDetails?.street || homeScreenAddress.split(',')[0].trim(),
               barangay: locationDetails?.barangay || '',
               city: locationDetails?.city || homeScreenAddress.split(',')[1]?.trim() || '',
               province: locationDetails?.province || homeScreenAddress.split(',')[2]?.trim() || '',
               region: locationDetails?.region || '',
-              postal_code: locationDetails?.postalCode || '',
-              is_default: false,
+              zipCode: locationDetails?.postalCode || '',
+              isDefault: false,
               coordinates: homeScreenCoords || null,
+              deliveryInstructions: '',
+              landmark: '',
+              addressType: 'residential',
             };
             setSelectedAddress(tempAddr);
             setTempSelectedAddress(tempAddr);
+            console.log('[🔍 ADDRESS DEBUG 5c] Creating temp address from HomeScreen location:', { firstName: tempAddr.firstName, phone: tempAddr.phone });
           }
         } else {
           // Use first saved address
@@ -1279,8 +1470,12 @@ export default function CheckoutScreen({ navigation, route }: Props) {
           if (firstAddr) {
             setSelectedAddress(firstAddr);
             setTempSelectedAddress(firstAddr);
+            console.log('[🔍 ADDRESS DEBUG 5d] Setting first saved address:', { firstName: firstAddr.firstName, lastName: firstAddr.lastName, phone: firstAddr.phone });
           }
         }
+
+        // Mark user as initialized AFTER all selections are complete
+        initializedUserId.current = user.id;
 
         // Fetch Bazcoins balance
         const coins = await addressService.getBazcoins(user.id);
@@ -1302,7 +1497,7 @@ export default function CheckoutScreen({ navigation, route }: Props) {
     return () => {
       subscription.unsubscribe();
     };
-  }, [user?.id, params?.deliveryAddress]);
+  }, [user?.id]);
 
   const handleConfirmAddress = () => {
     if (tempSelectedAddress) {
@@ -1312,6 +1507,24 @@ export default function CheckoutScreen({ navigation, route }: Props) {
   };
 
   const handlePlaceOrder = useCallback(async () => {
+    // Check for unavailable items
+    if (hasUnavailableItems) {
+      const itemsList = unavailableItems.map(item => `• ${item.name}\n  ${item.reason}`).join('\n\n');
+      Alert.alert(
+        'Items Unavailable',
+        `The following items are no longer available:\n\n${itemsList}\n\nPlease update your cart.`,
+        [
+          { text: 'Cancel', onPress: () => {}, style: 'cancel' },
+          {
+            text: 'Go Back to Cart',
+            onPress: () => navigation.goBack(),
+            style: 'default'
+          }
+        ]
+      );
+      return;
+    }
+
     // Check for vacation sellers
     if (hasVacationSeller) {
       Alert.alert(
@@ -1355,13 +1568,13 @@ export default function CheckoutScreen({ navigation, route }: Props) {
         items: checkoutItems,
         totalAmount: total,
         shippingAddress: {
-          fullName: `${selectedAddress.first_name} ${selectedAddress.last_name}`,
+          fullName: `${selectedAddress.firstName} ${selectedAddress.lastName}`,
           street: selectedAddress.street || '',
           barangay: selectedAddress.barangay || '',
           city: selectedAddress.city || 'Manila',
           province: selectedAddress.province || 'Metro Manila',
           region: selectedAddress.region || 'NCR',
-          postalCode: selectedAddress.postal_code || '0000',
+          postalCode: selectedAddress.zipCode || '0000',
           phone: selectedAddress.phone || '',
           country: 'Philippines'
         },
@@ -1410,13 +1623,13 @@ export default function CheckoutScreen({ navigation, route }: Props) {
       const isOnlinePayment = paymentMethod.toLowerCase() !== 'cod' && paymentMethod.toLowerCase() !== 'cash on delivery';
 
       const shippingAddressForOrder: ShippingAddress = {
-        name: `${selectedAddress?.first_name || ''} ${selectedAddress?.last_name || ''}`.trim(),
+        name: `${selectedAddress?.firstName || ''} ${selectedAddress?.lastName || ''}`.trim(),
         email: user.email,
         phone: selectedAddress?.phone || '',
         address: `${selectedAddress?.street || ''}${selectedAddress?.barangay ? `, ${selectedAddress.barangay}` : ''}`,
         city: selectedAddress?.city || '',
         region: selectedAddress?.province || selectedAddress?.region || '',
-        postalCode: selectedAddress?.postal_code || '',
+        postalCode: selectedAddress?.zipCode || '',
       };
 
       const order: Order = {
@@ -1472,7 +1685,7 @@ export default function CheckoutScreen({ navigation, route }: Props) {
     } finally {
       setIsProcessing(false);
     }
-  }, [hasVacationSeller, vacationSellers, selectedAddress, checkoutItems, user, total, paymentMethod, bazcoinDiscount, earnedBazcoins, shippingFee, discount, availableBazcoins, isQuickCheckout, isGift, isAnonymous, recipientId, navigation, initializeForCurrentUser, clearQuickOrder, campaignDiscountTotal, appliedVoucher]);
+  }, [hasUnavailableItems, unavailableItems, hasVacationSeller, vacationSellers, selectedAddress, checkoutItems, user, total, paymentMethod, bazcoinDiscount, earnedBazcoins, shippingFee, discount, availableBazcoins, isQuickCheckout, isGift, isAnonymous, recipientId, navigation, initializeForCurrentUser, clearQuickOrder, campaignDiscountTotal, appliedVoucher]);
 
   if (isCheckoutContextLoading) {
     return (
@@ -1546,9 +1759,13 @@ export default function CheckoutScreen({ navigation, route }: Props) {
                       <View style={{ flex: 1 }}>
                         <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 2 }}>
                           <Text style={{ fontSize: 16, fontWeight: '700', color: '#111827' }}>
-                            {selectedAddress.first_name} {selectedAddress.last_name}
+                            {selectedAddress.firstName} {selectedAddress.lastName}
                           </Text>
-                          {selectedAddress.is_default && (
+                          {(() => {
+                            console.log('[🔍 ADDRESS DEBUG RENDER] Displaying address:', selectedAddress);
+                            return null;
+                          })()}
+                          {selectedAddress.isDefault && (
                             <View style={{ backgroundColor: COLORS.primary, paddingHorizontal: 8, paddingVertical: 2, borderRadius: 4, marginLeft: 8 }}>
                               <Text style={{ color: 'white', fontSize: 10, fontWeight: 'bold' }}>Default</Text>
                             </View>
@@ -1556,7 +1773,7 @@ export default function CheckoutScreen({ navigation, route }: Props) {
                         </View>
                         <Text style={{ fontSize: 14, color: COLORS.gray500, marginBottom: 1 }}>{selectedAddress.phone}</Text>
                         <Text style={{ fontSize: 14, color: COLORS.gray500, lineHeight: 20 }}>
-                          {selectedAddress.street}, {selectedAddress.barangay}, {selectedAddress.city}, {selectedAddress.province}, {selectedAddress.postal_code}
+                          {selectedAddress.street}, {selectedAddress.barangay}, {selectedAddress.city}, {selectedAddress.province}, {selectedAddress.zipCode}
                         </Text>
                       </View>
                       <ChevronRight size={18} color={COLORS.gray400} style={{ marginTop: 2, marginLeft: 8 }} />
@@ -1630,10 +1847,23 @@ export default function CheckoutScreen({ navigation, route }: Props) {
                       </View>
                     </View>
                   ))}
-                  <View style={styles.sellerFooterRow}>
-                    <Text style={styles.sellerFooterText}>Total ({sellerItems.length} {sellerItems.length === 1 ? 'item' : 'items'}): </Text>
+                  {/* Per-Store Shipping Fee - ABOVE Total */}
+                  <View style={[styles.sellerFooterRow, { marginTop: 8, paddingTop: 8, borderTopWidth: 1, borderTopColor: '#F3F4F6' }]}>
+                    <Text style={styles.sellerFooterText}>Shipping: </Text>
                     <Text style={styles.sellerFooterAmount}>
-                      ₱{sellerItems.reduce((acc, i) => acc + (i.price || 0) * i.quantity, 0).toLocaleString()}
+                      {perStoreShippingFees[sellerName] === 0 ? 'FREE' : `₱${perStoreShippingFees[sellerName]?.toLocaleString() || 0}`}
+                    </Text>
+                  </View>
+                  {/* Per-Store Subtotal Including Shipping */}
+                  <View style={styles.sellerFooterRow}>
+                    {(() => {
+                      const totalQuantity = sellerItems.reduce((sum, item) => sum + (item.quantity || 1), 0);
+                      return (
+                        <Text style={[styles.sellerFooterText, { fontWeight: '600' }]}>Subtotal ({totalQuantity} {totalQuantity === 1 ? 'item' : 'items'}): </Text>
+                      );
+                    })()}
+                    <Text style={[styles.sellerFooterAmount, { fontWeight: '600', color: COLORS.primary }]}>
+                      ₱{(sellerItems.reduce((acc, i) => acc + (i.price || 0) * i.quantity, 0) + (perStoreShippingFees[sellerName] || 0)).toLocaleString()}
                     </Text>
                   </View>
                 </View>
@@ -1934,11 +2164,11 @@ export default function CheckoutScreen({ navigation, route }: Props) {
             </View>
             <Pressable
               onPress={handlePlaceOrder}
-              disabled={isProcessing || !selectedAddress || hasVacationSeller}
+              disabled={isProcessing || !selectedAddress || hasVacationSeller || hasUnavailableItems}
               style={({ pressed }) => [
                 styles.checkoutButton,
                 pressed && styles.checkoutButtonPressed,
-                (isProcessing || !selectedAddress || hasVacationSeller) && { opacity: 0.5 }
+                (isProcessing || !selectedAddress || hasVacationSeller || hasUnavailableItems) && { opacity: 0.5 }
               ]}
             >
               {isProcessing ? (
@@ -1950,6 +2180,31 @@ export default function CheckoutScreen({ navigation, route }: Props) {
           </View>
 
         </KeyboardAvoidingView>
+
+        {/* Unavailable Items Alert - Fixed at bottom */}
+        {hasUnavailableItems && (
+          <View style={{ backgroundColor: '#FEE2E2', paddingHorizontal: 16, paddingVertical: 12, borderTopWidth: 1, borderTopColor: '#FECACA' }}>
+            <View style={{ flexDirection: 'row', gap: 12, alignItems: 'flex-start' }}>
+              <View style={{ width: 20, height: 20, borderRadius: 10, backgroundColor: '#DC2626', alignItems: 'center', justifyContent: 'center', marginTop: 2 }}>
+                <Text style={{ color: 'white', fontSize: 12, fontWeight: 'bold' }}>!</Text>
+              </View>
+              <View style={{ flex: 1 }}>
+                <Text style={{ fontSize: 13, fontWeight: '700', color: '#991B1B', marginBottom: 8 }}>Items No Longer Available</Text>
+                {unavailableItems.map((item, idx) => (
+                  <Text key={`unavailable-${item.id}-${idx}`} style={{ fontSize: 11, color: '#7F1D1D', marginBottom: idx < unavailableItems.length - 1 ? 6 : 0 }}>
+                    • {item.name}
+                  </Text>
+                ))}
+                <Pressable
+                  onPress={() => navigation.goBack()}
+                  style={{ marginTop: 12, paddingHorizontal: 12, paddingVertical: 8, backgroundColor: '#DC2626', borderRadius: 6 }}
+                >
+                  <Text style={{ color: '#FFF', fontSize: 12, fontWeight: '600', textAlign: 'center' }}>Update Cart</Text>
+                </Pressable>
+              </View>
+            </View>
+          </View>
+        )}
       </SafeAreaView>
 
       {/* Modals Moved to Root for Edge-to-Edge immersion */}
@@ -2024,9 +2279,9 @@ export default function CheckoutScreen({ navigation, route }: Props) {
                   <View style={{ flex: 1 }}>
                     <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 4 }}>
                       <Text style={{ fontSize: 16, fontWeight: '700', color: '#111827' }}>
-                        {addr.first_name} {addr.last_name}
+                        {addr.firstName} {addr.lastName}
                       </Text>
-                      {addr.is_default && (
+                      {addr.isDefault && (
                         <View style={{ backgroundColor: COLORS.primary, paddingHorizontal: 6, paddingVertical: 2, borderRadius: 4, marginLeft: 8 }}>
                           <Text style={{ color: 'white', fontSize: 10, fontWeight: 'bold' }}>Default</Text>
                         </View>
@@ -2035,7 +2290,7 @@ export default function CheckoutScreen({ navigation, route }: Props) {
                     <Text style={{ fontSize: 14, color: '#6B7280', marginBottom: 2 }}>{addr.label}</Text>
                     <Text style={{ fontSize: 13, color: '#6B7280' }}>{addr.phone}</Text>
                     <Text style={{ fontSize: 13, color: '#6B7280', marginTop: 4 }}>
-                      {addr.street}, {addr.barangay}, {addr.city}, {addr.province}, {addr.postal_code}
+                      {addr.street}, {addr.barangay}, {addr.city}, {addr.province}, {addr.zipCode}
                     </Text>
                   </View>
                   <View style={[
@@ -2118,14 +2373,14 @@ export default function CheckoutScreen({ navigation, route }: Props) {
             <View style={checkoutStyles.typeSelectorContainer}>
               <Pressable
                 style={[checkoutStyles.typeOption, newAddress.label === 'Home' && checkoutStyles.typeOptionActive]}
-                onPress={() => setNewAddress({ ...newAddress, label: 'Home' })}
+                onPress={() => setNewAddress(prev => ({ ...prev, label: 'Home' }))}
               >
                 <Home size={16} color={newAddress.label === 'Home' ? COLORS.primary : '#6B7280'} />
                 <Text style={[checkoutStyles.typeOptionText, newAddress.label === 'Home' && checkoutStyles.typeOptionTextActive]}>Home</Text>
               </Pressable>
               <Pressable
                 style={[checkoutStyles.typeOption, newAddress.label === 'Office' && checkoutStyles.typeOptionActive]}
-                onPress={() => setNewAddress({ ...newAddress, label: 'Office' })}
+                onPress={() => setNewAddress(prev => ({ ...prev, label: 'Office' }))}
               >
                 <Briefcase size={16} color={newAddress.label === 'Office' ? COLORS.primary : '#6B7280'} />
                 <Text style={[checkoutStyles.typeOptionText, newAddress.label === 'Office' && checkoutStyles.typeOptionTextActive]}>Office</Text>
@@ -2143,15 +2398,31 @@ export default function CheckoutScreen({ navigation, route }: Props) {
             <View style={{ flexDirection: 'row', gap: 12 }}>
               <View style={{ flex: 1 }}>
                 <Text style={checkoutStyles.inputLabel}>First Name</Text>
-                <TextInput value={newAddress.first_name} onChangeText={(t) => setNewAddress({ ...newAddress, first_name: t })} style={checkoutStyles.formInput} placeholder="John" />
+                <TextInput 
+                  value={newAddress.firstName} 
+                  onChangeText={(t) => setNewAddress(prev => ({ ...prev, firstName: t }))} 
+                  style={checkoutStyles.formInput} 
+                  placeholder="John" 
+                />
               </View>
               <View style={{ flex: 1 }}>
                 <Text style={checkoutStyles.inputLabel}>Last Name</Text>
-                <TextInput value={newAddress.last_name} onChangeText={(t) => setNewAddress({ ...newAddress, last_name: t })} style={checkoutStyles.formInput} placeholder="Doe" />
+                <TextInput 
+                  value={newAddress.lastName} 
+                  onChangeText={(t) => setNewAddress(prev => ({ ...prev, lastName: t }))} 
+                  style={checkoutStyles.formInput} 
+                  placeholder="Doe" 
+                />
               </View>
             </View>
             <Text style={checkoutStyles.inputLabel}>Phone Number</Text>
-            <TextInput value={newAddress.phone} onChangeText={(t) => setNewAddress({ ...newAddress, phone: t })} style={checkoutStyles.formInput} placeholder="+63" keyboardType="phone-pad" />
+            <TextInput 
+              value={newAddress.phone} 
+              onChangeText={(t) => setNewAddress(prev => ({ ...prev, phone: t }))} 
+              style={checkoutStyles.formInput} 
+              placeholder="+63" 
+              keyboardType="phone-pad" 
+            />
 
             <Text style={[checkoutStyles.sectionHeader, { marginTop: 12 }]}>Location Details</Text>
 
@@ -2165,7 +2436,7 @@ export default function CheckoutScreen({ navigation, route }: Props) {
             <Text style={checkoutStyles.inputLabel}>Street / House No.</Text>
             <TextInput
               value={newAddress.street}
-              onChangeText={(t) => setNewAddress({ ...newAddress, street: t })}
+              onChangeText={(t) => setNewAddress(prev => ({ ...prev, street: t }))}
               onEndEditing={onStreetBlur}
               style={checkoutStyles.formInput}
               placeholder="123 Acacia St."
@@ -2207,13 +2478,13 @@ export default function CheckoutScreen({ navigation, route }: Props) {
             </Pressable>
 
             <Text style={checkoutStyles.inputLabel}>Postal Code</Text>
-            <TextInput value={newAddress.postal_code} onChangeText={(t) => setNewAddress({ ...newAddress, postal_code: t })} style={checkoutStyles.formInput} placeholder="1000" keyboardType="number-pad" />
+            <TextInput value={newAddress.zipCode} onChangeText={(t) => setNewAddress(prev => ({ ...prev, zipCode: t }))} style={checkoutStyles.formInput} placeholder="1000" keyboardType="number-pad" />
 
-            <Pressable style={[checkoutStyles.checkboxContainer, newAddress.is_default && checkoutStyles.checkboxActive]} onPress={() => setNewAddress({ ...newAddress, is_default: !newAddress.is_default })}>
-              <View style={[checkoutStyles.checkbox, newAddress.is_default && { borderColor: '#16A34A', backgroundColor: '#16A34A' }]}>
-                {newAddress.is_default && <View style={{ width: 8, height: 8, backgroundColor: '#FFF', borderRadius: 4 }} />}
+            <Pressable style={[checkoutStyles.checkboxContainer, newAddress.isDefault && checkoutStyles.checkboxActive]} onPress={() => setNewAddress(prev => ({ ...prev, isDefault: !prev.isDefault }))}>
+              <View style={[checkoutStyles.checkbox, newAddress.isDefault && { borderColor: '#16A34A', backgroundColor: '#16A34A' }]}>
+                {newAddress.isDefault && <View style={{ width: 8, height: 8, backgroundColor: '#FFF', borderRadius: 4 }} />}
               </View>
-              <Text style={[checkoutStyles.checkboxText, newAddress.is_default && { color: '#16A34A' }]}>Set as default delivery address</Text>
+              <Text style={[checkoutStyles.checkboxText, newAddress.isDefault && { color: '#16A34A' }]}>Set as default delivery address</Text>
             </Pressable>
           </ScrollView>
 
@@ -2288,7 +2559,7 @@ export default function CheckoutScreen({ navigation, route }: Props) {
                 <ScrollView nestedScrollEnabled keyboardShouldPersistTaps="handled">
                   {mapSearchResults.map((result, index) => (
                     <Pressable
-                      key={index}
+                      key={`${result.lat}-${result.lon}-${result.osm_id}`}
                       style={{ padding: 12, borderBottomWidth: index < mapSearchResults.length - 1 ? 1 : 0, borderBottomColor: '#F3F4F6' }}
                       onPress={() => handleSelectMapSearchResult(result)}
                     >
