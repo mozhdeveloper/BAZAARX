@@ -15,17 +15,28 @@ import {
     Dimensions,
     Image,
     Linking,
+    Alert,
 } from 'react-native';
-import { ChevronLeft, Send, MoreVertical, Store, Ticket, FileText, Play } from 'lucide-react-native';
+import { ChevronLeft, Send, MoreVertical, Store, Ticket, FileText, Play, ImageIcon, Paperclip } from 'lucide-react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { COLORS } from '../constants/theme';
 import { useNavigation } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { RootStackParamList } from '../../App';
 import { chatService, Conversation, Message as ChatMessage } from '../services/chatService';
+import { getMimeFromExtension, CHAT_MEDIA_LIMITS, ALL_PLACEHOLDERS, MEDIA_PLACEHOLDER_MAP, extractFileName, type ChatMediaType } from '../utils/chatMediaUtils';
+import { formatDateLabel, formatMessageTimestamp } from '../utils/chatDateUtils';
+import ChatMediaPreviewModal from './ChatMediaPreviewModal';
+import ChatSendPreviewModal, { type SendPreviewAsset } from './ChatSendPreviewModal';
 import { useAuthStore } from '../stores/authStore';
+import * as ImagePicker from 'expo-image-picker';
+import * as DocumentPicker from 'expo-document-picker';
+import * as FileSystem from 'expo-file-system/legacy';
 
-const { height: SCREEN_HEIGHT } = Dimensions.get('window');
+const { height: SCREEN_HEIGHT, width: SCREEN_W } = Dimensions.get('window');
+const DOC_BUBBLE_W = SCREEN_W * 0.68; // explicit width so inner flex:1 text resolves
+
+
 
 interface StoreChatModalProps {
     visible: boolean;
@@ -51,11 +62,26 @@ export default function StoreChatModal({ visible, onClose, storeName, sellerId }
     const [realMessages, setRealMessages] = useState<ChatMessage[]>([]);
     const [loading, setLoading] = useState(false);
     const [sending, setSending] = useState(false);
+    const [uploading, setUploading] = useState(false);
     const [inputText, setInputText] = useState('');
     const scrollViewRef = useRef<ScrollView>(null);
 
     const fadeAnim = useRef(new Animated.Value(0)).current;
     const slideAnim = useRef(new Animated.Value(SCREEN_HEIGHT)).current;
+
+    // Tap-to-reveal timestamp
+    const [expandedMsgId, setExpandedMsgId] = useState<string | null>(null);
+
+    // Media preview modal
+    const [previewVisible, setPreviewVisible] = useState(false);
+    const [previewUrl, setPreviewUrl] = useState('');
+    const [previewType, setPreviewType] = useState<'image' | 'video' | 'document'>('image');
+    const [previewFileName, setPreviewFileName] = useState('');
+
+    // Send-preview modal
+    const [sendPreviewAsset, setSendPreviewAsset] = useState<SendPreviewAsset | null>(null);
+    const [sendPreviewVisible, setSendPreviewVisible] = useState(false);
+    const pendingUpload = useRef<{ base64: string; fileName: string; mime: string; mediaType: ChatMediaType } | null>(null);
 
     // Load real conversation if sellerId is provided
     const loadConversation = useCallback(async () => {
@@ -124,10 +150,20 @@ export default function StoreChatModal({ visible, onClose, storeName, sellerId }
         const unsubscribe = chatService.subscribeToMessages(
             conversation.id,
             (newMsg) => {
-                // Prevent duplicate messages by checking if it already exists
                 setRealMessages(prev => {
-                    const exists = prev.some(m => m.id === newMsg.id);
-                    if (exists) return prev;
+                    // Dedup: skip if already present
+                    if (prev.some(m => m.id === newMsg.id)) return prev;
+                    // Replace temp message if it matches
+                    const tempIdx = prev.findIndex(
+                        m => m.id.startsWith('temp-') &&
+                            m.sender_id === newMsg.sender_id &&
+                            m.content === newMsg.content
+                    );
+                    if (tempIdx !== -1) {
+                        const updated = [...prev];
+                        updated[tempIdx] = newMsg;
+                        return updated;
+                    }
                     return [...prev, newMsg];
                 });
                 if (newMsg.sender_type === 'seller' && user?.id) {
@@ -151,15 +187,26 @@ export default function StoreChatModal({ visible, onClose, storeName, sellerId }
         }, 200);
     };
 
-    // Send message handler
+    // Optimistic send message handler
     const handleSend = async (text?: string) => {
         const messageText = text || inputText.trim();
         if (!messageText || !conversation || !user?.id || sending) {
             return;
         }
 
+        const tempId = `temp-${Date.now()}`;
+        const tempMsg: ChatMessage = {
+            id: tempId,
+            conversation_id: conversation.id,
+            sender_id: user.id,
+            sender_type: 'buyer',
+            content: messageText,
+            is_read: false,
+            created_at: new Date().toISOString(),
+            message_type: 'user',
+        };
+        setRealMessages(prev => [...prev, tempMsg]);
         setInputText('');
-        setSending(true);
 
         try {
             const sentMessage = await chatService.sendMessage(
@@ -170,22 +217,137 @@ export default function StoreChatModal({ visible, onClose, storeName, sellerId }
             );
 
             if (!sentMessage) {
-                setInputText(messageText); // Restore on error
+                // Rollback
+                setRealMessages(prev => prev.filter(m => m.id !== tempId));
+                setInputText(messageText);
             } else {
-                // Optimistically add to local messages
-                setRealMessages(prev => {
-                    const exists = prev.some(m => m.id === sentMessage.id);
-                    if (exists) return prev;
-                    return [...prev, sentMessage];
-                });
-                scrollToBottom();
+                setRealMessages(prev =>
+                    prev.some(m => m.id === sentMessage.id)
+                        ? prev.filter(m => m.id !== tempId)
+                        : prev.map(m => m.id === tempId ? sentMessage : m)
+                );
             }
         } catch (error) {
             console.error('[StoreChatModal] Error sending message:', error);
-            setInputText(messageText); // Restore on error
-        } finally {
-            setSending(false);
+            setRealMessages(prev => prev.filter(m => m.id !== tempId));
+            setInputText(messageText);
         }
+    };
+
+    // ─── Media Pickers ────────────────────────────────────────────────────────
+    const pickMedia = async () => {
+        if (!conversation?.id || !user?.id) return;
+        const result = await ImagePicker.launchImageLibraryAsync({
+            mediaTypes: ['images', 'videos'],
+            quality: 0.8,
+            videoMaxDuration: 120,
+        });
+        if (result.canceled || !result.assets?.[0]) return;
+
+        const asset = result.assets[0];
+        const ext = asset.uri.split('.').pop()?.toLowerCase() || 'jpg';
+        const mediaType: ChatMediaType = asset.type === 'video' ? 'video' : 'image';
+        const mime = getMimeFromExtension(ext);
+
+        const fileInfo = await FileSystem.getInfoAsync(asset.uri);
+        const maxSize = CHAT_MEDIA_LIMITS[mediaType].maxSize;
+        if (fileInfo.exists && 'size' in fileInfo && fileInfo.size > maxSize) {
+            Alert.alert('File too large', `Max ${maxSize / (1024 * 1024)} MB for ${mediaType}s`);
+            return;
+        }
+
+        const base64 = await FileSystem.readAsStringAsync(asset.uri, { encoding: 'base64' });
+        const fileName = asset.fileName || `${Date.now()}.${ext}`;
+        pendingUpload.current = { base64, fileName, mime, mediaType };
+        setSendPreviewAsset({
+            uri: asset.uri,
+            name: fileName,
+            type: mediaType,
+            size: fileInfo.exists && 'size' in fileInfo ? fileInfo.size : undefined,
+        });
+        setSendPreviewVisible(true);
+    };
+
+    const pickDocument = async () => {
+        if (!conversation?.id || !user?.id) return;
+        const result = await DocumentPicker.getDocumentAsync({
+            type: 'application/pdf',
+            copyToCacheDirectory: true,
+        });
+        if (result.canceled || !result.assets?.[0]) return;
+
+        const asset = result.assets[0];
+        if (asset.size && asset.size > CHAT_MEDIA_LIMITS.document.maxSize) {
+            Alert.alert('File too large', 'Max 10 MB for documents');
+            return;
+        }
+
+        const base64 = await FileSystem.readAsStringAsync(asset.uri, { encoding: 'base64' });
+        const fileName = asset.name || `${Date.now()}.pdf`;
+        pendingUpload.current = { base64, fileName, mime: 'application/pdf', mediaType: 'document' };
+        setSendPreviewAsset({
+            uri: asset.uri,
+            name: fileName,
+            type: 'document',
+            size: asset.size ?? undefined,
+        });
+        setSendPreviewVisible(true);
+    };
+
+    const handleConfirmSend = async () => {
+        if (!pendingUpload.current || !conversation?.id || !user?.id) return;
+        const { base64, fileName, mime, mediaType } = pendingUpload.current;
+        setUploading(true);
+        try {
+            const url = await chatService.uploadChatMedia(base64, conversation.id, fileName, mime);
+            if (!url) {
+                Alert.alert('Upload failed', 'Could not upload the file. Please try again.');
+                return;
+            }
+
+            const placeholder = MEDIA_PLACEHOLDER_MAP[mediaType];
+            const tempId = `temp-${Date.now()}`;
+            const tempMsg: ChatMessage = {
+                id: tempId, conversation_id: conversation.id, sender_id: user.id,
+                sender_type: 'buyer', content: placeholder, media_url: url,
+                media_type: mediaType, is_read: false, created_at: new Date().toISOString(),
+                message_type: mediaType,
+            };
+            setRealMessages(prev => [...prev, tempMsg]);
+            setSendPreviewVisible(false);
+            setSendPreviewAsset(null);
+            pendingUpload.current = null;
+
+            const sentMsg = await chatService.sendMessage(
+                conversation.id, user.id, 'buyer', placeholder, undefined, url, mediaType
+            );
+            if (sentMsg) {
+                setRealMessages(prev =>
+                    prev.some(m => m.id === sentMsg.id)
+                        ? prev.filter(m => m.id !== tempId)
+                        : prev.map(m => m.id === tempId ? sentMsg : m)
+                );
+            }
+        } catch (err) {
+            console.error('[StoreChatModal] upload error:', err);
+            Alert.alert('Error', 'Something went wrong. Please try again.');
+        } finally {
+            setUploading(false);
+        }
+    };
+
+    const handleCancelSend = () => {
+        setSendPreviewVisible(false);
+        setSendPreviewAsset(null);
+        pendingUpload.current = null;
+    };
+
+    // ─── Open media preview ───────────────────────────────────────────────
+    const openPreview = (url: string, type: 'image' | 'video' | 'document') => {
+        setPreviewUrl(url);
+        setPreviewType(type);
+        setPreviewFileName(extractFileName(url));
+        setPreviewVisible(true);
     };
 
     const handleAction = (target: string) => {
@@ -193,6 +355,110 @@ export default function StoreChatModal({ visible, onClose, storeName, sellerId }
             handleCloseInternal();
             navigation.navigate('CreateTicket');
         }
+    };
+
+    // ─── Build date-separated message list ────────────────────────────────
+    const renderMessages = () => {
+        if (realMessages.length === 0) {
+            return (
+                <View style={[styles.messageBubble, styles.storeBubble]}>
+                    <Text style={[styles.messageText, styles.storeText]}>
+                        {`Welcome to ${storeName}! 🛍️\nHow can we help you today?`}
+                    </Text>
+                </View>
+            );
+        }
+
+        const sorted = [...realMessages].sort(
+            (a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime()
+        );
+
+        const elements: React.ReactNode[] = [];
+        let lastDateKey = '';
+
+        sorted.forEach((msg) => {
+            const dateKey = new Date(msg.created_at).toDateString();
+            if (dateKey !== lastDateKey) {
+                elements.push(
+                    <View key={`sep-${dateKey}`} style={styles.dateSepWrapper}>
+                        <View style={styles.dateSepLine} />
+                        <Text style={styles.dateSepText}>{formatDateLabel(dateKey)}</Text>
+                        <View style={styles.dateSepLine} />
+                    </View>
+                );
+                lastDateKey = dateKey;
+            }
+
+            const isBuyer = msg.sender_type === 'buyer';
+            const isPending = msg.id.startsWith('temp-');
+            const imgUrl = msg.media_url || msg.image_url;
+            const hasMedia = !!msg.media_url;
+            const isImage = msg.media_type === 'image' || msg.message_type === 'image' || (!msg.media_type && !!msg.image_url);
+            const isVideo = msg.media_type === 'video' || msg.message_type === 'video';
+            const isDoc = msg.media_type === 'document' || msg.message_type === 'document';
+            const isPlaceholder = ALL_PLACEHOLDERS.includes(msg.content);
+            const isExpanded = expandedMsgId === msg.id;
+            const hasAnyMedia = (imgUrl && isImage) || (hasMedia && isVideo) || (hasMedia && isDoc);
+
+            const toggleTimestamp = () => setExpandedMsgId(prev => prev === msg.id ? null : msg.id);
+
+            elements.push(
+                <View key={msg.id} style={[styles.msgOuterWrapper, isBuyer ? styles.msgOuterRight : styles.msgOuterLeft]}>
+                    <Pressable
+                        onPress={() => { if (!hasAnyMedia) toggleTimestamp(); }}
+                        onLongPress={toggleTimestamp}
+                        delayLongPress={400}
+                    >
+                        <View style={[
+                            styles.messageBubble,
+                            isBuyer ? styles.userBubble : styles.storeBubble,
+                            isExpanded && (isBuyer ? styles.userBubbleExpanded : styles.storeBubbleExpanded),
+                            isDoc && !(msg.content && !(isPlaceholder && (hasMedia || !!msg.image_url))) && styles.noPadBubble,
+                        ]}>
+                            {imgUrl && isImage && (
+                                <Pressable onPress={() => openPreview(imgUrl!, 'image')} onLongPress={toggleTimestamp} delayLongPress={400}>
+                                    <Image source={{ uri: imgUrl }} style={{ width: 200, height: 200, borderRadius: 12, marginBottom: 4 }} resizeMode="cover" />
+                                </Pressable>
+                            )}
+                            {hasMedia && isVideo && (
+                                <Pressable onPress={() => openPreview(msg.media_url!, 'video')} onLongPress={toggleTimestamp} delayLongPress={400} style={{ width: 200, height: 140, borderRadius: 12, backgroundColor: '#1F2937', justifyContent: 'center', alignItems: 'center', marginBottom: 4 }}>
+                                    <Play size={28} color="#FFFFFF" />
+                                    <Text style={{ color: '#FFF', fontSize: 12, fontWeight: '600', marginTop: 6 }}>Tap to play</Text>
+                                </Pressable>
+                            )}
+                            {hasMedia && isDoc && (
+                                <Pressable onPress={() => openPreview(msg.media_url!, 'document')} onLongPress={toggleTimestamp} delayLongPress={400} style={{ flexDirection: 'row', alignItems: 'center', gap: 10, paddingHorizontal: 14, paddingVertical: 12, borderRadius: 16, width: DOC_BUBBLE_W, backgroundColor: isBuyer ? 'rgba(255,255,255,0.15)' : '#F3F4F6' }}>
+                                    {/* Fixed-size icon box — never compresses filename text */}
+                                    <View style={{ width: 36, height: 36, borderRadius: 8, alignItems: 'center', justifyContent: 'center', flexShrink: 0, backgroundColor: isBuyer ? 'rgba(255,255,255,0.15)' : '#FEF2F2' }}>
+                                        <FileText size={18} color={isBuyer ? '#FFFFFF' : COLORS.primary} />
+                                    </View>
+                                    <View style={{ flex: 1, minWidth: 0 }}>
+                                        <Text style={{ fontSize: 14, fontWeight: '700', color: isBuyer ? '#FFFFFF' : COLORS.primary }} numberOfLines={1}>{extractFileName(msg.media_url!)}</Text>
+                                        <Text style={{ fontSize: 11, marginTop: 2, color: isBuyer ? 'rgba(255,255,255,0.6)' : '#9CA3AF' }}>PDF · Tap to open</Text>
+                                    </View>
+                                </Pressable>
+                            )}
+                            {msg.content && !(isPlaceholder && (hasMedia || !!msg.image_url)) && (
+                                <Text style={[
+                                    styles.messageText,
+                                    isBuyer ? styles.userText : styles.storeText,
+                                ]}>
+                                    {msg.content}
+                                </Text>
+                            )}
+                        </View>
+                    </Pressable>
+                    {/* Timestamp — OUTSIDE bubble, shown on tap/long-press */}
+                    {isExpanded && !isPending && (
+                        <Text style={[styles.timestampOutside, isBuyer ? styles.timestampOutsideRight : styles.timestampOutsideLeft]}>
+                            {formatMessageTimestamp(msg.created_at)}
+                        </Text>
+                    )}
+                </View>
+            );
+        });
+
+        return elements;
     };
 
     return (
@@ -282,66 +548,7 @@ export default function StoreChatModal({ visible, onClose, storeName, sellerId }
                                     <Text style={{ color: '#6B7280', marginTop: 12 }}>Starting conversation...</Text>
                                 </View>
                             ) : (
-                                <>
-                                    {realMessages.length === 0 && (
-                                        <View style={[styles.messageBubble, styles.storeBubble]}>
-                                            <Text style={[styles.messageText, styles.storeText]}>
-                                                {`Welcome to ${storeName}! 🛍️\nHow can we help you today?`}
-                                            </Text>
-                                        </View>
-                                    )}
-                                    {realMessages.map((msg) => {
-                                        const isBuyer = msg.sender_type === 'buyer';
-                                        const imgUrl = msg.media_url || msg.image_url;
-                                        const hasMedia = !!msg.media_url;
-                                        const isImage = msg.media_type === 'image' || msg.message_type === 'image' || (!msg.media_type && !!msg.image_url);
-                                        const isVideo = msg.media_type === 'video' || msg.message_type === 'video';
-                                        const isDoc = msg.media_type === 'document' || msg.message_type === 'document';
-                                        const isPlaceholder = ['[Image]', '[Video]', '[Document]'].includes(msg.content);
-                                        return (
-                                            <View key={msg.id} style={[
-                                                styles.messageBubble,
-                                                isBuyer ? styles.userBubble : styles.storeBubble,
-                                            ]}>
-                                                {imgUrl && isImage && (
-                                                    <Image source={{ uri: imgUrl }} style={{ width: 200, height: 200, borderRadius: 12, marginBottom: 4 }} resizeMode="cover" />
-                                                )}
-                                                {hasMedia && isVideo && (
-                                                    <Pressable onPress={() => msg.media_url && Linking.openURL(msg.media_url)} style={{ width: 200, height: 140, borderRadius: 12, backgroundColor: '#1F2937', justifyContent: 'center', alignItems: 'center', marginBottom: 4 }}>
-                                                        <Play size={28} color="#FFFFFF" />
-                                                        <Text style={{ color: '#FFF', fontSize: 12, fontWeight: '600', marginTop: 6 }}>Tap to play</Text>
-                                                    </Pressable>
-                                                )}
-                                                {hasMedia && isDoc && (
-                                                    <Pressable onPress={() => msg.media_url && Linking.openURL(msg.media_url)} style={{ flexDirection: 'row', alignItems: 'center', gap: 8, paddingHorizontal: 14, paddingVertical: 10, borderRadius: 10, marginBottom: 4, backgroundColor: isBuyer ? 'rgba(255,255,255,0.15)' : '#F3F4F6' }}>
-                                                        <FileText size={18} color={isBuyer ? '#FFFFFF' : COLORS.primary} />
-                                                        <Text style={{ fontSize: 14, fontWeight: '600', color: isBuyer ? '#FFFFFF' : COLORS.primary }}>View PDF</Text>
-                                                    </Pressable>
-                                                )}
-                                                {msg.content && !(isPlaceholder && (hasMedia || !!msg.image_url)) && (
-                                                    <Text style={[
-                                                        styles.messageText,
-                                                        isBuyer ? styles.userText : styles.storeText,
-                                                    ]}>
-                                                        {msg.content}
-                                                    </Text>
-                                                )}
-                                                <Text style={[
-                                                    styles.timestamp,
-                                                    isBuyer ? styles.userTimestamp : styles.storeTimestamp
-                                                ]}>
-                                                    {new Date(msg.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                                                </Text>
-                                            </View>
-                                        );
-                                    })}
-                                </>
-                            )}
-
-                            {sending && (
-                                <View style={styles.sendingIndicator}>
-                                    <ActivityIndicator size="small" color={COLORS.primary} />
-                                </View>
+                                <>{renderMessages()}</>
                             )}
                         </ScrollView>
 
@@ -361,6 +568,12 @@ export default function StoreChatModal({ visible, onClose, storeName, sellerId }
                         {/* Input Area */}
                         <View style={[styles.inputContainer, { paddingBottom: insets.bottom + 12 }]}>
                             <View style={styles.inputBar}>
+                                <Pressable onPress={pickMedia} style={styles.attachButton} disabled={uploading}>
+                                    {uploading ? <ActivityIndicator size="small" color={COLORS.primary} /> : <ImageIcon size={22} color="#9CA3AF" />}
+                                </Pressable>
+                                <Pressable onPress={pickDocument} style={styles.attachButton} disabled={uploading}>
+                                    <Paperclip size={22} color="#9CA3AF" />
+                                </Pressable>
                                 <TextInput
                                     style={styles.input}
                                     value={inputText}
@@ -385,6 +598,24 @@ export default function StoreChatModal({ visible, onClose, storeName, sellerId }
                     </KeyboardAvoidingView>
                 </Animated.View>
             </View>
+
+            {/* Media preview modal */}
+            <ChatMediaPreviewModal
+                visible={previewVisible}
+                onClose={() => setPreviewVisible(false)}
+                mediaUrl={previewUrl}
+                mediaType={previewType}
+                fileName={previewFileName}
+            />
+
+            {/* Send confirmation preview modal */}
+            <ChatSendPreviewModal
+                visible={sendPreviewVisible}
+                onCancel={handleCancelSend}
+                onSend={handleConfirmSend}
+                asset={sendPreviewAsset}
+                uploading={uploading}
+            />
         </Modal>
     );
 }
@@ -468,19 +699,27 @@ const styles = StyleSheet.create({
         gap: 12,
         paddingBottom: 20,
     },
+    msgOuterWrapper: {
+        marginBottom: 4,
+    },
+    msgOuterRight: {
+        alignItems: 'flex-end',
+    },
+    msgOuterLeft: {
+        alignItems: 'flex-start',
+    },
     messageBubble: {
         maxWidth: '80%',
         padding: 12,
         borderRadius: 16,
-        marginBottom: 4,
+        overflow: 'hidden',
     },
+    noPadBubble: { padding: 0 },
     userBubble: {
-        alignSelf: 'flex-end',
         backgroundColor: COLORS.primary,
         borderBottomRightRadius: 4,
     },
     storeBubble: {
-        alignSelf: 'flex-start',
         backgroundColor: '#FFFFFF',
         borderBottomLeftRadius: 4,
         shadowColor: '#000',
@@ -488,6 +727,12 @@ const styles = StyleSheet.create({
         shadowOpacity: 0.05,
         shadowRadius: 2,
         elevation: 1,
+    },
+    userBubbleExpanded: {
+        backgroundColor: '#C2631A',
+    },
+    storeBubbleExpanded: {
+        backgroundColor: '#FFF7ED',
     },
     messageText: {
         fontSize: 15,
@@ -499,18 +744,23 @@ const styles = StyleSheet.create({
     storeText: {
         color: '#1F2937',
     },
-    timestamp: {
-        fontSize: 10,
+    timestampOutside: {
+        fontSize: 11,
         marginTop: 4,
-        alignSelf: 'flex-end',
-        opacity: 0.7,
+        paddingHorizontal: 4,
     },
-    userTimestamp: {
-        color: 'rgba(255,255,255,0.8)',
-    },
-    storeTimestamp: {
+    timestampOutsideRight: {
         color: '#9CA3AF',
+        textAlign: 'right',
     },
+    timestampOutsideLeft: {
+        color: '#9CA3AF',
+        textAlign: 'left',
+    },
+    // Date separators
+    dateSepWrapper: { flexDirection: 'row', alignItems: 'center', marginVertical: 12, paddingHorizontal: 8 },
+    dateSepLine: { flex: 1, height: 1, backgroundColor: '#E5E7EB' },
+    dateSepText: { marginHorizontal: 10, fontSize: 11, fontWeight: '600', color: '#9CA3AF', textTransform: 'uppercase', letterSpacing: 0.5 },
     quickRepliesContainer: {
         paddingVertical: 12,
     },
@@ -538,6 +788,13 @@ const styles = StyleSheet.create({
         flexDirection: 'row',
         alignItems: 'flex-end',
         gap: 12,
+    },
+    attachButton: {
+        width: 40,
+        height: 40,
+        borderRadius: 20,
+        justifyContent: 'center',
+        alignItems: 'center',
     },
     input: {
         flex: 1,

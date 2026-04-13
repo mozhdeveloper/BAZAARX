@@ -2,7 +2,7 @@ import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react'
 import {
   View, Text, StyleSheet, TextInput, Pressable, FlatList,
   KeyboardAvoidingView, Platform, ActivityIndicator, Image, ListRenderItemInfo,
-  Alert, Linking,
+  Alert, Linking, Dimensions,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { ChevronLeft, Send, Store, User, Ticket, ImageIcon, FileText, Play, Paperclip } from 'lucide-react-native';
@@ -10,44 +10,25 @@ import { useNavigation, useRoute } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { COLORS } from '../constants/theme';
 import { chatService, Conversation, Message } from '../services/chatService';
-import { getMimeFromExtension, detectMediaTypeFromExtension, CHAT_MEDIA_LIMITS, ALL_PLACEHOLDERS, MEDIA_PLACEHOLDER_MAP, type ChatMediaType } from '../utils/chatMediaUtils';
+import { getMimeFromExtension, detectMediaTypeFromExtension, CHAT_MEDIA_LIMITS, ALL_PLACEHOLDERS, MEDIA_PLACEHOLDER_MAP, extractFileName, type ChatMediaType } from '../utils/chatMediaUtils';
+import { formatDateLabel, formatMessageTimestamp } from '../utils/chatDateUtils';
+import ChatMediaPreviewModal from './ChatMediaPreviewModal';
+import ChatSendPreviewModal, { type SendPreviewAsset } from './ChatSendPreviewModal';
 import type { RootStackParamList } from '../../App';
 import * as ImagePicker from 'expo-image-picker';
 import * as DocumentPicker from 'expo-document-picker';
-import * as FileSystem from 'expo-file-system';
+import * as FileSystem from 'expo-file-system/legacy';
 
-// Strip timestamp prefix from filename: "1712345678_report.pdf" → "report.pdf"
-const extractFileName = (url: string, fallback = 'Document.pdf') => {
-  try {
-    const raw = decodeURIComponent(url.split('/').pop()?.split('?')[0] || fallback);
-    const match = raw.match(/^\d+_(.+)$/);
-    return match ? match[1] : raw;
-  } catch { return fallback; }
-};
+
 
 // ─── Typed list items ──────────────────────────────────────────────────────────
 type MessageItem = { type: 'message'; data: Message; id: string };
 type DateSepItem = { type: 'date_sep'; label: string; id: string };
 type ListItem = MessageItem | DateSepItem;
 
-// ─── Date label helper ─────────────────────────────────────────────────────
-function formatDateLabel(dateKey: string): string {
-  const todayString = new Date().toDateString();
-  const yesterdayDate = new Date();
-  yesterdayDate.setDate(yesterdayDate.getDate() - 1);
-  const yesterdayString = yesterdayDate.toDateString();
 
-  if (dateKey === todayString) return 'Today';
-  if (dateKey === yesterdayString) return 'Yesterday';
-
-  // Full format: "Friday, March 27, 2026"
-  return new Date(dateKey).toLocaleDateString([], {
-    weekday: 'long',
-    month: 'long',
-    day: 'numeric',
-    year: 'numeric',
-  });
-}
+const { width: SCREEN_W } = Dimensions.get('window');
+const DOC_BUBBLE_W = SCREEN_W * 0.68; // explicit width so inner flex:1 text resolves
 
 export default function ChatScreen({ conversation, currentUserId, userType, onBack }: any) {
   const insets = useSafeAreaInsets();
@@ -67,12 +48,22 @@ export default function ChatScreen({ conversation, currentUserId, userType, onBa
   const [loading, setLoading] = useState(true);
   const [uploading, setUploading] = useState(false);
 
+  // Tap-to-reveal timestamp
+  const [expandedMsgId, setExpandedMsgId] = useState<string | null>(null);
+
+  // Media preview modal
+  const [previewVisible, setPreviewVisible] = useState(false);
+  const [previewUrl, setPreviewUrl] = useState('');
+  const [previewType, setPreviewType] = useState<'image' | 'video' | 'document'>('image');
+  const [previewFileName, setPreviewFileName] = useState('');
+
+  // Send-preview modal
+  const [sendPreviewAsset, setSendPreviewAsset] = useState<SendPreviewAsset | null>(null);
+  const [sendPreviewVisible, setSendPreviewVisible] = useState(false);
+  // Holds the raw base64 + metadata for the selected file until user confirms send
+  const pendingUpload = useRef<{ base64: string; fileName: string; mime: string; mediaType: ChatMediaType } | null>(null);
+
   // ─── Build flat data array for inverted FlatList ──────────────────────────
-  // Messages are kept in chronological order (oldest → newest).
-  // We reverse them so index 0 == newest, which inverted FlatList places at
-  // the bottom — the natural chat anchor point.
-  // Date separators are interleaved so they appear above the first message of
-  // each day (visually "above" = higher index in the inverted array).
   const listData = useMemo((): ListItem[] => {
     const sorted = [...messages].sort(
       (a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime()
@@ -89,7 +80,6 @@ export default function ChatScreen({ conversation, currentUserId, userType, onBa
       flat.push({ type: 'message', data: msg, id: msg.id });
     });
 
-    // Reverse: newest message ends up at index 0 → renders at bottom with inverted
     return flat.reverse();
   }, [messages]);
 
@@ -117,32 +107,39 @@ export default function ChatScreen({ conversation, currentUserId, userType, onBa
 
   useEffect(() => { loadMessages(); }, [loadMessages]);
 
-  // Auto-scroll to newest message whenever the list grows (initial load + new real-time messages).
-  // offset 0 = the "top" of the inverted list, which renders as the bottom visually.
+  // Auto-scroll to newest message
   useEffect(() => {
     if (listData.length > 0) {
       setTimeout(() => flatListRef.current?.scrollToOffset({ offset: 0, animated: false }), 50);
     }
   }, [listData.length]);
 
-
-
   // ─── Real-time subscription ───────────────────────────────────────────────
   useEffect(() => {
     if (!conversationId) return;
     const unsubscribe = chatService.subscribeToMessages(conversationId, (newMsg) => {
       setMessages(prev => {
-        // Deduplicate: skip if we already have this id (avoid echoing optimistic msg)
+        // Deduplicate: skip if we already have this id
         if (prev.some(m => m.id === newMsg.id)) return prev;
+        // If there is a temp message that matches (same sender + content + close timestamp), swap it
+        const tempIdx = prev.findIndex(
+          m => m.id.startsWith('temp-') &&
+            m.sender_id === newMsg.sender_id &&
+            m.content === newMsg.content
+        );
+        if (tempIdx !== -1) {
+          const updated = [...prev];
+          updated[tempIdx] = newMsg;
+          return updated;
+        }
         return [...prev, newMsg];
       });
-      // Auto-scroll to the new message (animated for incoming messages)
       setTimeout(() => flatListRef.current?.scrollToOffset({ offset: 0, animated: true }), 80);
       if (newMsg.sender_type !== effectiveUserType) {
         chatService.markAsRead(conversationId, effectiveUserId, effectiveUserType);
       }
     });
-    return unsubscribe; // teardown on unmount / conversationId change
+    return unsubscribe;
   }, [conversationId, effectiveUserId, effectiveUserType]);
 
   // ─── Optimistic send ──────────────────────────────────────────────────────
@@ -151,7 +148,7 @@ export default function ChatScreen({ conversation, currentUserId, userType, onBa
     const messageText = newMessage.trim();
     const tempId = `temp-${Date.now()}`;
 
-    // 1. Append a temporary optimistic message immediately
+    // 1. Clear input + append temp message immediately
     const tempMsg: Message = {
       id: tempId,
       conversation_id: conversationId,
@@ -171,14 +168,12 @@ export default function ChatScreen({ conversation, currentUserId, userType, onBa
       );
       if (sentMsg) {
         setMessages(prev =>
-          // If the realtime echo already added it, just drop the temp; otherwise swap
           prev.some(m => m.id === sentMsg.id)
             ? prev.filter(m => m.id !== tempId)
             : prev.map(m => m.id === tempId ? sentMsg : m)
         );
       }
     } catch (error) {
-      // Rollback: remove temp message and restore input
       setMessages(prev => prev.filter(m => m.id !== tempId));
       setNewMessage(messageText);
     }
@@ -207,44 +202,17 @@ export default function ChatScreen({ conversation, currentUserId, userType, onBa
       return;
     }
 
-    setUploading(true);
-    try {
-      const base64 = await FileSystem.readAsStringAsync(asset.uri, {
-        encoding: 'base64',
-      });
-      const fileName = `${Date.now()}.${ext}`;
-      const url = await chatService.uploadChatMedia(base64, conversationId, fileName, mime);
-      if (!url) {
-        Alert.alert('Upload failed', 'Could not upload the file. Please try again.');
-        return;
-      }
-
-      const placeholder = MEDIA_PLACEHOLDER_MAP[mediaType];
-      // Optimistic message
-      const tempId = `temp-${Date.now()}`;
-      const tempMsg: Message = {
-        id: tempId, conversation_id: conversationId, sender_id: effectiveUserId,
-        sender_type: effectiveUserType, content: placeholder, media_url: url,
-        media_type: mediaType, is_read: false, created_at: new Date().toISOString(),
-        message_type: mediaType,
-      };
-      setMessages(prev => [...prev, tempMsg]);
-
-      const sentMsg = await chatService.sendMessage(
-        conversationId, effectiveUserId, effectiveUserType, placeholder, undefined, url, mediaType
-      );
-      if (sentMsg) {
-        setMessages(prev =>
-          prev.some(m => m.id === sentMsg.id)
-            ? prev.filter(m => m.id !== tempId)
-            : prev.map(m => m.id === tempId ? sentMsg : m)
-        );
-      }
-    } catch (err) {
-      console.error('[ChatScreen] pickMedia error:', err);
-    } finally {
-      setUploading(false);
-    }
+    // Read base64 and show preview modal
+    const base64 = await FileSystem.readAsStringAsync(asset.uri, { encoding: 'base64' });
+    const fileName = asset.fileName || `${Date.now()}.${ext}`;
+    pendingUpload.current = { base64, fileName, mime, mediaType };
+    setSendPreviewAsset({
+      uri: asset.uri,
+      name: fileName,
+      type: mediaType,
+      size: fileInfo.exists && 'size' in fileInfo ? fileInfo.size : undefined,
+    });
+    setSendPreviewVisible(true);
   };
 
   const pickDocument = async () => {
@@ -261,29 +229,45 @@ export default function ChatScreen({ conversation, currentUserId, userType, onBa
       return;
     }
 
+    const base64 = await FileSystem.readAsStringAsync(asset.uri, { encoding: 'base64' });
+    const fileName = asset.name || `${Date.now()}.pdf`;
+    pendingUpload.current = { base64, fileName, mime: 'application/pdf', mediaType: 'document' };
+    setSendPreviewAsset({
+      uri: asset.uri,
+      name: fileName,
+      type: 'document',
+      size: asset.size ?? undefined,
+    });
+    setSendPreviewVisible(true);
+  };
+
+  // Called when user confirms send from the preview modal
+  const handleConfirmSend = async () => {
+    if (!pendingUpload.current || !conversationId) return;
+    const { base64, fileName, mime, mediaType } = pendingUpload.current;
     setUploading(true);
     try {
-      const base64 = await FileSystem.readAsStringAsync(asset.uri, {
-        encoding: 'base64',
-      });
-      const fileName = asset.name || `${Date.now()}.pdf`;
-      const url = await chatService.uploadChatMedia(base64, conversationId, fileName, 'application/pdf');
+      const url = await chatService.uploadChatMedia(base64, conversationId, fileName, mime);
       if (!url) {
-        Alert.alert('Upload failed', 'Could not upload the document. Please try again.');
+        Alert.alert('Upload failed', 'Could not upload the file. Please try again.');
         return;
       }
 
+      const placeholder = MEDIA_PLACEHOLDER_MAP[mediaType];
       const tempId = `temp-${Date.now()}`;
       const tempMsg: Message = {
         id: tempId, conversation_id: conversationId, sender_id: effectiveUserId,
-        sender_type: effectiveUserType, content: '[Document]', media_url: url,
-        media_type: 'document', is_read: false, created_at: new Date().toISOString(),
-        message_type: 'document',
+        sender_type: effectiveUserType, content: placeholder, media_url: url,
+        media_type: mediaType, is_read: false, created_at: new Date().toISOString(),
+        message_type: mediaType,
       };
       setMessages(prev => [...prev, tempMsg]);
+      setSendPreviewVisible(false);
+      setSendPreviewAsset(null);
+      pendingUpload.current = null;
 
       const sentMsg = await chatService.sendMessage(
-        conversationId, effectiveUserId, effectiveUserType, '[Document]', undefined, url, 'document'
+        conversationId, effectiveUserId, effectiveUserType, placeholder, undefined, url, mediaType
       );
       if (sentMsg) {
         setMessages(prev =>
@@ -293,15 +277,26 @@ export default function ChatScreen({ conversation, currentUserId, userType, onBa
         );
       }
     } catch (err) {
-      console.error('[ChatScreen] pickDocument error:', err);
+      console.error('[ChatScreen] upload error:', err);
+      Alert.alert('Error', 'Something went wrong. Please try again.');
     } finally {
       setUploading(false);
     }
   };
 
-  // ─── Helpers ──────────────────────────────────────────────────────────────
-  const formatTime = (dateString: string) =>
-    new Date(dateString).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+  const handleCancelSend = () => {
+    setSendPreviewVisible(false);
+    setSendPreviewAsset(null);
+    pendingUpload.current = null;
+  };
+
+  // ─── Open media preview ─────────────────────────────────────────────────
+  const openPreview = (url: string, type: 'image' | 'video' | 'document') => {
+    setPreviewUrl(url);
+    setPreviewType(type);
+    setPreviewFileName(extractFileName(url));
+    setPreviewVisible(true);
+  };
 
   // ─── FlatList render functions ────────────────────────────────────────────
   const renderItem = ({ item }: ListRenderItemInfo<ListItem>) => {
@@ -336,45 +331,87 @@ export default function ChatScreen({ conversation, currentUserId, userType, onBa
     const isDoc = msg.media_type === 'document' || msg.message_type === 'document';
     const isPlaceholder = ALL_PLACEHOLDERS.includes(msg.content);
     const showText = msg.content && !(isPlaceholder && (hasMedia || !!msg.image_url));
+    const isExpanded = expandedMsgId === msg.id;
+    const hasAnyMedia = (imgUrl && isImage) || (hasMedia && isVideo) || (hasMedia && isDoc);
+
+    const toggleTimestamp = () => setExpandedMsgId(prev => prev === msg.id ? null : msg.id);
+
     return (
-      <View style={[styles.messageBubble, isMe ? styles.myMessage : styles.theirMessage]}>
-        {/* Image — media_url or legacy image_url */}
-        {imgUrl && isImage && (
-          <Image source={{ uri: imgUrl }} style={styles.mediaBubbleImage} resizeMode="cover" />
-        )}
-        {/* Video */}
-        {hasMedia && isVideo && (
-          <Pressable onPress={() => msg.media_url && Linking.openURL(msg.media_url)} style={styles.videoThumb}>
-            <Play size={28} color="#FFFFFF" />
-            <Text style={styles.videoLabel}>Tap to play</Text>
-          </Pressable>
-        )}
-        {hasMedia && isDoc && (
-          <Pressable onPress={() => msg.media_url && Linking.openURL(msg.media_url)} style={[styles.docBubble, isMe ? styles.docBubbleMy : styles.docBubbleTheir]}>
-            <FileText size={18} color={isMe ? '#FFFFFF' : COLORS.primary} />
-            <View style={{ flex: 1, minWidth: 0 }}>
-              <Text style={[styles.docText, isMe ? styles.docTextMy : styles.docTextTheir]} numberOfLines={1}>
-                {extractFileName(msg.media_url!)}
+      <View style={[styles.msgOuterWrapper, isMe ? styles.msgOuterRight : styles.msgOuterLeft]}>
+        <Pressable
+          onPress={() => { if (!hasAnyMedia) toggleTimestamp(); }}
+          onLongPress={toggleTimestamp}
+          delayLongPress={400}
+        >
+          <View style={[
+            styles.messageBubble,
+            isMe ? styles.myMessage : styles.theirMessage,
+            isExpanded && (isMe ? styles.myMessageExpanded : styles.theirMessageExpanded),
+            // Remove inner padding for doc-only bubbles (docBubble has its own)
+            isDoc && !showText && styles.noPadBubble,
+          ]}>
+            {/* Image — tap opens preview, long-press shows timestamp */}
+            {imgUrl && isImage && (
+              <Pressable
+                onPress={() => openPreview(imgUrl!, 'image')}
+                onLongPress={toggleTimestamp}
+                delayLongPress={400}
+              >
+                <Image source={{ uri: imgUrl }} style={styles.mediaBubbleImage} resizeMode="cover" />
+              </Pressable>
+            )}
+            {/* Video — tap opens preview, long-press shows timestamp */}
+            {hasMedia && isVideo && (
+              <Pressable
+                onPress={() => openPreview(msg.media_url!, 'video')}
+                onLongPress={toggleTimestamp}
+                delayLongPress={400}
+                style={styles.videoThumb}
+              >
+                <Play size={28} color="#FFFFFF" />
+                <Text style={styles.videoLabel}>Tap to play</Text>
+              </Pressable>
+            )}
+            {/* Document — tap opens preview, long-press shows timestamp */}
+            {hasMedia && isDoc && (
+              <Pressable
+                onPress={() => openPreview(msg.media_url!, 'document')}
+                onLongPress={toggleTimestamp}
+                delayLongPress={400}
+                style={[styles.docBubble, isMe ? styles.docBubbleMy : styles.docBubbleTheir, { width: DOC_BUBBLE_W }]}
+              >
+                {/* Fixed-size icon container — never compresses the filename */}
+                <View style={styles.docIconBox}>
+                  <FileText size={18} color={isMe ? '#FFFFFF' : COLORS.primary} />
+                </View>
+                <View style={{ flex: 1, minWidth: 0 }}>
+                  <Text style={[styles.docText, isMe ? styles.docTextMy : styles.docTextTheir]} numberOfLines={1}>
+                    {extractFileName(msg.media_url!)}
+                  </Text>
+                  <Text style={[styles.docSubText, isMe ? styles.docSubTextMy : styles.docSubTextTheir]}>PDF · Tap to open</Text>
+                </View>
+              </Pressable>
+            )}
+            {/* Text */}
+            {showText && (
+              <Text style={[styles.messageText, isMe ? styles.myMessageText : styles.theirMessageText]}>
+                {msg.content}
               </Text>
-              <Text style={[styles.docSubText, isMe ? styles.docSubTextMy : styles.docSubTextTheir]}>PDF · Tap to open</Text>
-            </View>
-          </Pressable>
-        )}
-        {/* Text (hide placeholders only when media is present) */}
-        {showText && (
-          <Text style={[styles.messageText, isMe ? styles.myMessageText : styles.theirMessageText]}>
-            {msg.content}
+            )}
+          </View>
+        </Pressable>
+        {/* Timestamp — OUTSIDE bubble, shown on tap/long-press */}
+        {isExpanded && !isPending && (
+          <Text style={[styles.messageTimeOutside, isMe ? styles.myMessageTimeOutside : styles.theirMessageTimeOutside]}>
+            {formatMessageTimestamp(msg.created_at)}
           </Text>
         )}
-        <Text style={[styles.messageTime, isMe ? styles.myMessageTime : styles.theirMessageTime]}>
-          {isPending ? '·' : formatTime(msg.created_at)}
-        </Text>
       </View>
     );
   };
 
   return (
-    <KeyboardAvoidingView style={styles.container} behavior={Platform.OS === 'ios' ? 'padding' : 'padding'} keyboardVerticalOffset={Platform.OS === 'ios' ? 60 : 0}>
+    <KeyboardAvoidingView style={styles.container} behavior="padding" keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 0}>
       <View style={[styles.header, { paddingTop: Math.max(insets.top, 20) + 10 }]}>
         <Pressable onPress={handleBack} style={styles.backButton}>
           <ChevronLeft size={24} color="#FFFFFF" strokeWidth={2.5} />
@@ -389,7 +426,6 @@ export default function ChatScreen({ conversation, currentUserId, userType, onBa
             ) : (
               <User size={18} color={COLORS.primary} />
             )}
-            <View style={effectiveConversation?.is_online ? styles.tealOnlineIndicator : styles.offlineIndicator} />
           </View>
           <View>
             <Text style={styles.headerTitle}>{displayName}</Text>
@@ -411,10 +447,6 @@ export default function ChatScreen({ conversation, currentUserId, userType, onBa
       {loading ? (
         <View style={styles.loadingContainer}><ActivityIndicator size="large" color={COLORS.primary} /></View>
       ) : (
-        /* inverted={true} anchors the list to the bottom natively.
-           data is pre-reversed (newest = index 0) so the newest message
-           renders at the bottom and new items animate in from there.
-           keyboardDismissMode="interactive" gives a native swipe-to-dismiss. */
         <FlatList<ListItem>
           ref={flatListRef}
           data={listData}
@@ -443,6 +475,24 @@ export default function ChatScreen({ conversation, currentUserId, userType, onBa
           </Pressable>
         </View>
       </View>
+
+      {/* Media preview modal */}
+      <ChatMediaPreviewModal
+        visible={previewVisible}
+        onClose={() => setPreviewVisible(false)}
+        mediaUrl={previewUrl}
+        mediaType={previewType}
+        fileName={previewFileName}
+      />
+
+      {/* Send confirmation preview modal */}
+      <ChatSendPreviewModal
+        visible={sendPreviewVisible}
+        onCancel={handleCancelSend}
+        onSend={handleConfirmSend}
+        asset={sendPreviewAsset}
+        uploading={uploading}
+      />
     </KeyboardAvoidingView>
   );
 }
@@ -470,15 +520,20 @@ const styles = StyleSheet.create({
   systemMessageWrapper: { flexDirection: 'row', alignItems: 'center', marginVertical: 16, paddingHorizontal: 20 },
   systemMessageDivider: { flex: 1, height: 1, backgroundColor: 'rgba(249, 115, 22, 0.2)' },
   systemMessageText: { marginHorizontal: 12, fontSize: 12, fontWeight: '700', color: '#EA580C', textTransform: 'uppercase', letterSpacing: 0.5 },
-  messageBubble: { maxWidth: '75%', borderRadius: 16, padding: 12, marginVertical: 2 },
-  myMessage: { alignSelf: 'flex-end', backgroundColor: COLORS.primary, borderBottomRightRadius: 4 },
-  theirMessage: { alignSelf: 'flex-start', backgroundColor: '#FFFFFF', borderBottomLeftRadius: 4, borderWidth: 1, borderColor: '#E5E7EB' },
+  msgOuterWrapper: { marginVertical: 2 },
+  msgOuterRight: { alignItems: 'flex-end' },
+  msgOuterLeft: { alignItems: 'flex-start' },
+  messageBubble: { maxWidth: '75%', borderRadius: 16, padding: 12, overflow: 'hidden' },
+  myMessage: { backgroundColor: COLORS.primary, borderBottomRightRadius: 4 },
+  theirMessage: { backgroundColor: '#FFFFFF', borderBottomLeftRadius: 4, borderWidth: 1, borderColor: '#E5E7EB' },
+  myMessageExpanded: { backgroundColor: '#C2631A' },
+  theirMessageExpanded: { backgroundColor: '#FFF7ED', borderColor: '#D97706' },
   messageText: { fontSize: 15, lineHeight: 20 },
   myMessageText: { color: '#FFFFFF' },
   theirMessageText: { color: '#1F2937' },
-  messageTime: { fontSize: 11, marginTop: 4 },
-  myMessageTime: { color: 'rgba(255, 255, 255, 0.7)', textAlign: 'right' },
-  theirMessageTime: { color: '#9CA3AF' },
+  messageTimeOutside: { fontSize: 11, marginTop: 4, paddingHorizontal: 4 },
+  myMessageTimeOutside: { color: '#9CA3AF', textAlign: 'right' },
+  theirMessageTimeOutside: { color: '#9CA3AF', textAlign: 'left' },
   dateSepWrapper: { flexDirection: 'row', alignItems: 'center', marginVertical: 12, paddingHorizontal: 16 },
   dateSepLine: { flex: 1, height: 1, backgroundColor: '#E5E7EB' },
   dateSepText: { marginHorizontal: 10, fontSize: 11, fontWeight: '600', color: '#9CA3AF', textTransform: 'uppercase', letterSpacing: 0.5 },
@@ -491,7 +546,9 @@ const styles = StyleSheet.create({
   mediaBubbleImage: { width: 200, height: 200, borderRadius: 12, marginBottom: 4 },
   videoThumb: { width: 200, height: 140, borderRadius: 12, backgroundColor: '#1F2937', justifyContent: 'center', alignItems: 'center', marginBottom: 4 },
   videoLabel: { color: '#FFFFFF', fontSize: 12, fontWeight: '600', marginTop: 6 },
-  docBubble: { flexDirection: 'row', alignItems: 'center', gap: 8, paddingHorizontal: 14, paddingVertical: 10, borderRadius: 10, marginBottom: 4 },
+  noPadBubble: { padding: 0 },
+  docBubble: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingHorizontal: 14, paddingVertical: 12, borderRadius: 16 },
+  docIconBox: { width: 36, height: 36, borderRadius: 8, alignItems: 'center', justifyContent: 'center', flexShrink: 0, backgroundColor: 'rgba(255,255,255,0.1)' },
   docBubbleMy: { backgroundColor: 'rgba(255,255,255,0.15)' },
   docBubbleTheir: { backgroundColor: '#F3F4F6' },
   docText: { fontSize: 14, fontWeight: '600' },
