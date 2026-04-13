@@ -134,6 +134,10 @@ export const MasonryProductCard: React.FC<MasonryProductCardProps> = React.memo(
       : Math.round(((originalPrice - regularPrice) / originalPrice) * 100))
     : 0;
 
+  // Get seller name - handle both string and object cases
+  const sellerName = (product as any).seller?.store_name 
+    || (typeof product.seller === 'string' ? product.seller : 'Verified Seller');
+
   return (
     <Pressable
       onPress={onPress}
@@ -206,13 +210,11 @@ export const MasonryProductCard: React.FC<MasonryProductCardProps> = React.memo(
         </View>
 
         {/* Seller Name */}
-        {product.seller && (
-          <View style={masonryStyles.sellerRow}>
-            <Text style={masonryStyles.sellerText} numberOfLines={1}>
-              {typeof product.seller === 'string' ? product.seller : (product.seller.store_name || 'Verified Seller')}
-            </Text>
-          </View>
-        )}
+        <View style={masonryStyles.sellerRow}>
+          <Text style={masonryStyles.sellerText} numberOfLines={1}>
+            {sellerName}
+          </Text>
+        </View>
       </View>
     </Pressable>
   );
