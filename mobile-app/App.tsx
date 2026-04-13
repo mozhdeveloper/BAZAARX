@@ -64,6 +64,7 @@ export type RootStackParamList = {
   SellerStack: undefined;
   AdminStack: undefined;
   MainTabs: NavigatorScreenParams<TabParamList>;
+  SearchResults: { searchQuery: string };
   ProductDetail: { product: Product };
   Checkout: {
     selectedItems?: CartItem[];
@@ -407,6 +408,7 @@ export default function App() {
               />
 
               <Stack.Screen name="MainTabs" component={MainTabs} />
+              <Stack.Screen name="SearchResults" getComponent={() => require('./app/SearchResultsScreen').default} options={{ headerShown: false }} />
               <Stack.Screen name="ProductDetail" getComponent={() => require('./app/ProductDetailScreen').default} />
               <Stack.Screen name="Checkout" getComponent={() => require('./app/CheckoutScreen').default} />
               <Stack.Screen name="PaymentGateway" getComponent={() => require('./app/PaymentGatewayScreen').default} options={{ headerShown: false }} />
