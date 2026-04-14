@@ -897,6 +897,21 @@ export const useOrderStore = create<OrderStore>()(
     {
       name: 'order-storage',
       storage: createJSONStorage(() => AsyncStorage),
+      partialize: (state) => ({
+        ...state,
+        isCheckoutContextLoading: false,
+      }),
+      merge: (persistedState, currentState) => {
+        const mergedState = {
+          ...currentState,
+          ...(persistedState as Partial<OrderStore>),
+        };
+
+        return {
+          ...mergedState,
+          isCheckoutContextLoading: false,
+        };
+      },
     }
   )
 );

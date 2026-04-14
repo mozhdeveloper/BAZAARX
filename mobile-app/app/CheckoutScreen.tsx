@@ -20,7 +20,7 @@ import {
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
-import { ChevronLeft, MapPin, CreditCard, Shield, Tag, X, ChevronDown, Check, Plus, ShieldCheck, ChevronRight, Home, Briefcase, MapPinned, Building2, Move, Search, ChevronUp, Palmtree, Store } from 'lucide-react-native';
+import { ChevronLeft, MapPin, CreditCard, Shield, Tag, X, ChevronDown, Check, Plus, ShieldCheck, ChevronRight, Home, Briefcase, MapPinned, Building2, Move, Search, ChevronUp, Palmtree, Store, Pencil } from 'lucide-react-native';
 import MapView, { Marker, Region, PROVIDER_GOOGLE, PROVIDER_DEFAULT } from 'react-native-maps';
 import { Svg, Path } from 'react-native-svg';
 import { regions, provinces, cities, barangays } from 'select-philippines-address';
@@ -117,6 +117,10 @@ export default function CheckoutScreen({ navigation, route }: Props) {
 
   // LocationModal state for map-first address flow
   const [showLocationModal, setShowLocationModal] = useState(false);
+
+  // Edit mode state for address
+  const [selectedAddressForEdit, setSelectedAddressForEdit] = useState<Address | null>(null);
+  const [isEditMode, setIsEditMode] = useState(false);
 
   // Animation refs for Address Selection Modal
   const addressFadeAnim = useRef(new Animated.Value(0)).current;
@@ -297,6 +301,9 @@ export default function CheckoutScreen({ navigation, route }: Props) {
   // Pre-fetch addresses + seller metadata via Edge Function on mount.
   // The Edge Function uses Promise.all internally so both queries run concurrently.
   useEffect(() => {
+    // Guard against stale persisted loading state that can lock the screen.
+    useOrderStore.setState({ isCheckoutContextLoading: false });
+
     const productIds = checkoutItems
       .map((item) => (item as any).id ?? (item as any).productId)
       .filter((id): id is string => typeof id === 'string' && id.length > 0);
@@ -611,6 +618,12 @@ export default function CheckoutScreen({ navigation, route }: Props) {
       province?: string;
       region?: string;
       postalCode?: string;
+      firstName?: string;
+      lastName?: string;
+      phone?: string;
+      label?: string;
+      landmark?: string;
+      deliveryInstructions?: string;
     }
   ) => {
     if (!user) return;
@@ -625,10 +638,10 @@ export default function CheckoutScreen({ navigation, route }: Props) {
 
       // Prepare address data from location details
       const addressData = {
-        label: 'Home',
-        firstName: user.name?.split(' ')[0] || '',
-        lastName: user.name?.split(' ').slice(1).join(' ') || '',
-        phone: user.phone || '',
+        label: details?.label || selectedAddressForEdit?.label || 'Home',
+        firstName: details?.firstName || user.name?.split(' ')[0] || '',
+        lastName: details?.lastName || user.name?.split(' ').slice(1).join(' ') || '',
+        phone: details?.phone || user.phone || '',
         street: details?.street || address.split(',')[0] || '',
         barangay: details?.barangay || '',
         city: details?.city || '',
@@ -638,61 +651,69 @@ export default function CheckoutScreen({ navigation, route }: Props) {
         region: details?.region || '',
         // Ensure postal_code has a value (database NOT NULL constraint)
         zipCode: details?.postalCode || '0000',
-        landmark: null,
-        deliveryInstructions: null,
-        addressType: 'residential' as const,
-        isDefault: addresses.length === 0,
+        landmark: details?.landmark ?? selectedAddressForEdit?.landmark ?? null,
+        deliveryInstructions: details?.deliveryInstructions ?? selectedAddressForEdit?.deliveryInstructions ?? null,
+        addressType: selectedAddressForEdit?.addressType || 'residential' as const,
+        isDefault: selectedAddressForEdit?.isDefault ?? addresses.length === 0,
         coordinates: coords || null,
       };
 
-      // Save to database using addressService
-      const created = await addressService.createAddress(user.id, addressData);
+      // Save to database using addressService (update in edit mode, create otherwise)
+      const saved = (isEditMode && selectedAddressForEdit?.id)
+        ? await addressService.updateAddress(user.id, selectedAddressForEdit.id, addressData)
+        : await addressService.createAddress(user.id, addressData);
 
-      if (created) {
+      if (saved) {
         // Format the address for display
         const formattedAddress = [
-          created.street,
-          created.barangay,
-          created.city,
-          created.province || created.region,
+          saved.street,
+          saved.barangay,
+          saved.city,
+          saved.province || saved.region,
         ].filter(Boolean).join(', ');
 
         // Create Address object for state (with camelCase fields)
-        const newAddr: Address = {
-          id: created.id,
-          label: created.label || 'Home',
-          firstName: created.firstName || '',
-          lastName: created.lastName || '',
-          phone: created.phone || '',
-          street: created.street || '',
-          barangay: created.barangay || '',
-          city: created.city || '',
-          province: created.province || '',
-          region: created.region || '',
-          zipCode: created.zipCode || '',
-          isDefault: created.isDefault || false,
+        const savedAddr: Address = {
+          id: saved.id,
+          label: saved.label || 'Home',
+          firstName: saved.firstName || '',
+          lastName: saved.lastName || '',
+          phone: saved.phone || '',
+          street: saved.street || '',
+          barangay: saved.barangay || '',
+          city: saved.city || '',
+          province: saved.province || '',
+          region: saved.region || '',
+          zipCode: saved.zipCode || '',
+          isDefault: saved.isDefault || false,
           coordinates: coords || null,
-          deliveryInstructions: created.deliveryInstructions || '',
-          landmark: created.landmark || '',
-          addressType: created.addressType || 'residential',
+          deliveryInstructions: saved.deliveryInstructions || '',
+          landmark: saved.landmark || '',
+          addressType: saved.addressType || 'residential',
         };
 
         console.log('[🔍 ADDRESS DEBUG 6] LocationModal address object created:', {
-          firstName: newAddr.firstName,
-          lastName: newAddr.lastName,
-          phone: newAddr.phone,
-          id: newAddr.id
+          firstName: savedAddr.firstName,
+          lastName: savedAddr.lastName,
+          phone: savedAddr.phone,
+          id: savedAddr.id
         });
 
         // Update local state
-        setAddresses(prev => [...prev, newAddr]);
-        console.log('[🔍 ADDRESS DEBUG 7] Addresses state updated with new address');
-        
-        setSelectedAddress(newAddr);
+        setAddresses(prev => {
+          if (isEditMode && selectedAddressForEdit?.id) {
+            return prev.map(addr => addr.id === selectedAddressForEdit.id ? savedAddr : addr);
+          }
+          return [...prev, savedAddr];
+        });
+        console.log('[🔍 ADDRESS DEBUG 7] Addresses state updated');
+
+        setSelectedAddress(savedAddr);
+        setTempSelectedAddress(savedAddr);
         console.log('[🔍 ADDRESS DEBUG 8] Selected address set to:', {
-          firstName: newAddr.firstName,
-          lastName: newAddr.lastName,
-          phone: newAddr.phone
+          firstName: savedAddr.firstName,
+          lastName: savedAddr.lastName,
+          phone: savedAddr.phone
         });
 
         // Save to AsyncStorage for HomeScreen sync
@@ -719,11 +740,26 @@ export default function CheckoutScreen({ navigation, route }: Props) {
       setIsSaving(false);
       console.log('[🔍 ADDRESS DEBUG 9] LocationModal closing, isSaving set to false');
       setShowLocationModal(false);
+      setIsEditMode(false);
+      setSelectedAddressForEdit(null);
       console.log('[🔍 ADDRESS DEBUG 10] showLocationModal set to false');
     }
-  }, [user, addresses.length]);
+  }, [user, addresses.length, isEditMode, selectedAddressForEdit]);
 
   // Legacy: Keep the old handleOpenAddressModalForAdd logic for manual form entry
+
+  // Handle editing an existing address
+  const handleEditAddress = useCallback((addr: Address) => {
+    setSelectedAddressForEdit(addr);
+    setIsEditMode(true);
+    // Close the selection modal first
+    handleCloseAddressModal();
+    // Open the LocationModal in edit mode
+    setTimeout(() => {
+      setShowLocationModal(true);
+    }, 300);
+  }, []);
+
   const handleOpenAddressFormDirect = async () => {
     // Close the selection modal first to avoid modal stacking issues
     handleCloseAddressModal();
@@ -2211,11 +2247,17 @@ export default function CheckoutScreen({ navigation, route }: Props) {
       {/* --- LOCATION MODAL (Map-First Address Flow) --- */}
       <LocationModal
         visible={showLocationModal}
-        onClose={() => setShowLocationModal(false)}
+        onClose={() => {
+          setShowLocationModal(false);
+          setIsEditMode(false);
+          setSelectedAddressForEdit(null);
+        }}
         onSelectLocation={handleLocationModalSelect}
         currentAddress={selectedAddress ? `${selectedAddress.street}, ${selectedAddress.city}` : undefined}
         initialCoordinates={selectedAddress?.coordinates || null}
         statusBarTranslucent={true}
+        editingAddress={selectedAddressForEdit}
+        isEditMode={isEditMode}
       />
 
       {/* Address Selection Modal */}
@@ -2277,22 +2319,41 @@ export default function CheckoutScreen({ navigation, route }: Props) {
                   onPress={() => setTempSelectedAddress(addr)}
                 >
                   <View style={{ flex: 1 }}>
-                    <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 4 }}>
+                    {/* Row 1: Name with Edit Button */}
+                    <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
                       <Text style={{ fontSize: 16, fontWeight: '700', color: '#111827' }}>
                         {addr.firstName} {addr.lastName}
                       </Text>
-                      {addr.isDefault && (
-                        <View style={{ backgroundColor: COLORS.primary, paddingHorizontal: 6, paddingVertical: 2, borderRadius: 4, marginLeft: 8 }}>
-                          <Text style={{ color: 'white', fontSize: 10, fontWeight: 'bold' }}>Default</Text>
-                        </View>
-                      )}
+                      <Pressable
+                        style={{
+                          width: 22,
+                          height: 22,
+                          borderRadius: 11,
+                          backgroundColor: '#FFF7ED',
+                          borderWidth: 1,
+                          borderColor: '#FED7AA',
+                          alignItems: 'center',
+                          justifyContent: 'center'
+                        }}
+                        onPress={() => handleEditAddress(addr)}
+                        hitSlop={8}
+                      >
+                        <Pencil size={12} color={COLORS.primary} />
+                      </Pressable>
                     </View>
-                    <Text style={{ fontSize: 14, color: '#6B7280', marginBottom: 2 }}>{addr.label}</Text>
-                    <Text style={{ fontSize: 13, color: '#6B7280' }}>{addr.phone}</Text>
-                    <Text style={{ fontSize: 13, color: '#6B7280', marginTop: 4 }}>
-                      {addr.street}, {addr.barangay}, {addr.city}, {addr.province}, {addr.zipCode}
+
+                    {/* Row 2: Label • Phone */}
+                    <Text style={{ fontSize: 13, color: '#6B7280', marginBottom: 4 }}>
+                      {addr.label} • {addr.phone}
+                    </Text>
+
+                    {/* Row 3: Full Address */}
+                    <Text style={{ fontSize: 13, color: '#6B7280' }}>
+                      {addr.street}, {addr.barangay}, {addr.city}, {addr.province}
                     </Text>
                   </View>
+
+                  {/* Radio Button on the right */}
                   <View style={[
                     styles.radioCircle,
                     tempSelectedAddress?.id === addr.id && styles.radioCircleSelected

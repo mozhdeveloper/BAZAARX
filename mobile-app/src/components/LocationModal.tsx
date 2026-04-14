@@ -30,6 +30,7 @@ const { height } = Dimensions.get('window');
 interface LocationDetails {
   address: string;
   coordinates: { latitude: number; longitude: number };
+  label?: string;
   street?: string;
   barangay?: string;
   city?: string;
@@ -50,6 +51,24 @@ interface LocationModalProps {
   currentAddress?: string;
   initialCoordinates?: { latitude: number; longitude: number } | null;
   statusBarTranslucent?: boolean;
+  editingAddress?: {
+    id: string;
+    firstName: string;
+    lastName: string;
+    phone: string;
+    street: string;
+    barangay: string;
+    city: string;
+    province: string;
+    region: string;
+    zipCode: string;
+    label: string;
+    landmark?: string | null;
+    deliveryInstructions?: string | null;
+    coordinates?: { latitude: number; longitude: number } | null;
+  } | null;
+  isEditMode?: boolean;
+  onEditComplete?: (updatedAddress: any) => void;
 }
 
 export default function LocationModal({
@@ -59,6 +78,9 @@ export default function LocationModal({
   currentAddress,
   initialCoordinates,
   statusBarTranslucent,
+  editingAddress = null,
+  isEditMode = false,
+  onEditComplete,
 }: LocationModalProps) {
   const insets = useSafeAreaInsets();
   const { user } = useAuthStore();
@@ -149,6 +171,38 @@ export default function LocationModal({
     // Load/refresh saved addresses when modal opens
     loadSavedAddresses(user.id);
   }, [user, visible]);
+
+  // Handle edit mode - pre-fill the form with editing address data
+  useEffect(() => {
+    if (isEditMode && editingAddress && visible) {
+      setFormAddress({
+        firstName: editingAddress.firstName || '',
+        lastName: editingAddress.lastName || '',
+        phone: editingAddress.phone || '',
+        street: editingAddress.street || '',
+        barangay: editingAddress.barangay || '',
+        city: editingAddress.city || '',
+        province: editingAddress.province || '',
+        region: editingAddress.region || '',
+        postalCode: editingAddress.zipCode || '',
+        label: editingAddress.label || 'Home',
+        landmark: editingAddress.landmark || '',
+        deliveryInstructions: editingAddress.deliveryInstructions || '',
+      });
+      // Start directly on form step in edit mode
+      setCurrentStep('form');
+      // If coordinates exist, set them
+      if (editingAddress.coordinates) {
+        const newRegion = {
+          latitude: editingAddress.coordinates.latitude,
+          longitude: editingAddress.coordinates.longitude,
+          latitudeDelta: 0.005,
+          longitudeDelta: 0.005,
+        };
+        setRegion(newRegion);
+      }
+    }
+  }, [isEditMode, editingAddress, visible]);
 
   // Map saved addresses for display (keep existing format)
   useEffect(() => {
@@ -498,6 +552,7 @@ export default function LocationModal({
     const finalDetails: LocationDetails = {
       address: finalAddress,
       coordinates: coords,
+      label: formAddress.label,
       street: formAddress.street,
       barangay: formAddress.barangay,
       city: formAddress.city,
