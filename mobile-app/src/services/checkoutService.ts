@@ -226,12 +226,20 @@ export const processCheckout = async (payload: CheckoutPayload): Promise<Checkou
             if (existingAddr) {
                 addressData = existingAddr;
             } else {
+                // Extract first and last name from fullName
+                const nameParts = (shippingAddress.fullName || '').trim().split(' ');
+                const firstName = nameParts[0] || '';
+                const lastName = nameParts.slice(1).join(' ') || '';
+
                 const { data: newAddr, error: addressError } = await supabase
                     .from('shipping_addresses')
                     .insert({
                         user_id: userId,
                         label: 'Checkout Address',
                         address_line_1: addressLine1,
+                        first_name: firstName,
+                        last_name: lastName,
+                        phone_number: shippingAddress.phone || '',
                         barangay: shippingAddress.barangay || '',
                         city: shippingAddress.city || 'Manila',
                         province: shippingAddress.province || 'Metro Manila',

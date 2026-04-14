@@ -711,8 +711,11 @@ export default function HomeScreen({ navigation }: Props) {
               onChangeText={setSearchQuery}
               onFocus={() => setIsSearchFocused(true)}
               onSubmitEditing={() => {
-                if (searchQuery.trim()) {
-                  saveRecentSearch(searchQuery);
+                const trimmedQuery = searchQuery.trim();
+                if (trimmedQuery) {
+                  saveRecentSearch(trimmedQuery);
+                  setIsSearchFocused(false);
+                  navigation.navigate('ProductListing', { searchQuery: trimmedQuery });
                 }
               }}
             />
@@ -752,8 +755,9 @@ export default function HomeScreen({ navigation }: Props) {
                     key={i}
                     style={styles.searchRecentItem}
                     onPress={() => {
-                      setSearchQuery(term);
-                      saveRecentSearch(term); // Move to top
+                      saveRecentSearch(term);
+                      setIsSearchFocused(false);
+                      navigation.navigate('ProductListing', { searchQuery: term });
                     }}
                   >
                     <Clock size={16} color="#9CA3AF" />

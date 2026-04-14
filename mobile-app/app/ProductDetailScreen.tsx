@@ -671,7 +671,7 @@ export default function ProductDetailScreen({ route, navigation }: Props) {
   };
 
   // Handle variant modal confirm
-  const handleVariantModalConfirm = () => {
+  const handleVariantModalConfirm = async () => {
     // Validate that required variants are selected
     if (hasOption1 && !modalSelectedOption1) {
       Alert.alert(`Select ${finalVariantLabel1}`, `Please select a ${finalVariantLabel1.toLowerCase()} before continuing`);
@@ -697,7 +697,7 @@ export default function ProductDetailScreen({ route, navigation }: Props) {
     }
 
     if (variantModalAction === 'cart') {
-      addItem({
+      const addItemResult = await addItem({
         ...product,
         price: variantPrice,
         selectedVariant: {
@@ -717,13 +717,17 @@ export default function ProductDetailScreen({ route, navigation }: Props) {
       }
       const variantText = variantParts.length > 0 ? ` (${variantParts.join(', ')})` : '';
 
-      setTimeout(() => {
-        setAddedProductInfo({
-          name: `${product.name}${variantText}`,
-          image: matchedVariant?.thumbnail_url || productImages[0] || product.image
-        });
-        setShowAddedToCartModal(true);
-      }, 300);
+      if (addItemResult) {
+        setTimeout(() => {
+          setAddedProductInfo({
+            name: `${product.name}${variantText}`,
+            image: matchedVariant?.thumbnail_url || productImages[0] || product.image
+          });
+          setShowAddedToCartModal(true);
+        }, 300);
+      } else {
+        Alert.alert('Unable to Add', useCartStore.getState().error || 'Unable to add item.');
+      }
       return;
     } else {
       setQuickOrder({
@@ -745,7 +749,7 @@ export default function ProductDetailScreen({ route, navigation }: Props) {
   };
 
   // NEW Handle Confirm from Shared Modal
-  const handleSharedModalConfirm = (
+  const handleSharedModalConfirm = async (
     selectedVariant: {
       option1Value?: string;
       option2Value?: string;
@@ -765,35 +769,43 @@ export default function ProductDetailScreen({ route, navigation }: Props) {
     const discountedPrice = discountService.calculateLineDiscount(variantPrice || 0, 1, activeCampaignDiscount).discountedUnitPrice;
 
     if (variantModalAction === 'cart') {
-      addItem({
+      const addItemResult = await addItem({
         ...product,
+        originalPrice: variantPrice || 0,
         price: discountedPrice,
+        activeCampaignDiscount: activeCampaignDiscount || undefined,
         selectedVariant: {
           ...variantObj,
           variantId,
         },
         quantity: newQuantity
-      });
+      } as any);
 
-      // Show Added Modal after exit animation completes
-      setTimeout(() => {
-        const variantText = [selectedVariant.option1Value, selectedVariant.option2Value].filter(Boolean).join(', ');
-        setAddedProductInfo({
-          name: `${product.name}${variantText ? ` (${variantText})` : ''}`,
-          image: selectedVariant.image || productImages[0] || product.image || ''
-        });
-        setShowAddedToCartModal(true);
-      }, 300);
+      if (addItemResult) {
+        // Show Added Modal after exit animation completes
+        setTimeout(() => {
+          const variantText = [selectedVariant.option1Value, selectedVariant.option2Value].filter(Boolean).join(', ');
+          setAddedProductInfo({
+            name: `${product.name}${variantText ? ` (${variantText})` : ''}`,
+            image: selectedVariant.image || productImages[0] || product.image || ''
+          });
+          setShowAddedToCartModal(true);
+        }, 300);
+      } else {
+        Alert.alert('Unable to Add', useCartStore.getState().error || 'Unable to add item.');
+      }
 
     } else {
       setQuickOrder({
         ...product,
+        originalPrice: variantPrice || 0,
         price: discountedPrice,
+        activeCampaignDiscount: activeCampaignDiscount || undefined,
         selectedVariant: {
           ...variantObj,
           variantId,
         },
-      }, newQuantity);
+      } as any, newQuantity);
       navigation.navigate('Checkout', {});
     }
 
@@ -803,7 +815,7 @@ export default function ProductDetailScreen({ route, navigation }: Props) {
     setQuantity(newQuantity);
   };
 
-  const handleAddToCart = useCallback(() => {
+  const handleAddToCart = useCallback(async () => {
     if (hasVariants) {
       openVariantModal('cart');
       return;
@@ -832,24 +844,33 @@ export default function ProductDetailScreen({ route, navigation }: Props) {
 
     const discountedPrice = discountService.calculateLineDiscount(product.price || 0, 1, activeCampaignDiscount).discountedUnitPrice;
 
-    // Add to cart
-    addItem({
-      ...product,
-      price: discountedPrice,
-      selectedVariant,
-      quantity
-    });
+    try {
+      // Add to cart with discount info embedded so it persists in the cart
+      const addItemResult = await addItem({
+        ...product,
+        originalPrice: product.price || 0,
+        price: discountedPrice,
+        activeCampaignDiscount: activeCampaignDiscount || undefined,
+        selectedVariant,
+        quantity
+      } as any);
 
-    const variantText = selectedVariant
-      ? ` (${[selectedVariant.color, selectedVariant.size].filter(Boolean).join(', ')})`
-      : '';
+      if (addItemResult) {
+        const variantText = selectedVariant
+          ? ` (${[selectedVariant.color, selectedVariant.size].filter(Boolean).join(', ')})`
+          : '';
 
-    // Show Added to Cart Modal
-    setAddedProductInfo({
-      name: `${product.name}${variantText}`,
-      image: productImages[0] || product.image || ''
-    });
-    setShowAddedToCartModal(true);
+        setAddedProductInfo({
+          name: `${product.name}${variantText}`,
+          image: productImages[0] || product.image || ''
+        });
+        setShowAddedToCartModal(true);
+      } else {
+        Alert.alert('Unable to add to cart', useCartStore.getState().error || 'This item is no longer available.');
+      }
+    } catch {
+      Alert.alert('Unable to add to cart', useCartStore.getState().error || 'This item is no longer available.');
+    }
   }, [hasVariants, isGuest, product, quantity, activeCampaignDiscount, productImages, addItem]);
 
   const handleBuyNow = useCallback(() => {
@@ -876,8 +897,14 @@ export default function ProductDetailScreen({ route, navigation }: Props) {
 
     const discountedPrice = discountService.calculateLineDiscount(product.price || 0, 1, activeCampaignDiscount).discountedUnitPrice;
 
-    // Set quick order with variant info
-    setQuickOrder({ ...product, price: discountedPrice, selectedVariant }, quantity);
+    // Set quick order with variant info and discount embedded
+    setQuickOrder({
+      ...product,
+      originalPrice: product.price || 0,
+      price: discountedPrice,
+      activeCampaignDiscount: activeCampaignDiscount || undefined,
+      selectedVariant
+    } as any, quantity);
     navigation.navigate('Checkout', {});
   }, [hasVariants, isGuest, product, quantity, activeCampaignDiscount, selectedColor, selectedSize, navigation, setQuickOrder]);
 

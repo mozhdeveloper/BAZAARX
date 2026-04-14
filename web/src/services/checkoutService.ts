@@ -157,10 +157,19 @@ export class CheckoutService {
                     .eq('postal_code', shippingAddress.postalCode || '')
                     .maybeSingle();
                 if (existingAddr) return existingAddr.id;
+                
+                // Extract first and last name from fullName
+                const nameParts = (shippingAddress.fullName || '').trim().split(' ');
+                const firstName = nameParts[0] || '';
+                const lastName = nameParts.slice(1).join(' ') || '';
+                
                 const { data: addressData } = await supabase.from('shipping_addresses').insert({
                     user_id: userId,
                     label: 'Order Address',
                     address_line_1: shippingAddress.street || '',
+                    first_name: firstName,
+                    last_name: lastName,
+                    phone_number: shippingAddress.phone || '',
                     city: shippingAddress.city || '',
                     province: shippingAddress.province || '',
                     region: shippingAddress.province || '',
