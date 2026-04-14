@@ -26,13 +26,14 @@ import {
   Send,
   ImageIcon,
   Paperclip,
+  ChevronRight,
   Ticket,
   X,
   MessageSquare,
   FileText,
   Play,
 } from 'lucide-react-native';
-import { Alert } from 'react-native';
+import { Alert, Keyboard } from 'react-native';
 import { chatService, Conversation as ChatConversation, Message as ChatMessage } from '../../src/services/chatService';
 import { getMimeFromExtension, CHAT_MEDIA_LIMITS, ALL_PLACEHOLDERS, MEDIA_PLACEHOLDER_MAP, extractFileName, type ChatMediaType } from '../../src/utils/chatMediaUtils';
 import { formatDateLabel, formatMessageTimestamp } from '../../src/utils/chatDateUtils';
@@ -118,6 +119,33 @@ export default function MessagesScreen() {
   const [sendPreviewAsset, setSendPreviewAsset] = useState<SendPreviewAsset | null>(null);
   const [sendPreviewVisible, setSendPreviewVisible] = useState(false);
   const pendingUpload = useRef<{ base64: string; fileName: string; mime: string; mediaType: ChatMediaType } | null>(null);
+
+  // Attachment panel — auto-hides when typing, expand-only chevron
+  const [showAttachments, setShowAttachments] = useState(true);
+
+  const handleInputChange = (text: string) => {
+    setNewMessage(text);
+    if (text.length > 0 && showAttachments) setShowAttachments(false);
+    if (text.length === 0) setShowAttachments(true);
+  };
+
+  // Smooth keyboard padding animation
+  const bottomPadAnim = useRef(new Animated.Value(Math.max(insets.bottom, 8))).current;
+  useEffect(() => {
+    const onShow = () => Animated.timing(bottomPadAnim, {
+      toValue: 8, duration: 220, useNativeDriver: false,
+    }).start();
+    const onHide = () => Animated.timing(bottomPadAnim, {
+      toValue: Math.max(insets.bottom, 8), duration: 220, useNativeDriver: false,
+    }).start();
+    const show = Keyboard.addListener(
+      Platform.OS === 'ios' ? 'keyboardWillShow' : 'keyboardDidShow', onShow
+    );
+    const hide = Keyboard.addListener(
+      Platform.OS === 'ios' ? 'keyboardWillHide' : 'keyboardDidHide', onHide
+    );
+    return () => { show.remove(); hide.remove(); };
+  }, []);
 
   // Load real conversations from database
   const loadConversations = useCallback(async () => {
@@ -391,9 +419,12 @@ export default function MessagesScreen() {
 
     const base64 = await FileSystem.readAsStringAsync(asset.uri, { encoding: 'base64' });
     const fileName = asset.name || `${Date.now()}.pdf`;
+    // Write to temp file so WebView can render natively
+    const tempUri = `${FileSystem.cacheDirectory}sendpreview_${Date.now()}.pdf`;
+    await FileSystem.writeAsStringAsync(tempUri, base64, { encoding: 'base64' });
     pendingUpload.current = { base64, fileName, mime: 'application/pdf', mediaType: 'document' };
     setSendPreviewAsset({
-      uri: asset.uri,
+      uri: tempUri,
       name: fileName,
       type: 'document',
       size: asset.size ?? undefined,
@@ -745,19 +776,30 @@ export default function MessagesScreen() {
       />
 
       {/* Input Area */}
-      <View style={[styles.inputContainer, { paddingBottom: insets.bottom + 8 }]}>
-        <Pressable onPress={pickMedia} style={styles.attachButton} disabled={uploading}>
-          {uploading ? <ActivityIndicator size="small" color="#D97706" /> : <ImageIcon size={20} color="#6B7280" strokeWidth={2} />}
-        </Pressable>
-        <Pressable onPress={pickDocument} style={styles.attachButton} disabled={uploading}>
-          <Paperclip size={20} color="#6B7280" strokeWidth={2} />
-        </Pressable>
+      <Animated.View style={[styles.inputContainer, { paddingBottom: bottomPadAnim }]}>
+        {/* Expand toggle — only shown when attachment icons are hidden */}
+        {!showAttachments && (
+          <Pressable onPress={() => setShowAttachments(true)} style={styles.attachButton}>
+            <ChevronRight size={20} color="#6B7280" strokeWidth={2} />
+          </Pressable>
+        )}
+        {/* Attachment icons */}
+        {showAttachments && (
+          <>
+            <Pressable onPress={pickMedia} style={styles.attachButton} disabled={uploading}>
+              {uploading ? <ActivityIndicator size="small" color="#D97706" /> : <ImageIcon size={20} color="#6B7280" strokeWidth={2} />}
+            </Pressable>
+            <Pressable onPress={pickDocument} style={styles.attachButton} disabled={uploading}>
+              <Paperclip size={20} color="#6B7280" strokeWidth={2} />
+            </Pressable>
+          </>
+        )}
         <TextInput
           style={styles.messageInput}
           placeholder="Type a message..."
           placeholderTextColor="#9CA3AF"
           value={newMessage}
-          onChangeText={setNewMessage}
+          onChangeText={handleInputChange}
           multiline
         />
         <Pressable
@@ -767,7 +809,7 @@ export default function MessagesScreen() {
         >
           <Send size={18} color="#FFFFFF" strokeWidth={2.5} />
         </Pressable>
-      </View>
+      </Animated.View>
 
       {/* Media preview modal */}
       <ChatMediaPreviewModal
@@ -1074,11 +1116,13 @@ const styles = StyleSheet.create({
   messageInput: {
     flex: 1,
     backgroundColor: '#F3F4F6',
-    borderRadius: 20,
-    paddingHorizontal: 16,
-    paddingVertical: 10,
+    borderRadius: 22,
+    paddingHorizontal: 14,
+    paddingTop: 10,
+    paddingBottom: 4,
     fontSize: 14,
-    maxHeight: 100,
+    maxHeight: 130,
+    minHeight: 40,
   },
   sendButton: {
     width: 40,

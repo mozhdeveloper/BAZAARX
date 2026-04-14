@@ -32,49 +32,6 @@ interface ChatSendPreviewModalProps {
   uploading: boolean;
 }
 
-/** Generates a self-contained HTML page that fetches a local PDF by URI and renders
- *  it with PDF.js. Used on Android where WebView cannot render PDFs natively.
- *  Requires allowFileAccess + allowFileAccessFromFileURLs on the WebView. */
-const pdfJsHtml = (fileUri: string) => `<!DOCTYPE html>
-<html><head>
-  <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"><\/script>
-  <style>
-    *{margin:0;padding:0;box-sizing:border-box}
-    html,body{background:#111827;overflow-y:auto;-webkit-overflow-scrolling:touch}
-    canvas{display:block;width:100%!important;height:auto!important;margin-bottom:3px}
-    #status{color:#9ca3af;font:14px/2 system-ui;text-align:center;padding:50px 20px}
-  </style>
-</head><body>
-  <div id="status">Loading PDF\u2026</div>
-  <div id="out"></div>
-  <script>
-    pdfjsLib.GlobalWorkerOptions.workerSrc=
-      'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
-    fetch('${fileUri}')
-      .then(function(r){ return r.arrayBuffer(); })
-      .then(function(buf){
-        return pdfjsLib.getDocument({ data: new Uint8Array(buf) }).promise;
-      })
-      .then(function(pdf){
-        document.getElementById('status').remove();
-        var out=document.getElementById('out'),w=window.innerWidth;
-        for(var n=1;n<=pdf.numPages;n++)(function(pn){
-          pdf.getPage(pn).then(function(page){
-            var vp=page.getViewport({scale:w/page.getViewport({scale:1}).width});
-            var c=document.createElement('canvas');
-            c.width=vp.width;c.height=vp.height;
-            out.appendChild(c);
-            page.render({canvasContext:c.getContext('2d'),viewport:vp});
-          });
-        })(n);
-      })
-      .catch(function(e){
-        document.getElementById('status').textContent='Preview unavailable: '+e.message;
-      });
-  <\/script>
-</body></html>`;
 
 const formatFileSize = (bytes?: number) => {
   if (!bytes) return '';
@@ -148,40 +105,26 @@ export default function ChatSendPreviewModal({
       );
     }
 
-    // ── Document — iOS renders PDF natively from file URI; Android uses PDF.js via fetch ──
-    return Platform.OS === 'ios' ? (
-      <WebView
-        source={{ uri: asset.uri }}
-        style={{ flex: 1 }}
-        originWhitelist={['*', 'file://*']}
-        allowFileAccess
-        startInLoadingState
-        renderLoading={() => (
-          <View style={styles.pdfCard}>
-            <ActivityIndicator size="large" color="#EF4444" />
-            <Text style={[styles.pdfCardHint, { marginTop: 12 }]}>Loading PDF…</Text>
-          </View>
-        )}
-      />
-    ) : (
-      <WebView
-        source={{ html: pdfJsHtml(asset.uri), baseUrl: 'file:///' }}
-        style={{ flex: 1 }}
-        originWhitelist={['*']}
-        javaScriptEnabled
-        allowFileAccess
-        allowFileAccessFromFileURLs
-        allowUniversalAccessFromFileURLs
-        scrollEnabled
-        showsVerticalScrollIndicator={false}
-        startInLoadingState
-        renderLoading={() => (
-          <View style={styles.pdfCard}>
-            <ActivityIndicator size="large" color="#EF4444" />
-            <Text style={[styles.pdfCardHint, { marginTop: 12 }]}>Rendering PDF…</Text>
-          </View>
-        )}
-      />
+    // ── Document — wrap in full-width container (body has alignItems:'center'
+    //    which collapses WebView to 0 width without an explicit width) ──
+    return (
+      <View style={{ flex: 1, width: SCREEN_W }}>
+        <WebView
+          source={{ uri: asset.uri }}
+          style={{ flex: 1 }}
+          allowFileAccess={true}
+          allowFileAccessFromFileURLs={true}
+          allowUniversalAccessFromFileURLs={true}
+          originWhitelist={['*']}
+          startInLoadingState
+          renderLoading={() => (
+            <View style={styles.pdfCard}>
+              <ActivityIndicator size="large" color="#EF4444" />
+              <Text style={[styles.pdfCardHint, { marginTop: 12 }]}>Loading PDF…</Text>
+            </View>
+          )}
+        />
+      </View>
     );
   };
 

@@ -2,10 +2,10 @@ import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react'
 import {
   View, Text, StyleSheet, TextInput, Pressable, FlatList,
   KeyboardAvoidingView, Platform, ActivityIndicator, Image, ListRenderItemInfo,
-  Alert, Linking, Dimensions,
+  Alert, Linking, Dimensions, Keyboard, Animated,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { ChevronLeft, Send, Store, User, Ticket, ImageIcon, FileText, Play, Paperclip } from 'lucide-react-native';
+import { ChevronLeft, Send, Store, User, Ticket, ImageIcon, FileText, Play, Paperclip, ChevronRight } from 'lucide-react-native';
 import { useNavigation, useRoute } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { COLORS } from '../constants/theme';
@@ -62,6 +62,33 @@ export default function ChatScreen({ conversation, currentUserId, userType, onBa
   const [sendPreviewVisible, setSendPreviewVisible] = useState(false);
   // Holds the raw base64 + metadata for the selected file until user confirms send
   const pendingUpload = useRef<{ base64: string; fileName: string; mime: string; mediaType: ChatMediaType } | null>(null);
+
+  // Attachment panel: shown by default, auto-hides when user starts typing
+  const [showAttachments, setShowAttachments] = useState(true);
+
+  // Track keyboard visibility with smooth animation
+  const bottomPadAnim = useRef(new Animated.Value(Math.max(insets.bottom, 12))).current;
+  useEffect(() => {
+    const onShow = () => Animated.timing(bottomPadAnim, {
+      toValue: 8, duration: 220, useNativeDriver: false,
+    }).start();
+    const onHide = () => Animated.timing(bottomPadAnim, {
+      toValue: Math.max(insets.bottom, 12), duration: 220, useNativeDriver: false,
+    }).start();
+    const show = Keyboard.addListener(
+      Platform.OS === 'ios' ? 'keyboardWillShow' : 'keyboardDidShow', onShow
+    );
+    const hide = Keyboard.addListener(
+      Platform.OS === 'ios' ? 'keyboardWillHide' : 'keyboardDidHide', onHide
+    );
+    return () => { show.remove(); hide.remove(); };
+  }, []);
+
+  const handleInputChange = (text: string) => {
+    setNewMessage(text);
+    if (text.length > 0 && showAttachments) setShowAttachments(false);
+    if (text.length === 0) setShowAttachments(true);
+  };
 
   // ─── Build flat data array for inverted FlatList ──────────────────────────
   const listData = useMemo((): ListItem[] => {
@@ -231,9 +258,12 @@ export default function ChatScreen({ conversation, currentUserId, userType, onBa
 
     const base64 = await FileSystem.readAsStringAsync(asset.uri, { encoding: 'base64' });
     const fileName = asset.name || `${Date.now()}.pdf`;
+    // Write to a temp file so WebView can render it natively (avoids base64 string injection issues)
+    const tempUri = `${FileSystem.cacheDirectory}sendpreview_${Date.now()}.pdf`;
+    await FileSystem.writeAsStringAsync(tempUri, base64, { encoding: 'base64' });
     pendingUpload.current = { base64, fileName, mime: 'application/pdf', mediaType: 'document' };
     setSendPreviewAsset({
-      uri: asset.uri,
+      uri: tempUri,  // ← temp file URI, not original asset.uri
       name: fileName,
       type: 'document',
       size: asset.size ?? undefined,
@@ -461,20 +491,37 @@ export default function ChatScreen({ conversation, currentUserId, userType, onBa
         />
       )}
 
-      <View style={[styles.inputContainer, { paddingBottom: Math.max(insets.bottom, 12) }]}>
+      <Animated.View style={[styles.inputContainer, { paddingBottom: bottomPadAnim }]}>
         <View style={styles.inputBar}>
-          <Pressable onPress={pickMedia} style={styles.attachButton} disabled={uploading}>
-            {uploading ? <ActivityIndicator size="small" color={COLORS.primary} /> : <ImageIcon size={22} color="#9CA3AF" />}
-          </Pressable>
-          <Pressable onPress={pickDocument} style={styles.attachButton} disabled={uploading}>
-            <Paperclip size={22} color="#9CA3AF" />
-          </Pressable>
-          <TextInput style={styles.input} value={newMessage} onChangeText={setNewMessage} placeholder="Type a message..." multiline />
+          {/* Expand toggle — only shown when attachment icons are hidden */}
+          {!showAttachments && (
+            <Pressable onPress={() => setShowAttachments(true)} style={styles.attachButton}>
+              <ChevronRight size={22} color="#9CA3AF" />
+            </Pressable>
+          )}
+          {/* Attachment icons */}
+          {showAttachments && (
+            <>
+              <Pressable onPress={pickMedia} style={styles.attachButton} disabled={uploading}>
+                {uploading ? <ActivityIndicator size="small" color={COLORS.primary} /> : <ImageIcon size={22} color="#9CA3AF" />}
+              </Pressable>
+              <Pressable onPress={pickDocument} style={styles.attachButton} disabled={uploading}>
+                <Paperclip size={22} color="#9CA3AF" />
+              </Pressable>
+            </>
+          )}
+          <TextInput
+            style={styles.input}
+            value={newMessage}
+            onChangeText={handleInputChange}
+            placeholder="Type a message..."
+            multiline
+          />
           <Pressable onPress={() => handleSend()} style={[styles.sendButton, (!newMessage.trim() || uploading) && styles.sendButtonDisabled]} disabled={!newMessage.trim() || uploading}>
             <Send size={20} color="#FFFFFF" strokeWidth={2.5} />
           </Pressable>
         </View>
-      </View>
+      </Animated.View>
 
       {/* Media preview modal */}
       <ChatMediaPreviewModal
@@ -539,7 +586,18 @@ const styles = StyleSheet.create({
   dateSepText: { marginHorizontal: 10, fontSize: 11, fontWeight: '600', color: '#9CA3AF', textTransform: 'uppercase', letterSpacing: 0.5 },
   inputContainer: { backgroundColor: '#FFFFFF', paddingHorizontal: 16, paddingTop: 12 },
   inputBar: { flexDirection: 'row', alignItems: 'flex-end', gap: 12 },
-  input: { flex: 1, backgroundColor: '#F2F2F2', borderRadius: 999, paddingHorizontal: 20, paddingVertical: 12, fontSize: 15, color: '#1F2937' },
+  input: {
+    flex: 1,
+    backgroundColor: '#F2F2F2',
+    borderRadius: 22,
+    paddingHorizontal: 14,
+    paddingTop: 10,
+    paddingBottom: 4,
+    fontSize: 15,
+    color: '#1F2937',
+    maxHeight: 120,
+    minHeight: 40,
+  },
   sendButton: { width: 44, height: 44, borderRadius: 22, backgroundColor: COLORS.primary, justifyContent: 'center', alignItems: 'center' },
   sendButtonDisabled: { backgroundColor: '#E5E7EB' },
   attachButton: { width: 40, height: 40, borderRadius: 20, justifyContent: 'center', alignItems: 'center' },

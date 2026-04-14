@@ -16,8 +16,9 @@ import {
     Image,
     Linking,
     Alert,
+    Keyboard,
 } from 'react-native';
-import { ChevronLeft, Send, MoreVertical, Store, Ticket, FileText, Play, ImageIcon, Paperclip } from 'lucide-react-native';
+import { ChevronLeft, Send, MoreVertical, Store, Ticket, FileText, Play, ImageIcon, Paperclip, ChevronRight } from 'lucide-react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { COLORS } from '../constants/theme';
 import { useNavigation } from '@react-navigation/native';
@@ -82,6 +83,33 @@ export default function StoreChatModal({ visible, onClose, storeName, sellerId }
     const [sendPreviewAsset, setSendPreviewAsset] = useState<SendPreviewAsset | null>(null);
     const [sendPreviewVisible, setSendPreviewVisible] = useState(false);
     const pendingUpload = useRef<{ base64: string; fileName: string; mime: string; mediaType: ChatMediaType } | null>(null);
+
+    // Attachment panel: shown by default, auto-hides when user starts typing
+    const [showAttachments, setShowAttachments] = useState(true);
+
+    // Track keyboard visibility with smooth animation
+    const bottomPadAnim = useRef(new Animated.Value(insets.bottom + 12)).current;
+    useEffect(() => {
+        const onShow = () => Animated.timing(bottomPadAnim, {
+            toValue: 8, duration: 220, useNativeDriver: false,
+        }).start();
+        const onHide = () => Animated.timing(bottomPadAnim, {
+            toValue: insets.bottom + 12, duration: 220, useNativeDriver: false,
+        }).start();
+        const show = Keyboard.addListener(
+            Platform.OS === 'ios' ? 'keyboardWillShow' : 'keyboardDidShow', onShow
+        );
+        const hide = Keyboard.addListener(
+            Platform.OS === 'ios' ? 'keyboardWillHide' : 'keyboardDidHide', onHide
+        );
+        return () => { show.remove(); hide.remove(); };
+    }, []);
+
+    const handleInputChange = (text: string) => {
+        setInputText(text);
+        if (text.length > 0 && showAttachments) setShowAttachments(false);
+        if (text.length === 0) setShowAttachments(true);
+    };
 
     // Load real conversation if sellerId is provided
     const loadConversation = useCallback(async () => {
@@ -284,9 +312,12 @@ export default function StoreChatModal({ visible, onClose, storeName, sellerId }
 
         const base64 = await FileSystem.readAsStringAsync(asset.uri, { encoding: 'base64' });
         const fileName = asset.name || `${Date.now()}.pdf`;
+        // Write to a temp file so WebView can render it natively
+        const tempUri = `${FileSystem.cacheDirectory}sendpreview_${Date.now()}.pdf`;
+        await FileSystem.writeAsStringAsync(tempUri, base64, { encoding: 'base64' });
         pendingUpload.current = { base64, fileName, mime: 'application/pdf', mediaType: 'document' };
         setSendPreviewAsset({
-            uri: asset.uri,
+            uri: tempUri,  // ← temp file URI
             name: fileName,
             type: 'document',
             size: asset.size ?? undefined,
@@ -566,18 +597,32 @@ export default function StoreChatModal({ visible, onClose, storeName, sellerId }
                         )}
 
                         {/* Input Area */}
-                        <View style={[styles.inputContainer, { paddingBottom: insets.bottom + 12 }]}>
+                        <Animated.View style={[styles.inputContainer, { paddingBottom: bottomPadAnim }]}>
                             <View style={styles.inputBar}>
-                                <Pressable onPress={pickMedia} style={styles.attachButton} disabled={uploading}>
-                                    {uploading ? <ActivityIndicator size="small" color={COLORS.primary} /> : <ImageIcon size={22} color="#9CA3AF" />}
-                                </Pressable>
-                                <Pressable onPress={pickDocument} style={styles.attachButton} disabled={uploading}>
-                                    <Paperclip size={22} color="#9CA3AF" />
-                                </Pressable>
+                                {/* Expand toggle — only shown when attachment icons are hidden */}
+                                {!showAttachments && (
+                                    <Pressable
+                                        onPress={() => setShowAttachments(true)}
+                                        style={styles.attachButton}
+                                    >
+                                        <ChevronRight size={22} color="#9CA3AF" />
+                                    </Pressable>
+                                )}
+                                {/* Attachment icons — only shown when expanded */}
+                                {showAttachments && (
+                                    <>
+                                        <Pressable onPress={pickMedia} style={styles.attachButton} disabled={uploading}>
+                                            {uploading ? <ActivityIndicator size="small" color={COLORS.primary} /> : <ImageIcon size={22} color="#9CA3AF" />}
+                                        </Pressable>
+                                        <Pressable onPress={pickDocument} style={styles.attachButton} disabled={uploading}>
+                                            <Paperclip size={22} color="#9CA3AF" />
+                                        </Pressable>
+                                    </>
+                                )}
                                 <TextInput
                                     style={styles.input}
                                     value={inputText}
-                                    onChangeText={setInputText}
+                                    onChangeText={handleInputChange}
                                     placeholder="Type a message..."
                                     placeholderTextColor="#9CA3AF"
                                     multiline
@@ -594,7 +639,7 @@ export default function StoreChatModal({ visible, onClose, storeName, sellerId }
                                     <Send size={20} color="#FFFFFF" strokeWidth={2.5} />
                                 </Pressable>
                             </View>
-                        </View>
+                        </Animated.View>
                     </KeyboardAvoidingView>
                 </Animated.View>
             </View>
@@ -799,12 +844,14 @@ const styles = StyleSheet.create({
     input: {
         flex: 1,
         backgroundColor: '#F3F4F6',
-        borderRadius: 24,
-        paddingHorizontal: 16,
-        paddingVertical: 10,
+        borderRadius: 22,
+        paddingHorizontal: 14,
+        paddingTop: 10,
+        paddingBottom: 4,
         fontSize: 15,
         color: '#1F2937',
-        maxHeight: 100,
+        maxHeight: 130,
+        minHeight: 40,
     },
     sendButton: {
         width: 44,
