@@ -98,6 +98,204 @@ export class ProductService {
   }
 
   /**
+   * Enhanced search that supports category and seller name matching
+   * Uses intelligent ranking to ensure relevant results
+   */
+  async searchProducts(searchQuery: string, options?: { limit?: number; offset?: number }): Promise<ProductWithSeller[]> {
+    if (!isSupabaseConfigured()) {
+      console.warn('Supabase not configured - cannot search products');
+      return [];
+    }
+
+    const trimmedQuery = searchQuery.trim();
+    if (!trimmedQuery) return [];
+
+    const limit = options?.limit || 30;
+    const offset = options?.offset || 0;
+
+    try {
+      // Phase 1: Find matching categories
+      const { data: matchingCategories } = await supabase
+        .from('categories')
+        .select('id')
+        .or(`name.ilike.%${trimmedQuery}%,slug.ilike.%${trimmedQuery}%`);
+
+      const categoryIds = matchingCategories?.map(c => c.id) || [];
+
+      // Phase 2: Find matching sellers
+      const { data: matchingSellers } = await supabase
+        .from('sellers')
+        .select('id')
+        .ilike('store_name', `%${trimmedQuery}%`);
+
+      const sellerIds = matchingSellers?.map(s => s.id) || [];
+
+      console.log('[ProductService] Search query:', trimmedQuery, 'Category matches:', categoryIds.length, 'Seller matches:', sellerIds.length);
+
+      // Phase 3: Fetch products - ONLY those matching name/description
+      // We DON'T use OR with category/seller IDs directly to avoid returning irrelevant products
+      // Instead, we fetch products that match the search query in name/description
+      let query = supabase
+        .from('products')
+        .select(`
+          id,
+          name,
+          description,
+          price,
+          seller_id,
+          category_id,
+          approval_status,
+          disabled_at,
+          deleted_at,
+          created_at,
+          updated_at,
+          variant_label_1,
+          variant_label_2,
+          is_free_shipping,
+          weight,
+          category:categories!products_category_id_fkey (
+            id, name, slug, parent_id, is_active
+          ),
+          images:product_images (id, image_url, alt_text, sort_order, is_primary),
+          variants:product_variants (id, sku, variant_name, size, color, option_1_value, option_2_value, price, stock, thumbnail_url),
+          reviews (id, rating),
+          seller:sellers!products_seller_id_fkey (id, store_name, approval_status, avatar_url),
+          product_discounts (id, discount_type, discount_value, sold_count, campaign:discount_campaigns (id, badge_text, badge_color, discount_type, discount_value, max_discount_amount, ends_at, status, starts_at))
+        `)
+        .is('deleted_at', null)
+        .eq('category.is_active', true)
+        .order('created_at', { ascending: false });
+
+      // Search in product name and description ONLY at database level
+      const searchPattern = `%${trimmedQuery}%`;
+      query = query.or(`name.ilike.${searchPattern},description.ilike.${searchPattern}`);
+
+      query = query.limit(limit).range(offset, offset + limit - 1);
+
+      const { data, error } = await query;
+
+      if (error) throw error;
+
+      let products = data || [];
+
+      console.log('[ProductService] Direct search returned:', products.length, 'products');
+
+      // If direct search returned few or no results, expand to category matches
+      // BUT we'll fetch more and then rank/filter them intelligently
+      if (products.length < limit && (categoryIds.length > 0 || sellerIds.length > 0)) {
+        console.log('[ProductService] Expanding search to include category/seller matches');
+        
+        // Fetch additional products from matching categories/sellers
+        let expandedQuery = supabase
+          .from('products')
+          .select(`
+            id,
+            name,
+            description,
+            price,
+            seller_id,
+            category_id,
+            approval_status,
+            disabled_at,
+            deleted_at,
+            created_at,
+            updated_at,
+            variant_label_1,
+            variant_label_2,
+            is_free_shipping,
+            weight,
+            category:categories!products_category_id_fkey (
+              id, name, slug, parent_id, is_active
+            ),
+            images:product_images (id, image_url, alt_text, sort_order, is_primary),
+            variants:product_variants (id, sku, variant_name, size, color, option_1_value, option_2_value, price, stock, thumbnail_url),
+            reviews (id, rating),
+            seller:sellers!products_seller_id_fkey (id, store_name, approval_status, avatar_url),
+            product_discounts (id, discount_type, discount_value, sold_count, campaign:discount_campaigns (id, badge_text, badge_color, discount_type, discount_value, max_discount_amount, ends_at, status, starts_at))
+          `)
+          .is('deleted_at', null)
+          .eq('category.is_active', true)
+          .order('created_at', { ascending: false });
+
+        const expandedConditions: string[] = [];
+
+        if (categoryIds.length > 0) {
+          expandedConditions.push(`category_id.in.(${categoryIds.join(',')})`);
+        }
+
+        if (sellerIds.length > 0) {
+          expandedConditions.push(`seller_id.in.(${sellerIds.join(',')})`);
+        }
+
+        if (expandedConditions.length > 0) {
+          expandedQuery = expandedQuery.or(expandedConditions.join(','));
+          expandedQuery = expandedQuery.limit(limit * 3); // Fetch more to filter client-side
+          
+          const { data: expandedData, error: expandedError } = await expandedQuery;
+          
+          if (expandedError) {
+            console.error('[ProductService] Error in expanded search:', expandedError);
+          } else {
+            console.log('[ProductService] Expanded search returned:', expandedData?.length || 0, 'products');
+            
+            // Filter expanded results client-side to only include products somewhat relevant
+            // We check if the product name, description, or variant names contain words from the search query
+            const searchWords = trimmedQuery.toLowerCase().split(/\s+/).filter(w => w.length > 0);
+            
+            const relevantExpanded = (expandedData || []).filter((product: any) => {
+              const productName = (product.name || '').toLowerCase();
+              const description = (product.description || '').toLowerCase();
+              const category = (product.category?.name || '').toLowerCase();
+              const variants = (product.variants || []).map((v: any) => (v.variant_name || '').toLowerCase()).join(' ');
+              
+              // Check if ANY search word appears in product fields
+              return searchWords.some(word => 
+                productName.includes(word) || 
+                description.includes(word) || 
+                variants.includes(word)
+              );
+            });
+            
+            console.log('[ProductService] After client-side filtering:', relevantExpanded.length, 'relevant products');
+            
+            // Add non-duplicate products from expanded search
+            const existingIds = new Set(products.map(p => p.id));
+            const newProducts = relevantExpanded.filter(p => !existingIds.has(p.id));
+            products = [...products, ...newProducts];
+          }
+        }
+      }
+
+      // Fetch sold counts for all products
+      const productIds = products.map(p => p.id);
+      const { data: soldCountsData } = await supabase
+        .from('order_items')
+        .select('product_id, quantity, order:orders!inner(payment_status, shipment_status)')
+        .in('product_id', productIds)
+        .in('order.shipment_status', ['processing', 'ready_to_ship', 'shipped', 'out_for_delivery', 'delivered', 'received']);
+
+      const soldCountsMap = new Map<string, number>();
+      (soldCountsData || []).forEach(item => {
+        const id = item.product_id;
+        if (id) {
+          const currentCount = soldCountsMap.get(id) || 0;
+          soldCountsMap.set(id, currentCount + (item.quantity || 0));
+        }
+      });
+
+      // Transform products
+      const result = products.map(p => this.transformProduct(p, soldCountsMap.get(p.id) || 0));
+
+      console.log('[ProductService] Final search result count:', result.length);
+
+      return result;
+    } catch (error) {
+      console.error('[ProductService] Error searching products:', error);
+      throw new Error('Failed to search products.');
+    }
+  }
+
+  /**
    * Fetch products with optional filters
    * Updated for new normalized schema with separate images/variants tables
    */
@@ -189,7 +387,11 @@ export class ProductService {
         query = query.eq('approval_status', filters.approvalStatus);
       }
       if (filters?.searchQuery) {
-        query = query.or(`name.ilike.%${filters.searchQuery}%,description.ilike.%${filters.searchQuery}%`);
+        // Enhanced search: match against product name and description
+        // Note: Category and seller name matching is done client-side after fetching
+        // because Supabase .or() doesn't support joined table fields
+        const searchPattern = `%${filters.searchQuery}%`;
+        query = query.or(`name.ilike.${searchPattern},description.ilike.${searchPattern}`);
       }
       // Apply pagination — default limit to avoid fetching entire table
       const effectiveLimit = filters?.limit || 30;
