@@ -37,17 +37,22 @@ export class CartService {
     }
 
     try {
+      console.log('[CartService] getCart: Fetching cart for buyer:', buyerId);
+      const cartStart = Date.now();
       // Get all carts for this buyer to check for duplicates
       const { data: carts, error } = await supabase
         .from('carts')
         .select('id, buyer_id, created_at, updated_at')
         .eq('buyer_id', buyerId)
         .order('created_at', { ascending: false });
+      const cartDuration = Date.now() - cartStart;
+      console.log(`[CartService] getCart query completed in ${cartDuration}ms, carts found:`, carts?.length);
 
       if (error) throw error;
 
       // If no carts, return null
       if (!carts || carts.length === 0) {
+        console.log('[CartService] No carts found for buyer');
         return null;
       }
 
@@ -75,6 +80,7 @@ export class CartService {
       }
 
       // Single cart found - normal case
+      console.log('[CartService] Single cart found:', carts[0].id);
       return carts[0];
     } catch (error) {
       console.error('Error getting cart:', error);
@@ -93,10 +99,16 @@ export class CartService {
 
     try {
       // Try to get existing cart
+      console.log('[CartService] getOrCreateCart: Fetching existing cart for buyer', buyerId);
+      const getStart = Date.now();
       const cart = await this.getCart(buyerId);
+      const getDuration = Date.now() - getStart;
+      console.log(`[CartService] getCart completed in ${getDuration}ms, found cart:`, cart?.id);
 
       // If no cart exists, create one
       if (!cart) {
+        console.log('[CartService] No existing cart, creating new one...');
+        const createStart = Date.now();
         const { data: newCart, error: createError } = await supabase
           .from('carts')
           .insert({
@@ -104,6 +116,8 @@ export class CartService {
           })
           .select()
           .single();
+        const createDuration = Date.now() - createStart;
+        console.log(`[CartService] Cart creation completed in ${createDuration}ms`);
 
         if (createError) throw createError;
         if (!newCart) throw new Error('Failed to create new cart');
@@ -113,7 +127,7 @@ export class CartService {
 
       return cart;
     } catch (error) {
-      console.error('Error getting/creating cart:', error);
+      console.error('[CartService] Error getting/creating cart:', error);
       throw new Error(error instanceof Error ? error.message : 'Failed to manage cart.');
     }
   }
@@ -129,6 +143,8 @@ export class CartService {
     }
 
     try {
+      console.log('[CartService] getCartItems: Fetching items for cart:', cartId);
+      const queryStart = Date.now();
       const { data, error } = await supabase
         .from('cart_items')
         .select(`
@@ -195,6 +211,8 @@ export class CartService {
         `)
         .eq('cart_id', cartId)
         .order('created_at', { ascending: false });
+      const queryDuration = Date.now() - queryStart;
+      console.log(`[CartService] getCartItems query completed in ${queryDuration}ms, items count:`, data?.length);
 
       if (error) throw error;
       return (data || []) as unknown as CartItem[];

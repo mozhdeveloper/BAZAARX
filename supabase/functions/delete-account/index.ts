@@ -156,8 +156,8 @@ Deno.serve(async (req: Request) => {
       // Remove shipping addresses
       adminClient.from('shipping_addresses').delete().eq('user_id', user.id),
 
-      // Remove payment method references (no actual card data stored)
-      adminClient.from('saved_payment_methods').delete().eq('user_id', user.id),
+      // Remove payment methods (cascades to payment_method_cards via FK)
+      adminClient.from('payment_methods').delete().eq('user_id', user.id),
     ]);
 
     // 6. Delete the auth user — this cascades via ON DELETE CASCADE on all FK references
