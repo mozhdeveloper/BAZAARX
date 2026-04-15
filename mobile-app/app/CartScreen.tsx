@@ -3,6 +3,7 @@ import { useFocusEffect } from '@react-navigation/native';
 import { Check, ChevronLeft, ChevronRight } from 'lucide-react-native';
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import {
+  Alert,
   Pressable,
   ScrollView,
   StatusBar,
@@ -28,8 +29,40 @@ export default function CartScreen({ navigation, route }: any) {
   const BRAND_PRIMARY = COLORS.primary;
 
   useEffect(() => {
-    initializeForCurrentUser();
-  }, []);
+    const init = async () => {
+      await initializeForCurrentUser();
+      
+      // Check for invalid cart quantities after initialization
+      const items = useCartStore.getState().items;
+      let adjustmentsMade = false;
+
+      for (const item of items) {
+        // Calculate effective stock for this item
+        let stock: number | null = null;
+        if (item.selectedVariant?.variantId) {
+          if (item.variants) {
+            const variant = item.variants.find(v => v.id === item.selectedVariant?.variantId);
+            if (variant) stock = variant.stock ?? null;
+          }
+        } else {
+          stock = item.stock ?? null;
+        }
+
+        // Only adjust if stock > 0 AND quantity exceeds stock
+        // If stock is 0 or null, do nothing and let UI render "Out of Stock"
+        if (stock !== null && stock > 0 && item.quantity > stock) {
+          updateQuantity(item.cartItemId, stock);
+          adjustmentsMade = true;
+        }
+      }
+
+      if (adjustmentsMade) {
+        Alert.alert('Cart Adjusted', 'Some items in your cart had their quantities adjusted due to stock changes.');
+      }
+    };
+    
+    init();
+  }, [initializeForCurrentUser, updateQuantity]);
 
   // Also refresh when screen is focused (returning from product detail, etc.)
   useFocusEffect(
