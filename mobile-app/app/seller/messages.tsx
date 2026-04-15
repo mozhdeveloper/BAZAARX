@@ -1,16 +1,20 @@
-import React, { useState, useEffect, useCallback, useRef } from 'react';
+import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import {
   View,
   Text,
   StyleSheet,
   TouchableOpacity,
   ScrollView,
+  FlatList,
   Pressable,
   TextInput,
   KeyboardAvoidingView,
   Platform,
   ActivityIndicator,
   RefreshControl,
+  Image,
+  Animated,
+  Dimensions,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useNavigation, useFocusEffect } from '@react-navigation/native';
@@ -20,16 +24,54 @@ import {
   ArrowLeft,
   Search,
   Send,
-  Image as ImageIcon,
+  ImageIcon,
   Paperclip,
+  ChevronRight,
   Ticket,
   X,
   MessageSquare,
+  FileText,
+  Play,
 } from 'lucide-react-native';
-import { Alert } from 'react-native';
+import { Alert, Keyboard } from 'react-native';
 import { chatService, Conversation as ChatConversation, Message as ChatMessage } from '../../src/services/chatService';
+import { getMimeFromExtension, CHAT_MEDIA_LIMITS, ALL_PLACEHOLDERS, MEDIA_PLACEHOLDER_MAP, extractFileName, type ChatMediaType } from '../../src/utils/chatMediaUtils';
+import { formatDateLabel, formatMessageTimestamp } from '../../src/utils/chatDateUtils';
+import ChatMediaPreviewModal from '../../src/components/ChatMediaPreviewModal';
+import ChatSendPreviewModal, { type SendPreviewAsset } from '../../src/components/ChatSendPreviewModal';
 import { useAuthStore } from '../../src/stores/authStore';
 import { useSellerStore } from '../../src/stores/sellerStore';
+import { COLORS } from '../../src/constants/theme';
+import * as ImagePicker from 'expo-image-picker';
+import * as DocumentPicker from 'expo-document-picker';
+import * as FileSystem from 'expo-file-system/legacy';
+
+const { width: SCREEN_W } = Dimensions.get('window');
+const DOC_BUBBLE_W = SCREEN_W * 0.68; // explicit width so inner flex:1 text resolves correctly
+
+type SellerListItem =
+  | { type: 'message'; data: ChatMessage; id: string }
+  | { type: 'date_sep'; label: string; id: string };
+
+// ─── Shimmer skeleton row (shown while conversations are loading) ─────────────────
+const SkeletonRow = ({ shimmer }: { shimmer: Animated.Value }) => {
+  const opacity = shimmer.interpolate({ inputRange: [0, 1], outputRange: [0.35, 0.85] });
+  return (
+    <View style={{ flexDirection: 'row', padding: 16, borderBottomWidth: 1, borderBottomColor: '#F3F4F6', gap: 12, height: 73, alignItems: 'center' }}>
+      <Animated.View style={{ width: 48, height: 48, borderRadius: 24, backgroundColor: '#E5E7EB', opacity }} />
+      <View style={{ flex: 1, gap: 4 }}>
+        <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
+          <Animated.View style={{ height: 14, borderRadius: 7, backgroundColor: '#E5E7EB', width: '55%', opacity }} />
+          <Animated.View style={{ height: 12, borderRadius: 6, backgroundColor: '#E5E7EB', width: 36, opacity }} />
+        </View>
+        <Animated.View style={{ height: 13, borderRadius: 6, backgroundColor: '#F3F4F6', width: '80%', opacity }} />
+      </View>
+    </View>
+  );
+};
+const SKELETON_COUNT = 7;
+
+
 
 export default function MessagesScreen() {
   const navigation = useNavigation<NativeStackNavigationProp<SellerStackParamList>>();
@@ -42,14 +84,68 @@ export default function MessagesScreen() {
   const [searchQuery, setSearchQuery] = useState('');
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
-  const [sending, setSending] = useState(false);
+  const [uploading, setUploading] = useState(false);
 
   // Real conversations and messages from database
   const [conversations, setConversations] = useState<ChatConversation[]>([]);
   const [messages, setMessages] = useState<ChatMessage[]>([]);
 
-  // Ref for auto-scrolling the seller chat view to the latest message
-  const chatScrollRef = useRef<ScrollView>(null);
+  // Ref for auto-scrolling the chat (inverted FlatList: scrollToOffset 0 = newest message)
+  const chatFlatListRef = useRef<FlatList<SellerListItem>>(null);
+
+  // Shimmer animation for skeleton loading rows in the conversations list
+  const shimmer = useRef(new Animated.Value(0)).current;
+  useEffect(() => {
+    const loop = Animated.loop(
+      Animated.sequence([
+        Animated.timing(shimmer, { toValue: 1, duration: 700, useNativeDriver: true }),
+        Animated.timing(shimmer, { toValue: 0, duration: 700, useNativeDriver: true }),
+      ])
+    );
+    loop.start();
+    return () => loop.stop();
+  }, [shimmer]);
+
+  // Tap-to-reveal timestamp
+  const [expandedMsgId, setExpandedMsgId] = useState<string | null>(null);
+
+  // Media preview modal
+  const [previewVisible, setPreviewVisible] = useState(false);
+  const [previewUrl, setPreviewUrl] = useState('');
+  const [previewType, setPreviewType] = useState<'image' | 'video' | 'document'>('image');
+  const [previewFileName, setPreviewFileName] = useState('');
+
+  // Send-preview modal
+  const [sendPreviewAsset, setSendPreviewAsset] = useState<SendPreviewAsset | null>(null);
+  const [sendPreviewVisible, setSendPreviewVisible] = useState(false);
+  const pendingUpload = useRef<{ base64: string; fileName: string; mime: string; mediaType: ChatMediaType } | null>(null);
+
+  // Attachment panel — auto-hides when typing, expand-only chevron
+  const [showAttachments, setShowAttachments] = useState(true);
+
+  const handleInputChange = (text: string) => {
+    setNewMessage(text);
+    if (text.length > 0 && showAttachments) setShowAttachments(false);
+    if (text.length === 0) setShowAttachments(true);
+  };
+
+  // Smooth keyboard padding animation
+  const bottomPadAnim = useRef(new Animated.Value(Math.max(insets.bottom, 8))).current;
+  useEffect(() => {
+    const onShow = () => Animated.timing(bottomPadAnim, {
+      toValue: 8, duration: 220, useNativeDriver: false,
+    }).start();
+    const onHide = () => Animated.timing(bottomPadAnim, {
+      toValue: Math.max(insets.bottom, 8), duration: 220, useNativeDriver: false,
+    }).start();
+    const show = Keyboard.addListener(
+      Platform.OS === 'ios' ? 'keyboardWillShow' : 'keyboardDidShow', onShow
+    );
+    const hide = Keyboard.addListener(
+      Platform.OS === 'ios' ? 'keyboardWillHide' : 'keyboardDidHide', onHide
+    );
+    return () => { show.remove(); hide.remove(); };
+  }, []);
 
   // Load real conversations from database
   const loadConversations = useCallback(async () => {
@@ -142,12 +238,7 @@ export default function MessagesScreen() {
     loadMessages();
   }, [selectedConversation, seller?.id]);
 
-  // Auto-scroll to the newest message when messages load or new ones arrive
-  useEffect(() => {
-    if (messages.length > 0) {
-      setTimeout(() => chatScrollRef.current?.scrollToEnd({ animated: false }), 80);
-    }
-  }, [messages]);
+
 
   // Subscribe to new messages
   useEffect(() => {
@@ -156,12 +247,24 @@ export default function MessagesScreen() {
     const unsubscribe = chatService.subscribeToMessages(
       selectedConversation,
       (newMsg) => {
-        // Prevent duplicates
         setMessages(prev => {
-          const exists = prev.some(msg => msg.id === newMsg.id);
-          if (exists) return prev;
+          // Dedup: skip if already present
+          if (prev.some(m => m.id === newMsg.id)) return prev;
+          // Replace temp message if it matches
+          const tempIdx = prev.findIndex(
+            m => m.id.startsWith('temp-') &&
+              m.sender_id === newMsg.sender_id &&
+              m.content === newMsg.content
+          );
+          if (tempIdx !== -1) {
+            const updated = [...prev];
+            updated[tempIdx] = newMsg;
+            return updated;
+          }
           return [...prev, newMsg];
         });
+        // Auto-scroll on new message
+        chatFlatListRef.current?.scrollToOffset({ offset: 0, animated: true });
         
         if (newMsg.sender_type === 'buyer' && seller?.id) {
           chatService.markAsRead(selectedConversation, seller.id, 'seller');
@@ -219,27 +322,170 @@ export default function MessagesScreen() {
     );
   };
   
+  // ─── Optimistic send ──────────────────────────────────────────────────────
   const handleSendMessage = async () => {
     if (!newMessage.trim() || !selectedConversation || !seller?.id) return;
 
-    setSending(true);
+    const messageText = newMessage.trim();
+    const tempId = `temp-${Date.now()}`;
+
+    // 1. Clear input + append temp message immediately
+    const tempMsg: ChatMessage = {
+      id: tempId,
+      conversation_id: selectedConversation,
+      sender_id: seller.id,
+      sender_type: 'seller',
+      content: messageText,
+      is_read: false,
+      created_at: new Date().toISOString(),
+      message_type: 'user',
+    };
+    setMessages(prev => [...prev, tempMsg]);
+    setNewMessage('');
+
     try {
       const result = await chatService.sendMessage(
         selectedConversation,
-        seller.id,  // Use seller ID from sellerStore, not user.id from authStore
+        seller.id,
         'seller',
-        newMessage.trim()
+        messageText
       );
       if (result) {
-        setNewMessage('');
-        // Message will be added via realtime subscription
+        setMessages(prev =>
+          prev.some(m => m.id === result.id)
+            ? prev.filter(m => m.id !== tempId)
+            : prev.map(m => m.id === tempId ? result : m)
+        );
+      } else {
+        // Rollback
+        setMessages(prev => prev.filter(m => m.id !== tempId));
+        setNewMessage(messageText);
       }
     } catch (error) {
       console.error('[SellerMessages] Error sending message:', error);
+      setMessages(prev => prev.filter(m => m.id !== tempId));
+      setNewMessage(messageText);
       Alert.alert('Error', 'Failed to send message');
-    } finally {
-      setSending(false);
     }
+  };
+
+  // ─── Media Pickers ────────────────────────────────────────────────────────
+  const pickMedia = async () => {
+    if (!selectedConversation || !seller?.id) return;
+    const result = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: ['images', 'videos'],
+      quality: 0.8,
+      videoMaxDuration: 120,
+    });
+    if (result.canceled || !result.assets?.[0]) return;
+
+    const asset = result.assets[0];
+    const ext = asset.uri.split('.').pop()?.toLowerCase() || 'jpg';
+    const mediaType: ChatMediaType = asset.type === 'video' ? 'video' : 'image';
+    const mime = getMimeFromExtension(ext);
+
+    const fileInfo = await FileSystem.getInfoAsync(asset.uri);
+    const maxSize = CHAT_MEDIA_LIMITS[mediaType].maxSize;
+    if (fileInfo.exists && 'size' in fileInfo && fileInfo.size > maxSize) {
+      Alert.alert('File too large', `Max ${maxSize / (1024 * 1024)} MB for ${mediaType}s`);
+      return;
+    }
+
+    const base64 = await FileSystem.readAsStringAsync(asset.uri, { encoding: 'base64' });
+    const fileName = asset.fileName || `${Date.now()}.${ext}`;
+    pendingUpload.current = { base64, fileName, mime, mediaType };
+    setSendPreviewAsset({
+      uri: asset.uri,
+      name: fileName,
+      type: mediaType,
+      size: fileInfo.exists && 'size' in fileInfo ? fileInfo.size : undefined,
+    });
+    setSendPreviewVisible(true);
+  };
+
+  const pickDocument = async () => {
+    if (!selectedConversation || !seller?.id) return;
+    const result = await DocumentPicker.getDocumentAsync({
+      type: 'application/pdf',
+      copyToCacheDirectory: true,
+    });
+    if (result.canceled || !result.assets?.[0]) return;
+
+    const asset = result.assets[0];
+    if (asset.size && asset.size > CHAT_MEDIA_LIMITS.document.maxSize) {
+      Alert.alert('File too large', 'Max 10 MB for documents');
+      return;
+    }
+
+    const base64 = await FileSystem.readAsStringAsync(asset.uri, { encoding: 'base64' });
+    const fileName = asset.name || `${Date.now()}.pdf`;
+    // Write to temp file so WebView can render natively
+    const tempUri = `${FileSystem.cacheDirectory}sendpreview_${Date.now()}.pdf`;
+    await FileSystem.writeAsStringAsync(tempUri, base64, { encoding: 'base64' });
+    pendingUpload.current = { base64, fileName, mime: 'application/pdf', mediaType: 'document' };
+    setSendPreviewAsset({
+      uri: tempUri,
+      name: fileName,
+      type: 'document',
+      size: asset.size ?? undefined,
+    });
+    setSendPreviewVisible(true);
+  };
+
+  const handleConfirmSend = async () => {
+    if (!pendingUpload.current || !selectedConversation || !seller?.id) return;
+    const { base64, fileName, mime, mediaType } = pendingUpload.current;
+    setUploading(true);
+    try {
+      const url = await chatService.uploadChatMedia(base64, selectedConversation, fileName, mime);
+      if (!url) {
+        Alert.alert('Upload failed', 'Could not upload the file. Please try again.');
+        return;
+      }
+
+      const placeholder = MEDIA_PLACEHOLDER_MAP[mediaType];
+      const tempId = `temp-${Date.now()}`;
+      const tempMsg: ChatMessage = {
+        id: tempId, conversation_id: selectedConversation, sender_id: seller.id,
+        sender_type: 'seller', content: placeholder, media_url: url,
+        media_type: mediaType, is_read: false, created_at: new Date().toISOString(),
+        message_type: mediaType,
+      };
+      setMessages(prev => [...prev, tempMsg]);
+      setSendPreviewVisible(false);
+      setSendPreviewAsset(null);
+      pendingUpload.current = null;
+
+      const sentMsg = await chatService.sendMessage(
+        selectedConversation, seller.id, 'seller', placeholder, undefined, url, mediaType
+      );
+      if (sentMsg) {
+        setMessages(prev =>
+          prev.some(m => m.id === sentMsg.id)
+            ? prev.filter(m => m.id !== tempId)
+            : prev.map(m => m.id === tempId ? sentMsg : m)
+        );
+      }
+    } catch (err) {
+      console.error('[SellerMessages] upload error:', err);
+      Alert.alert('Error', 'Something went wrong. Please try again.');
+    } finally {
+      setUploading(false);
+    }
+  };
+
+  const handleCancelSend = () => {
+    setSendPreviewVisible(false);
+    setSendPreviewAsset(null);
+    pendingUpload.current = null;
+  };
+
+  // ─── Open media preview ───────────────────────────────────────────────
+  const openPreview = (url: string, type: 'image' | 'video' | 'document') => {
+    setPreviewUrl(url);
+    setPreviewType(type);
+    setPreviewFileName(extractFileName(url));
+    setPreviewVisible(true);
   };
 
   const formatTime = (dateString: string) => {
@@ -259,6 +505,106 @@ export default function MessagesScreen() {
   const getInitials = (name: string) => {
     return name.charAt(0).toUpperCase();
   };
+
+  // ─── FlatList data: date separators + messages, newest first (inverted) ──────
+  const listData = useMemo((): SellerListItem[] => {
+    const sorted = [...messages].sort(
+      (a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime()
+    );
+    const flat: SellerListItem[] = [];
+    let lastDateKey = '';
+    sorted.forEach((msg) => {
+      const dateKey = new Date(msg.created_at).toDateString();
+      if (dateKey !== lastDateKey) {
+        flat.push({ type: 'date_sep', label: formatDateLabel(dateKey), id: `sep-${dateKey}` });
+        lastDateKey = dateKey;
+      }
+      flat.push({ type: 'message', data: msg, id: msg.id });
+    });
+    return flat.reverse(); // inverted FlatList expects newest at index 0
+  }, [messages]);
+
+  // ─── Render a single FlatList row ─────────────────────────────────────────
+  const renderListItem = useCallback(({ item }: { item: SellerListItem }) => {
+    if (item.type === 'date_sep') {
+      return (
+        <View style={styles.dateSepWrapper}>
+          <View style={styles.dateSepLine} />
+          <Text style={styles.dateSepText}>{item.label}</Text>
+          <View style={styles.dateSepLine} />
+        </View>
+      );
+    }
+
+    const msg = item.data;
+    const isSeller = msg.sender_type === 'seller';
+    const isPending = msg.id.startsWith('temp-');
+    const imgUrl = msg.media_url || msg.image_url;
+    const hasMedia = !!msg.media_url;
+    const isImage = msg.media_type === 'image' || msg.message_type === 'image' || (!msg.media_type && !!msg.image_url);
+    const isVideo = msg.media_type === 'video' || msg.message_type === 'video';
+    const isDoc = msg.media_type === 'document' || msg.message_type === 'document';
+    const isPlaceholder = ALL_PLACEHOLDERS.includes(msg.content);
+    const isExpanded = expandedMsgId === msg.id;
+    const hasAnyMedia = (imgUrl && isImage) || (hasMedia && isVideo) || (hasMedia && isDoc);
+    const toggleTimestamp = () => setExpandedMsgId(prev => prev === msg.id ? null : msg.id);
+
+    return (
+      <View style={[styles.msgOuterWrapper, isSeller ? styles.msgOuterRight : styles.msgOuterLeft]}>
+        <Pressable
+          onPress={() => { if (!hasAnyMedia) toggleTimestamp(); }}
+          onLongPress={toggleTimestamp}
+          delayLongPress={400}
+        >
+          <View
+            style={[
+              styles.messageBubble,
+              isSeller ? styles.messageSeller : styles.messageBuyer,
+              isExpanded && (isSeller ? styles.messageSellerExpanded : styles.messageBuyerExpanded),
+              isDoc && !(msg.content && !(isPlaceholder && (hasMedia || !!msg.image_url))) && styles.noPadBubble,
+            ]}
+          >
+            {/* Image */}
+            {imgUrl && isImage && (
+              <Pressable onPress={() => openPreview(imgUrl!, 'image')} onLongPress={toggleTimestamp} delayLongPress={400}>
+                <Image source={{ uri: imgUrl }} style={{ width: 200, height: 200, borderRadius: 12, marginBottom: 4 }} resizeMode="cover" />
+              </Pressable>
+            )}
+            {/* Video */}
+            {hasMedia && isVideo && (
+              <Pressable onPress={() => openPreview(msg.media_url!, 'video')} onLongPress={toggleTimestamp} delayLongPress={400} style={{ width: 200, height: 140, borderRadius: 12, backgroundColor: '#1F2937', justifyContent: 'center', alignItems: 'center', marginBottom: 4 }}>
+                <Play size={28} color="#FFFFFF" />
+                <Text style={{ color: '#FFF', fontSize: 12, fontWeight: '600', marginTop: 6 }}>Tap to play</Text>
+              </Pressable>
+            )}
+            {/* Document — explicit width so inner flex:1 text always renders */}
+            {hasMedia && isDoc && (
+              <Pressable onPress={() => openPreview(msg.media_url!, 'document')} onLongPress={toggleTimestamp} delayLongPress={400} style={{ flexDirection: 'row', alignItems: 'center', gap: 10, paddingHorizontal: 14, paddingVertical: 12, borderRadius: 16, width: DOC_BUBBLE_W, backgroundColor: isSeller ? 'rgba(255,255,255,0.15)' : '#F3F4F6' }}>
+                <View style={{ width: 36, height: 36, borderRadius: 8, alignItems: 'center', justifyContent: 'center', flexShrink: 0, backgroundColor: isSeller ? 'rgba(255,255,255,0.15)' : '#FEF2F2' }}>
+                  <FileText size={18} color={isSeller ? '#FFFFFF' : '#D97706'} />
+                </View>
+                <View style={{ flex: 1, minWidth: 0 }}>
+                  <Text style={{ fontSize: 14, fontWeight: '700', color: isSeller ? '#FFFFFF' : '#D97706' }} numberOfLines={1}>{extractFileName(msg.media_url!)}</Text>
+                  <Text style={{ fontSize: 11, marginTop: 2, color: isSeller ? 'rgba(255,255,255,0.6)' : '#9CA3AF' }}>PDF · Tap to open</Text>
+                </View>
+              </Pressable>
+            )}
+            {/* Text (hide placeholders when media is present) */}
+            {msg.content && !(isPlaceholder && (hasMedia || !!msg.image_url)) && (
+              <Text style={[styles.messageText, isSeller ? styles.messageTextSeller : styles.messageTextBuyer]}>
+                {msg.content}
+              </Text>
+            )}
+          </View>
+        </Pressable>
+        {isExpanded && !isPending && (
+          <Text style={[styles.messageTimeOutside, isSeller ? styles.messageTimeOutsideRight : styles.messageTimeOutsideLeft]}>
+            {formatMessageTimestamp(msg.created_at)}
+          </Text>
+        )}
+      </View>
+    );
+  }, [expandedMsgId, openPreview]);
 
   if (!selectedConversation) {
     // Conversations List View
@@ -301,9 +647,10 @@ export default function MessagesScreen() {
           }
         >
           {loading && !refreshing ? (
-            <View style={{ padding: 40, alignItems: 'center' }}>
-              <ActivityIndicator size="large" color="#2563EB" />
-              <Text style={{ marginTop: 12, color: '#6B7280' }}>Loading conversations...</Text>
+            <View>
+              {Array.from({ length: SKELETON_COUNT }).map((_, i) => (
+                <SkeletonRow key={i} shimmer={shimmer} />
+              ))}
             </View>
           ) : conversations.length === 0 ? (
             <View style={{ padding: 40, alignItems: 'center' }}>
@@ -328,10 +675,13 @@ export default function MessagesScreen() {
                   setSelectedConversation(conv.id);
                 }}
               >
-                <View style={styles.avatar}>
-                  <Text style={styles.avatarText}>
-                    {getInitials(conv.buyer?.full_name || conv.buyer_name || 'B')}
-                  </Text>
+                <View style={{ position: 'relative' }}>
+                  <View style={styles.avatar}>
+                    <Text style={styles.avatarText}>
+                      {getInitials(conv.buyer?.full_name || conv.buyer_name || 'B')}
+                    </Text>
+                  </View>
+                  <View style={conv.is_online ? styles.chatlistOnlineBadge : styles.chatlistOfflineBadge} />
                 </View>
                 <View style={styles.conversationContent}>
                   <View style={styles.conversationHeader}>
@@ -367,7 +717,7 @@ export default function MessagesScreen() {
   return (
     <KeyboardAvoidingView
       style={styles.container}
-      behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+      behavior="padding"
       keyboardVerticalOffset={0}
     >
       {/* Chat Header */}
@@ -388,8 +738,10 @@ export default function MessagesScreen() {
             <View>
               <Text style={styles.chatBuyerName}>{activeBuyerName}</Text>
               <View style={styles.onlineStatus}>
-                <View style={styles.onlineDot} />
-                <Text style={styles.onlineText}>Online</Text>
+                <View style={activeConversation?.is_online ? styles.onlineDot : styles.offlineDotStyle} />
+                <Text style={styles.onlineText}>
+                  {activeConversation?.is_online ? 'Online' : 'Offline'}
+                </Text>
               </View>
             </View>
           </View>
@@ -404,76 +756,78 @@ export default function MessagesScreen() {
         </View>
       </View>
 
-      {/* Messages */}
-      <ScrollView
-        ref={chatScrollRef}
+      {/* Messages — inverted FlatList matches buyer keyboard behaviour; KAV handles push-up */}
+      <FlatList<SellerListItem>
+        ref={chatFlatListRef}
+        data={listData}
+        keyExtractor={(item) => item.id}
+        renderItem={renderListItem}
+        inverted={true}
         style={styles.messagesContainer}
         contentContainerStyle={styles.messagesContent}
+        keyboardDismissMode="interactive"
         showsVerticalScrollIndicator={false}
-      >
-        {messages.length === 0 ? (
-          <View style={{ padding: 40, alignItems: 'center' }}>
+        maintainVisibleContentPosition={{ minIndexForVisible: 0 }}
+        ListEmptyComponent={
+          <View style={{ padding: 40, alignItems: 'center', transform: [{ scaleY: -1 }] }}>
             <Text style={{ color: '#9CA3AF' }}>No messages in this conversation</Text>
           </View>
-        ) : (
-          messages.map((msg) => (
-            <View
-              key={msg.id}
-              style={[
-                styles.messageBubble,
-                msg.sender_type === 'seller' ? styles.messageSeller : styles.messageBuyer,
-              ]}
-            >
-              <Text
-                style={[
-                  styles.messageText,
-                  msg.sender_type === 'seller' ? styles.messageTextSeller : styles.messageTextBuyer,
-                ]}
-              >
-                {msg.content}
-              </Text>
-              <Text
-                style={[
-                  styles.messageTime,
-                  msg.sender_type === 'seller' ? styles.messageTimeSeller : styles.messageTimeBuyer,
-                ]}
-              >
-                {new Date(msg.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-              </Text>
-            </View>
-          ))
-        )}
-      </ScrollView>
+        }
+      />
 
       {/* Input Area */}
-      <View style={[styles.inputContainer, { paddingBottom: insets.bottom + 8 }]}>
-        <Pressable style={styles.attachButton}>
-          <ImageIcon size={20} color="#6B7280" strokeWidth={2} />
-        </Pressable>
-        <Pressable style={styles.attachButton}>
-          <Paperclip size={20} color="#6B7280" strokeWidth={2} />
-        </Pressable>
+      <Animated.View style={[styles.inputContainer, { paddingBottom: bottomPadAnim }]}>
+        {/* Expand toggle — only shown when attachment icons are hidden */}
+        {!showAttachments && (
+          <Pressable onPress={() => setShowAttachments(true)} style={styles.attachButton}>
+            <ChevronRight size={20} color="#6B7280" strokeWidth={2} />
+          </Pressable>
+        )}
+        {/* Attachment icons */}
+        {showAttachments && (
+          <>
+            <Pressable onPress={pickMedia} style={styles.attachButton} disabled={uploading}>
+              {uploading ? <ActivityIndicator size="small" color="#D97706" /> : <ImageIcon size={20} color="#6B7280" strokeWidth={2} />}
+            </Pressable>
+            <Pressable onPress={pickDocument} style={styles.attachButton} disabled={uploading}>
+              <Paperclip size={20} color="#6B7280" strokeWidth={2} />
+            </Pressable>
+          </>
+        )}
         <TextInput
           style={styles.messageInput}
           placeholder="Type a message..."
           placeholderTextColor="#9CA3AF"
           value={newMessage}
-          onChangeText={setNewMessage}
+          onChangeText={handleInputChange}
           multiline
-          editable={!sending}
         />
         <Pressable
-          style={[styles.sendButton, sending && { opacity: 0.6 }]}
+          style={[styles.sendButton, (!newMessage.trim() || uploading) && { opacity: 0.5 }]}
           onPress={handleSendMessage}
-          disabled={!newMessage.trim() || sending}
+          disabled={!newMessage.trim() || uploading}
         >
-          {sending ? (
-            <ActivityIndicator size="small" color="#FFFFFF" />
-          ) : (
-            <Send size={18} color="#FFFFFF" strokeWidth={2.5} />
-          )}
+          <Send size={18} color="#FFFFFF" strokeWidth={2.5} />
         </Pressable>
-      </View>
+      </Animated.View>
+
+      {/* Media preview modal */}
+      <ChatMediaPreviewModal
+        visible={previewVisible}
+        onClose={() => setPreviewVisible(false)}
+        mediaUrl={previewUrl}
+        mediaType={previewType}
+        fileName={previewFileName}
+      />
+
+      {/* Send confirmation preview modal */}
+      <ChatSendPreviewModal
+        visible={sendPreviewVisible}
+        onCancel={handleCancelSend}
+        onSend={handleConfirmSend}
+        asset={sendPreviewAsset}
+        uploading={uploading}
+      />
     </KeyboardAvoidingView>
   );
 }
@@ -538,6 +892,28 @@ const styles = StyleSheet.create({
     backgroundColor: '#D97706',
     alignItems: 'center',
     justifyContent: 'center',
+  },
+  chatlistOnlineBadge: {
+    position: 'absolute',
+    bottom: 0,
+    right: 0,
+    width: 13,
+    height: 13,
+    borderRadius: 7,
+    backgroundColor: '#10B981',
+    borderWidth: 2,
+    borderColor: '#FFFFFF',
+  },
+  chatlistOfflineBadge: {
+    position: 'absolute',
+    bottom: 0,
+    right: 0,
+    width: 13,
+    height: 13,
+    borderRadius: 7,
+    backgroundColor: '#9CA3AF',
+    borderWidth: 2,
+    borderColor: '#FFFFFF',
   },
   avatarText: {
     fontSize: 18,
@@ -637,6 +1013,12 @@ const styles = StyleSheet.create({
     borderRadius: 3,
     backgroundColor: '#10B981',
   },
+  offlineDotStyle: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+    backgroundColor: '#9CA3AF',
+  },
   onlineText: {
     fontSize: 11,
     color: '#4B5563',
@@ -656,24 +1038,45 @@ const styles = StyleSheet.create({
   },
   messagesContent: {
     padding: 16,
+    paddingBottom: 8,
     gap: 12,
+  },
+  // Date separators
+  dateSepWrapper: { flexDirection: 'row', alignItems: 'center', marginVertical: 12, paddingHorizontal: 8 },
+  dateSepLine: { flex: 1, height: 1, backgroundColor: '#E5E7EB' },
+  dateSepText: { marginHorizontal: 10, fontSize: 11, fontWeight: '600', color: '#9CA3AF', textTransform: 'uppercase', letterSpacing: 0.5 },
+  msgOuterWrapper: {
+    marginBottom: 2,
+  },
+  msgOuterRight: {
+    alignItems: 'flex-end',
+  },
+  msgOuterLeft: {
+    alignItems: 'flex-start',
   },
   messageBubble: {
     maxWidth: '70%',
     borderRadius: 16,
     padding: 12,
+    overflow: 'hidden',
   },
+  noPadBubble: { padding: 0 },
   messageSeller: {
-    alignSelf: 'flex-end',
     backgroundColor: '#D97706',
     borderTopRightRadius: 4,
   },
   messageBuyer: {
-    alignSelf: 'flex-start',
     backgroundColor: '#FFFFFF',
     borderWidth: 1,
     borderColor: '#E5E7EB',
     borderTopLeftRadius: 4,
+  },
+  messageSellerExpanded: {
+    backgroundColor: '#B45309',
+  },
+  messageBuyerExpanded: {
+    backgroundColor: '#FFF7ED',
+    borderColor: '#D97706',
   },
   messageText: {
     fontSize: 14,
@@ -685,14 +1088,16 @@ const styles = StyleSheet.create({
   messageTextBuyer: {
     color: '#1F2937',
   },
-  messageTime: {
-    fontSize: 10,
+  messageTimeOutside: {
+    fontSize: 11,
     marginTop: 4,
+    paddingHorizontal: 4,
   },
-  messageTimeSeller: {
-    color: 'rgba(255, 255, 255, 0.7)',
+  messageTimeOutsideRight: {
+    color: '#9CA3AF',
+    textAlign: 'right',
   },
-  messageTimeBuyer: {
+  messageTimeOutsideLeft: {
     color: '#9CA3AF',
   },
   inputContainer: {
@@ -711,11 +1116,13 @@ const styles = StyleSheet.create({
   messageInput: {
     flex: 1,
     backgroundColor: '#F3F4F6',
-    borderRadius: 20,
-    paddingHorizontal: 16,
-    paddingVertical: 10,
+    borderRadius: 22,
+    paddingHorizontal: 14,
+    paddingTop: 10,
+    paddingBottom: 4,
     fontSize: 14,
-    maxHeight: 100,
+    maxHeight: 130,
+    minHeight: 40,
   },
   sendButton: {
     width: 40,

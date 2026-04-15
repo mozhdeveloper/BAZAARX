@@ -43,6 +43,23 @@
           "locationAlwaysAndWhenInUsePermission": "Allow $(PRODUCT_NAME) to use your location."
         }
       ],
+      [
+        "expo-media-library",
+        {
+          "photosPermission": "Allow BazaarX to access your photos to save and share media.",
+          "savePhotosPermission": "Allow BazaarX to save photos and videos to your gallery.",
+          "isAccessMediaLocationEnabled": false,
+          "granularPermissions": ["photo", "video"]
+        }
+      ],
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "Allow BazaarX to access your photos to attach images.",
+          "cameraPermission": "Allow BazaarX to access your camera."
+        }
+      ],
+      "expo-av",
       "@react-native-community/datetimepicker"
     ]
   }

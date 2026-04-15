@@ -802,6 +802,13 @@ export default function ShopScreen({ navigation, route }: Props) {
                 onChangeText={setSearchQuery}
                 placeholderTextColor={COLORS.textMuted}
                 onFocus={() => setIsSearchFocused(true)}
+                onSubmitEditing={() => {
+                  const trimmedQuery = searchQuery.trim();
+                  if (trimmedQuery) {
+                    setIsSearchFocused(false);
+                    navigation.navigate('ProductListing', { searchQuery: trimmedQuery });
+                  }
+                }}
               />
               <Pressable onPress={() => setShowCameraSearch(true)}>
                 <Camera size={18} color={COLORS.primary} />
