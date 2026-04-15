@@ -1,61 +1,67 @@
 // Forced sync at 2026-03-12 11:30
-import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
-import {
-  View,
-  Text,
-  ScrollView,
-  TextInput,
-  Pressable,
-  StyleSheet,
-  Modal,
-  Dimensions,
-  StatusBar,
-  Alert,
-  TouchableOpacity,
-  NativeSyntheticEvent,
-  NativeScrollEvent,
-  useWindowDimensions,
-  RefreshControl,
-} from 'react-native';
-import { LinearGradient } from 'expo-linear-gradient';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import {
-  Search, Bell, Camera, Bot, X, Package, Timer, MapPin, ChevronDown, ArrowLeft, Clock,
-  MessageSquare, MessageCircle, CheckCircle2, ShoppingBag, Truck, XCircle, Star, FlaskConical, Flame, TrendingUp, Plus, ChevronRight,
-  Shirt, Smartphone, Sparkles, Sofa, Dumbbell, Gamepad2, Apple, Watch, Car, BookOpen, Armchair, SprayCan,
-} from 'lucide-react-native';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
-import type { LucideIcon } from 'lucide-react-native';
 import { FlashList } from "@shopify/flash-list";
-import { ProductCard, MasonryProductCard } from '../src/components/ProductCard';
-import CameraSearchModal from '../src/components/CameraSearchModal';
+import { LinearGradient } from 'expo-linear-gradient';
+import {
+  Bell, Camera,
+  CheckCircle2,
+  ChevronDown,
+  ChevronRight,
+  Clock,
+  Flame,
+  FlaskConical,
+  MapPin,
+  MessageSquare,
+  Package,
+  Plus,
+  Search,
+  Timer,
+  TrendingUp
+} from 'lucide-react-native';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import {
+  Dimensions,
+  NativeScrollEvent,
+  NativeSyntheticEvent,
+  Pressable,
+  RefreshControl,
+  ScrollView,
+  StatusBar,
+  StyleSheet,
+  Text,
+  TextInput,
+  useWindowDimensions,
+  View
+} from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import AIChatModal from '../src/components/AIChatModal';
+import CameraSearchModal from '../src/components/CameraSearchModal';
 import LocationModal from '../src/components/LocationModal';
+import { MasonryProductCard, ProductCard } from '../src/components/ProductCard';
 import ProductRequestModal from '../src/components/ProductRequestModal';
 // Removed NotificationsModal import
-import type { CompositeScreenProps } from '@react-navigation/native';
-import type { BottomTabScreenProps } from '@react-navigation/bottom-tabs';
-import type { NativeStackScreenProps } from '@react-navigation/native-stack';
-import type { RootStackParamList, TabParamList } from '../App';
-import type { Product } from '../src/types';
-import { productService } from '../src/services/productService';
-import { sellerService } from '../src/services/sellerService';
-import { addressService } from '../src/services/addressService';
-import { useAddressStore } from '../src/stores/addressStore';
-import { notificationService, Notification } from '../src/services/notificationService';
-import { useAuthStore } from '../src/stores/authStore';
-import { useSellerStore } from '../src/stores/sellerStore';
-import { GuestLoginModal } from '../src/components/GuestLoginModal';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import type { BottomTabScreenProps } from '@react-navigation/bottom-tabs';
+import type { CompositeScreenProps } from '@react-navigation/native';
+import type { NativeStackScreenProps } from '@react-navigation/native-stack';
+import { Image as ExpoImage } from 'expo-image';
+import type { RootStackParamList, TabParamList } from '../App';
+import { GuestLoginModal } from '../src/components/GuestLoginModal';
+import { CURATED_CATEGORY_IMAGES } from '../src/constants/categories';
 import { COLORS } from '../src/constants/theme';
-import { discountService } from '../src/services/discountService';
-import { featuredProductService, type FeaturedProductMobile } from '../src/services/featuredProductService';
 import { adBoostService, type AdBoostMobile } from '../src/services/adBoostService';
 import { categoryService } from '../src/services/categoryService';
-import { safeImageUri, PLACEHOLDER_AVATAR, PLACEHOLDER_PRODUCT, PLACEHOLDER_BANNER } from '../src/utils/imageUtils';
-import { Image as ExpoImage } from 'expo-image';
-import { CURATED_CATEGORY_IMAGES } from '../src/constants/categories';
+import { discountService } from '../src/services/discountService';
+import { featuredProductService, type FeaturedProductMobile } from '../src/services/featuredProductService';
+import { notificationService } from '../src/services/notificationService';
+import { productService } from '../src/services/productService';
+import { sellerService } from '../src/services/sellerService';
+import { useAddressStore } from '../src/stores/addressStore';
+import { useAuthStore } from '../src/stores/authStore';
+import { useSellerStore } from '../src/stores/sellerStore';
+import type { Product } from '../src/types';
 import type { Category } from '../src/types/database.types';
+import { PLACEHOLDER_AVATAR, PLACEHOLDER_BANNER, PLACEHOLDER_PRODUCT, safeImageUri } from '../src/utils/imageUtils';
 
 type Props = CompositeScreenProps<
   BottomTabScreenProps<TabParamList, 'Home'>,
@@ -269,11 +275,57 @@ export default function HomeScreen({ navigation }: Props) {
   // Display name logic
   const username = user?.name ? user.name.split(' ')[0] : 'Guest';
 
-  const filteredProducts = useMemo(() => {
-    if (!debouncedSearchQuery.trim()) return [];
-    const q = debouncedSearchQuery.toLowerCase();
-    return dbProducts.filter(p => (p.name || '').toLowerCase().includes(q));
-  }, [dbProducts, debouncedSearchQuery]);
+  const [quickSearchProducts, setQuickSearchProducts] = useState<Product[]>([]);
+  const [isQuickSearchLoading, setIsQuickSearchLoading] = useState(false);
+
+  const normalizeQuickSearchProduct = useCallback((row: any): Product => {
+    const images = Array.isArray(row.images)
+      ? row.images.map((img: any) => (typeof img === 'string' ? img : img.image_url)).filter(Boolean)
+      : [];
+
+    const primaryImage = safeImageUri(
+      row.image || row.primary_image_url || row.primary_image || images[0] || ''
+    );
+
+    return {
+      ...row,
+      price: typeof row.price === 'number' ? row.price : parseFloat(String(row.price || '0')),
+      image: primaryImage,
+      images: images.length > 0 ? images.map((img: string) => safeImageUri(img)) : [primaryImage],
+      seller: row.seller?.store_name || row.sellerName || 'Verified Seller',
+      category: typeof row.category === 'string' ? row.category : row.category?.name || '',
+    } as Product;
+  }, []);
+
+  useEffect(() => {
+    let active = true;
+    const loadQuickSearch = async () => {
+      const query = debouncedSearchQuery.trim();
+      if (!query) {
+        setQuickSearchProducts([]);
+        setIsQuickSearchLoading(false);
+        return;
+      }
+
+      setIsQuickSearchLoading(true);
+      try {
+        const results = await productService.getFilteredProducts(query, { limit: 12, offset: 0 });
+        if (!active) return;
+        setQuickSearchProducts((results || []).map(normalizeQuickSearchProduct));
+      } catch (error) {
+        if (!active) return;
+        console.error('[HomeScreen] Quick search error:', error);
+        setQuickSearchProducts([]);
+      } finally {
+        if (active) setIsQuickSearchLoading(false);
+      }
+    };
+
+    loadQuickSearch();
+    return () => { active = false; };
+  }, [debouncedSearchQuery, normalizeQuickSearchProduct]);
+
+  const filteredProducts = quickSearchProducts;
 
   const filteredStores = useMemo(() => {
     if (!debouncedSearchQuery.trim()) return [];
@@ -719,12 +771,27 @@ export default function HomeScreen({ navigation }: Props) {
                 }
               }}
             />
+         
             <Pressable onPress={() => setShowCameraSearch(true)}><Camera size={18} color={COLORS.primary} /></Pressable>
+               <Pressable
+              onPress={() => {
+                const trimmedQuery = searchQuery.trim();
+                if (trimmedQuery) {
+                  saveRecentSearch(trimmedQuery);
+                  setIsSearchFocused(false);
+                  navigation.navigate('ProductListing', { searchQuery: trimmedQuery });
+                }
+              }}
+              style={styles.searchActionButton}
+            >
+              <Text style={styles.searchActionText}>Search</Text>
+            </Pressable>
           </View>
           {isSearchFocused && (
             <Pressable onPress={() => { setIsSearchFocused(false); setSearchQuery(''); }} style={{ paddingLeft: 10 }}>
               <Text style={{ color: COLORS.primary, fontWeight: '600' }}>Cancel</Text>
             </Pressable>
+            
           )}
         </View>
       </View>
@@ -841,15 +908,24 @@ export default function HomeScreen({ navigation }: Props) {
                   </View>
                 )}
                 {filteredProducts.length > 0 && (
-                  <View>
+                  <View style={styles.searchResultsContainer}>
                     <Text style={styles.sectionHeader}>Products</Text>
-                    <View style={styles.gridBody}>
-                      {filteredProducts.map(p => (
-                        <View key={p.id} style={styles.itemBoxContainerVertical}>
-                          <ProductCard product={p} onPress={() => handleProductPress(p)} />
+                    <FlashList
+                      data={filteredProducts}
+                      renderItem={({ item }: { item: Product }) => (
+                        <View style={styles.searchProductCardWrapper}>
+                          <MasonryProductCard
+                            product={item}
+                            onPress={() => handleProductPress(item)}
+                            width={(screenWidth - 40 - 32) / 2}
+                          />
                         </View>
-                      ))}
-                    </View>
+                      )}
+                      keyExtractor={(item: Product) => `search-${item.id}`}
+                      numColumns={2}
+                      scrollEnabled={false}
+                      contentContainerStyle={{  paddingBottom: 2, paddingLeft: 12 }}
+                    />
                   </View>
                 )}
               </View>
@@ -1223,6 +1299,8 @@ const styles = StyleSheet.create({
   searchBarWrapper: { flexDirection: 'row', alignItems: 'center', },
   searchBarInner: { flex: 1, flexDirection: 'row', alignItems: 'center', borderRadius: 24, paddingHorizontal: 15, height: 48, gap: 10 },
   searchInput: { flex: 1, fontSize: 14 },
+  searchActionButton: { paddingHorizontal: 12, paddingVertical: 8, borderRadius: 18, backgroundColor: COLORS.primary, justifyContent: 'center', alignItems: 'center' },
+  searchActionText: { color: '#FFFFFF', fontSize: 13, fontWeight: '700' },
   searchBackBtn: { padding: 4 },
   contentScroll: { flex: 1 },
   // FLASH SALE STYLES
@@ -1320,6 +1398,8 @@ const styles = StyleSheet.create({
   searchRecentItem: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 12 },
   searchRecentText: { fontSize: 15, color: COLORS.textMuted },
   resultsSection: { flex: 1 },
+  searchResultsContainer: { marginTop: 10, },
+  searchProductCardWrapper: { flex: 1, padding: 2 },
   categoryExpandedContent: { padding: 20 },
   categorySectionTitle: { fontSize: 18, fontWeight: '800', color: COLORS.textHeadline, marginBottom: 15 },
   storeCard: { width: 260, marginBottom: 12, backgroundColor: '#FFF', borderRadius: 16, padding: 16, elevation: 3, shadowColor: '#000', shadowOpacity: 0.05, shadowRadius: 5 },

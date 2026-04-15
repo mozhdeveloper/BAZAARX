@@ -10,10 +10,10 @@
  * - Products may not have seller_id directly (check schema)
  */
 
-import { supabase, isSupabaseConfigured } from '@/lib/supabase';
-import { categoryService } from './categoryService';
-import type { Product, ProductWithSeller, ProductImage, ProductVariant, Category } from '@/types/database.types';
+import { isSupabaseConfigured, supabase } from '@/lib/supabase';
+import type { Category, Product, ProductImage, ProductVariant, ProductWithSeller } from '@/types/database.types';
 import type { Database } from '@/types/supabase-generated.types';
+import { categoryService } from './categoryService';
 
 type ProductInsert = Database['public']['Tables']['products']['Insert'];
 type ProductUpdate = Database['public']['Tables']['products']['Update'];
@@ -528,9 +528,8 @@ export class ProductService {
       : 0;
 
     // Extract seller info
-    const businessProfile = Array.isArray(product.seller?.business_profile)
-      ? product.seller.business_profile[0]
-      : product.seller?.business_profile;
+    // Note: business_profile is fetched separately in getFilteredProducts if needed
+    const businessProfile = undefined;
 
     return {
       ...product,
@@ -1076,6 +1075,460 @@ export class ProductService {
     } catch (error) {
       console.error('Stock addition failed:', error);
       throw new Error('Failed to add stock.');
+    }
+  }
+
+  /**
+   * Get products with advanced filtering and sorting
+   * Supports all filter options from the filter modal
+   */
+  async getFilteredProducts(
+    searchQuery: string,
+    filters: {
+      categoryId?: string;
+      priceRange?: { min: number | null; max: number | null };
+      minRating?: number | null;
+      shippedFrom?: string | null;
+      withVouchers?: boolean;
+      onSale?: boolean;
+      freeShipping?: boolean;
+      preferredSeller?: boolean;
+      officialStore?: boolean;
+      selectedBrands?: string[];
+      standardDelivery?: boolean;
+      sameDayDelivery?: boolean;
+      cashOnDelivery?: boolean;
+      pickupAvailable?: boolean;
+      sortBy?: string;
+      limit?: number;
+      offset?: number;
+    },
+  ): Promise<ProductWithSeller[]> {
+    if (!isSupabaseConfigured()) {
+      console.warn('Supabase not configured - cannot fetch filtered products');
+      return [];
+    }
+
+    const trimmedQuery = searchQuery.trim();
+    if (!trimmedQuery) return [];
+
+    const limit = filters.limit || 30;
+    const offset = filters.offset || 0;
+
+    try {
+      console.log('[ProductService] getFilteredProducts called with:', { searchQuery, filters });
+
+      // Phase 1: Build the base query
+      let query = supabase
+        .from('products')
+        .select(`
+          id,
+          name,
+          description,
+          price,
+          seller_id,
+          category_id,
+          approval_status,
+          disabled_at,
+          deleted_at,
+          created_at,
+          updated_at,
+          variant_label_1,
+          variant_label_2,
+          is_free_shipping,
+          weight,
+          brand,
+          category:categories!products_category_id_fkey (
+            id, name, slug, parent_id, is_active
+          ),
+          images:product_images (id, image_url, alt_text, sort_order, is_primary),
+          variants:product_variants (id, sku, variant_name, size, color, option_1_value, option_2_value, price, stock, thumbnail_url),
+          reviews (id, rating),
+          seller:sellers!products_seller_id_fkey (
+            id,
+            store_name,
+            approval_status,
+            avatar_url,
+            is_vacation_mode
+          ),
+          product_discounts (
+            id,
+            discount_type,
+            discount_value,
+            sold_count,
+            campaign:discount_campaigns (
+              id,
+              badge_text,
+              badge_color,
+              discount_type,
+              discount_value,
+              max_discount_amount,
+              ends_at,
+              status,
+              starts_at
+            )
+          )
+        `)
+        .is('deleted_at', null)
+        .eq('category.is_active', true);
+
+      // Phase 2: Apply filters
+
+      // Search query filter
+      if (trimmedQuery) {
+        const searchPattern = `%${trimmedQuery}%`;
+        query = query.or(`name.ilike.${searchPattern},description.ilike.${searchPattern}`);
+      }
+
+      // Category filter
+      if (filters.categoryId) {
+        query = query.eq('category_id', filters.categoryId);
+      }
+
+      // Price range filter (will also apply client-side for accuracy with discounts)
+      // Note: Database price filter uses base price before discounts
+
+      // Brand filter
+      if (filters.selectedBrands && filters.selectedBrands.length > 0) {
+        query = query.in('brand', filters.selectedBrands);
+      }
+
+      // Free shipping filter
+      if (filters.freeShipping) {
+        query = query.eq('is_free_shipping', true);
+      }
+
+      // Order by sort option
+      switch (filters.sortBy) {
+        case 'price-low':
+          query = query.order('price', { ascending: true });
+          break;
+        case 'price-high':
+          query = query.order('price', { ascending: false });
+          break;
+        case 'newest':
+          query = query.order('created_at', { ascending: false });
+          break;
+        case 'best-selling':
+          // Will sort by sales_count after fetching
+          break;
+        case 'rating-high':
+          // Will sort by rating after fetching (requires calculation)
+          break;
+        case 'relevance':
+        default:
+          query = query.order('created_at', { ascending: false });
+          break;
+      }
+
+      // Apply pagination
+      query = query.limit(limit * 3); // Fetch more to filter client-side
+
+      const { data, error } = await query;
+
+      if (error) {
+        console.error('[ProductService] Error in getFilteredProducts:', error);
+        throw error;
+      }
+
+      let products = data || [];
+
+      console.log('[ProductService] Raw query returned:', products.length, 'products');
+
+      // Phase 3: Client-side filtering for complex filters
+
+      // Calculate ratings and apply rating filter
+      if (filters.minRating !== null && filters.minRating !== undefined) {
+        products = products.filter(product => {
+          const reviews = product.reviews || [];
+          if (reviews.length === 0) return false;
+          const avgRating = reviews.reduce((sum: number, r: any) => sum + (r.rating || 0), 0) / reviews.length;
+          return avgRating >= filters.minRating!;
+        });
+        console.log('[ProductService] After rating filter:', products.length, 'products');
+      }
+
+      // Price range filter (applies to final price after discounts)
+      if (filters.priceRange && (filters.priceRange.min !== null || filters.priceRange.max !== null)) {
+        products = products.filter(product => {
+          const now = new Date();
+          const activeDiscount = product.product_discounts?.find((pd: any) => {
+            const campaign = pd.campaign;
+            if (!campaign || campaign.status !== 'active') return false;
+            const startsAt = new Date(campaign.starts_at);
+            const endsAt = new Date(campaign.ends_at);
+            return now >= startsAt && now <= endsAt;
+          });
+
+          let finalPrice = product.price;
+          if (activeDiscount) {
+            const campaign = activeDiscount.campaign;
+            const dType = activeDiscount.discount_type || campaign.discount_type;
+            const dValue = activeDiscount.discount_value || campaign.discount_value;
+
+            if (dType === 'percentage') {
+              finalPrice = product.price * (1 - (dValue / 100));
+              if (campaign.max_discount_amount) {
+                const maxD = parseFloat(String(campaign.max_discount_amount));
+                finalPrice = Math.max(finalPrice, product.price - maxD);
+              }
+            } else if (dType === 'fixed_amount') {
+              finalPrice = Math.max(0, product.price - dValue);
+            }
+          }
+
+          const min = filters.priceRange!.min;
+          const max = filters.priceRange!.max;
+
+          if (min !== null && finalPrice < min) return false;
+          if (max !== null && finalPrice > max) return false;
+          return true;
+        });
+        console.log('[ProductService] After price filter:', products.length, 'products');
+      }
+
+      // Shops & Promos filters
+      if (filters.withVouchers) {
+        products = products.filter(p => p.product_discounts && p.product_discounts.length > 0);
+        console.log('[ProductService] After vouchers filter:', products.length, 'products');
+      }
+
+      if (filters.onSale) {
+        products = products.filter(p => {
+          const now = new Date();
+          const hasActiveSale = p.product_discounts?.some((pd: any) => {
+            const campaign = pd.campaign;
+            if (!campaign || campaign.status !== 'active') return false;
+            const startsAt = new Date(campaign.starts_at);
+            const endsAt = new Date(campaign.ends_at);
+            return now >= startsAt && now <= endsAt;
+          });
+          return hasActiveSale;
+        });
+        console.log('[ProductService] After onSale filter:', products.length, 'products');
+      }
+
+      if (filters.preferredSeller) {
+        // Filter for preferred sellers - currently not in schema, skipping filter
+        // TODO: Add preferred_seller flag to sellers table
+        console.log('[ProductService] Preferred seller filter not yet supported');
+      }
+
+      if (filters.officialStore) {
+        // Filter for official stores - currently not in schema, skipping filter
+        // TODO: Add official_store flag to sellers table
+        console.log('[ProductService] Official store filter not yet supported');
+      }
+
+      // Shipped from filter - requires fetching business profiles separately
+      if (filters.shippedFrom) {
+        // Get seller IDs from products (filter out nulls)
+        const sellerIds = products
+          .map(p => p.seller_id)
+          .filter((id): id is string => id !== null && id !== undefined);
+        
+        if (sellerIds.length > 0) {
+          // Fetch business profiles for these sellers
+          const { data: businessProfiles } = await supabase
+            .from('seller_business_profiles')
+            .select('seller_id, city, province')
+            .in('seller_id', sellerIds);
+          
+          const profileMap = new Map<string, any>();
+          businessProfiles?.forEach(bp => {
+            profileMap.set(bp.seller_id, bp);
+          });
+          
+          products = products.filter(p => {
+            if (!p.seller_id) return false;
+            const businessProfile = profileMap.get(p.seller_id);
+            
+            if (filters.shippedFrom === 'philippines') {
+              // All sellers are in Philippines by default
+              return true;
+            } else if (filters.shippedFrom === 'metro_manila') {
+              // Check if seller is in Metro Manila
+              if (!businessProfile) return false;
+              return businessProfile.city?.toLowerCase().includes('manila') ||
+                     businessProfile.province?.toLowerCase().includes('manila');
+            }
+            return true;
+          });
+        }
+        console.log('[ProductService] After location filter:', products.length, 'products');
+      }
+
+      // Phase 4: Transform products with sold counts
+      const productIds = products.map(p => p.id);
+      const { data: soldCountsData } = await supabase
+        .from('order_items')
+        .select('product_id, quantity, order:orders!inner(payment_status, shipment_status)')
+        .in('product_id', productIds)
+        .in('order.shipment_status', ['processing', 'ready_to_ship', 'shipped', 'out_for_delivery', 'delivered', 'received']);
+
+      const soldCountsMap = new Map<string, number>();
+      (soldCountsData || []).forEach(item => {
+        const id = item.product_id;
+        if (id) {
+          const currentCount = soldCountsMap.get(id) || 0;
+          soldCountsMap.set(id, currentCount + (item.quantity || 0));
+        }
+      });
+
+      // Transform products
+      const result = products.map(p => this.transformProduct(p, soldCountsMap.get(p.id) || 0));
+
+      // Phase 5: Client-side sorting for fields that require calculation
+      if (filters.sortBy === 'best-selling') {
+        result.sort((a, b) => {
+          const soldA = (a as any).sold || 0;
+          const soldB = (b as any).sold || 0;
+          return soldB - soldA;
+        });
+      } else if (filters.sortBy === 'rating-high') {
+        result.sort((a, b) => (b.rating || 0) - (a.rating || 0));
+      }
+
+      // Phase 6: Apply pagination after all filtering
+      const paginatedResult = result.slice(offset, offset + limit);
+
+      console.log('[ProductService] Final filtered result:', paginatedResult.length, 'products');
+      return paginatedResult;
+    } catch (error) {
+      console.error('[ProductService] Error in getFilteredProducts:', error);
+      throw new Error('Failed to fetch filtered products.');
+    }
+  }
+
+  /**
+   * Get all active categories with product count
+   * Used for filter category selection
+   */
+  async getCategoriesWithProducts(): Promise<Array<{ id: string; name: string; path: string[]; productCount: number }>> {
+    if (!isSupabaseConfigured()) {
+      console.warn('Supabase not configured - cannot fetch categories');
+      return [];
+    }
+
+    try {
+      const { data: categories, error } = await supabase
+        .from('categories')
+        .select('id, name, parent_id, is_active')
+        .eq('is_active', true)
+        .order('name');
+
+      if (error) throw error;
+
+      // Build category tree with paths
+      const categoryMap = new Map();
+      categories?.forEach(cat => {
+        categoryMap.set(cat.id, { ...cat, children: [] });
+      });
+
+      const rootCategories: any[] = [];
+      categories?.forEach(cat => {
+        const catData = categoryMap.get(cat.id);
+        if (cat.parent_id && categoryMap.has(cat.parent_id)) {
+          categoryMap.get(cat.parent_id).children.push(catData);
+        } else {
+          rootCategories.push(catData);
+        }
+      });
+
+      // Build paths for each category
+      const buildPath = (cat: any, parentPath: string[] = []): string[] => {
+        return [...parentPath, cat.name];
+      };
+
+      const flattenCategories = (cats: any[], parentPath: string[] = []): Array<{ id: string; name: string; path: string[] }> => {
+        const result: Array<{ id: string; name: string; path: string[] }> = [];
+        for (const cat of cats) {
+          const path = buildPath(cat, parentPath);
+          result.push({ id: cat.id, name: cat.name, path });
+          if (cat.children && cat.children.length > 0) {
+            result.push(...flattenCategories(cat.children, path));
+          }
+        }
+        return result;
+      };
+
+      const allCategories = flattenCategories(rootCategories);
+
+      // Get product count for each category
+      const categoriesWithCount = await Promise.all(
+        allCategories.map(async cat => {
+          const { count } = await supabase
+            .from('products')
+            .select('*', { count: 'exact', head: true })
+            .eq('category_id', cat.id)
+            .is('deleted_at', null)
+            .is('disabled_at', null);
+
+          return {
+            ...cat,
+            productCount: count || 0,
+          };
+        }),
+      );
+
+      // Only return categories with products
+      return categoriesWithCount.filter(cat => cat.productCount > 0);
+    } catch (error) {
+      console.error('[ProductService] Error fetching categories:', error);
+      return [];
+    }
+  }
+
+  /**
+   * Get all active brands from current result set
+   * Used for filter brand selection
+   */
+  async getBrandsFromResults(searchQuery: string, filters?: { categoryId?: string }): Promise<Array<{ id: string; name: string }>> {
+    if (!isSupabaseConfigured()) {
+      console.warn('Supabase not configured - cannot fetch brands');
+      return [];
+    }
+
+    const trimmedQuery = searchQuery.trim();
+    if (!trimmedQuery) return [];
+
+    try {
+      let query = supabase
+        .from('products')
+        .select('brand')
+        .is('deleted_at', null)
+        .is('disabled_at', null)
+        .not('brand', 'is', null)
+        .neq('brand', '');
+
+      if (trimmedQuery) {
+        const searchPattern = `%${trimmedQuery}%`;
+        query = query.or(`name.ilike.${searchPattern},description.ilike.${searchPattern}`);
+      }
+
+      if (filters?.categoryId) {
+        query = query.eq('category_id', filters.categoryId);
+      }
+
+      const { data, error } = await query;
+
+      if (error) throw error;
+
+      // Extract unique brands
+      const brandSet = new Set<string>();
+      data?.forEach(product => {
+        if (product.brand) {
+          brandSet.add(product.brand);
+        }
+      });
+
+      return Array.from(brandSet).map((brand, index) => ({
+        id: brand.toLowerCase().replace(/\s+/g, '-'),
+        name: brand,
+      }));
+    } catch (error) {
+      console.error('[ProductService] Error fetching brands:', error);
+      return [];
     }
   }
 

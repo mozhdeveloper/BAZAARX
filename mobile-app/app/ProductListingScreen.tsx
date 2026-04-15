@@ -1,24 +1,29 @@
-import React, { useState, useEffect, useCallback, useRef } from 'react';
+import type { NativeStackScreenProps } from '@react-navigation/native-stack';
+import { FlashList } from '@shopify/flash-list';
+import { ArrowLeft, ChevronDown, Search, SlidersHorizontal, X } from 'lucide-react-native';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import {
-  View,
-  Text,
-  TextInput,
-  StyleSheet,
-  ActivityIndicator,
-  Pressable,
-  RefreshControl,
-  StatusBar,
-  Dimensions,
+    ActivityIndicator,
+    Dimensions,
+    Pressable,
+    RefreshControl,
+    ScrollView,
+    StatusBar,
+    StyleSheet,
+    Text,
+    TextInput,
+    View,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { Search, X, ArrowLeft } from 'lucide-react-native';
-import { FlashList } from '@shopify/flash-list';
+import type { RootStackParamList } from '../App';
 import { MasonryProductCard } from '../src/components/ProductCard';
+import ProductFilterModal from '../src/components/ProductFilterModal';
+import SortModal from '../src/components/SortModal';
+import { COLORS } from '../src/constants/theme';
 import { productService } from '../src/services/productService';
 import type { Product } from '../src/types';
-import { COLORS } from '../src/constants/theme';
-import type { NativeStackScreenProps } from '@react-navigation/native-stack';
-import type { RootStackParamList } from '../App';
+import type { ActiveFilterChip, ProductFilters, SortOption } from '../src/types/filter.types';
+import { DEFAULT_FILTERS } from '../src/types/filter.types';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'ProductListing'>;
 
@@ -43,9 +48,179 @@ export default function ProductListingScreen({ navigation, route }: Props) {
   const [offset, setOffset] = useState(0);
   const [searchPerformed, setSearchPerformed] = useState(false);
 
+  // Filter and sort state
+  const [filters, setFilters] = useState<ProductFilters>(DEFAULT_FILTERS);
+  const [sortOption, setSortOption] = useState<SortOption>('relevance');
+  const [showFilterModal, setShowFilterModal] = useState(false);
+  const [showSortModal, setShowSortModal] = useState(false);
+  const [availableCategories, setAvailableCategories] = useState<any[]>([]);
+  const [availableBrands, setAvailableBrands] = useState<any[]>([]);
+
   const flashListRef = useRef<any>(null);
 
-  // Execute search
+  // Load available categories and brands
+  const loadFilterOptions = useCallback(async (query: string) => {
+    if (!query.trim()) return;
+
+    try {
+      const [categories, brands] = await Promise.all([
+        productService.getCategoriesWithProducts(),
+        productService.getBrandsFromResults(query),
+      ]);
+
+      setAvailableCategories(categories.map(cat => ({
+        id: cat.id,
+        name: cat.name,
+        path: cat.path,
+        hasChildren: false,
+      })));
+
+      setAvailableBrands(brands);
+    } catch (error) {
+      console.error('[ProductListingScreen] Error loading filter options:', error);
+    }
+  }, []);
+
+  // Count active filters
+  const getActiveFilterCount = useCallback(() => {
+    let count = 0;
+    if (filters.categoryId) count++;
+    if (filters.priceRange.min !== null || filters.priceRange.max !== null) count++;
+    if (filters.minRating !== null) count++;
+    if (filters.shippedFrom) count++;
+    if (filters.withVouchers) count++;
+    if (filters.onSale) count++;
+    if (filters.freeShipping) count++;
+    if (filters.preferredSeller) count++;
+    if (filters.officialStore) count++;
+    if (filters.selectedBrands.length > 0) count++;
+    if (filters.standardDelivery || filters.sameDayDelivery || filters.cashOnDelivery || filters.pickupAvailable) count++;
+    return count;
+  }, [filters]);
+
+  // Generate filter chips
+  const getActiveFilterChips = useCallback((): ActiveFilterChip[] => {
+    const chips: ActiveFilterChip[] = [];
+
+    if (filters.categoryId) {
+      chips.push({
+        id: 'category',
+        label: `Category: ${filters.categoryPath.join(' > ')}`,
+        category: 'category',
+        onRemove: () => {
+          setFilters(prev => ({ ...prev, categoryId: null, categoryPath: [] }));
+        },
+      });
+    }
+
+    if (filters.priceRange.min !== null || filters.priceRange.max !== null) {
+      const min = filters.priceRange.min !== null ? `₱${filters.priceRange.min}` : '₱0';
+      const max = filters.priceRange.max !== null ? `₱${filters.priceRange.max}` : '∞';
+      chips.push({
+        id: 'price',
+        label: `Price: ${min} - ${max}`,
+        category: 'price',
+        onRemove: () => {
+          setFilters(prev => ({ ...prev, priceRange: { min: null, max: null } }));
+        },
+      });
+    }
+
+    if (filters.minRating !== null) {
+      chips.push({
+        id: 'rating',
+        label: `${filters.minRating}★ & up`,
+        category: 'rating',
+        onRemove: () => {
+          setFilters(prev => ({ ...prev, minRating: null }));
+        },
+      });
+    }
+
+    if (filters.shippedFrom) {
+      chips.push({
+        id: 'location',
+        label: `Shipped from: ${filters.shippedFrom === 'metro_manila' ? 'Metro Manila' : 'Philippines'}`,
+        category: 'location',
+        onRemove: () => {
+          setFilters(prev => ({ ...prev, shippedFrom: null }));
+        },
+      });
+    }
+
+    if (filters.withVouchers) {
+      chips.push({
+        id: 'vouchers',
+        label: 'With Vouchers',
+        category: 'promo',
+        onRemove: () => {
+          setFilters(prev => ({ ...prev, withVouchers: false }));
+        },
+      });
+    }
+
+    if (filters.onSale) {
+      chips.push({
+        id: 'sale',
+        label: 'On Sale',
+        category: 'promo',
+        onRemove: () => {
+          setFilters(prev => ({ ...prev, onSale: false }));
+        },
+      });
+    }
+
+    if (filters.freeShipping) {
+      chips.push({
+        id: 'freeShipping',
+        label: 'Free Shipping',
+        category: 'promo',
+        onRemove: () => {
+          setFilters(prev => ({ ...prev, freeShipping: false }));
+        },
+      });
+    }
+
+    if (filters.preferredSeller) {
+      chips.push({
+        id: 'preferredSeller',
+        label: 'Preferred Seller',
+        category: 'promo',
+        onRemove: () => {
+          setFilters(prev => ({ ...prev, preferredSeller: false }));
+        },
+      });
+    }
+
+    if (filters.officialStore) {
+      chips.push({
+        id: 'officialStore',
+        label: 'Official Store',
+        category: 'promo',
+        onRemove: () => {
+          setFilters(prev => ({ ...prev, officialStore: false }));
+        },
+      });
+    }
+
+    filters.selectedBrands.forEach(brand => {
+      chips.push({
+        id: `brand-${brand}`,
+        label: `Brand: ${brand}`,
+        category: 'brand',
+        onRemove: () => {
+          setFilters(prev => ({
+            ...prev,
+            selectedBrands: prev.selectedBrands.filter(b => b !== brand),
+          }));
+        },
+      });
+    });
+
+    return chips;
+  }, [filters]);
+
+  // Execute search with filters
   const executeSearch = useCallback(async (query: string, reset = true) => {
     const trimmedQuery = query.trim();
 
@@ -68,10 +243,21 @@ export default function ProductListingScreen({ navigation, route }: Props) {
 
       const currentOffset = reset ? 0 : offset;
 
-      console.log('[ProductListingScreen] Executing search:', trimmedQuery, 'offset:', currentOffset);
+      console.log('[ProductListingScreen] Executing filtered search:', trimmedQuery, 'offset:', currentOffset);
 
-      // Use enhanced search that includes category and seller matching
-      const serverResults = await productService.searchProducts(trimmedQuery, {
+      // Use the new filtered search method
+      const serverResults = await productService.getFilteredProducts(trimmedQuery, {
+        categoryId: filters.categoryId || undefined,
+        priceRange: filters.priceRange,
+        minRating: filters.minRating,
+        shippedFrom: filters.shippedFrom,
+        withVouchers: filters.withVouchers,
+        onSale: filters.onSale,
+        freeShipping: filters.freeShipping,
+        preferredSeller: filters.preferredSeller,
+        officialStore: filters.officialStore,
+        selectedBrands: filters.selectedBrands.length > 0 ? filters.selectedBrands : undefined,
+        sortBy: sortOption,
         limit: PAGE_SIZE,
         offset: currentOffset,
       });
@@ -137,13 +323,14 @@ export default function ProductListingScreen({ navigation, route }: Props) {
       setIsLoadingMore(false);
       setIsRefreshing(false);
     }
-  }, [offset, products]);
+  }, [offset, products, filters, sortOption]);
 
   // Initial search on mount
   useEffect(() => {
     if (initialQuery) {
       setSearchQuery(initialQuery);
       executeSearch(initialQuery, true);
+      loadFilterOptions(initialQuery);
     } else {
       setIsLoading(false);
     }
@@ -154,6 +341,7 @@ export default function ProductListingScreen({ navigation, route }: Props) {
     const trimmedQuery = searchQuery.trim();
     if (trimmedQuery) {
       executeSearch(trimmedQuery, true);
+      loadFilterOptions(trimmedQuery);
     }
   };
 
@@ -168,6 +356,28 @@ export default function ProductListingScreen({ navigation, route }: Props) {
     setProducts([]);
     setSearchPerformed(false);
   };
+
+  // Handle filter apply
+  const handleFilterApply = useCallback((newFilters: ProductFilters) => {
+    setFilters(newFilters);
+    executeSearch(searchQuery, true);
+  }, [searchQuery, executeSearch]);
+
+  // Handle sort select
+  const handleSortSelect = useCallback((newSort: SortOption) => {
+    setSortOption(newSort);
+    executeSearch(searchQuery, true);
+  }, [searchQuery, executeSearch]);
+
+  // Remove individual filter chip
+  const handleRemoveFilterChip = useCallback((chipId: string) => {
+    const chips = getActiveFilterChips();
+    const chip = chips.find(c => c.id === chipId);
+    if (chip) {
+      chip.onRemove();
+      executeSearch(searchQuery, true);
+    }
+  }, [searchQuery, executeSearch, getActiveFilterChips]);
 
   // Pull to refresh
   const handleRefresh = useCallback(async () => {
@@ -263,6 +473,49 @@ export default function ProductListingScreen({ navigation, route }: Props) {
     return null;
   };
 
+  // Render filter chips
+  const renderFilterChips = () => {
+    const chips = getActiveFilterChips();
+    if (chips.length === 0) return null;
+
+    return (
+      <ScrollView
+        horizontal
+        showsHorizontalScrollIndicator={false}
+        style={styles.filterChipsContainer}
+        contentContainerStyle={styles.filterChipsContent}
+      >
+        {chips.map(chip => (
+          <Pressable
+            key={chip.id}
+            style={styles.filterChip}
+            onPress={chip.onRemove}
+          >
+            <Text style={styles.filterChipText}>{chip.label}</Text>
+            <X size={14} color={COLORS.gray500} style={styles.filterChipIcon} />
+          </Pressable>
+        ))}
+        <Pressable
+          style={styles.clearAllButton}
+          onPress={() => {
+            setFilters(DEFAULT_FILTERS);
+            executeSearch(searchQuery, true);
+          }}
+        >
+          <Text style={styles.clearAllText}>Clear All</Text>
+        </Pressable>
+      </ScrollView>
+    );
+  };
+
+  const activeFilterCount = getActiveFilterCount();
+  const sortLabel = sortOption === 'relevance' ? 'Sort' : 
+    sortOption === 'price-low' ? 'Price: Low to High' :
+    sortOption === 'price-high' ? 'Price: High to Low' :
+    sortOption === 'rating-high' ? 'Rating' :
+    sortOption === 'newest' ? 'Newest' :
+    sortOption === 'best-selling' ? 'Best Selling' : 'Sort';
+
   return (
     <View style={[styles.container, { paddingTop: insets.top }]}>
       <StatusBar barStyle="dark-content" />
@@ -312,6 +565,33 @@ export default function ProductListingScreen({ navigation, route }: Props) {
         </Pressable>
       </View>
 
+      {/* Filter and Sort Bar */}
+      <View style={styles.filterSortBar}>
+        <Pressable
+          style={styles.filterButton}
+          onPress={() => setShowFilterModal(true)}
+        >
+          <SlidersHorizontal size={18} color={COLORS.textPrimary} />
+          <Text style={styles.filterButtonText}>Filter</Text>
+          {activeFilterCount > 0 && (
+            <View style={styles.filterBadge}>
+              <Text style={styles.filterBadgeText}>{activeFilterCount}</Text>
+            </View>
+          )}
+        </Pressable>
+
+        <Pressable
+          style={styles.sortButton}
+          onPress={() => setShowSortModal(true)}
+        >
+          <Text style={styles.sortButtonText}>{sortLabel}</Text>
+          <ChevronDown size={16} color={COLORS.gray500} />
+        </Pressable>
+      </View>
+
+      {/* Filter Chips */}
+      {renderFilterChips()}
+
       {/* Results Info */}
       {searchPerformed && products.length > 0 && (
         <View style={styles.resultsInfo}>
@@ -342,6 +622,24 @@ export default function ProductListingScreen({ navigation, route }: Props) {
             colors={[COLORS.primary]}
           />
         }
+      />
+
+      {/* Filter Modal */}
+      <ProductFilterModal
+        visible={showFilterModal}
+        onClose={() => setShowFilterModal(false)}
+        onApply={handleFilterApply}
+        initialFilters={filters}
+        availableCategories={availableCategories}
+        availableBrands={availableBrands}
+      />
+
+      {/* Sort Modal */}
+      <SortModal
+        visible={showSortModal}
+        onClose={() => setShowSortModal(false)}
+        onSelect={handleSortSelect}
+        selectedSort={sortOption}
       />
     </View>
   );
@@ -404,6 +702,89 @@ const styles = StyleSheet.create({
   },
   searchButtonTextDisabled: {
     color: '#9CA3AF',
+  },
+  filterSortBar: {
+    flexDirection: 'row',
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: '#F3F4F6',
+    gap: 12,
+  },
+  filterButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#F9FAFB',
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    borderRadius: 10,
+    gap: 8,
+  },
+  filterButtonText: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: COLORS.textPrimary,
+  },
+  filterBadge: {
+    backgroundColor: COLORS.primary,
+    borderRadius: 10,
+    minWidth: 18,
+    height: 18,
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingHorizontal: 4,
+  },
+  filterBadgeText: {
+    fontSize: 10,
+    fontWeight: '700',
+    color: '#FFFFFF',
+  },
+  sortButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#F9FAFB',
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    borderRadius: 10,
+    gap: 6,
+  },
+  sortButtonText: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: COLORS.textPrimary,
+  },
+  filterChipsContainer: {
+    maxHeight: 44,
+  },
+  filterChipsContent: {
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    gap: 8,
+  },
+  filterChip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#F3F4F6',
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 16,
+  },
+  filterChipText: {
+    fontSize: 13,
+    color: COLORS.textPrimary,
+    marginRight: 4,
+  },
+  filterChipIcon: {
+    marginLeft: 2,
+  },
+  clearAllButton: {
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+  },
+  clearAllText: {
+    fontSize: 13,
+    color: COLORS.primary,
+    fontWeight: '600',
   },
   resultsInfo: {
     paddingHorizontal: 16,
