@@ -309,8 +309,13 @@ export class CartService {
   }
 
   /**
-   * Update cart item quantity
+   * Update cart item quantity with strict stock validation
    * New schema: no subtotal on cart_items
+   * 
+   * 1. Fetch cart item to get product_id and variant_id
+   * 2. Check current stock from product_variant or sum variants
+   * 3. Validate quantity against available stock
+   * 4. Update only if valid
    */
   async updateCartItemQuantity(
     itemId: string,
@@ -321,12 +326,61 @@ export class CartService {
     }
 
     try {
-      const { error } = await supabase
+      // Step 1: Get cart item to extract product_id and variant_id
+      const { data: cartItem, error: fetchError } = await supabase
+        .from('cart_items')
+        .select('product_id, variant_id')
+        .eq('id', itemId)
+        .single();
+
+      if (fetchError) throw fetchError;
+      if (!cartItem) throw new Error('Cart item not found.');
+
+      const { product_id, variant_id } = cartItem;
+
+      // Step 2: Check product/variant stock based on whether variant exists
+      let availableStock = 0;
+
+      if (variant_id) {
+        // Variant exists: check product_variants table
+        const { data: variant, error: variantError } = await supabase
+          .from('product_variants')
+          .select('stock')
+          .eq('id', variant_id)
+          .single();
+
+        if (variantError) throw variantError;
+        if (!variant) throw new Error('Variant not found.');
+
+        availableStock = variant.stock || 0;
+      } else {
+        // No variant: sum all variants for this product
+        const { data: variants, error: variantsError } = await supabase
+          .from('product_variants')
+          .select('stock')
+          .eq('product_id', product_id);
+
+        if (variantsError) throw variantsError;
+
+        availableStock = (variants || []).reduce((sum: number, v: any) => sum + (v.stock || 0), 0);
+      }
+
+      // Step 3: Validate requested quantity against available stock
+      if (availableStock === 0) {
+        throw new Error('This item is currently out of stock.');
+      }
+
+      if (quantity > availableStock) {
+        throw new Error(`Only ${availableStock} items left in stock.`);
+      }
+
+      // Step 4: Update quantity only if validation passes
+      const { error: updateError } = await supabase
         .from('cart_items')
         .update({ quantity })
         .eq('id', itemId);
 
-      if (error) throw error;
+      if (updateError) throw updateError;
     } catch (error) {
       console.error('Error updating cart item:', error);
       throw new Error(error instanceof Error ? error.message : 'Failed to update item quantity.');
