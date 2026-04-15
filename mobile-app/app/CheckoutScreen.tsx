@@ -692,12 +692,7 @@ export default function CheckoutScreen({ navigation, route }: Props) {
           addressType: saved.addressType || 'residential',
         };
 
-        console.log('[🔍 ADDRESS DEBUG 6] LocationModal address object created:', {
-          firstName: savedAddr.firstName,
-          lastName: savedAddr.lastName,
-          phone: savedAddr.phone,
-          id: savedAddr.id
-        });
+
 
         // Update local state
         setAddresses(prev => {
@@ -706,15 +701,11 @@ export default function CheckoutScreen({ navigation, route }: Props) {
           }
           return [...prev, savedAddr];
         });
-        console.log('[🔍 ADDRESS DEBUG 7] Addresses state updated');
+
 
         setSelectedAddress(savedAddr);
         setTempSelectedAddress(savedAddr);
-        console.log('[🔍 ADDRESS DEBUG 8] Selected address set to:', {
-          firstName: savedAddr.firstName,
-          lastName: savedAddr.lastName,
-          phone: savedAddr.phone
-        });
+
 
         // Save to AsyncStorage for HomeScreen sync
         await AsyncStorage.setItem('currentDeliveryAddress', formattedAddress);
@@ -738,11 +729,11 @@ export default function CheckoutScreen({ navigation, route }: Props) {
       Alert.alert('Error', 'Failed to save address. Please try again.');
     } finally {
       setIsSaving(false);
-      console.log('[🔍 ADDRESS DEBUG 9] LocationModal closing, isSaving set to false');
+
       setShowLocationModal(false);
       setIsEditMode(false);
       setSelectedAddressForEdit(null);
-      console.log('[🔍 ADDRESS DEBUG 10] showLocationModal set to false');
+
     }
   }, [user, addresses.length, isEditMode, selectedAddressForEdit]);
 
@@ -1284,10 +1275,7 @@ export default function CheckoutScreen({ navigation, route }: Props) {
       setSelectedAddress(created);
       setTempSelectedAddress(created);
 
-        console.log('[🔍 ADDRESS DEBUG 4] Address created and selected:', {
-          created: { firstName: created.firstName, lastName: created.lastName, phone: created.phone, id: created.id },
-          timestamp: new Date().toISOString()
-        });
+
       const formattedAddress = `${created.firstName} ${created.lastName}, ${created.phone}`;
       await AsyncStorage.setItem('currentDeliveryAddress', formattedAddress);
       if (created.coordinates) {
@@ -1342,9 +1330,6 @@ export default function CheckoutScreen({ navigation, route }: Props) {
       // CRITICAL: If user already has a selectedAddress set (e.g., just created one), 
       // DO NOT override it with defaults or re-fetch from database
       if (selectedAddress) {
-        console.log('[🔍 ADDRESS DEBUG 3] Selected address already exists, skipping re-fetch:', {
-          current: { firstName: selectedAddress.firstName, lastName: selectedAddress.lastName, phone: selectedAddress.phone },
-        });
         initializedUserId.current = user.id;
         setIsLoadingAddresses(false);
         const coins = await addressService.getBazcoins(user.id);
@@ -1355,13 +1340,6 @@ export default function CheckoutScreen({ navigation, route }: Props) {
       try {
         // Fetch all saved addresses
         const serviceAddresses = await addressService.getAddresses(user.id);
-        console.log('[🔍 ADDRESS DEBUG 1] Fetched addresses from service:', serviceAddresses?.map(a => ({
-          id: a.id,
-          firstName: a.firstName,
-          lastName: a.lastName,
-          phone: a.phone,
-          isDefault: a.isDefault
-        })));
 
         const addressData: Address[] = (serviceAddresses || []).map(a => ({
           id: a.id,
@@ -1384,8 +1362,6 @@ export default function CheckoutScreen({ navigation, route }: Props) {
         }));
         setAddresses(addressData);
 
-        console.log('[🔍 ADDRESS DEBUG 2] Addresses state updated, selectedAddress is:', selectedAddress);
-
         // If this is a gift, DO NOT overwrite the selected address with defaults
         // The other useEffect handles setting the registry address
         if (isGift) {
@@ -1397,7 +1373,6 @@ export default function CheckoutScreen({ navigation, route }: Props) {
         // CRITICAL: If user already has a selectedAddress set (e.g., just created one), 
         // DO NOT override it with defaults
         if (selectedAddress) {
-          console.log('[🔍 ADDRESS DEBUG 3] Selected address already exists, skipping re-initialization:', selectedAddress);
           initializedUserId.current = user.id;
           setIsLoadingAddresses(false);
           const coins = await addressService.getBazcoins(user.id);
@@ -1461,7 +1436,6 @@ export default function CheckoutScreen({ navigation, route }: Props) {
           // Use default address if user had set one explicitly
           setSelectedAddress(defaultSavedAddr);
           setTempSelectedAddress(defaultSavedAddr);
-          console.log('[🔍 ADDRESS DEBUG 5a] Setting default address:', { firstName: defaultSavedAddr.firstName, lastName: defaultSavedAddr.lastName, phone: defaultSavedAddr.phone });
         } else if (homeScreenAddress && homeScreenAddress !== 'Select Location') {
           // Check if this matches a saved address (including "Current Location" from DB)
           const matchingAddress = addressData.find(addr =>
@@ -1474,7 +1448,6 @@ export default function CheckoutScreen({ navigation, route }: Props) {
             // Use the matching saved address
             setSelectedAddress(matchingAddress);
             setTempSelectedAddress(matchingAddress);
-            console.log('[🔍 ADDRESS DEBUG 5b] Setting matching HomeScreen address:', { firstName: matchingAddress.firstName, lastName: matchingAddress.lastName });
           } else {
             // Create a temporary address object from HomeScreen's location
             // Use parsed details from map if available, otherwise parse the address string
@@ -1498,7 +1471,6 @@ export default function CheckoutScreen({ navigation, route }: Props) {
             };
             setSelectedAddress(tempAddr);
             setTempSelectedAddress(tempAddr);
-            console.log('[🔍 ADDRESS DEBUG 5c] Creating temp address from HomeScreen location:', { firstName: tempAddr.firstName, phone: tempAddr.phone });
           }
         } else {
           // Use first saved address
@@ -1506,7 +1478,6 @@ export default function CheckoutScreen({ navigation, route }: Props) {
           if (firstAddr) {
             setSelectedAddress(firstAddr);
             setTempSelectedAddress(firstAddr);
-            console.log('[🔍 ADDRESS DEBUG 5d] Setting first saved address:', { firstName: firstAddr.firstName, lastName: firstAddr.lastName, phone: firstAddr.phone });
           }
         }
 
@@ -1797,10 +1768,6 @@ export default function CheckoutScreen({ navigation, route }: Props) {
                           <Text style={{ fontSize: 16, fontWeight: '700', color: '#111827' }}>
                             {selectedAddress.firstName} {selectedAddress.lastName}
                           </Text>
-                          {(() => {
-                            console.log('[🔍 ADDRESS DEBUG RENDER] Displaying address:', selectedAddress);
-                            return null;
-                          })()}
                           {selectedAddress.isDefault && (
                             <View style={{ backgroundColor: COLORS.primary, paddingHorizontal: 8, paddingVertical: 2, borderRadius: 4, marginLeft: 8 }}>
                               <Text style={{ color: 'white', fontSize: 10, fontWeight: 'bold' }}>Default</Text>
@@ -1847,7 +1814,7 @@ export default function CheckoutScreen({ navigation, route }: Props) {
               </View>
 
               {Object.entries(groupedCheckoutItems).map(([sellerName, sellerItems], groupIdx) => (
-                <View key={sellerName} style={groupIdx > 0 && { marginTop: 16 }}>
+                <View key={`${groupIdx}-${sellerName}`} style={groupIdx > 0 && { marginTop: 16 }}>
                   <View style={styles.sellerHeaderRow}>
                     <Store size={14} color={COLORS.gray500} />
                     <Text style={styles.sellerNameHeader}>{sellerName}</Text>
