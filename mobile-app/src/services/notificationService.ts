@@ -152,7 +152,6 @@ class NotificationService {
       if (error) {
         // Suppress AbortError — it's expected when requests overlap or component unmounts
         if (error.message?.includes('Aborted') || error.code === 'ABORT_ERR') {
-          console.debug('[NotificationService] Request aborted (expected on unmount/focus change)');
           return [];
         }
         

@@ -717,6 +717,17 @@ export default function LocationModal({
             postalCode: addr.postcode || '',
           };
           setLocationDetails(details);
+
+          // UPDATE FORM FIELDS with the new address details so they display immediately
+          setFormAddress(prev => ({
+            ...prev,
+            street: addr.road || addr.pedestrian || prev.street,
+            barangay: addr.neighbourhood || addr.suburb || addr.village || prev.barangay,
+            city: addr.city || addr.municipality || addr.town || prev.city,
+            province: addr.county || addr.state || prev.province,
+            region: addr.region || addr.state || prev.region,
+            postalCode: addr.postcode || prev.postalCode,
+          }));
         }
       } catch (error) {
         console.log('Reverse geocode error:', error);

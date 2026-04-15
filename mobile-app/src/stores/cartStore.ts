@@ -215,24 +215,39 @@ export const useCartStore = create<CartStore>()(
       },
 
       initializeForCurrentUser: async () => {
+        console.log('[CartStore] initializeForCurrentUser starting...');
         const userId = useAuthStore.getState().user?.id;
-        if (!userId || userId === 'guest') return;
+        if (!userId || userId === 'guest') {
+          console.log('[CartStore] No valid user ID, skipping initialization');
+          return;
+        }
         set({ isLoading: true, error: null });
         try {
+          console.log('[CartStore] Fetching or creating cart for user:', userId);
+          const cartStart = Date.now();
           const cart = await cartService.getOrCreateCart(userId);
+          const cartDuration = Date.now() - cartStart;
+          console.log(`[CartStore] getOrCreateCart completed in ${cartDuration}ms:`, cart);
           set({ cartId: cart.id });
 
           const cartId = get().cartId;
           if (cartId) {
+            console.log('[CartStore] Fetching cart items for cart:', cartId);
+            const itemsStart = Date.now();
             const rawItems = await cartService.getCartItems(cartId);
+            const itemsDuration = Date.now() - itemsStart;
+            console.log(`[CartStore] getCartItems completed in ${itemsDuration}ms, found ${rawItems.length} items`);
             const dbItems = mapDbCartItemsToCartItems(rawItems);
             const mergedItems = mergeDbAndLocalItems(dbItems, get().items);
+            console.log('[CartStore] Items mapped and merged, total:', mergedItems.length);
             set({ items: mergedItems });
           }
         } catch (e: any) {
+          console.error('[CartStore] ❌ initializeForCurrentUser error:', e);
           set({ error: e?.message || 'Failed to load cart', items: [] });
         } finally {
           set({ isLoading: false });
+          console.log('[CartStore] initializeForCurrentUser completed');
         }
       },
 
