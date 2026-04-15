@@ -18,7 +18,7 @@ import {
     Alert,
     Keyboard,
 } from 'react-native';
-import { ChevronLeft, Send, MoreVertical, Store, Ticket, FileText, Play, ImageIcon, Paperclip, ChevronRight } from 'lucide-react-native';
+import { ChevronLeft, Send, Store, Ticket, FileText, Play, ImageIcon, Paperclip, ChevronRight, ArrowDown, Reply, X as XIcon, MessageSquare } from 'lucide-react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { COLORS } from '../constants/theme';
 import { useNavigation } from '@react-navigation/native';
@@ -66,6 +66,16 @@ export default function StoreChatModal({ visible, onClose, storeName, sellerId }
     const [uploading, setUploading] = useState(false);
     const [inputText, setInputText] = useState('');
     const scrollViewRef = useRef<ScrollView>(null);
+
+    // Reply-to state (Step 9)
+    const [replyingTo, setReplyingTo] = useState<ChatMessage | null>(null);
+
+    // Quick reply cooldown state (Step 10)
+    const [usedQuickReplies, setUsedQuickReplies] = useState<Record<string, number>>({});
+
+    // Jump-to-latest for ScrollView (Step 14)
+    const [showJumpToLatest, setShowJumpToLatest] = useState(false);
+    const jumpButtonOpacity = useRef(new Animated.Value(0)).current;
 
     const fadeAnim = useRef(new Animated.Value(0)).current;
     const slideAnim = useRef(new Animated.Value(SCREEN_HEIGHT)).current;
@@ -232,16 +242,25 @@ export default function StoreChatModal({ visible, onClose, storeName, sellerId }
             is_read: false,
             created_at: new Date().toISOString(),
             message_type: 'user',
+            reply_to_message_id: replyingTo?.id || null,
+            reply_to_content: replyingTo?.content,
+            reply_to_sender_type: replyingTo?.sender_type,
         };
         setRealMessages(prev => [...prev, tempMsg]);
         setInputText('');
+        setReplyingTo(null);
 
         try {
             const sentMessage = await chatService.sendMessage(
                 conversation.id,
                 user.id,
                 'buyer',
-                messageText
+                messageText,
+                undefined,
+                undefined,
+                undefined,
+                replyingTo?.id,
+                { targetSellerId: sellerId }
             );
 
             if (!sentMessage) {
@@ -350,7 +369,15 @@ export default function StoreChatModal({ visible, onClose, storeName, sellerId }
             pendingUpload.current = null;
 
             const sentMsg = await chatService.sendMessage(
-                conversation.id, user.id, 'buyer', placeholder, undefined, url, mediaType
+                conversation.id,
+                user.id,
+                'buyer',
+                placeholder,
+                undefined,
+                url,
+                mediaType,
+                undefined,
+                { targetSellerId: sellerId }
             );
             if (sentMsg) {
                 setRealMessages(prev =>
@@ -358,6 +385,9 @@ export default function StoreChatModal({ visible, onClose, storeName, sellerId }
                         ? prev.filter(m => m.id !== tempId)
                         : prev.map(m => m.id === tempId ? sentMsg : m)
                 );
+            } else {
+                setRealMessages(prev => prev.filter(m => m.id !== tempId));
+                Alert.alert('Send failed', 'Message was not saved. Please try again.');
             }
         } catch (err) {
             console.error('[StoreChatModal] upload error:', err);
@@ -392,10 +422,10 @@ export default function StoreChatModal({ visible, onClose, storeName, sellerId }
     const renderMessages = () => {
         if (realMessages.length === 0) {
             return (
-                <View style={[styles.messageBubble, styles.storeBubble]}>
-                    <Text style={[styles.messageText, styles.storeText]}>
-                        {`Welcome to ${storeName}! 🛍️\nHow can we help you today?`}
-                    </Text>
+                <View style={{ padding: 40, alignItems: 'center' }}>
+                    <MessageSquare size={48} color="#D1D5DB" />
+                    <Text style={{ marginTop: 12, color: '#6B7280', fontSize: 16, fontWeight: '600' }}>Start Messaging</Text>
+                    <Text style={{ marginTop: 4, color: '#9CA3AF', textAlign: 'center' }}>Send your first message to {storeName}</Text>
                 </View>
             );
         }
@@ -446,6 +476,17 @@ export default function StoreChatModal({ visible, onClose, storeName, sellerId }
                             isExpanded && (isBuyer ? styles.userBubbleExpanded : styles.storeBubbleExpanded),
                             isDoc && !(msg.content && !(isPlaceholder && (hasMedia || !!msg.image_url))) && styles.noPadBubble,
                         ]}>
+                            {/* Replied-to preview (Step 9) */}
+                            {msg.reply_to_message_id && (
+                                <Pressable style={{ padding: 8, borderRadius: 8, marginBottom: 6, borderLeftWidth: 3, backgroundColor: isBuyer ? 'rgba(255,255,255,0.15)' : '#F3F4F6', borderLeftColor: isBuyer ? 'rgba(255,255,255,0.5)' : COLORS.primary }}>
+                                    <Text style={{ fontSize: 11, fontWeight: '700', color: isBuyer ? 'rgba(255,255,255,0.8)' : COLORS.primary }} numberOfLines={1}>
+                                        {msg.reply_to_sender_type === 'buyer' ? 'You' : storeName}
+                                    </Text>
+                                    <Text style={{ fontSize: 12, lineHeight: 16, color: isBuyer ? 'rgba(255,255,255,0.6)' : '#6B7280' }} numberOfLines={2}>
+                                        {msg.reply_to_content || '...'}
+                                    </Text>
+                                </Pressable>
+                            )}
                             {imgUrl && isImage && (
                                 <Pressable onPress={() => openPreview(imgUrl!, 'image')} onLongPress={toggleTimestamp} delayLongPress={400}>
                                     <Image source={{ uri: imgUrl }} style={{ width: 200, height: 200, borderRadius: 12, marginBottom: 4 }} resizeMode="cover" />
@@ -479,6 +520,16 @@ export default function StoreChatModal({ visible, onClose, storeName, sellerId }
                             )}
                         </View>
                     </Pressable>
+                    {/* Reply button (Step 9) */}
+                    {!isPending && msg.message_type !== 'system' && (
+                        <Pressable
+                            onPress={() => setReplyingTo(msg)}
+                            style={{ padding: 4, marginTop: -2, alignSelf: isBuyer ? 'flex-end' : 'flex-start' }}
+                            hitSlop={8}
+                        >
+                            <Reply size={14} color="#9CA3AF" />
+                        </Pressable>
+                    )}
                     {/* Timestamp — OUTSIDE bubble, shown on tap/long-press */}
                     {isExpanded && !isPending && (
                         <Text style={[styles.timestampOutside, isBuyer ? styles.timestampOutsideRight : styles.timestampOutsideLeft]}>
@@ -543,9 +594,6 @@ export default function StoreChatModal({ visible, onClose, storeName, sellerId }
                                 >
                                     <Ticket size={24} color="#FFFFFF" />
                                 </Pressable>
-                                <Pressable style={styles.menuButton}>
-                                    <MoreVertical size={24} color="#FFFFFF" />
-                                </Pressable>
                             </View>
                         </View>
 
@@ -556,6 +604,18 @@ export default function StoreChatModal({ visible, onClose, storeName, sellerId }
                             contentContainerStyle={styles.messagesContent}
                             onContentSizeChange={() => scrollToBottom(true)}
                             onLayout={() => scrollToBottom(false)}
+                            onScroll={(event) => {
+                                const { contentOffset, contentSize, layoutMeasurement } = event.nativeEvent;
+                                const distanceFromBottom = contentSize.height - layoutMeasurement.height - contentOffset.y;
+                                const scrolledAway = distanceFromBottom > 300;
+                                if (scrolledAway && !showJumpToLatest) {
+                                    setShowJumpToLatest(true);
+                                    Animated.timing(jumpButtonOpacity, { toValue: 1, duration: 200, useNativeDriver: true }).start();
+                                } else if (!scrolledAway && showJumpToLatest) {
+                                    Animated.timing(jumpButtonOpacity, { toValue: 0, duration: 200, useNativeDriver: true }).start(() => setShowJumpToLatest(false));
+                                }
+                            }}
+                            scrollEventThrottle={16}
                         >
                             {loading ? (
                                 <View style={styles.loadingContainer}>
@@ -583,18 +643,61 @@ export default function StoreChatModal({ visible, onClose, storeName, sellerId }
                             )}
                         </ScrollView>
 
-                        {/* Suggestions */}
-                        {conversation && realMessages.length < 3 && (
-                            <View style={styles.quickRepliesContainer}>
-                                <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ paddingHorizontal: 16 }}>
-                                    {quickReplies.map((reply, i) => (
-                                        <Pressable key={i} style={styles.replyChip} onPress={() => handleSend(reply)}>
-                                            <Text style={styles.replyText}>{reply}</Text>
-                                        </Pressable>
-                                    ))}
-                                </ScrollView>
+                        {/* Jump to latest button (Step 14) */}
+                        {showJumpToLatest && (
+                            <Animated.View style={{ position: 'absolute', right: 16, bottom: 120, zIndex: 100, opacity: jumpButtonOpacity }}>
+                                <Pressable
+                                    onPress={() => scrollViewRef.current?.scrollToEnd({ animated: true })}
+                                    style={{ width: 40, height: 40, borderRadius: 20, backgroundColor: COLORS.primary, alignItems: 'center', justifyContent: 'center', shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.25, shadowRadius: 4, elevation: 5 }}
+                                >
+                                    <ArrowDown size={18} color="#FFFFFF" strokeWidth={2.5} />
+                                </Pressable>
+                            </Animated.View>
+                        )}
+
+                        {/* Reply preview bar (Step 9) */}
+                        {replyingTo && (
+                            <View style={{ flexDirection: 'row', alignItems: 'center', paddingHorizontal: 16, paddingVertical: 10, backgroundColor: '#F3F4F6', gap: 10 }}>
+                                <View style={{ width: 3, height: '100%' as any, backgroundColor: COLORS.primary, borderRadius: 2 }} />
+                                <View style={{ flex: 1 }}>
+                                    <Text style={{ fontSize: 12, fontWeight: '700', color: COLORS.primary }}>
+                                        Replying to {replyingTo.sender_type === 'buyer' ? 'yourself' : storeName}
+                                    </Text>
+                                    <Text style={{ fontSize: 13, color: '#6B7280', marginTop: 2 }} numberOfLines={2}>
+                                        {ALL_PLACEHOLDERS.includes(replyingTo.content) ? (MEDIA_PLACEHOLDER_MAP as any)[replyingTo.media_type || 'image'] || replyingTo.content : replyingTo.content}
+                                    </Text>
+                                </View>
+                                <Pressable onPress={() => setReplyingTo(null)} hitSlop={8}>
+                                    <XIcon size={18} color="#9CA3AF" />
+                                </Pressable>
                             </View>
                         )}
+
+                        {/* Quick reply chips with cooldown (Step 10) */}
+                        {conversation && (() => {
+                            const now = Date.now();
+                            const ONE_HOUR = 3600000;
+                            const available = quickReplies.filter(r => {
+                                const usedAt = usedQuickReplies[r];
+                                if (!usedAt) return true;
+                                return (now - usedAt) > ONE_HOUR;
+                            });
+                            if (available.length === 0) return null;
+                            return (
+                                <View style={styles.quickRepliesContainer}>
+                                    <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ paddingHorizontal: 16 }}>
+                                        {available.map((reply, i) => (
+                                            <Pressable key={i} style={styles.replyChip} onPress={() => {
+                                                setUsedQuickReplies(prev => ({ ...prev, [reply]: Date.now() }));
+                                                handleSend(reply);
+                                            }}>
+                                                <Text style={styles.replyText}>{reply}</Text>
+                                            </Pressable>
+                                        ))}
+                                    </ScrollView>
+                                </View>
+                            );
+                        })()}
 
                         {/* Input Area */}
                         <Animated.View style={[styles.inputContainer, { paddingBottom: bottomPadAnim }]}>

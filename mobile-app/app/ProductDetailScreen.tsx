@@ -1,4 +1,4 @@
-﻿import React, { useState, useRef, useEffect, useMemo, useCallback } from 'react';
+import React, { useState, useRef, useEffect, useMemo, useCallback } from 'react';
 import {
   View,
   Text,
@@ -59,7 +59,7 @@ import {
 import { ProductCard, MasonryProductCard } from '../src/components/ProductCard';
 import { VariantSelectionModal } from '../src/components/VariantSelectionModal';
 import CameraSearchModal from '../src/components/CameraSearchModal';
-import StoreChatModal from '../src/components/StoreChatModal';
+import { chatService } from '../src/services/chatService';
 import { AIChatBubble } from '../src/components/AIChatBubble';
 import { AddedToCartModal } from '../src/components/AddedToCartModal';
 import { QuantityStepper } from '../src/components/QuantityStepper';
@@ -351,7 +351,7 @@ export default function ProductDetailScreen({ route, navigation }: Props) {
     }
   };
   const [showCameraSearch, setShowCameraSearch] = useState(false);
-  const [showChat, setShowChat] = useState(false);
+  const [chatLoading, setChatLoading] = useState(false);
   const [currentImageIndex, setCurrentImageIndex] = useState(0);
   const [isSearchFocused, setIsSearchFocused] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
@@ -939,14 +939,33 @@ export default function ProductDetailScreen({ route, navigation }: Props) {
     }
   };
 
-  const handleChat = () => {
+  const handleChat = async () => {
     const { isGuest } = useAuthStore.getState();
     if (isGuest) {
       setGuestModalMessage("Sign up to chat with sellers.");
       setShowGuestModal(true);
       return;
     }
-    setShowChat(true);
+    if (chatLoading) return;
+    const sellerId = product.seller_id || product.sellerId;
+    const buyerId = user?.id;
+    if (!sellerId || !buyerId) return;
+    setChatLoading(true);
+    try {
+      const conversation = await chatService.getOrCreateConversation(buyerId, sellerId);
+      if (conversation) {
+        (navigation as any).navigate('Chat', {
+          conversation,
+          currentUserId: buyerId,
+          userType: 'buyer',
+        });
+      }
+    } catch (error) {
+      console.error('[ProductDetail] Error opening chat:', error);
+      Alert.alert('Error', 'Could not open chat. Please try again.');
+    } finally {
+      setChatLoading(false);
+    }
   }
 
   const handleVisitStore = () => {
@@ -1575,7 +1594,7 @@ export default function ProductDetailScreen({ route, navigation }: Props) {
 
       {/* --- BOTTOM ACTIONS (SOLID ORANGE) --- */}
       <View style={[styles.bottomBar, { paddingBottom: insets.bottom + 12 }]}>
-        <Pressable style={styles.chatSellerBtn} onPress={() => setShowChat(true)}>
+        <Pressable style={styles.chatSellerBtn} onPress={handleChat}>
           <MessageCircle size={22} color="#FFF" />
         </Pressable>
 
@@ -1620,12 +1639,7 @@ export default function ProductDetailScreen({ route, navigation }: Props) {
 
       <CameraSearchModal visible={showCameraSearch} onClose={() => setShowCameraSearch(false)} />
 
-      <StoreChatModal
-        visible={showChat}
-        onClose={() => setShowChat(false)}
-        storeName={displayStoreName}
-        sellerId={product.seller_id || product.sellerId}
-      />
+
 
       <Modal
         visible={showVariantFilterModal}
@@ -2015,7 +2029,7 @@ export default function ProductDetailScreen({ route, navigation }: Props) {
           store_name: displayStoreName,
           rating: product.sellerRating,
         }}
-        onTalkToSeller={() => setShowChat(true)}
+        onTalkToSeller={handleChat}
       />
 
     </View >
