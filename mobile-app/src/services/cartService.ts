@@ -148,7 +148,12 @@ export class CartService {
             seller:sellers!products_seller_id_fkey (
               id,
               store_name,
-              avatar_url
+              avatar_url,
+              approval_status,
+              is_permanently_blacklisted,
+              temp_blacklist_until,
+              suspended_at,
+              is_vacation_mode
             ),
             variants:product_variants (
               id,

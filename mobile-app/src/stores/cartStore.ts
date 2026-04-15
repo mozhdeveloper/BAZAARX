@@ -49,6 +49,30 @@ function mapDbCartItemsToCartItems(dbItems: any[]): CartItem[] {
       const variant = ci.variant || null;
       const productImages = product.images || [];
 
+      // Evaluate seller operational status based on restriction columns
+      const seller = product.seller || {};
+      const now = new Date();
+      const tempBlacklistUntil = seller.temp_blacklist_until ? new Date(seller.temp_blacklist_until) : null;
+      const isTempBlacklistExpired = tempBlacklistUntil && now > tempBlacklistUntil;
+
+      const isSellerActive = 
+        seller.approval_status === 'approved' &&
+        !seller.is_permanently_blacklisted &&
+        !seller.suspended_at &&
+        !seller.is_vacation_mode &&
+        (!tempBlacklistUntil || isTempBlacklistExpired);
+
+      let sellerRestrictionReason: string | null = null;
+      if (!isSellerActive) {
+        if (seller.is_vacation_mode) {
+          sellerRestrictionReason = 'ON VACATION';
+        } else if (seller.suspended_at || seller.is_permanently_blacklisted || (tempBlacklistUntil && now <= tempBlacklistUntil)) {
+          sellerRestrictionReason = 'RESTRICTED';
+        } else {
+          sellerRestrictionReason = 'UNAVAILABLE';
+        }
+      }
+
       // Find primary image or first image
       const primaryImg = productImages.find((img: any) => img.is_primary);
       const sortedImages = [...productImages].sort((a: any, b: any) => (a.sort_order || 0) - (b.sort_order || 0));
@@ -102,7 +126,6 @@ function mapDbCartItemsToCartItems(dbItems: any[]): CartItem[] {
       const price = discountedPrice < originalPrice ? discountedPrice : originalPrice;
 
       // Get seller info
-      const seller = product.seller || {};
       const sellerName = seller.store_name || 'Shop';
       const sellerId = seller.id || product.seller_id || '';
 
@@ -166,6 +189,9 @@ function mapDbCartItemsToCartItems(dbItems: any[]): CartItem[] {
         variant_label_2: product.variant_label_2,
         option1Values: product.option1Values || [],
         option2Values: product.option2Values || [],
+        // Seller operational status
+        isSellerActive,
+        sellerRestrictionReason,
       } as CartItem;
     });
 }

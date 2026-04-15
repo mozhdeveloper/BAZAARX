@@ -164,25 +164,27 @@ export default function CartScreen({ navigation, route }: any) {
     return item.stock ?? null;
   }, []);
 
-  const isItemOutOfStock = useCallback((item: CartItem) => {
+  const isItemUnavailable = useCallback((item: CartItem) => {
     const s = getItemStock(item);
-    return s !== null && s === 0;
+    const isOutOfStock = s !== null && s === 0;
+    const isSellerInactive = item.isSellerActive === false;
+    return isOutOfStock || isSellerInactive;
   }, [getItemStock]);
 
-  const selectableItems = useMemo(() => items.filter(i => !isItemOutOfStock(i)), [items, isItemOutOfStock]);
+  const selectableItems = useMemo(() => items.filter(i => !isItemUnavailable(i)), [items, isItemUnavailable]);
   const isAllSelected = selectableItems.length > 0 && selectableItems.every(i => selectedSet.has(i.cartItemId));
-  const hasOutOfStockSelected = useMemo(() => selectedItems.some(i => isItemOutOfStock(i)), [selectedItems, isItemOutOfStock]);
+  const hasOutOfStockSelected = useMemo(() => selectedItems.some(i => isItemUnavailable(i)), [selectedItems, isItemUnavailable]);
 
   const toggleSelectItem = useCallback((id: string) => {
     const item = items.find(i => i.cartItemId === id);
-    if (item && isItemOutOfStock(item)) return;
+    if (item && isItemUnavailable(item)) return;
     setSelectedIds(prev =>
       selectedSet.has(id) ? prev.filter(itemId => itemId !== id) : [...prev, id]
     );
-  }, [selectedSet, items, isItemOutOfStock]);
+  }, [selectedSet, items, isItemUnavailable]);
 
   const toggleSellerGroup = useCallback((sellerProducts: typeof items) => {
-    const sellerItemIds = sellerProducts.filter(item => !isItemOutOfStock(item)).map(item => item.cartItemId);
+    const sellerItemIds = sellerProducts.filter(item => !isItemUnavailable(item)).map(item => item.cartItemId);
     const isSellerFullySelected = sellerItemIds.length > 0 && sellerItemIds.every(id => selectedSet.has(id));
 
     if (isSellerFullySelected) {
@@ -195,7 +197,7 @@ export default function CartScreen({ navigation, route }: any) {
         return [...prev, ...newIds];
       });
     }
-  }, [selectedSet]);
+  }, [selectedSet, isItemUnavailable]);
 
   const handleCheckout = async () => {
     if (selectedIds.length === 0) return;
@@ -273,20 +275,28 @@ export default function CartScreen({ navigation, route }: any) {
       >
         {/* SELLER GROUPS */}
         {Object.entries(groupedItems).map(([sellerName, sellerProducts], idx) => {
+          const sellerIsActive = sellerProducts[0]?.isSellerActive !== false;
+          const sellerRestrictionReason = sellerProducts[0]?.sellerRestrictionReason || null;
           const isSellerSelected = sellerProducts.every(item => selectedSet.has(item.cartItemId));
 
           return (
             <View key={sellerName} style={[styles.sellerCard, idx === Object.entries(groupedItems).map(() => 0).length - 1 && { marginBottom: 0 }]}>
               {/* STORE HEADER */}
               <View style={styles.sellerHeader}>
-                <Pressable onPress={() => toggleSellerGroup(sellerProducts)} style={styles.headerCheckbox}>
-                  <View style={[
-                    styles.checkboxBase,
-                    isSellerSelected && { backgroundColor: COLORS.accent, borderColor: COLORS.accent }
-                  ]}>
-                    {isSellerSelected && <Check size={12} color="#FFF" strokeWidth={2.5} />}
+                {sellerIsActive ? (
+                  <Pressable onPress={() => toggleSellerGroup(sellerProducts)} style={styles.headerCheckbox}>
+                    <View style={[
+                      styles.checkboxBase,
+                      isSellerSelected && { backgroundColor: COLORS.accent, borderColor: COLORS.accent }
+                    ]}>
+                      {isSellerSelected && <Check size={12} color="#FFF" strokeWidth={2.5} />}
+                    </View>
+                  </Pressable>
+                ) : (
+                  <View style={[styles.headerCheckbox, styles.restrictionBadge]}>
+                    <Text style={styles.restrictionBadgeText}>{sellerRestrictionReason}</Text>
                   </View>
-                </Pressable>
+                )}
                 <Pressable
                   style={styles.storeInfo}
                   onPress={() => {
@@ -308,16 +318,16 @@ export default function CartScreen({ navigation, route }: any) {
               {sellerProducts.map((item, index) => (
                 <View key={item.cartItemId}>
                   <View style={styles.itemRow}>
-                    <Pressable style={styles.itemCheckbox} onPress={() => toggleSelectItem(item.cartItemId)} disabled={isItemOutOfStock(item)}>
+                    <Pressable style={styles.itemCheckbox} onPress={() => toggleSelectItem(item.cartItemId)} disabled={isItemUnavailable(item)}>
                       <View style={[
                         styles.checkboxBase,
-                        isItemOutOfStock(item) && { backgroundColor: '#F3F4F6', borderColor: '#E5E7EB', opacity: 0.5 },
-                        !isItemOutOfStock(item) && selectedSet.has(item.cartItemId) && { backgroundColor: COLORS.accent, borderColor: COLORS.accent }
+                        isItemUnavailable(item) && { backgroundColor: '#F3F4F6', borderColor: '#E5E7EB', opacity: 0.5 },
+                        !isItemUnavailable(item) && selectedSet.has(item.cartItemId) && { backgroundColor: COLORS.accent, borderColor: COLORS.accent }
                       ]}>
-                        {!isItemOutOfStock(item) && selectedSet.has(item.cartItemId) && <Check size={12} color="#FFF" strokeWidth={2.5} />}
+                        {!isItemUnavailable(item) && selectedSet.has(item.cartItemId) && <Check size={12} color="#FFF" strokeWidth={2.5} />}
                       </View>
                     </Pressable>
-                    <View style={{ flex: 1 }}>
+                    <View style={[{ flex: 1 }, !sellerIsActive && { opacity: 0.5 }]}>
                       <CartItemRow
                         item={item}
                         onIncrement={() => updateQuantity(item.cartItemId, item.quantity + 1)}
@@ -541,6 +551,22 @@ const styles = StyleSheet.create({
     marginRight: 4,
   },
   itemSeparator: { height: 1, backgroundColor: '#F3F4F6', marginHorizontal: 0, opacity: 0.3 },
+
+  restrictionBadge: {
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 4,
+    backgroundColor: '#FEE2E2',
+    borderWidth: 1,
+    borderColor: '#FECACA',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  restrictionBadgeText: {
+    fontSize: 11,
+    fontWeight: '600',
+    color: '#DC2626',
+  },
 
   savingsBanner: {
     flexDirection: 'row',
