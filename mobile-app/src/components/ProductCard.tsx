@@ -134,6 +134,10 @@ export const MasonryProductCard: React.FC<MasonryProductCardProps> = React.memo(
       : Math.round(((originalPrice - regularPrice) / originalPrice) * 100))
     : 0;
 
+  // Get seller name - handle both string and object cases
+  const sellerName = (product as any).seller?.store_name 
+    || (typeof product.seller === 'string' ? product.seller : 'Verified Seller');
+
   return (
     <Pressable
       onPress={onPress}
@@ -203,6 +207,13 @@ export const MasonryProductCard: React.FC<MasonryProductCardProps> = React.memo(
             <Text style={masonryStyles.ratingText}>{product.rating || 5.0} ({product.review_count || 0})</Text>
           </View>
           <Text style={masonryStyles.soldText}>{(product.sold || product.sales_count || (product as any).sold_count || 0).toLocaleString()} sold</Text>
+        </View>
+
+        {/* Seller Name */}
+        <View style={masonryStyles.sellerRow}>
+          <Text style={masonryStyles.sellerText} numberOfLines={1}>
+            {sellerName}
+          </Text>
         </View>
       </View>
     </Pressable>
@@ -480,5 +491,16 @@ const masonryStyles = StyleSheet.create({
   tagText: {
     fontSize: 9,
     fontWeight: '600',
-  }
+  },
+  sellerRow: {
+    marginTop: 6,
+    paddingTop: 6,
+    borderTopWidth: 1,
+    borderTopColor: '#F3F4F6',
+  },
+  sellerText: {
+    fontSize: 11,
+    color: '#6B7280',
+    fontWeight: '500',
+  },
 });

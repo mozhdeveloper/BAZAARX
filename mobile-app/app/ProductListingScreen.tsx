@@ -20,12 +20,12 @@ import { COLORS } from '../src/constants/theme';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import type { RootStackParamList } from '../App';
 
-type Props = NativeStackScreenProps<RootStackParamList, 'SearchResults'>;
+type Props = NativeStackScreenProps<RootStackParamList, 'ProductListing'>;
 
 const PAGE_SIZE = 24;
 const PLACEHOLDER_IMAGE = 'https://placehold.co/400x400/e5e7eb/6b7280?text=Product';
 
-export default function SearchResultsScreen({ navigation, route }: Props) {
+export default function ProductListingScreen({ navigation, route }: Props) {
   const insets = useSafeAreaInsets();
   const { width: screenWidth } = Dimensions.get('window');
   const initialQuery = route.params?.searchQuery || '';
@@ -68,7 +68,7 @@ export default function SearchResultsScreen({ navigation, route }: Props) {
 
       const currentOffset = reset ? 0 : offset;
 
-      console.log('[SearchResultsScreen] Executing search:', trimmedQuery, 'offset:', currentOffset);
+      console.log('[ProductListingScreen] Executing search:', trimmedQuery, 'offset:', currentOffset);
 
       // Use enhanced search that includes category and seller matching
       const serverResults = await productService.searchProducts(trimmedQuery, {
@@ -76,7 +76,7 @@ export default function SearchResultsScreen({ navigation, route }: Props) {
         offset: currentOffset,
       });
 
-      console.log('[SearchResultsScreen] Server returned', serverResults?.length || 0, 'products for query:', trimmedQuery);
+      console.log('[ProductListingScreen] Server returned', serverResults?.length || 0, 'products for query:', trimmedQuery);
 
       // Normalize products
       const normalizedProducts = serverResults.map((row: any) => {
@@ -106,9 +106,9 @@ export default function SearchResultsScreen({ navigation, route }: Props) {
         };
       });
 
-      console.log('[SearchResultsScreen] Normalized', normalizedProducts.length, 'products');
+      console.log('[ProductListingScreen] Normalized', normalizedProducts.length, 'products');
       if (normalizedProducts.length > 0) {
-        console.log('[SearchResultsScreen] First product:', {
+        console.log('[ProductListingScreen] First product:', {
           id: normalizedProducts[0].id,
           name: normalizedProducts[0].name,
           price: normalizedProducts[0].price,
@@ -131,7 +131,7 @@ export default function SearchResultsScreen({ navigation, route }: Props) {
       setHasMore(serverResults.length === PAGE_SIZE);
       setSearchPerformed(true);
     } catch (error) {
-      console.error('[SearchResultsScreen] Error executing search:', error);
+      console.error('[ProductListingScreen] Error executing search:', error);
     } finally {
       setIsLoading(false);
       setIsLoadingMore(false);
@@ -229,7 +229,7 @@ export default function SearchResultsScreen({ navigation, route }: Props) {
 
   // Render item
   const renderItem = useCallback(({ item }: { item: Product }) => {
-    console.log('[SearchResultsScreen] Rendering item:', item.id, item.name);
+    console.log('[ProductListingScreen] Rendering item:', item.id, item.name);
     return (
       <View style={{ paddingHorizontal: 6, paddingVertical: 6 }}>
         <MasonryProductCard
