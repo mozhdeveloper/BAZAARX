@@ -3,6 +3,7 @@ import { useFocusEffect } from '@react-navigation/native';
 import { Check, ChevronLeft, ChevronRight } from 'lucide-react-native';
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import {
+  Alert,
   Pressable,
   ScrollView,
   StatusBar,
@@ -21,7 +22,7 @@ import type { ActiveDiscount } from '../src/types/discount';
 
 
 export default function CartScreen({ navigation, route }: any) {
-  const { items, removeItem, updateQuantity, clearCart, initializeForCurrentUser, clearQuickOrder, updateItemVariant, removeItems } = useCartStore(); // Add clearQuickOrder
+  const { items, removeItem, updateQuantity, clearCart, initializeForCurrentUser, clearQuickOrder, updateItemVariant, removeItems, error } = useCartStore();
   const insets = useSafeAreaInsets();
 
   // Use global theme color
@@ -30,6 +31,38 @@ export default function CartScreen({ navigation, route }: any) {
   useEffect(() => {
     initializeForCurrentUser();
   }, []);
+
+  // Handle error state and display alert
+  useEffect(() => {
+    if (error) {
+      Alert.alert(
+        'Update Failed',
+        error,
+        [
+          {
+            text: 'OK',
+            onPress: () => useCartStore.setState({ error: null }),
+          },
+        ]
+      );
+    }
+  }, [error]);
+
+  // Handle error state and display alert
+  useEffect(() => {
+    if (error) {
+      Alert.alert(
+        'Update Failed',
+        error,
+        [
+          {
+            text: 'OK',
+            onPress: () => useCartStore.setState({ error: null }),
+          },
+        ]
+      );
+    }
+  }, [error]);
 
   // Also refresh when screen is focused (returning from product detail, etc.)
   useFocusEffect(

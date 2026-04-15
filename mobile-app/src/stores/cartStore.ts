@@ -366,7 +366,7 @@ export const useCartStore = create<CartStore>()(
             set({ items: mergeDbAndLocalItems(dbItems, get().items) });
           } catch (e) {
             // Rollback on error
-            set({ items: previousItems });
+            set({ items: previousItems, error: 'Failed to remove item. Please try again.' });
             console.error('[CartStore] Failed to remove item:', e);
           }
         };
@@ -522,9 +522,8 @@ export const useCartStore = create<CartStore>()(
           }
         } catch (e) {
           // Rollback on error
-          set({ items: previousItems });
+          set({ items: previousItems, error: 'Failed to remove item. Please try again.' });
           console.error('[CartStore] Failed to remove multiple items:', e);
-          set({ error: 'Failed to delete selected items' });
         }
       },
 
