@@ -140,6 +140,7 @@ export class AuthService {
         email,
         password,
         options: {
+          emailRedirectTo: 'exp://192.168.68.140:8081',
           data: {
             ...userData,
             first_name,
@@ -176,6 +177,8 @@ export class AuthService {
 
         // Create user-type specific record
         await this.createUserTypeRecord(authData.user.id, userData.user_type);
+
+        // Supabase sends a verification link automatically upon signUp by default
       }
 
       return { user: authData.user, session: authData.session };
@@ -453,6 +456,42 @@ export class AuthService {
   }
 
   /**
+   * Handle Google OAuth sign-in callback
+   * Called after user authorizes Google login and is redirected back to app
+   * @returns Promise<AuthResult | null>
+   */
+  async signInWithGoogle(): Promise<AuthResult | null> {
+    if (!isSupabaseConfigured()) {
+      console.warn('Supabase not configured - cannot sign in with Google');
+      return null;
+    }
+
+    try {
+      // Get current session (set by Supabase after OAuth redirect)
+      const { data, error } = await supabase.auth.getSession();
+
+      if (error) throw error;
+
+      if (!data.session?.user) {
+        throw new Error('No session established after Google sign-in');
+      }
+
+      const userId = data.session.user.id;
+
+      // Update last login
+      await supabase
+        .from('profiles')
+        .update({ last_login_at: new Date().toISOString() })
+        .eq('id', userId);
+
+      return { user: data.session.user, session: data.session };
+    } catch (error) {
+      console.error('[AuthService] Google sign-in error:', error);
+      throw new Error('Failed to complete Google sign-in. Please try again.');
+    }
+  }
+
+  /**
    * Get current session
    * @returns Promise with current session or null
    */
@@ -638,66 +677,72 @@ export class AuthService {
   }
 
   /**
-   * Send OTP to user's email
+   * Resend verification link using Supabase native auth
    * @param email - User email
    */
-  async sendOTP(email: string): Promise<boolean> {
+  async resendVerificationLink(email: string): Promise<boolean> {
     if (!isSupabaseConfigured()) {
-      console.warn('Supabase not configured - cannot send OTP');
+      console.warn('Supabase not configured - cannot resend link');
       return false;
     }
 
     try {
-      const { error } = await supabase.auth.signInWithOtp({
-        email,
+      const { error } = await supabase.auth.resend({
+        type: 'signup',
+        email: email,
+        options: {
+          emailRedirectTo: 'exp://192.168.68.140:8081',
+        }
       });
 
       if (error) throw error;
       return true;
-    } catch (error) {
-      console.error('Error sending OTP:', error);
-      throw new Error('Failed to send OTP. Please try again.');
+    } catch (error: any) {
+      console.error('Error resending verification link:', error);
+      throw new Error(error.message || 'Failed to resend verification link. Please try again.');
     }
   }
 
   /**
-   * Verify OTP code sent to user's email
-   * @param email - User email
-   * @param token - OTP code
-   * @returns Promise with user session data or null
+   * Check if a user's email is already verified
+   * Used for the "Check Verification Status" button
+   * @param email - User email to check
    */
-  async verifyOTP(email: string, token: string): Promise<{ user: any; session: any } | null> {
-    if (!isSupabaseConfigured()) {
-      console.warn('Supabase not configured - cannot verify OTP');
-      return null;
-    }
+  async checkVerificationStatus(email: string): Promise<boolean> {
+    if (!isSupabaseConfigured()) return false;
 
     try {
-      const { data, error } = await supabase.auth.verifyOtp({
-        email,
-        token,
-        type: 'email' as const,
-      });
+      // We can check the profile or sign in again to check status
+      // But the most reliable way is check the profiles table if we have an entry,
+      // or try a refresh of the session if user is logged in.
 
-      if (error) throw error;
+      // If we are on the verification screen, the user is likely NOT yet logged in with a session
+      // (Supabase doesn't create session until email is verified if confirmation is ON)
 
-      // Update last login
-      if (data.user) {
-        const { error: updateError } = await supabase
-          .from('profiles')
-          .update({ last_login_at: new Date().toISOString() })
-          .eq('id', data.user.id);
+      // So we check our 'profiles' table which is created during signUp,
+      // but Supabase only marks 'email_confirmed_at' in the auth.users table (internal).
 
-        if (updateError) {
-          console.warn('Failed to update last_login_at:', updateError);
-          // Don't throw — OTP verification succeeded
-        }
+      // However, we can use signInWithPassword to check if we can get a session now.
+      // But we don't have the password on the verification screen.
+
+      // A better way is to use a dedicated check or rely on the user clicking the link
+      // which should ideally deep link back and create a session.
+
+      const { data, error } = await supabase.auth.getSession();
+      if (data?.session?.user?.email_confirmed_at) {
+        return true;
       }
 
-      return { user: data.user, session: data.session };
+      // If no session, the user might have just verified. Let's try to get user.
+      const { data: userData } = await supabase.auth.getUser();
+      if (userData?.user?.email_confirmed_at) {
+        return true;
+      }
+
+      return false;
     } catch (error) {
-      console.error('Error verifying OTP:', error);
-      throw new Error('Invalid or expired OTP. Please try again.');
+      console.error('Error checking verification status:', error);
+      return false;
     }
   }
 
@@ -846,6 +891,39 @@ export class AuthService {
     }
     // Seller records are created separately during registration flow
     // When upgrading to seller, the seller record is created elsewhere
+  }
+
+  /**
+   * Update buyer preferences (interests)
+   * @param userId - User ID
+   * @param interests - Array of category IDs
+   */
+  async updateBuyerPreferences(userId: string, interests: string[]): Promise<boolean> {
+    if (!isSupabaseConfigured()) return true;
+
+    try {
+      const { data: currentBuyer } = await supabase
+        .from('buyers')
+        .select('preferences')
+        .eq('id', userId)
+        .single();
+
+      const updatedPreferences = {
+        ...(currentBuyer?.preferences as Record<string, unknown> || {}),
+        interests: interests,
+      };
+
+      const { error } = await supabase
+        .from('buyers')
+        .update({ preferences: updatedPreferences })
+        .eq('id', userId);
+
+      if (error) throw error;
+      return true;
+    } catch (error) {
+      console.error('Error updating buyer preferences:', error);
+      throw new Error('Failed to save interests. Please try again.');
+    }
   }
 }
 

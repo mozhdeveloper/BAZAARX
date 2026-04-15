@@ -3,7 +3,6 @@ import {
   View,
   Text,
   StyleSheet,
-  TextInput,
   Pressable,
   KeyboardAvoidingView,
   Platform,
@@ -11,46 +10,56 @@ import {
   StatusBar,
   Alert,
   ActivityIndicator,
+  Linking,
+  Dimensions,
 } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
-import { LinearGradient } from 'expo-linear-gradient';
-import { ChevronLeft, Mail, ArrowRight, Clock } from 'lucide-react-native';
+import { ArrowLeft, Mail, ArrowRight, Clock, ExternalLink, CheckCircle2 } from 'lucide-react-native';
+import { CardStyleInterpolators } from '@react-navigation/stack';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import type { RootStackParamList } from '../../App';
 import { COLORS } from '../../src/constants/theme';
 import { authService } from '../../src/services/authService';
+import { useAuthStore } from '../../src/stores/authStore';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'EmailVerification'>;
 
 const RESEND_COOLDOWN = 60; // seconds
 
 export default function EmailVerificationScreen({ navigation, route }: Props) {
-  const { email, otpAlreadySent } = route.params;
+  const { email } = route.params;
   const insets = useSafeAreaInsets();
-  const [code, setCode] = useState('');
   const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [resendCooldown, setResendCooldown] = useState(otpAlreadySent ? 0 : RESEND_COOLDOWN);
-  const intervalRef = useRef<NodeJS.Timeout | null>(null);
-  
+  const [checking, setChecking] = useState(false);
+  const [resendCooldown, setResendCooldown] = useState(RESEND_COOLDOWN);
+  const intervalRef = useRef<any>(null);
+
   // Computed: button appears when cooldown reaches 0
   const canResend = resendCooldown <= 0;
 
-  // Auto-send OTP on mount (only if not already sent during signup)
+  // Configure left-to-right slide animation
   useEffect(() => {
-    if (!otpAlreadySent) {
-      sendOTPOnMount();
-    }
-    return () => {
-      if (intervalRef.current) {
-        clearInterval(intervalRef.current);
-      }
-    };
-  }, []);
+    navigation.setOptions({
+      cardStyleInterpolator: ({ current, layouts: { screen } }: any) => {
+        return {
+          cardStyle: {
+            transform: [
+              {
+                translateX: current.progress.interpolate({
+                  inputRange: [0, 1],
+                  outputRange: [screen.width, 0],
+                }),
+              },
+            ],
+          },
+        };
+      },
+    });
+  }, [navigation]);
 
   // Countdown timer logic
   useEffect(() => {
-    if (otpAlreadySent || resendCooldown <= 0) return;
+    if (resendCooldown <= 0) return;
 
     intervalRef.current = setInterval(() => {
       setResendCooldown((prev) => {
@@ -67,36 +76,43 @@ export default function EmailVerificationScreen({ navigation, route }: Props) {
         clearInterval(intervalRef.current);
       }
     };
-  }, []);
+  }, [resendCooldown]);
 
-  const sendOTPOnMount = async () => {
+  const handleCheckStatus = async () => {
+    setChecking(true);
     try {
-      await authService.sendOTP(email);
+      const isVerified = await authService.checkVerificationStatus(email);
+      if (isVerified) {
+        // Sync the session to the auth store so we have the user ID
+        await useAuthStore.getState().checkSession();
+
+        // Retrieve persistent signup data
+        const signupData = useAuthStore.getState().pendingSignupData;
+
+        // User is now authenticated - navigate to Terms
+        navigation.navigate('Terms', { signupData });
+      } else {
+        Alert.alert(
+          'Not Verified Yet',
+          'We couldn\'t verify your email confirmation yet. Please make sure you clicked the link in the email we sent you.',
+          [
+            { text: 'OK' },
+            { text: 'Resend Link', onPress: handleResend }
+          ]
+        );
+      }
     } catch (err: any) {
-      Alert.alert('Error', err.message || 'Failed to send verification code');
+      Alert.alert('Error', err.message || 'Verification check failed');
+    } finally {
+      setChecking(false);
     }
   };
 
-  const handleContinue = async () => {
-    if (!code || code.length !== 6) {
-      setError('Please enter a valid 6-digit code');
-      return;
-    }
-
-    setLoading(true);
-    setError(null);
-
+  const handleOpenEmail = async () => {
     try {
-      const result = await authService.verifyOTP(email, code);
-      
-      if (result) {
-        // User is now authenticated - navigate to Terms
-        navigation.navigate('Terms', { signupData: null });
-      }
-    } catch (err: any) {
-      setError(err.message || 'Verification failed. Please try again.');
-    } finally {
-      setLoading(false);
+      await Linking.openURL('mailto:');
+    } catch (err) {
+      Alert.alert('Error', 'Could not open email app. Please open it manually.');
     }
   };
 
@@ -104,14 +120,12 @@ export default function EmailVerificationScreen({ navigation, route }: Props) {
     if (!canResend) return;
 
     setLoading(true);
-    setError(null);
-
     try {
-      await authService.sendOTP(email);
+      await authService.resendVerificationLink(email);
       setResendCooldown(RESEND_COOLDOWN);
-      Alert.alert('Code Sent', 'A new verification code has been sent to your email');
+      Alert.alert('Link Sent', 'A new verification link has been sent to your email');
     } catch (err: any) {
-      Alert.alert('Error', err.message || 'Failed to resend code');
+      Alert.alert('Error', err.message || 'Failed to resend link');
     } finally {
       setLoading(false);
     }
@@ -131,82 +145,71 @@ export default function EmailVerificationScreen({ navigation, route }: Props) {
           behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
           style={{ flex: 1 }}
         >
-          {/* Header (Matching Signup Header but with Back button) */}
-          <View style={[styles.header, { paddingTop: 20 }]}>
-             <Pressable
-                onPress={() => navigation.goBack()}
-                style={styles.backButton}
-              >
-                <ChevronLeft size={28} color="#7C2D12" />
-              </Pressable>
-              <View style={{ flex: 1, alignItems: 'center', marginRight: 32 }}>
-                 <Text style={styles.headerLabel}>Verify Email</Text>
-              </View>
+          {/* Header */}
+          <View style={styles.header}>
+            <Pressable
+              onPress={() => navigation.goBack()}
+              style={styles.backButton}
+            >
+              <ArrowLeft size={20} color="#6B7280" />
+            </Pressable>
+            <Text style={styles.headerLabel}>Verify Email</Text>
+            <View style={{ width: 40 }} />
           </View>
 
           <ScrollView
             contentContainerStyle={styles.scrollContent}
             showsVerticalScrollIndicator={false}
           >
-            {/* Content (Centered like Signup) */}
             <View style={styles.content}>
-              <Text style={styles.title}>Verify your email</Text>
+              {/* Illustration Placeholder/Icon */}
+              <View style={styles.illustrationContainer}>
+                <View
+                  style={styles.iconCircle}
+                >
+                  <Mail size={56} color="#D97706" strokeWidth={1.5} />
+                  <View style={styles.checkBadge}>
+                    <CheckCircle2 size={24} color="#16A34A" />
+                  </View>
+                </View>
+              </View>
+
+              <Text style={styles.title}>Check your email</Text>
               <Text style={styles.subtitle}>
-                {otpAlreadySent
-                  ? 'We sent a 6-digit code to '
-                  : 'We\'ll send a 6-digit code to '}
-                <Text style={styles.emailText}>{email}</Text>
+                We've sent a verification link to{' '}
+                <Text style={styles.emailText}>{email}</Text>.
+                Please click the link to confirm your account.
               </Text>
 
-              <View style={styles.formContainer}>
-                <View style={styles.inputWrapper}>
-                  <Mail size={20} color="#D97706" style={{ marginRight: 12 }} />
-                  <TextInput
-                    style={styles.input}
-                    placeholder="Enter 6-digit code"
-                    placeholderTextColor="#9CA3AF"
-                    value={code}
-                    onChangeText={(text) => {
-                      setCode(text);
-                      if (error) setError(null);
-                    }}
-                    keyboardType="number-pad"
-                    maxLength={6}
-                  />
-                </View>
-
-                {error && (
-                  <Text style={styles.errorText}>{error}</Text>
-                )}
+              <View style={styles.actionContainer}>
+                <Pressable
+                  style={[styles.primaryButton, checking && styles.buttonDisabled]}
+                  onPress={handleCheckStatus}
+                  disabled={checking}
+                >
+                  {checking ? (
+                    <ActivityIndicator color="#FFFFFF" />
+                  ) : (
+                    <>
+                      <Text style={styles.buttonText}>I've verified my email</Text>
+                    </>
+                  )}
+                </Pressable>
 
                 <Pressable
-                  style={[styles.continueButton, loading && styles.buttonDisabled]}
-                  onPress={handleContinue}
-                  disabled={loading}
+                  style={styles.secondaryButton}
+                  onPress={handleOpenEmail}
                 >
-                  <LinearGradient
-                    colors={loading ? ['#9CA3AF', '#6B7280'] : ['#D97706', '#B45309']}
-                    style={styles.gradient}
-                    start={{ x: 0, y: 0 }}
-                    end={{ x: 1, y: 0 }}
-                  >
-                    {loading ? (
-                      <ActivityIndicator color="#FFFFFF" />
-                    ) : (
-                      <>
-                        <Text style={styles.continueButtonText}>Verify & Continue</Text>
-                        <ArrowRight size={20} color="#FFFFFF" />
-                      </>
-                    )}
-                  </LinearGradient>
+                  <Text style={styles.secondaryButtonText}>Open Email App</Text>
+                  <ExternalLink size={18} color="#D97706" />
                 </Pressable>
 
                 <View style={styles.footer}>
-                  <Text style={styles.footerText}>Didn't receive the code? </Text>
+                  <Text style={styles.footerText}>Didn't receive the link? </Text>
                   {canResend ? (
                     <Pressable onPress={handleResend} disabled={loading}>
                       <Text style={[styles.resendText, loading && styles.resendDisabled]}>
-                        Resend Code
+                        Resend Link
                       </Text>
                     </Pressable>
                   ) : (
@@ -230,7 +233,7 @@ export default function EmailVerificationScreen({ navigation, route }: Props) {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: COLORS.background,
+    backgroundColor: COLORS.background || '#F9FAFB',
   },
   scrollContent: {
     flexGrow: 1,
@@ -239,97 +242,122 @@ const styles = StyleSheet.create({
   header: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingHorizontal: 20,
-    backgroundColor: 'transparent',
+    justifyContent: 'space-between',
+    paddingHorizontal: 24,
+    paddingTop: 0,
+    marginTop: 0,
   },
   backButton: {
-    padding: 8,
-    borderRadius: 12,
-    backgroundColor: '#FFF',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.1,
-    shadowRadius: 2,
-    elevation: 2,
+    width: 40,
+    height: 40,
+    justifyContent: 'center',
+    alignItems: 'center',
   },
   headerLabel: {
     fontSize: 16,
     fontWeight: '700',
-    color: '#7C2D12',
+    color: '#6B7280',
   },
   content: {
     paddingTop: 40,
     alignItems: 'center',
   },
+  illustrationContainer: {
+    marginBottom: 40,
+    marginTop: 20,
+  },
+  iconCircle: {
+    width: 140,
+    height: 140,
+    borderRadius: 70,
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderWidth: 2,
+    borderColor: '#FDE68A',
+    position: 'relative',
+    backgroundColor: '#FFFBF0',
+    shadowColor: '#F59E0B',
+    shadowOffset: { width: 0, height: 10 },
+    shadowOpacity: 0.3,
+    shadowRadius: 15,
+    elevation: 8,
+  },
+  checkBadge: {
+    position: 'absolute',
+    bottom: 5,
+    right: 5,
+    backgroundColor: '#FFFFFF',
+    borderRadius: 20,
+    padding: 4,
+    shadowColor: '#F59E0B',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.2,
+    shadowRadius: 6,
+    elevation: 4,
+    borderWidth: 2,
+    borderColor: '#FDE68A',
+  },
   title: {
-    fontSize: 28,
-    fontWeight: '800',
-    color: '#7C2D12',
-    marginBottom: 8,
+    fontSize: 20,
+    fontWeight: '700',
+    color: '#111827',
+    marginBottom: 12,
     textAlign: 'center',
   },
   subtitle: {
     fontSize: 14,
-    color: '#78350F',
+    color: '#6B7280',
     textAlign: 'center',
-    lineHeight: 20,
+    lineHeight: 22,
     paddingHorizontal: 20,
+    marginBottom: 40,
   },
   emailText: {
     fontWeight: '700',
     color: '#D97706',
   },
-  formContainer: {
+  actionContainer: {
     width: '100%',
-    marginTop: 40,
+    gap: 16,
   },
-  inputWrapper: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#F9FAFB',
-    borderWidth: 1,
-    borderColor: '#E5E7EB',
-    borderRadius: 12,
-    paddingHorizontal: 16,
-    height: 56,
-    marginBottom: 20,
-  },
-  input: {
-    flex: 1,
-    fontSize: 15,
-    color: '#111827',
-    fontWeight: '500',
-  },
-  errorText: {
-    fontSize: 14,
-    color: '#EF4444',
-    textAlign: 'center',
-    marginBottom: 12,
-  },
-  continueButton: {
-    borderRadius: 12,
+  primaryButton: {
+    borderRadius: 14,
     overflow: 'hidden',
-    marginTop: 10,
+    backgroundColor: '#D97706',
     shadowColor: '#D97706',
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.2,
     shadowRadius: 8,
     elevation: 4,
-  },
-  buttonDisabled: {
-    opacity: 0.7,
-  },
-  gradient: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    paddingVertical: 16,
+    paddingVertical: 14,
     gap: 8,
   },
-  continueButtonText: {
+  buttonDisabled: {
+    opacity: 0.6,
+  },
+  buttonText: {
     fontSize: 16,
     fontWeight: '700',
     color: '#FFFFFF',
+  },
+  secondaryButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 14,
+    borderRadius: 14,
+    borderWidth: 1.5,
+    borderColor: '#FDE68A',
+    backgroundColor: 'rgba(255, 255, 255, 0.5)',
+    gap: 8,
+  },
+  secondaryButtonText: {
+    fontSize: 15,
+    fontWeight: '700',
+    color: '#D97706',
   },
   footer: {
     marginTop: 30,
@@ -353,10 +381,14 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 4,
+    backgroundColor: 'rgba(255, 255, 255, 0.4)',
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 16,
   },
   cooldownText: {
-    fontSize: 14,
-    color: '#9CA3AF',
+    fontSize: 13,
+    color: '#6B7280',
     fontWeight: '600',
   },
 });

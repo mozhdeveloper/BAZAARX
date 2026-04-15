@@ -185,6 +185,13 @@ export default function HomeScreen({ navigation }: Props) {
   const BRAND_COLOR = COLORS.primary;
   const { user, isGuest } = useAuthStore();
 
+  console.log('[HomeScreen] Current User Data:', {
+    id: user?.id,
+    name: user?.name,
+    email: user?.email,
+    isGuest
+  });
+
   const [activeTab, setActiveTab] = useState<'Home' | 'Category'>('Home');
   const [showAIChat, setShowAIChat] = useState(false);
   // Removed showNotifications state

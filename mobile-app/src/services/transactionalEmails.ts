@@ -1,12 +1,9 @@
 /**
  * Transactional Email Helpers (Mobile)
  *
- * Ready-to-use functions for key order lifecycle events.
- * Mirrors web/src/services/transactionalEmails.ts — same template slugs,
- * same variable names, different underlying email service (direct fetch).
+ * DISABLED: Email service has been removed.
+ * These functions are now no-ops that return false.
  */
-
-import { emailService } from './emailService';
 
 export async function sendOrderConfirmedEmail(params: {
   buyerEmail: string;
@@ -14,18 +11,9 @@ export async function sendOrderConfirmedEmail(params: {
   orderNumber: string;
   buyerName: string;
   estimatedDelivery: string;
-}) {
-  return emailService.sendTemplatedEmail({
-    templateSlug: 'order_confirmed',
-    to: params.buyerEmail,
-    eventType: 'order_confirmed',
-    recipientId: params.buyerId,
-    variables: {
-      buyer_name: params.buyerName,
-      order_number: params.orderNumber,
-      estimated_delivery: params.estimatedDelivery,
-    },
-  });
+}): Promise<boolean> {
+  console.warn('Email service disabled - sendOrderConfirmedEmail called');
+  return false;
 }
 
 export async function sendOrderShippedEmail(params: {
@@ -36,20 +24,9 @@ export async function sendOrderShippedEmail(params: {
   trackingNumber: string;
   courierName: string;
   trackingUrl: string;
-}) {
-  return emailService.sendTemplatedEmail({
-    templateSlug: 'order_shipped',
-    to: params.buyerEmail,
-    eventType: 'order_shipped',
-    recipientId: params.buyerId,
-    variables: {
-      buyer_name: params.buyerName,
-      order_number: params.orderNumber,
-      tracking_number: params.trackingNumber,
-      courier: params.courierName,
-      track_url: params.trackingUrl,
-    },
-  });
+}): Promise<boolean> {
+  console.warn('Email service disabled - sendOrderShippedEmail called');
+  return false;
 }
 
 export async function sendOrderDeliveredEmail(params: {
@@ -57,17 +34,9 @@ export async function sendOrderDeliveredEmail(params: {
   buyerId: string;
   orderNumber: string;
   buyerName: string;
-}) {
-  return emailService.sendTemplatedEmail({
-    templateSlug: 'order_delivered',
-    to: params.buyerEmail,
-    eventType: 'order_delivered',
-    recipientId: params.buyerId,
-    variables: {
-      buyer_name: params.buyerName,
-      order_number: params.orderNumber,
-    },
-  });
+}): Promise<boolean> {
+  console.warn('Email service disabled - sendOrderDeliveredEmail called');
+  return false;
 }
 
 export async function sendOrderCancelledEmail(params: {
@@ -76,18 +45,9 @@ export async function sendOrderCancelledEmail(params: {
   orderNumber: string;
   buyerName: string;
   cancelReason: string;
-}) {
-  return emailService.sendTemplatedEmail({
-    templateSlug: 'order_cancelled',
-    to: params.buyerEmail,
-    eventType: 'order_cancelled',
-    recipientId: params.buyerId,
-    variables: {
-      buyer_name: params.buyerName,
-      order_number: params.orderNumber,
-      cancel_reason: params.cancelReason,
-    },
-  });
+}): Promise<boolean> {
+  console.warn('Email service disabled - sendOrderCancelledEmail called');
+  return false;
 }
 
 export async function sendOrderReceiptEmail(params: {
@@ -100,23 +60,9 @@ export async function sendOrderReceiptEmail(params: {
   subtotal: string;
   shippingFee: string;
   totalAmount: string;
-}) {
-  return emailService.sendTemplatedEmail({
-    templateSlug: 'order_receipt',
-    to: params.buyerEmail,
-    eventType: 'order_placed',
-    recipientId: params.buyerId,
-    variables: {
-      buyer_name: params.buyerName,
-      order_number: params.orderNumber,
-      order_date: params.orderDate,
-      items_html: params.itemsHtml,
-      subtotal: params.subtotal,
-      shipping: params.shippingFee,
-      total: params.totalAmount,
-    },
-    metadata: { order_number: params.orderNumber },
-  });
+}): Promise<boolean> {
+  console.warn('Email service disabled - sendOrderReceiptEmail called');
+  return false;
 }
 
 export async function sendRefundProcessedEmail(params: {
@@ -126,19 +72,9 @@ export async function sendRefundProcessedEmail(params: {
   buyerName: string;
   refundAmount: string;
   refundMethod: string;
-}) {
-  return emailService.sendTemplatedEmail({
-    templateSlug: 'refund_processed',
-    to: params.buyerEmail,
-    eventType: 'refund_processed',
-    recipientId: params.buyerId,
-    variables: {
-      buyer_name: params.buyerName,
-      order_number: params.orderNumber,
-      amount: params.refundAmount,
-      refund_method: params.refundMethod,
-    },
-  });
+}): Promise<boolean> {
+  console.warn('Email service disabled - sendRefundProcessedEmail called');
+  return false;
 }
 
 export async function sendPaymentReceivedEmail(params: {
@@ -148,19 +84,9 @@ export async function sendPaymentReceivedEmail(params: {
   buyerName: string;
   paymentMethod: string;
   amountPaid: string;
-}) {
-  return emailService.sendTemplatedEmail({
-    templateSlug: 'payment_received',
-    to: params.buyerEmail,
-    eventType: 'payment_received',
-    recipientId: params.buyerId,
-    variables: {
-      buyer_name: params.buyerName,
-      order_number: params.orderNumber,
-      payment_method: params.paymentMethod,
-      amount: params.amountPaid,
-    },
-  });
+}): Promise<boolean> {
+  console.warn('Email service disabled - sendPaymentReceivedEmail called');
+  return false;
 }
 
 export async function sendOrderReadyToShipEmail(params: {
@@ -170,20 +96,9 @@ export async function sendOrderReadyToShipEmail(params: {
   buyerName: string;
   estimatedPickup: string;
   trackUrl: string;
-}) {
-  return emailService.sendTemplatedEmail({
-    templateSlug: 'order_ready_to_ship',
-    to: params.buyerEmail,
-    eventType: 'order_ready_to_ship',
-    recipientId: params.buyerId,
-    variables: {
-      buyer_name: params.buyerName,
-      order_number: params.orderNumber,
-      estimated_pickup: params.estimatedPickup,
-      track_url: params.trackUrl,
-    },
-    metadata: { order_number: params.orderNumber },
-  });
+}): Promise<boolean> {
+  console.warn('Email service disabled - sendOrderReadyToShipEmail called');
+  return false;
 }
 
 export async function sendOrderOutForDeliveryEmail(params: {
@@ -193,20 +108,9 @@ export async function sendOrderOutForDeliveryEmail(params: {
   buyerName: string;
   courierName: string;
   trackUrl: string;
-}) {
-  return emailService.sendTemplatedEmail({
-    templateSlug: 'order_out_for_delivery',
-    to: params.buyerEmail,
-    eventType: 'order_out_for_delivery',
-    recipientId: params.buyerId,
-    variables: {
-      buyer_name: params.buyerName,
-      order_number: params.orderNumber,
-      courier_name: params.courierName,
-      track_url: params.trackUrl,
-    },
-    metadata: { order_number: params.orderNumber },
-  });
+}): Promise<boolean> {
+  console.warn('Email service disabled - sendOrderOutForDeliveryEmail called');
+  return false;
 }
 
 export async function sendOrderFailedDeliveryEmail(params: {
@@ -216,20 +120,9 @@ export async function sendOrderFailedDeliveryEmail(params: {
   buyerName: string;
   failureReason: string;
   rescheduleUrl: string;
-}) {
-  return emailService.sendTemplatedEmail({
-    templateSlug: 'order_failed_delivery',
-    to: params.buyerEmail,
-    eventType: 'order_failed_delivery',
-    recipientId: params.buyerId,
-    variables: {
-      buyer_name: params.buyerName,
-      order_number: params.orderNumber,
-      failure_reason: params.failureReason,
-      reschedule_url: params.rescheduleUrl,
-    },
-    metadata: { order_number: params.orderNumber },
-  });
+}): Promise<boolean> {
+  console.warn('Email service disabled - sendOrderFailedDeliveryEmail called');
+  return false;
 }
 
 export async function sendOrderReturnedEmail(params: {
@@ -240,21 +133,9 @@ export async function sendOrderReturnedEmail(params: {
   refundAmount: string;
   refundMethod: string;
   trackUrl: string;
-}) {
-  return emailService.sendTemplatedEmail({
-    templateSlug: 'order_returned',
-    to: params.buyerEmail,
-    eventType: 'order_returned',
-    recipientId: params.buyerId,
-    variables: {
-      buyer_name: params.buyerName,
-      order_number: params.orderNumber,
-      refund_amount: params.refundAmount,
-      refund_method: params.refundMethod,
-      track_url: params.trackUrl,
-    },
-    metadata: { order_number: params.orderNumber },
-  });
+}): Promise<boolean> {
+  console.warn('Email service disabled - sendOrderReturnedEmail called');
+  return false;
 }
 
 export async function sendDigitalReceiptEmail(params: {
@@ -274,31 +155,9 @@ export async function sendDigitalReceiptEmail(params: {
   transactionDate: string;
   shippingAddress: string;
   trackUrl: string;
-}) {
-  return emailService.sendTemplatedEmail({
-    templateSlug: 'digital_receipt',
-    to: params.buyerEmail,
-    eventType: 'digital_receipt',
-    recipientId: params.buyerId,
-    variables: {
-      buyer_name: params.buyerName,
-      buyer_email: params.buyerEmail,
-      receipt_number: params.receiptNumber,
-      order_number: params.orderNumber,
-      order_date: params.orderDate,
-      items_html: params.itemsHtml,
-      subtotal: params.subtotal,
-      shipping: params.shipping,
-      discount: params.discount,
-      total: params.total,
-      payment_method: params.paymentMethod,
-      transaction_id: params.transactionId,
-      transaction_date: params.transactionDate,
-      shipping_address: params.shippingAddress,
-      track_url: params.trackUrl,
-    },
-    metadata: { order_number: params.orderNumber, receipt_number: params.receiptNumber },
-  });
+}): Promise<boolean> {
+  console.warn('Email service disabled - sendDigitalReceiptEmail called');
+  return false;
 }
 
 export async function sendPartialRefundEmail(params: {
@@ -310,22 +169,9 @@ export async function sendPartialRefundEmail(params: {
   remainingTotal: string;
   refundMethod: string;
   trackUrl: string;
-}) {
-  return emailService.sendTemplatedEmail({
-    templateSlug: 'partial_refund_processed',
-    to: params.buyerEmail,
-    eventType: 'partial_refund',
-    recipientId: params.buyerId,
-    variables: {
-      buyer_name: params.buyerName,
-      order_number: params.orderNumber,
-      refund_amount: params.refundAmount,
-      remaining_total: params.remainingTotal,
-      refund_method: params.refundMethod,
-      track_url: params.trackUrl,
-    },
-    metadata: { order_number: params.orderNumber },
-  });
+}): Promise<boolean> {
+  console.warn('Email service disabled - sendPartialRefundEmail called');
+  return false;
 }
 
 export async function sendPaymentFailedEmail(params: {
@@ -334,33 +180,16 @@ export async function sendPaymentFailedEmail(params: {
   orderNumber: string;
   buyerName: string;
   retryUrl: string;
-}) {
-  return emailService.sendTemplatedEmail({
-    templateSlug: 'payment_failed',
-    to: params.buyerEmail,
-    eventType: 'payment_failed',
-    recipientId: params.buyerId,
-    variables: {
-      buyer_name: params.buyerName,
-      order_number: params.orderNumber,
-      retry_url: params.retryUrl,
-    },
-    metadata: { order_number: params.orderNumber },
-  });
+}): Promise<boolean> {
+  console.warn('Email service disabled - sendPaymentFailedEmail called');
+  return false;
 }
 
 export async function sendWelcomeEmail(params: {
   buyerEmail: string;
   buyerId: string;
   buyerName: string;
-}) {
-  return emailService.sendTemplatedEmail({
-    templateSlug: 'welcome',
-    to: params.buyerEmail,
-    eventType: 'welcome',
-    recipientId: params.buyerId,
-    variables: {
-      buyer_name: params.buyerName,
-    },
-  });
+}): Promise<boolean> {
+  console.warn('Email service disabled - sendWelcomeEmail called');
+  return false;
 }

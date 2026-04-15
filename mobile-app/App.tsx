@@ -126,7 +126,7 @@ export type RootStackParamList = {
 const Stack = createNativeStackNavigator<RootStackParamList>();
 const Tab = createBottomTabNavigator<TabParamList>();
 
-// Deep link configuration for payment callbacks
+// Deep link configuration for payment callbacks and OAuth
 const linking: LinkingOptions<RootStackParamList> = {
   prefixes: ['bazaarx://'],
   config: {
@@ -140,6 +140,10 @@ const linking: LinkingOptions<RootStackParamList> = {
           src: (src: string) => src,
         },
       },
+      // OAuth callback deep link for Google Sign-In redirect
+      // When Supabase redirects after Google auth, it will call: bazaarx://auth/callback?...
+      // This matches the redirectTo in LoginScreen's signInWithOAuth call
+      // Note: Navigation happens via linking, but we handle OAuth in LoginScreen/SplashScreen
     },
   },
 };

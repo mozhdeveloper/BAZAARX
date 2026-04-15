@@ -12,7 +12,8 @@
       "Bash(npx *)",
       "Bash(select-object *)",
       "Bash(mkdir *)",
-      "Bash(npm *)"
+      "Bash(npm *)",
+      "Bash(del *)"
     ]
   },
   "$version": 3
