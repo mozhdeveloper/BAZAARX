@@ -409,7 +409,7 @@ Renders between the "Recipient" address info and the "Courier Information" secti
    └─▶ Seller updates order_shipments:
        ├─▶ tracking_number = 'JT123456789'
        ├─▶ status = 'shipped'
-       └─▶ shipped_at = now()
+       └─▶ shipped_at = now() 
 ```
 
 ---
