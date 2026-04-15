@@ -53,12 +53,19 @@ export default function CheckoutScreen({ navigation, route }: Props) {
   const { loadCheckoutContext, isCheckoutContextLoading } = useOrderStore();
   const insets = useSafeAreaInsets();
 
-  // Extract params safely
-  const params = (route.params || {}) as any;
-  const isGift = params?.isGift || false;
-  const recipientName = params?.recipientName || 'Registry Owner';
-  const registryLocation = params?.registryLocation || 'Philippines';
-  const recipientId = params?.recipientId || 'user_123'; // Mock recipient ID if not passed
+  // Extract params safely and memoize to prevent recreation on every render
+  const memoizedParams = useMemo(() => {
+    const p = (route.params || {}) as any;
+    return {
+      isGift: p?.isGift || false,
+      recipientName: p?.recipientName || 'Registry Owner',
+      registryLocation: p?.registryLocation || 'Philippines',
+      recipientId: p?.recipientId || 'user_123',
+      selectedItems: p?.selectedItems || [],
+    };
+  }, [route.params?.isGift, route.params?.recipientName, route.params?.registryLocation, route.params?.recipientId, route.params?.selectedItems]);
+
+  const { isGift, recipientName, registryLocation, recipientId } = memoizedParams;
 
   // Override address state if it's a gift
   React.useEffect(() => {
@@ -82,10 +89,12 @@ export default function CheckoutScreen({ navigation, route }: Props) {
       };
 
       // AUTO-SELECT this address so validation passes
-      setSelectedAddress(registryAddress as Address & { id: string });
-      setTempSelectedAddress(registryAddress as Address & { id: string });
+      if (isMountedRef.current) {
+        setSelectedAddress(registryAddress as Address & { id: string });
+        setTempSelectedAddress(registryAddress as Address & { id: string });
+      }
     }
-  }, [isGift, recipientName, registryLocation, user?.id]);
+  }, [isGift, recipientName, registryLocation]);
 
   const DEFAULT_REGION = {
     latitude: 14.5995,
@@ -194,7 +203,10 @@ export default function CheckoutScreen({ navigation, route }: Props) {
 
 
   // Get selected items from navigation params (from CartScreen)
-  const selectedItemsFromCart: CartItem[] = params?.selectedItems || [];
+  // Memoize to prevent array recreation on every render
+  const selectedItemsFromCart: CartItem[] = useMemo(() => {
+    return memoizedParams.selectedItems || [];
+  }, [memoizedParams.selectedItems]);
 
   // Determine which items to checkout: quick order takes precedence, then selected items.
   // We do NOT default to 'items' (all cart items) to avoid accidental checkout of unselected items.
@@ -246,24 +258,36 @@ export default function CheckoutScreen({ navigation, route }: Props) {
   // ===== END STATE DECLARATIONS =====
 
   useEffect(() => {
-    const checkVacationSellers = async () => {
-      const sellerIds = [...new Set(checkoutItems.map((item: any) => item.sellerId || item.seller_id).filter(Boolean))];
-      if (sellerIds.length === 0) {
-        setVacationSellers([]);
-        return;
-      }
+    if (checkoutItems.length === 0 || !isMountedRef.current) {
+      setVacationSellers([]);
+      return;
+    }
 
-      const { data } = await (supabase as any)
-        .from('sellers')
-        .select('id, store_name, is_vacation_mode')
-        .in('id', sellerIds)
-        .eq('is_vacation_mode', true);
+    // Debounce by 300ms to prevent rapid re-runs from unstable dependencies
+    const timer = setTimeout(async () => {
+      if (!isMountedRef.current) return;
 
-      const vacationSellerNames = (data || []).map((s: any) => s.store_name || 'Unknown Seller');
-      setVacationSellers(vacationSellerNames);
-    };
+      const checkVacationSellers = async () => {
+        const sellerIds = [...new Set(checkoutItems.map((item: any) => item.sellerId || item.seller_id).filter(Boolean))];
+        if (sellerIds.length === 0) {
+          if (isMountedRef.current) setVacationSellers([]);
+          return;
+        }
 
-    checkVacationSellers();
+        const { data } = await (supabase as any)
+          .from('sellers')
+          .select('id, store_name, is_vacation_mode')
+          .in('id', sellerIds)
+          .eq('is_vacation_mode', true);
+
+        const vacationSellerNames = (data || []).map((s: any) => s.store_name || 'Unknown Seller');
+        if (isMountedRef.current) setVacationSellers(vacationSellerNames);
+      };
+
+      checkVacationSellers();
+    }, 300);
+
+    return () => clearTimeout(timer);
   }, [checkoutItems]);
 
   // Track component mount state to prevent state updates after unmount
@@ -599,12 +623,21 @@ export default function CheckoutScreen({ navigation, route }: Props) {
     Object.entries(groupedCheckoutItems).forEach(([seller, items]) => {
       // Calculate subtotal for this store
       const storeSubtotal = items.reduce((sum, item) => sum + (item.price || 0) * item.quantity, 0);
-      // Apply shipping rule: free if >= 500, otherwise 50
-      fees[seller] = storeSubtotal >= 500 ? 0 : 50;
+      
+      // Determine shipping fee based on region
+      // NCR: ₱50, Non-NCR: ₱70
+      let baseFee = 50;
+      if (selectedAddress?.region) {
+        const isNCR = selectedAddress.region.toUpperCase() === 'NCR';
+        baseFee = isNCR ? 50 : 70;
+      }
+      
+      // Apply shipping rule: free if >= 500, otherwise apply base fee
+      fees[seller] = storeSubtotal >= 500 ? 0 : baseFee;
     });
     
     return fees;
-  }, [groupedCheckoutItems]);
+  }, [groupedCheckoutItems, selectedAddress?.region]);
 
   // Optimize total calculation with useMemo
   const { subtotal, shippingFee, discount, total, totalSavings } = useMemo(() => {
@@ -1515,9 +1548,19 @@ export default function CheckoutScreen({ navigation, route }: Props) {
     const fetchData = async () => {
       setIsLoadingAddresses(true);
       
-      // CRITICAL: If user already has a selectedAddress set (e.g., just created one),
+      // CRITICAL: If this is a gift, DO NOT overwrite the selected address with defaults
+      // The other useEffect handles setting the registry address
+      if (isGift) {
+        initializedUserId.current = user.id;
+        setIsLoadingAddresses(false);
+        const coins = await addressService.getBazcoins(user.id);
+        setAvailableBazcoins(coins || 0);
+        return;
+      }
+      
+      // For regular checkout: If user already has a selectedAddress set (e.g., just created one),
       // DO NOT override it with defaults or re-fetch from database
-      if (selectedAddress) {
+      if (selectedAddress && selectedAddress.id) {
         initializedUserId.current = user.id;
         setIsLoadingAddresses(false);
         const coins = await addressService.getBazcoins(user.id);
@@ -1549,16 +1592,6 @@ export default function CheckoutScreen({ navigation, route }: Props) {
           addressType: a.addressType || 'residential',
         }));
         setAddresses(addressData);
-
-        // If this is a gift, DO NOT overwrite the selected address with defaults
-        // The other useEffect handles setting the registry address
-        if (isGift) {
-          initializedUserId.current = user.id;
-          setIsLoadingAddresses(false);
-          return;
-        }
-
-        // CRITICAL: If user already has a selectedAddress set (e.g., just created one),
         // DO NOT override it with defaults
         if (selectedAddress) {
           initializedUserId.current = user.id;
@@ -1576,8 +1609,8 @@ export default function CheckoutScreen({ navigation, route }: Props) {
         // 5) First saved address (last resort)
         const defaultSavedAddr = addressData.find(a => a.isDefault);
 
-        let homeScreenAddress = params?.deliveryAddress;
-        let homeScreenCoords = params?.deliveryCoordinates;
+        let homeScreenAddress = route.params?.deliveryAddress;
+        let homeScreenCoords = route.params?.deliveryCoordinates;
 
         // If no route params, try to get from AsyncStorage or database
         if (!homeScreenAddress || homeScreenAddress === 'Select Location') {

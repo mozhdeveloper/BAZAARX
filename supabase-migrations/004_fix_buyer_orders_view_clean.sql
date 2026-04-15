@@ -50,12 +50,16 @@ BEGIN
   END LOOP;
 END $$;
 
--- Step 3: Create a safe order creation function with exception handling
-CREATE OR REPLACE FUNCTION create_order_safe(
+-- Step 3: Drop old version of function completely, then create the new one
+DROP FUNCTION IF EXISTS create_order_safe CASCADE;
+
+-- Create a safe order creation function with exception handling
+CREATE FUNCTION create_order_safe(
   p_order_number TEXT,
   p_buyer_id UUID,
   p_order_type TEXT DEFAULT 'ONLINE',
   p_address_id UUID DEFAULT NULL,
+  p_recipient_id UUID DEFAULT NULL,
   p_payment_status TEXT DEFAULT 'pending_payment',
   p_shipment_status TEXT DEFAULT 'waiting_for_seller',
   p_notes TEXT DEFAULT NULL
@@ -70,6 +74,7 @@ BEGIN
     buyer_id,
     order_type,
     address_id,
+    recipient_id,
     payment_status,
     shipment_status,
     notes,
@@ -80,6 +85,7 @@ BEGIN
     p_buyer_id,
     p_order_type,
     p_address_id,
+    p_recipient_id,
     p_payment_status,
     p_shipment_status,
     p_notes,

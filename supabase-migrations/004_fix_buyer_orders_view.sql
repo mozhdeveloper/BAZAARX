@@ -149,11 +149,15 @@ DROP TRIGGER IF EXISTS buyer_orders_view_refresh ON orders;
 -- This function creates orders with built-in exception handling for triggers
 -- ============================================================================
 
-CREATE OR REPLACE FUNCTION create_order_safe(
+-- Drop all versions of this function completely, then recreate
+DROP FUNCTION IF EXISTS create_order_safe CASCADE;
+
+CREATE FUNCTION create_order_safe(
   p_order_number TEXT,
   p_buyer_id UUID,
   p_order_type TEXT DEFAULT 'ONLINE',
   p_address_id UUID DEFAULT NULL,
+  p_recipient_id UUID DEFAULT NULL,
   p_payment_status TEXT DEFAULT 'pending_payment',
   p_shipment_status TEXT DEFAULT 'waiting_for_seller',
   p_notes TEXT DEFAULT NULL
@@ -169,6 +173,7 @@ BEGIN
     buyer_id,
     order_type,
     address_id,
+    recipient_id,
     payment_status,
     shipment_status,
     notes,
@@ -179,6 +184,7 @@ BEGIN
     p_buyer_id,
     p_order_type,
     p_address_id,
+    p_recipient_id,
     p_payment_status,
     p_shipment_status,
     p_notes,
