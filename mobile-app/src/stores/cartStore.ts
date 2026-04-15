@@ -1,3 +1,4 @@
+import { Alert } from 'react-native';
 import { create } from 'zustand';
 import { persist, createJSONStorage } from 'zustand/middleware';
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -7,6 +8,7 @@ import { useAuthStore } from './authStore';
 import { PLACEHOLDER_PRODUCT } from '../utils/imageUtils';
 
 let cartChannel: any = null;
+let debounceTimers: Record<string, ReturnType<typeof setTimeout> | undefined> = {};
 
 interface CartStore {
   items: CartItem[];
@@ -417,21 +419,32 @@ export const useCartStore = create<CartStore>()(
             )
           }));
 
-          try {
-            const item = previousItems.find(i => i.cartItemId === itemId);
-            if (item) {
-              await cartService.updateCartItemQuantity(item.cartItemId, nextQuantity);
-            } else {
-              const verifiedCartId = cartId as string;
-              await cartService.updateQuantity(verifiedCartId, itemId, nextQuantity);
-            }
-            // No re-fetch needed — optimistic update is accurate.
-            // A full refresh happens automatically on next screen focus.
-          } catch (e) {
-            // Rollback on error
-            set({ items: previousItems });
-            console.error('[CartStore] Failed to update quantity:', e);
+          // Clear any existing debounce timer for this item
+          if (debounceTimers[itemId]) {
+            clearTimeout(debounceTimers[itemId]);
           }
+
+          // Debounce the API call by 500ms from the user's last tap
+          debounceTimers[itemId] = setTimeout(async () => {
+            try {
+              const item = previousItems.find(i => i.cartItemId === itemId);
+              if (item) {
+                await cartService.updateCartItemQuantity(item.cartItemId, nextQuantity);
+              } else {
+                const verifiedCartId = cartId as string;
+                await cartService.updateQuantity(verifiedCartId, itemId, nextQuantity);
+              }
+              // No re-fetch needed — optimistic update is accurate.
+              // A full refresh happens automatically on next screen focus.
+              delete debounceTimers[itemId];
+            } catch (e) {
+              // Rollback on error
+              set({ items: previousItems });
+              console.error('[CartStore] Failed to update quantity:', e);
+              Alert.alert('Cannot Update Quantity', e instanceof Error ? e.message : 'Unable to update item quantity');
+              delete debounceTimers[itemId];
+            }
+          }, 500);
         };
         run();
       },
