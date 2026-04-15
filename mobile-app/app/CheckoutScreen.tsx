@@ -30,6 +30,9 @@ import { supabase } from '../src/lib/supabase';
 import { processCheckout, getCheckoutContext } from '@/services/checkoutService';
 import { addressService, type Address, validateCheckoutAddress, type AddressValidationResult } from '@/services/addressService';
 import { voucherService, calculateVoucherDiscount, getVoucherErrorMessage } from '@/services/voucherService';
+import { calculateShippingForSellers, type SellerShippingResult, type ShippingMethodOption } from '@/services/shippingService';
+import AddressFormModal from '@/components/AddressFormModal';
+import ShippingMethodPicker from '@/components/ShippingMethodPicker';
 import { useCartStore } from '../src/stores/cartStore';
 import { useAuthStore } from '../src/stores/authStore';
 import { useOrderStore } from '../src/stores/orderStore';
@@ -103,6 +106,10 @@ export default function CheckoutScreen({ navigation, route }: Props) {
   const [isAddressModalOpen, setIsAddressModalOpen] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [isMapModalOpen, setIsMapModalOpen] = useState(false);
+
+  // Shared AddressFormModal state (Fix Address / Add New Address)
+  const [showAddressFormModal, setShowAddressFormModal] = useState(false);
+  const [editingAddressForForm, setEditingAddressForForm] = useState<Address | null>(null);
   const [mapRegion, setMapRegion] = useState<Region>(DEFAULT_REGION);
   const [isGeocoding, setIsGeocoding] = useState(false);
   const [isLoadingLocation, setIsLoadingLocation] = useState(false);
@@ -211,30 +218,66 @@ export default function CheckoutScreen({ navigation, route }: Props) {
   const [vacationSellers, setVacationSellers] = useState<string[]>([]);
   const hasVacationSeller = vacationSellers.length > 0;
 
+  // BX-09-001 — Seller metadata for shipping zone detection
+  const [sellerMetadata, setSellerMetadata] = useState<Record<string, {
+    id: string;
+    storeName: string;
+    coords: { latitude: number; longitude: number } | null;
+    province: string | null;
+    region: string | null;
+  }>>({});
+
+  // BX-09-001 — Async shipping calculation state
+  const [shippingResults, setShippingResults] = useState<SellerShippingResult[]>([]);
+  const [isCalculatingShipping, setIsCalculatingShipping] = useState(false);
+  const [selectedMethods, setSelectedMethods] = useState<Record<string, string>>({});
+  const shippingTimerRef = useRef<ReturnType<typeof setTimeout>>();
+
   // Check for unavailable items (stock validation)
   const [unavailableItems, setUnavailableItems] = useState<Array<{ id: string; name: string; reason: string }>>([]);
   const [isValidatingStock, setIsValidatingStock] = useState(false);
   const hasUnavailableItems = unavailableItems.length > 0;
 
+  // Fetch seller metadata (vacation check + shipping origin) on mount
   useEffect(() => {
-    const checkVacationSellers = async () => {
+    const fetchSellerData = async () => {
       const sellerIds = [...new Set(checkoutItems.map((item: any) => item.sellerId || item.seller_id).filter(Boolean))];
       if (sellerIds.length === 0) {
         setVacationSellers([]);
+        setSellerMetadata({});
         return;
       }
 
+      // Fetch seller info + business profile for province/region fallback
       const { data } = await (supabase as any)
         .from('sellers')
-        .select('id, store_name, is_vacation_mode')
-        .in('id', sellerIds)
-        .eq('is_vacation_mode', true);
+        .select('id, store_name, is_vacation_mode, shipping_origin_lat, shipping_origin_lng, business_profile:seller_business_profiles(city, province)')
+        .in('id', sellerIds);
 
-      const vacationSellerNames = (data || []).map((s: any) => s.store_name || 'Unknown Seller');
+      // Set vacation sellers (existing behavior)
+      const vacationSellerNames = (data || [])
+        .filter((s: any) => s.is_vacation_mode)
+        .map((s: any) => s.store_name || 'Unknown Seller');
       setVacationSellers(vacationSellerNames);
+
+      // Set seller metadata for shipping (BX-09-001)
+      const meta: typeof sellerMetadata = {};
+      for (const s of data || []) {
+        const bp = Array.isArray(s.business_profile) ? s.business_profile[0] : s.business_profile;
+        meta[s.id] = {
+          id: s.id,
+          storeName: s.store_name || 'Unknown Seller',
+          coords: s.shipping_origin_lat && s.shipping_origin_lng
+            ? { latitude: s.shipping_origin_lat, longitude: s.shipping_origin_lng }
+            : null,
+          province: bp?.province || null,
+          region: null, // seller_business_profiles doesn't have region; text fallback uses province
+        };
+      }
+      setSellerMetadata(meta);
     };
 
-    checkVacationSellers();
+    fetchSellerData();
   }, [checkoutItems]);
 
   // Validate stock for all checkout items on mount
@@ -382,14 +425,20 @@ export default function CheckoutScreen({ navigation, route }: Props) {
     };
   }, [checkoutItems]);
 
+  // BX-09-001 — Group by seller ID (not display name) for correct per-seller shipping
   const groupedCheckoutItems = useMemo(() => {
     return checkoutItems.reduce((groups, item) => {
-      const seller = item.seller || 'BazaarX Store';
-      if (!groups[seller]) groups[seller] = [];
-      groups[seller].push(item);
+      const sellerId = (item as any).sellerId || (item as any).seller_id || 'unknown';
+      if (!groups[sellerId]) groups[sellerId] = [];
+      groups[sellerId].push(item);
       return groups;
     }, {} as Record<string, typeof checkoutItems>);
   }, [checkoutItems]);
+
+  // Helper: resolve display name for a seller group
+  const getSellerDisplayName = useCallback((sellerId: string, items: typeof checkoutItems) => {
+    return sellerMetadata[sellerId]?.storeName || items[0]?.seller || 'BazaarX Store';
+  }, [sellerMetadata]);
 
   // ---------------------------------------------------------------------------
   // BX-09-004 — Address validation (pure, synchronous, no network)
@@ -399,28 +448,91 @@ export default function CheckoutScreen({ navigation, route }: Props) {
     return validateCheckoutAddress(selectedAddress);
   }, [selectedAddress]);
 
-  // Clear stale shipping immediately when selected address identity changes
-  const prevAddressIdRef = useRef<string | undefined>(undefined);
+  // BX-09-001 — Debounced shipping recalculation.
+  // Fires when selectedAddress, items, or seller metadata change.
+  // Calls calculateShippingForSellers() from shippingService.ts
+  // which queries shipping_zones + shipping_config from Supabase.
   useEffect(() => {
-    const currentId = (selectedAddress as any)?.id as string | undefined;
-    if (currentId !== prevAddressIdRef.current) {
-      prevAddressIdRef.current = currentId;
-    }
-  }, [selectedAddress]);
+    if (shippingTimerRef.current) clearTimeout(shippingTimerRef.current);
 
-  // Calculate per-store shipping fees
+    // Don't calculate if no address or address is invalid
+    if (!selectedAddress || !addressValidation?.valid) {
+      setShippingResults([]);
+      setIsCalculatingShipping(false);
+      return;
+    }
+
+    const sellerIds = Object.keys(groupedCheckoutItems);
+    if (sellerIds.length === 0) {
+      setShippingResults([]);
+      setIsCalculatingShipping(false);
+      return;
+    }
+
+    setIsCalculatingShipping(true);
+
+    // Debounce 300ms as specified in BX-09-001 AC
+    shippingTimerRef.current = setTimeout(async () => {
+      try {
+        const buyerCoords = selectedAddress.coordinates?.latitude
+          ? { latitude: selectedAddress.coordinates.latitude, longitude: selectedAddress.coordinates.longitude }
+          : null;
+
+        const sellerInputs = Object.entries(groupedCheckoutItems).map(([sellerId, items]) => {
+          const meta = sellerMetadata[sellerId];
+          return {
+            sellerId,
+            sellerName: meta?.storeName || items[0]?.seller || 'Unknown Seller',
+            sellerCoords: meta?.coords || null,
+            sellerProvince: meta?.province,
+            sellerRegion: meta?.region,
+            items,
+          };
+        });
+
+        const results = await calculateShippingForSellers(
+          sellerInputs,
+          buyerCoords,
+          selectedAddress.province,
+          selectedAddress.region
+        );
+
+        setShippingResults(results);
+
+        // Auto-select default method for sellers without a selection
+        setSelectedMethods(prev => {
+          const updated = { ...prev };
+          for (const r of results) {
+            if (!updated[r.sellerId] && r.defaultMethod) {
+              updated[r.sellerId] = r.defaultMethod.method;
+            }
+          }
+          return updated;
+        });
+      } catch (err) {
+        console.error('[Checkout] Shipping calculation failed:', err);
+      } finally {
+        setIsCalculatingShipping(false);
+      }
+    }, 300);
+
+    return () => { if (shippingTimerRef.current) clearTimeout(shippingTimerRef.current); };
+  }, [selectedAddress, groupedCheckoutItems, sellerMetadata, addressValidation?.valid]);
+
+  // BX-09-001 — Per-store shipping fees derived from shippingResults
   const perStoreShippingFees = useMemo(() => {
     const fees: Record<string, number> = {};
-
-    Object.entries(groupedCheckoutItems).forEach(([seller, items]) => {
-      // Calculate subtotal for this store
-      const storeSubtotal = items.reduce((sum, item) => sum + (item.price || 0) * item.quantity, 0);
-      // Apply shipping rule: free if >= 500, otherwise 50
-      fees[seller] = storeSubtotal >= 500 ? 0 : 50;
-    });
-
+    for (const result of shippingResults) {
+      const selectedMethod = selectedMethods[result.sellerId];
+      const method = result.methods.find(m => m.method === selectedMethod) || result.defaultMethod;
+      fees[result.sellerId] = method?.fee ?? 0;
+    }
+    // Fallback: if shippingResults empty (still loading or no address), keep ₱0 per seller
+    for (const sellerId of Object.keys(groupedCheckoutItems)) {
+      if (!(sellerId in fees)) fees[sellerId] = 0;
+    }
     return fees;
-  }, [groupedCheckoutItems]);
+  }, [shippingResults, selectedMethods, groupedCheckoutItems]);
 
   // Optimize total calculation with useMemo
   const { subtotal, shippingFee, discount, total, totalSavings } = useMemo(() => {
@@ -606,13 +718,11 @@ export default function CheckoutScreen({ navigation, route }: Props) {
 
   // Open LocationModal (map-first flow like HomeScreen)
   const handleOpenAddressModalForAdd = useCallback(() => {
-    // Close the selection modal first to avoid modal stacking issues
+    // Close the selection sheet first
     handleCloseAddressModal();
-
-    // Open the LocationModal with map-first flow
-    setTimeout(() => {
-      setShowLocationModal(true);
-    }, 300);
+    // Open the shared AddressFormModal with a blank form
+    setEditingAddressForForm(null);
+    setTimeout(() => setShowAddressFormModal(true), 300);
   }, []);
 
   // Handle when location is selected from LocationModal
@@ -702,7 +812,10 @@ export default function CheckoutScreen({ navigation, route }: Props) {
         });
 
         // Update local state
-        setAddresses(prev => [...prev, newAddr]);
+        setAddresses(prev => {
+          if (prev.find(a => a.id === newAddr.id)) return prev;
+          return [...prev, newAddr];
+        });
         console.log('[🔍 ADDRESS DEBUG 7] Addresses state updated with new address');
 
         setSelectedAddress(newAddr);
@@ -1261,7 +1374,10 @@ export default function CheckoutScreen({ navigation, route }: Props) {
         city: created.city,
       });
 
-      setAddresses(prev => [created, ...prev]);
+      setAddresses(prev => {
+        if (prev.find(a => a.id === created.id)) return prev;
+        return [created, ...prev];
+      });
       setSelectedAddress(created);
       setTempSelectedAddress(created);
 
@@ -1363,7 +1479,14 @@ export default function CheckoutScreen({ navigation, route }: Props) {
           landmark: a.landmark || '',
           addressType: a.addressType || 'residential',
         }));
-        setAddresses(addressData);
+        // Deduplicate by id — guards against race conditions with optimistic updates
+        const seen = new Set<string>();
+        const uniqueAddressData = addressData.filter((a: any) => {
+          if (seen.has(a.id)) return false;
+          seen.add(a.id);
+          return true;
+        });
+        setAddresses(uniqueAddressData);
 
         console.log('[🔍 ADDRESS DEBUG 2] Addresses state updated, selectedAddress is:', selectedAddress);
 
@@ -1556,7 +1679,7 @@ export default function CheckoutScreen({ navigation, route }: Props) {
       Alert.alert(
         'No Address Selected',
         'Please select a delivery address before placing your order.',
-        [{ text: 'Add Address', onPress: () => setShowAddressModal(true), style: 'default' }, { text: 'Cancel', style: 'cancel' }]
+        [{ text: 'Add Address', onPress: () => { setEditingAddressForForm(null); setShowAddressFormModal(true); }, style: 'default' }, { text: 'Cancel', style: 'cancel' }]
       );
       return;
     }
@@ -1570,7 +1693,7 @@ export default function CheckoutScreen({ navigation, route }: Props) {
       Alert.alert(
         'Address Incomplete',
         `Please fix the following before continuing:\n\n${fieldErrors}`,
-        [{ text: 'Fix Address', onPress: () => setShowAddressModal(true), style: 'default' }, { text: 'Cancel', style: 'cancel' }]
+        [{ text: 'Fix Address', onPress: () => { setEditingAddressForForm(selectedAddress); setShowAddressFormModal(true); }, style: 'default' }, { text: 'Cancel', style: 'cancel' }]
       );
       return;
     }
@@ -1581,6 +1704,37 @@ export default function CheckoutScreen({ navigation, route }: Props) {
         [{ text: 'Change Address', onPress: () => setShowAddressModal(true), style: 'default' }, { text: 'Cancel', style: 'cancel' }]
       );
       return;
+    }
+
+    // BX-09-001 — Block if shipping is still calculating
+    if (isCalculatingShipping) {
+      Alert.alert('Please Wait', 'Shipping fees are still being calculated. Please wait a moment.');
+      return;
+    }
+
+    // BX-09-001 — Block if any seller has a shipping error
+    const shippingErrors = shippingResults.filter(r => r.error !== null);
+    if (shippingErrors.length > 0) {
+      Alert.alert(
+        'Shipping Unavailable',
+        `Shipping could not be calculated for: ${shippingErrors.map(e => e.sellerName).join(', ')}. Please try again or change your address.`,
+        [{ text: 'OK' }]
+      );
+      return;
+    }
+
+    // BX-09-002 — Final method revalidation
+    // Catches stale selections (e.g., buyer selected same-day then changed address to non-NCR)
+    for (const result of shippingResults) {
+      const chosenMethod = selectedMethods[result.sellerId];
+      if (chosenMethod && !result.methods.find(m => m.method === chosenMethod)) {
+        Alert.alert(
+          'Shipping Method Changed',
+          `The selected shipping method for "${result.sellerName}" is no longer available. Please choose a different method.`,
+          [{ text: 'OK' }]
+        );
+        return;
+      }
     }
 
     // Check if cart is empty
@@ -1632,7 +1786,23 @@ export default function CheckoutScreen({ navigation, route }: Props) {
             discountAmount: ((item.originalPrice ?? item.price ?? 0) - (item.price ?? 0)) * item.quantity,
             productId: item.id,
             quantity: item.quantity
-          }))
+          })),
+        // BX-09-001 — Per-seller shipping breakdown
+        shippingBreakdown: shippingResults.map(r => {
+          const methodKey = selectedMethods[r.sellerId];
+          const method = r.methods.find(m => m.method === methodKey) || r.defaultMethod;
+          return {
+            sellerId: r.sellerId,
+            sellerName: r.sellerName,
+            method: method?.method ?? 'standard',
+            methodLabel: method?.label ?? 'Standard',
+            fee: method?.fee ?? 0,
+            breakdown: method?.breakdown ?? { baseRate: 0, weightSurcharge: 0, valuationFee: 0, odzFee: 0 },
+            estimatedDays: method?.estimatedDays ?? 'N/A',
+            originZone: r.originZone,
+            destinationZone: r.destinationZone,
+          };
+        }),
       };
 
       const result = await processCheckout(payload);
@@ -1816,20 +1986,62 @@ export default function CheckoutScreen({ navigation, route }: Props) {
                     </View>
                   </Pressable>
 
-                  {/* BX-09-004 — Inline validation banner */}
-                  {addressValidation && (!addressValidation.valid || addressValidation.serviceable === false) && (
+                  {/* BX-09-004 — Inline validation banner: missing/invalid fields */}
+                  {addressValidation && !addressValidation.valid && (
                     <View style={{ marginTop: 10, backgroundColor: '#FFF7ED', borderRadius: 10, padding: 12, borderWidth: 1, borderColor: '#FED7AA' }}>
                       <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 6 }}>
                         <Text style={{ fontSize: 13, color: '#92400E', fontWeight: '700' }}>⚠ Address needs attention</Text>
                       </View>
-                      {addressValidation.errors.map((e, i) => (
-                        <Text key={i} style={{ fontSize: 12, color: '#B45309', marginBottom: 2 }}>• {e.message}</Text>
-                      ))}
+                      {addressValidation.errors
+                        .filter(e => e.field !== 'general')
+                        .map((e, i) => (
+                          <Text key={i} style={{ fontSize: 12, color: '#B45309', marginBottom: 2 }}>• {e.message}</Text>
+                        ))}
                       <Pressable
-                        onPress={() => setShowAddressModal(true)}
+                        onPress={() => {
+                          setEditingAddressForForm(selectedAddress);
+                          setShowAddressFormModal(true);
+                        }}
                         style={{ marginTop: 8, alignSelf: 'flex-start', backgroundColor: COLORS.primary, paddingHorizontal: 12, paddingVertical: 6, borderRadius: 6 }}
                       >
                         <Text style={{ fontSize: 12, color: '#FFF', fontWeight: '600' }}>Fix Address</Text>
+                      </Pressable>
+                    </View>
+                  )}
+
+                  {/* BX-09-004 — Not serviceable banner (separate from missing-field banner) */}
+                  {addressValidation && addressValidation.serviceable === false && (
+                    <View style={{ marginTop: 8, backgroundColor: '#FEF2F2', borderRadius: 10, padding: 12, borderWidth: 1, borderColor: '#FECACA' }}>
+                      <Text style={{ fontSize: 13, color: '#991B1B', fontWeight: '700', marginBottom: 4 }}>
+                        🚫 Delivery not available
+                      </Text>
+                      <Text style={{ fontSize: 12, color: '#B91C1C', marginBottom: 8 }}>
+                        This address appears to be outside the Philippines. Please choose a different address.
+                      </Text>
+                      <Pressable
+                        onPress={() => setShowAddressModal(true)}
+                        style={{ alignSelf: 'flex-start', backgroundColor: '#DC2626', paddingHorizontal: 12, paddingVertical: 6, borderRadius: 6 }}
+                      >
+                        <Text style={{ fontSize: 12, color: '#FFF', fontWeight: '600' }}>Change Address</Text>
+                      </Pressable>
+                    </View>
+                  )}
+
+                  {/* BX-09-004 — GPS pin nudge: address is valid but has no coordinates */}
+                  {addressValidation && addressValidation.valid && addressValidation.serviceable === null &&
+                    !selectedAddress?.coordinates?.latitude && (
+                    <View style={{ marginTop: 8, backgroundColor: '#EFF6FF', borderRadius: 10, padding: 10, borderWidth: 1, borderColor: '#BFDBFE', flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                      <MapPin size={14} color="#1D4ED8" />
+                      <Text style={{ flex: 1, fontSize: 11, color: '#1E40AF' }}>
+                        Add a pin location to your address for more accurate delivery coverage checking.
+                      </Text>
+                      <Pressable
+                        onPress={() => {
+                          setEditingAddressForForm(selectedAddress);
+                          setShowAddressFormModal(true);
+                        }}
+                      >
+                        <Text style={{ fontSize: 11, fontWeight: '700', color: '#1D4ED8' }}>Add Pin</Text>
                       </Pressable>
                     </View>
                   )}
@@ -1864,11 +2076,16 @@ export default function CheckoutScreen({ navigation, route }: Props) {
                 <Text style={styles.sectionTitle}>Order ({checkoutItems.length})</Text>
               </View>
 
-              {Object.entries(groupedCheckoutItems).map(([sellerName, sellerItems], groupIdx) => (
-                <View key={sellerName} style={groupIdx > 0 && { marginTop: 16 }}>
+              {Object.entries(groupedCheckoutItems).map(([sellerId, sellerItems], groupIdx) => {
+                const sellerDisplayName = getSellerDisplayName(sellerId, sellerItems);
+                const sellerResult = shippingResults.find(r => r.sellerId === sellerId);
+                const selectedMethodKey = selectedMethods[sellerId];
+                const activeMethod = sellerResult?.methods.find(m => m.method === selectedMethodKey) || sellerResult?.defaultMethod;
+                return (
+                <View key={sellerId} style={groupIdx > 0 && { marginTop: 16 }}>
                   <View style={styles.sellerHeaderRow}>
                     <Store size={14} color={COLORS.gray500} />
-                    <Text style={styles.sellerNameHeader}>{sellerName}</Text>
+                    <Text style={styles.sellerNameHeader}>{sellerDisplayName}</Text>
                   </View>
                   {sellerItems.map((item) => (
                     <View key={item.id} style={styles.compactOrderItem}>
@@ -1901,12 +2118,17 @@ export default function CheckoutScreen({ navigation, route }: Props) {
                       </View>
                     </View>
                   ))}
-                  {/* Per-Store Shipping Fee - ABOVE Total */}
-                  <View style={[styles.sellerFooterRow, { marginTop: 8, paddingTop: 8, borderTopWidth: 1, borderTopColor: '#F3F4F6' }]}>
-                    <Text style={styles.sellerFooterText}>Shipping: </Text>
-                    <Text style={styles.sellerFooterAmount}>
-                      {perStoreShippingFees[sellerName] === 0 ? 'FREE' : `₱${perStoreShippingFees[sellerName]?.toLocaleString() || 0}`}
-                    </Text>
+                  {/* BX-09-002 — Shipping Method Picker (replaces static fee display) */}
+                  <View style={{ marginTop: 8, paddingTop: 8, borderTopWidth: 1, borderTopColor: '#F3F4F6' }}>
+                    <ShippingMethodPicker
+                      methods={sellerResult?.methods ?? []}
+                      selectedMethod={(selectedMethods[sellerId] as any) ?? null}
+                      onSelectMethod={(method) => {
+                        setSelectedMethods(prev => ({ ...prev, [sellerId]: method }));
+                      }}
+                      isLoading={isCalculatingShipping}
+                      error={sellerResult?.error ?? null}
+                    />
                   </View>
                   {/* Per-Store Subtotal Including Shipping */}
                   <View style={styles.sellerFooterRow}>
@@ -1917,11 +2139,12 @@ export default function CheckoutScreen({ navigation, route }: Props) {
                       );
                     })()}
                     <Text style={[styles.sellerFooterAmount, { fontWeight: '600', color: COLORS.primary }]}>
-                      ₱{(sellerItems.reduce((acc, i) => acc + (i.price || 0) * i.quantity, 0) + (perStoreShippingFees[sellerName] || 0)).toLocaleString()}
+                      ₱{(sellerItems.reduce((acc, i) => acc + (i.price || 0) * i.quantity, 0) + (perStoreShippingFees[sellerId] || 0)).toLocaleString()}
                     </Text>
                   </View>
                 </View>
-              ))}
+              );
+              })}
             </View>
 
             <View style={styles.sectionCard}>
@@ -2655,6 +2878,27 @@ export default function CheckoutScreen({ navigation, route }: Props) {
           </View>
         </View>
       </Modal>
+      {/* --- SHARED ADDRESS FORM MODAL (Add New / Fix Address) --- */}
+      <AddressFormModal
+        visible={showAddressFormModal}
+        onClose={() => setShowAddressFormModal(false)}
+        initialData={editingAddressForForm}
+        userId={user?.id ?? ''}
+        existingCount={addresses.length}
+        context="buyer"
+        onSaved={(saved) => {
+          // Update local address list
+          setAddresses(prev => {
+            const exists = prev.find(a => a.id === saved.id);
+            if (exists) return prev.map(a => a.id === saved.id ? saved : a);
+            return [saved, ...prev];
+          });
+          // Auto-select the saved address at checkout
+          setSelectedAddress(saved);
+          setTempSelectedAddress(saved);
+          setShowAddressFormModal(false);
+        }}
+      />
     </LinearGradient>
   );
 

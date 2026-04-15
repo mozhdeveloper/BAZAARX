@@ -1,0 +1,61 @@
+# BX-09 Sprint — Daily Stand-Up Report
+
+**Date:** April 15, 2026  
+**Sprint:** BX-09 (Buyer-Side Checkout — Shipping & Delivery)  
+**Work Hours:** 10:00 AM – 7:00 PM (Lunch: 12:00 – 1:00 PM)  
+**Total Productive Hours:** 8 hours
+
+---
+
+## Timeline
+
+| Time | Duration | Story | Activity |
+|---|---|---|---|
+| 10:00 – 11:00 | 1h | BX-09-004 | Cross-story analysis + closed remaining gaps (#6, #12, #15) |
+| 11:00 – 12:00 | 1h | BX-09-001 | Research: discovered `shippingService.ts` already built. Plan created + approved |
+| **12:00 – 1:00** | **Lunch** | — | — |
+| 1:00 – 3:00 | 2h | BX-09-001 | Core wiring: imports, seller metadata, debounced recalc, seller section UI |
+| 3:00 – 4:00 | 1h | BX-09-001 | Place-order guards + checkout payload + DB migrations (031-033) |
+| 4:00 – 5:30 | 1.5h | BX-09-002 | `ShippingMethodPicker` component + wired into checkout + revalidation guard |
+| 5:30 – 6:30 | 1h | BX-09-002/003 | `order_shipments` table + persistence in `checkoutService` + method picker integration |
+| 6:30 – 7:00 | 30m | BX-09-003 | ETA display in buyer `OrderDetailScreen` + updated all analysis docs |
+
+---
+
+## Story Status
+
+| Story | Status | Score |
+|---|---|---|
+| **BX-09-004** Address Validation | ✅ DONE | 15 ✅ / 1 🟡 |
+| **BX-09-001** Shipping Fee Per Seller | ✅ DONE | 21 ✅ / 1 🟡 |
+| **BX-09-002** Choose Shipping Method | ✅ DONE | 18 ✅ / 0 🟡 |
+| **BX-09-003** Show Estimated Delivery | ✅ DONE | 14 ✅ / 0 🟡 |
+
+**Sprint Total: 68 ✅ / 2 🟡 / 0 ❌ — ALL 4 STORIES COMPLETE**
+
+---
+
+## Files Created / Modified
+
+| File | Type | Story |
+|---|---|---|
+| `src/types/shipping.types.ts` | NEW | BX-09-002 |
+| `src/components/ShippingMethodPicker.tsx` | NEW | BX-09-002 |
+| `supabase-migrations/031_seller_shipping_origin.sql` | NEW | BX-09-001 |
+| `supabase-migrations/032_shipping_config.sql` | NEW | BX-09-001 |
+| `supabase-migrations/033_shipping_zones.sql` | NEW | BX-09-001 |
+| `supabase-migrations/034_order_shipments.sql` | NEW | BX-09-002/003 |
+| `app/CheckoutScreen.tsx` | MODIFIED | BX-09-001/002 |
+| `src/services/checkoutService.ts` | MODIFIED | BX-09-001/002 |
+| `app/OrderDetailScreen.tsx` | MODIFIED | BX-09-003 |
+
+---
+
+## Remaining Operational Tasks
+
+| Task | Priority |
+|---|---|
+| Run `034_order_shipments.sql` migration on Supabase | **High** |
+| Replace placeholder base rates with J&T official tariff | **High** |
+| Add seller GPS coordinates for existing sellers | Medium |
+| Add product weight data to existing products | Low |

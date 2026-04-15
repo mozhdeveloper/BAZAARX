@@ -16,6 +16,10 @@ export interface Address {
     deliveryInstructions: string | null;
     addressType: 'residential' | 'commercial';
     isDefault: boolean;
+    /** Seller: use this address as shipping origin / pickup point */
+    isPickup?: boolean;
+    /** Seller: use this address for returns */
+    isReturn?: boolean;
     coordinates: { latitude: number; longitude: number } | null;
     // Geographic codes for shipping accuracy
     barangayCode?: string;
@@ -90,6 +94,8 @@ export class AddressService {
             deliveryInstructions: a.delivery_instructions || null,
             addressType: a.address_type || 'residential',
             isDefault: a.is_default || false,
+            isPickup: a.is_pickup || false,
+            isReturn: a.is_return || false,
             coordinates: cleanCoords,
             barangayCode,
             cityCode,
@@ -117,6 +123,8 @@ export class AddressService {
         if (address.deliveryInstructions !== undefined) dbPayload.delivery_instructions = address.deliveryInstructions;
         if (address.addressType !== undefined) dbPayload.address_type = address.addressType;
         if (address.isDefault !== undefined) dbPayload.is_default = address.isDefault;
+        if (address.isPickup === true) dbPayload.is_pickup = true;
+        if (address.isReturn === true) dbPayload.is_return = true;
 
         // Store coordinates + geo codes in JSONB coordinates field
         if (address.coordinates !== undefined || (address as any).barangayCode !== undefined) {
@@ -571,7 +579,7 @@ export function validateCheckoutAddress(address: Address): AddressValidationResu
     if (phone && !PH_PHONE_RE.test(phone)) {
         errors.push({
             field: 'phone',
-            message: 'Enter a valid PH mobile number (e.g. 09XXXXXXXXX or +639XXXXXXXXX)',
+            message: 'Enter a valid phone number',
         });
     }
 

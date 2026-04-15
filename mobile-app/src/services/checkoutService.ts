@@ -37,6 +37,23 @@ export interface CheckoutPayload {
         productId: string;
         quantity: number;
     }[];
+    // BX-09-001 — Per-seller shipping breakdown
+    shippingBreakdown?: {
+        sellerId: string;
+        sellerName: string;
+        method: string;
+        methodLabel: string;
+        fee: number;
+        breakdown: {
+            baseRate: number;
+            weightSurcharge: number;
+            valuationFee: number;
+            odzFee: number;
+        };
+        estimatedDays: string;
+        originZone: string;
+        destinationZone: string;
+    }[];
 }
 
 export interface CheckoutResult {
@@ -365,6 +382,36 @@ export const processCheckout = async (payload: CheckoutPayload): Promise<Checkou
             createdOrderUuids.push(orderData.id);
 
             console.log(`[Checkout] ✅ Order created: ${orderData.order_number} for seller ${sellerId}`);
+
+            // BX-09-002 — Persist per-seller shipment record
+            if (payload.shippingBreakdown && payload.shippingBreakdown.length > 0) {
+                const sellerBreakdown = payload.shippingBreakdown.find(sb => sb.sellerId === sellerId);
+                if (sellerBreakdown) {
+                    supabase
+                        .from('order_shipments')
+                        .insert({
+                            order_id: orderData.id,
+                            seller_id: sellerId,
+                            shipping_method: sellerBreakdown.method,
+                            shipping_method_label: sellerBreakdown.methodLabel,
+                            calculated_fee: sellerBreakdown.fee,
+                            fee_breakdown: sellerBreakdown.breakdown,
+                            origin_zone: sellerBreakdown.originZone,
+                            destination_zone: sellerBreakdown.destinationZone,
+                            estimated_days_text: sellerBreakdown.estimatedDays,
+                            chargeable_weight_kg: 0,
+                            tracking_number: null,
+                            status: 'pending',
+                        })
+                        .then(({ error: shipErr }) => {
+                            if (shipErr) {
+                                console.warn(`[Checkout] ⚠️ Failed to insert order_shipment for seller ${sellerId}:`, shipErr.message);
+                            } else {
+                                console.log(`[Checkout] ✅ Shipment record created for order ${orderData!.order_number}, seller ${sellerId}`);
+                            }
+                        });
+                }
+            }
 
             // � Send bell notification to buyer about order placed (only this one, no duplicate 'pending')
             notificationService.notifyBuyerOrderStatus({
