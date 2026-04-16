@@ -37,22 +37,17 @@ export class CartService {
     }
 
     try {
-      console.log('[CartService] getCart: Fetching cart for buyer:', buyerId);
-      const cartStart = Date.now();
       // Get all carts for this buyer to check for duplicates
       const { data: carts, error } = await supabase
         .from('carts')
         .select('id, buyer_id, created_at, updated_at')
         .eq('buyer_id', buyerId)
         .order('created_at', { ascending: false });
-      const cartDuration = Date.now() - cartStart;
-      console.log(`[CartService] getCart query completed in ${cartDuration}ms, carts found:`, carts?.length);
 
       if (error) throw error;
 
       // If no carts, return null
       if (!carts || carts.length === 0) {
-        console.log('[CartService] No carts found for buyer');
         return null;
       }
 
@@ -80,7 +75,6 @@ export class CartService {
       }
 
       // Single cart found - normal case
-      console.log('[CartService] Single cart found:', carts[0].id);
       return carts[0];
     } catch (error) {
       console.error('Error getting cart:', error);
@@ -99,16 +93,10 @@ export class CartService {
 
     try {
       // Try to get existing cart
-      console.log('[CartService] getOrCreateCart: Fetching existing cart for buyer', buyerId);
-      const getStart = Date.now();
       const cart = await this.getCart(buyerId);
-      const getDuration = Date.now() - getStart;
-      console.log(`[CartService] getCart completed in ${getDuration}ms, found cart:`, cart?.id);
 
       // If no cart exists, create one
       if (!cart) {
-        console.log('[CartService] No existing cart, creating new one...');
-        const createStart = Date.now();
         const { data: newCart, error: createError } = await supabase
           .from('carts')
           .insert({
@@ -116,8 +104,6 @@ export class CartService {
           })
           .select()
           .single();
-        const createDuration = Date.now() - createStart;
-        console.log(`[CartService] Cart creation completed in ${createDuration}ms`);
 
         if (createError) throw createError;
         if (!newCart) throw new Error('Failed to create new cart');
@@ -127,7 +113,7 @@ export class CartService {
 
       return cart;
     } catch (error) {
-      console.error('[CartService] Error getting/creating cart:', error);
+      console.error('Error getting/creating cart:', error);
       throw new Error(error instanceof Error ? error.message : 'Failed to manage cart.');
     }
   }
@@ -143,8 +129,6 @@ export class CartService {
     }
 
     try {
-      console.log('[CartService] getCartItems: Fetching items for cart:', cartId);
-      const queryStart = Date.now();
       const { data, error } = await supabase
         .from('cart_items')
         .select(`
@@ -164,7 +148,12 @@ export class CartService {
             seller:sellers!products_seller_id_fkey (
               id,
               store_name,
-              avatar_url
+              avatar_url,
+              is_vacation_mode,
+              approval_status,
+              is_permanently_blacklisted,
+              temp_blacklist_until,
+              suspended_at
             ),
             variants:product_variants (
               id,
@@ -211,8 +200,6 @@ export class CartService {
         `)
         .eq('cart_id', cartId)
         .order('created_at', { ascending: false });
-      const queryDuration = Date.now() - queryStart;
-      console.log(`[CartService] getCartItems query completed in ${queryDuration}ms, items count:`, data?.length);
 
       if (error) throw error;
       return (data || []) as unknown as CartItem[];
@@ -273,8 +260,16 @@ export class CartService {
 
       let result;
       if (existing) {
-        // Update quantity
+        // Calculate new quantity from cumulative addition
         const newQuantity = (existing as any).quantity + quantity;
+
+        // Check available stock before updating
+        const availableStock = await this.getAvailableStock(productId, variantId || null);
+        if (newQuantity > availableStock) {
+          throw new Error(`Cannot add to cart. Only ${availableStock} items left in stock.`);
+        }
+
+        // Update quantity
         const { data, error } = await supabase
           .from('cart_items')
           .update({
@@ -327,6 +322,36 @@ export class CartService {
   }
 
   /**
+   * Get available stock for a product or variant
+   * Returns stock from product_variants or sum of all variants
+   */
+  private async getAvailableStock(productId: string, variantId?: string | null): Promise<number> {
+    if (variantId) {
+      // Variant exists: check product_variants table
+      const { data: variant, error: variantError } = await supabase
+        .from('product_variants')
+        .select('stock')
+        .eq('id', variantId)
+        .single();
+
+      if (variantError) throw variantError;
+      if (!variant) throw new Error('Variant not found.');
+
+      return variant.stock || 0;
+    } else {
+      // No variant: sum all variants for this product
+      const { data: variants, error: variantsError } = await supabase
+        .from('product_variants')
+        .select('stock')
+        .eq('product_id', productId);
+
+      if (variantsError) throw variantsError;
+
+      return (variants || []).reduce((sum: number, v: any) => sum + (v.stock || 0), 0);
+    }
+  }
+
+  /**
    * Update cart item quantity with strict stock validation
    * New schema: no subtotal on cart_items
    * 
@@ -356,32 +381,8 @@ export class CartService {
 
       const { product_id, variant_id } = cartItem;
 
-      // Step 2: Check product/variant stock based on whether variant exists
-      let availableStock = 0;
-
-      if (variant_id) {
-        // Variant exists: check product_variants table
-        const { data: variant, error: variantError } = await supabase
-          .from('product_variants')
-          .select('stock')
-          .eq('id', variant_id)
-          .single();
-
-        if (variantError) throw variantError;
-        if (!variant) throw new Error('Variant not found.');
-
-        availableStock = variant.stock || 0;
-      } else {
-        // No variant: sum all variants for this product
-        const { data: variants, error: variantsError } = await supabase
-          .from('product_variants')
-          .select('stock')
-          .eq('product_id', product_id);
-
-        if (variantsError) throw variantsError;
-
-        availableStock = (variants || []).reduce((sum: number, v: any) => sum + (v.stock || 0), 0);
-      }
+      // Step 2: Check product/variant stock using helper method
+      const availableStock = await this.getAvailableStock(product_id, variant_id);
 
       // Step 3: Validate requested quantity against available stock
       if (availableStock === 0) {
