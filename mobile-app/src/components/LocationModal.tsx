@@ -30,6 +30,7 @@ const { height } = Dimensions.get('window');
 interface LocationDetails {
   address: string;
   coordinates: { latitude: number; longitude: number };
+  label?: string;
   street?: string;
   barangay?: string;
   city?: string;
@@ -50,6 +51,24 @@ interface LocationModalProps {
   currentAddress?: string;
   initialCoordinates?: { latitude: number; longitude: number } | null;
   statusBarTranslucent?: boolean;
+  editingAddress?: {
+    id: string;
+    firstName: string;
+    lastName: string;
+    phone: string;
+    street: string;
+    barangay: string;
+    city: string;
+    province: string;
+    region: string;
+    zipCode: string;
+    label: string;
+    landmark?: string | null;
+    deliveryInstructions?: string | null;
+    coordinates?: { latitude: number; longitude: number } | null;
+  } | null;
+  isEditMode?: boolean;
+  onEditComplete?: (updatedAddress: any) => void;
 }
 
 export default function LocationModal({
@@ -59,6 +78,9 @@ export default function LocationModal({
   currentAddress,
   initialCoordinates,
   statusBarTranslucent,
+  editingAddress = null,
+  isEditMode = false,
+  onEditComplete,
 }: LocationModalProps) {
   const insets = useSafeAreaInsets();
   const { user } = useAuthStore();
@@ -150,6 +172,65 @@ export default function LocationModal({
     loadSavedAddresses(user.id);
   }, [user, visible]);
 
+  // Handle edit mode - pre-fill the form with editing address data
+  useEffect(() => {
+    if (isEditMode && editingAddress && visible) {
+      setFormAddress({
+        firstName: editingAddress.firstName || '',
+        lastName: editingAddress.lastName || '',
+        phone: editingAddress.phone || '',
+        street: editingAddress.street || '',
+        barangay: editingAddress.barangay || '',
+        city: editingAddress.city || '',
+        province: editingAddress.province || '',
+        region: editingAddress.region || '',
+        postalCode: editingAddress.zipCode || '',
+        label: editingAddress.label || 'Home',
+        landmark: editingAddress.landmark || '',
+        deliveryInstructions: editingAddress.deliveryInstructions || '',
+      });
+      
+      // Initialize locationDetails with editing address info
+      const details: LocationDetails = {
+        address: `${editingAddress.street}, ${editingAddress.barangay}, ${editingAddress.city}, ${editingAddress.province}`,
+        coordinates: editingAddress.coordinates || { latitude: 0, longitude: 0 },
+        street: editingAddress.street || '',
+        barangay: editingAddress.barangay || '',
+        city: editingAddress.city || '',
+        province: editingAddress.province || '',
+        region: editingAddress.region || '',
+        postalCode: editingAddress.zipCode || '',
+        firstName: editingAddress.firstName || '',
+        lastName: editingAddress.lastName || '',
+        phone: editingAddress.phone || '',
+        label: editingAddress.label || 'Home',
+        landmark: editingAddress.landmark || '',
+        deliveryInstructions: editingAddress.deliveryInstructions || '',
+      };
+      setLocationDetails(details);
+      
+      // Start on map step in edit mode (user can update location or proceed to form)
+      setCurrentStep('map');
+      
+      // If coordinates exist, set them on the map
+      if (editingAddress.coordinates) {
+        const newRegion = {
+          latitude: editingAddress.coordinates.latitude,
+          longitude: editingAddress.coordinates.longitude,
+          latitudeDelta: 0.005,
+          longitudeDelta: 0.005,
+        };
+        setRegion(newRegion);
+        // Animate map to coordinates
+        setTimeout(() => mapRef.current?.animateToRegion(newRegion, 1000), 200);
+      }
+      
+      // Set search query to current address for display
+      const addressString = `${editingAddress.street}, ${editingAddress.city}`;
+      setSearchQuery(addressString);
+    }
+  }, [isEditMode, editingAddress, visible]);
+
   // Map saved addresses for display (keep existing format)
   useEffect(() => {
     if (!visible) return;
@@ -167,6 +248,14 @@ export default function LocationModal({
     }));
     setAddresses(mapped);
   }, [savedAddresses, visible]);
+
+  // Cleanup timeouts on unmount to prevent memory leaks
+  useEffect(() => {
+    return () => {
+      if (searchTimeout.current) clearTimeout(searchTimeout.current);
+      if (reverseGeocodeTimeout.current) clearTimeout(reverseGeocodeTimeout.current);
+    };
+  }, []);
 
   // --- 1. AUTOCOMPLETE SEARCH ---
   const handleTextChange = (text: string) => {
@@ -324,26 +413,28 @@ export default function LocationModal({
 
   // --- 5. PROCEED TO ADDRESS FORM ---
   const handleProceedToForm = async () => {
-    // Pre-fill the form with geocoded data
+    // Pre-fill the form with geocoded data, but preserve existing data (especially for edit mode)
     const geocodedRegion = locationDetails?.region || '';
     const geocodedProvince = locationDetails?.province || '';
     const geocodedCity = locationDetails?.city || '';
     const geocodedBarangay = locationDetails?.barangay || '';
 
-    setFormAddress({
-      firstName: user?.name?.split(' ')[0] || '',
-      lastName: user?.name?.split(' ').slice(1).join(' ') || '',
-      phone: user?.phone || '',
-      street: locationDetails?.street || '',
-      barangay: geocodedBarangay,
-      city: geocodedCity,
-      province: geocodedProvince,
-      region: geocodedRegion,
-      postalCode: locationDetails?.postalCode || '',
-      label: 'Home',
-      landmark: '',
-      deliveryInstructions: '',
-    });
+    setFormAddress(prev => ({
+      ...prev, // Preserve existing form data (firstName, lastName, phone, label, landmark, deliveryInstructions from edit mode)
+      street: locationDetails?.street || prev.street,
+      barangay: geocodedBarangay || prev.barangay,
+      city: geocodedCity || prev.city,
+      province: geocodedProvince || prev.province,
+      region: geocodedRegion || prev.region,
+      postalCode: locationDetails?.postalCode || prev.postalCode,
+      // Only set firstName/lastName/phone/label if they're empty (new address creation)
+      ...(isEditMode ? {} : {
+        firstName: prev.firstName || user?.name?.split(' ')[0] || '',
+        lastName: prev.lastName || user?.name?.split(' ').slice(1).join(' ') || '',
+        phone: prev.phone || user?.phone || '',
+        label: prev.label || 'Home',
+      })
+    }));
 
     // Try to match geocoded data to Philippines address API and load dropdown choices
     try {
@@ -498,6 +589,7 @@ export default function LocationModal({
     const finalDetails: LocationDetails = {
       address: finalAddress,
       coordinates: coords,
+      label: formAddress.label,
       street: formAddress.street,
       barangay: formAddress.barangay,
       city: formAddress.city,
@@ -594,6 +686,7 @@ export default function LocationModal({
   const reverseGeocodeTimeout = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const onRegionChangeComplete = async (newRegion: Region) => {
+    // Update region immediately for responsive map interaction
     setRegion(newRegion);
 
     // Debounce reverse geocoding to avoid too many API calls while dragging
@@ -624,6 +717,17 @@ export default function LocationModal({
             postalCode: addr.postcode || '',
           };
           setLocationDetails(details);
+
+          // UPDATE FORM FIELDS with the new address details so they display immediately
+          setFormAddress(prev => ({
+            ...prev,
+            street: addr.road || addr.pedestrian || prev.street,
+            barangay: addr.neighbourhood || addr.suburb || addr.village || prev.barangay,
+            city: addr.city || addr.municipality || addr.town || prev.city,
+            province: addr.county || addr.state || prev.province,
+            region: addr.region || addr.state || prev.region,
+            postalCode: addr.postcode || prev.postalCode,
+          }));
         }
       } catch (error) {
         console.log('Reverse geocode error:', error);
@@ -680,6 +784,7 @@ export default function LocationModal({
                     region={region}
                     onRegionChangeComplete={onRegionChangeComplete}
                     showsUserLocation={true}
+                    loadingEnabled={false}
                   >
                     {/* Marker stays at center coordinates */}
                     <Marker coordinate={{ latitude: region.latitude, longitude: region.longitude }} />
@@ -704,7 +809,7 @@ export default function LocationModal({
                       <View style={styles.suggestionsList}>
                         <FlatList
                           data={suggestions}
-                          keyExtractor={(item, index) => item.place_id?.toString() || item.osm_id?.toString() || `suggestion-${index}`}
+                          keyExtractor={(item, index) => item.place_id?.toString() || item.osm_id?.toString() || `${item.display_name}-${index}`}
                           keyboardShouldPersistTaps="handled"
                           scrollEnabled={false} // Let parent ScrollView handle scrolling if needed
                           renderItem={({ item }) => (

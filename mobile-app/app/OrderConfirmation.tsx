@@ -27,10 +27,13 @@ export default function OrderConfirmation({ navigation, route }: Props) {
 
   useEffect(() => {
     const realOrderId = (order as any).orderId || order.id;
+    if (!realOrderId) return;
+    
     getTransactionByOrderId(realOrderId)
       .then((tx) => setPaymentTx(tx))
       .catch(() => {});
-  }, [(order as any).orderId, order.id]);
+  }, [order.id]);
+  
   
   const handleViewPurchases = () => {
     navigation.navigate('Orders', {});

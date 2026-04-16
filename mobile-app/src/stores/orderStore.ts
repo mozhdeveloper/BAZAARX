@@ -803,7 +803,17 @@ export const useOrderStore = create<OrderStore>()(
         try {
           // Single Edge Function call — addresses + sellers fetched concurrently inside
           const { getCheckoutContext } = require('../services/checkoutService');
-          const ctx = await getCheckoutContext(productIds);
+          
+          // Add timeout to prevent hanging indefinitely
+          const timeoutPromise = new Promise((_, reject) =>
+            setTimeout(() => reject(new Error('Checkout context timeout')), 8000)
+          );
+          
+          const ctx = await Promise.race([
+            getCheckoutContext(productIds),
+            timeoutPromise
+          ]) as any;
+          
           set({ checkoutSellerMetadata: ctx.sellers ?? {} });
         } catch (error: any) {
           console.error('[OrderStore] loadCheckoutContext failed:', error);
@@ -897,6 +907,21 @@ export const useOrderStore = create<OrderStore>()(
     {
       name: 'order-storage',
       storage: createJSONStorage(() => AsyncStorage),
+      partialize: (state) => ({
+        ...state,
+        isCheckoutContextLoading: false,
+      }),
+      merge: (persistedState, currentState) => {
+        const mergedState = {
+          ...currentState,
+          ...(persistedState as Partial<OrderStore>),
+        };
+
+        return {
+          ...mergedState,
+          isCheckoutContextLoading: false,
+        };
+      },
     }
   )
 );

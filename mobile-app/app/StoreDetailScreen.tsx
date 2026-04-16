@@ -11,7 +11,7 @@ import { useNavigation, useRoute } from '@react-navigation/native';
 import { ProductCard } from '../src/components/ProductCard';
 import { trendingProducts } from '../src/data/products'; // Placeholder products
 import { LinearGradient } from 'expo-linear-gradient';
-import StoreChatModal from '../src/components/StoreChatModal';
+import { chatService } from '../src/services/chatService';
 import { COLORS } from '../src/constants/theme';
 
 import { useAuthStore } from '../src/stores/authStore';
@@ -105,7 +105,7 @@ export default function StoreDetailScreen() {
         return date.toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
     }, [storeData.created_at]);
     const [menuVisible, setMenuVisible] = useState(false);
-    const [chatVisible, setChatVisible] = useState(false);
+    const [chatLoading, setChatLoading] = useState(false);
     const [showGuestModal, setShowGuestModal] = useState(false);
     const [guestModalMessage, setGuestModalMessage] = useState('');
 
@@ -382,13 +382,32 @@ export default function StoreDetailScreen() {
         }
     };
 
-    const handleChat = () => {
+    const handleChat = async () => {
         if (isGuest) {
             setGuestModalMessage("Sign up to chat with sellers.");
             setShowGuestModal(true);
             return;
         }
-        setChatVisible(true);
+        if (chatLoading) return;
+        const sellerId = store.id || store.seller_id;
+        const buyerId = user?.id;
+        if (!sellerId || !buyerId) return;
+        setChatLoading(true);
+        try {
+            const conversation = await chatService.getOrCreateConversation(buyerId, sellerId);
+            if (conversation) {
+                (navigation as any).navigate('Chat', {
+                    conversation,
+                    currentUserId: buyerId,
+                    userType: 'buyer',
+                });
+            }
+        } catch (error) {
+            console.error('[StoreDetail] Error opening chat:', error);
+            Alert.alert('Error', 'Could not open chat. Please try again.');
+        } finally {
+            setChatLoading(false);
+        }
     };
 
     const handleClaimVoucher = (id: string) => {
@@ -989,12 +1008,7 @@ export default function StoreDetailScreen() {
                 <View style={{ height: 40 }} />
             </ScrollView>
 
-            <StoreChatModal
-                visible={chatVisible}
-                onClose={() => setChatVisible(false)}
-                storeName={storeData.name || store.name}
-                sellerId={store.id || store.seller_id}
-            />
+
 
             {/* Menu Modal */}
             <Modal visible={menuVisible} transparent animationType="fade" onRequestClose={() => setMenuVisible(false)}>
