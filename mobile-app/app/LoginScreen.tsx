@@ -17,7 +17,6 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Mail, Lock, Eye, EyeOff, ArrowRight, Store, X, Beaker, User } from 'lucide-react-native';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
-import { CardStyleInterpolators } from '@react-navigation/stack';
 import * as WebBrowser from 'expo-web-browser';
 import * as AuthSession from 'expo-auth-session';
 import type { RootStackParamList } from '../App';
@@ -133,16 +132,26 @@ export default function LoginScreen({ navigation }: Props) {
   const handleGoogleSignIn = async () => {
     setIsGoogleLoading(true);
     try {
+      // Create dynamic redirect URL for Expo Go vs Production
+      const redirectUrl = AuthSession.makeRedirectUri({ path: 'auth/callback' });
+      console.log('👉 Add THIS exactly to Custom Redirect URIs in Supabase:', redirectUrl);
+
       // Step 1: Get OAuth URL from Supabase
-      const { url } = await supabase.auth.signInWithOAuth({
+      const { data, error } = await supabase.auth.signInWithOAuth({
         provider: 'google',
         options: {
-          redirectTo: 'bazaarx://auth/callback',
+          redirectTo: redirectUrl,
           skipBrowserRedirect: false,
         },
       });
 
-      if (!url) {
+      if (error) {
+        Alert.alert('Google Sign-In Error', error.message);
+        setIsGoogleLoading(false);
+        return;
+      }
+
+      if (!data?.url) {
         Alert.alert('Error', 'Failed to initialize Google Sign-In');
         setIsGoogleLoading(false);
         return;
@@ -152,7 +161,7 @@ export default function LoginScreen({ navigation }: Props) {
       // When user confirms, Supabase redirects to bazaarx://auth/callback
       // The OS will route this back to the app, and deep linking + onAuthStateChange
       // will automatically handle session setup and checkSession() call
-      const result = await WebBrowser.openBrowserAsync(url);
+      const result = await WebBrowser.openBrowserAsync(data.url);
 
       if (result.type === 'cancel' || result.type === 'dismiss') {
         console.log('[LoginScreen] Google Sign-In canceled by user');
@@ -167,8 +176,8 @@ export default function LoginScreen({ navigation }: Props) {
 
       await new Promise(resolve => setTimeout(resolve, 800));
 
-      const { data } = await supabase.auth.getSession();
-      if (data.session?.user) {
+      const { data: sessionData } = await supabase.auth.getSession();
+      if (sessionData.session?.user) {
         console.log('[LoginScreen] Google Sign-In successful, session established');
 
         // Session is established and auth store should be synced via onAuthStateChange
@@ -194,20 +203,7 @@ export default function LoginScreen({ navigation }: Props) {
 
   React.useEffect(() => {
     navigation.setOptions({
-      cardStyleInterpolator: ({ current, layouts: { screen } }: any) => {
-        return {
-          cardStyle: {
-            transform: [
-              {
-                translateX: current.progress.interpolate({
-                  inputRange: [0, 1],
-                  outputRange: [screen.width, 0],
-                }),
-              },
-            ],
-          },
-        };
-      },
+      animation: 'slide_from_right',
     });
   }, [navigation]);
 
@@ -333,33 +329,35 @@ export default function LoginScreen({ navigation }: Props) {
                 <Text style={styles.googleButtonText}>Sign in with Google</Text>
               </>
             )}
-            {/* Footer Actions */}
-            <Pressable
-              style={styles.guestButton}
-              onPress={() => {
-                useAuthStore.getState().loginAsGuest();
-                navigation.replace('MainTabs', { screen: 'Home' });
-              }}
-            >
-              <User size={20} color="#6B7280" strokeWidth={2.5} />
-              <Text style={styles.guestButtonText}>Continue as Guest</Text>
-            </Pressable>
+          </Pressable>
 
-            <Pressable
-              style={styles.sellerPortalButton}
-              onPress={() => navigation.navigate('SellerAuthChoice')}
-            >
-              <Store size={20} color="#D97706" strokeWidth={2.5} />
-              <Text style={styles.sellerPortalText}>Start Selling</Text>
-              <ArrowRight size={18} color="#D97706" />
-            </Pressable>
+          {/* Footer Actions */}
+          <Pressable
+            style={styles.guestButton}
+            onPress={() => {
+              useAuthStore.getState().loginAsGuest();
+              navigation.replace('MainTabs', { screen: 'Home' });
+            }}
+          >
+            <User size={20} color="#6B7280" strokeWidth={2.5} />
+            <Text style={styles.guestButtonText}>Continue as Guest</Text>
+          </Pressable>
 
-            <View style={styles.registerSection}>
-              <Text style={styles.registerText}>Don't have an account? </Text>
-              <Pressable onPress={() => navigation.navigate('Signup')}>
-                <Text style={styles.registerLink}>Sign Up</Text>
-              </Pressable>
-            </View>
+          <Pressable
+            style={styles.sellerPortalButton}
+            onPress={() => navigation.navigate('SellerAuthChoice')}
+          >
+            <Store size={20} color="#D97706" strokeWidth={2.5} />
+            <Text style={styles.sellerPortalText}>Start Selling</Text>
+            <ArrowRight size={18} color="#D97706" />
+          </Pressable>
+
+          <View style={styles.registerSection}>
+            <Text style={styles.registerText}>Don't have an account? </Text>
+            <Pressable onPress={() => navigation.navigate('Signup')}>
+              <Text style={styles.registerLink}>Sign Up</Text>
+            </Pressable>
+          </View>
 
         </ScrollView>
       </KeyboardAvoidingView>

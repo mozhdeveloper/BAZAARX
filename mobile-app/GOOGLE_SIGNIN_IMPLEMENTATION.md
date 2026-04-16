@@ -570,8 +570,9 @@ Save → Get Client ID
 **Step 3:** Enable → Add credentials:
 
 ```
-iOS Client ID: [Paste from Google Cloud]
-Android Client ID: [Paste from Google Cloud]
+Client IDs: [Paste Web Client ID], [Paste iOS Client ID], [Paste Android Client ID]
+(Note: Do not delete existing Web Client IDs or Secrets. Just add your new mobile Client IDs to the same input field, separated by commas).
+
 Redirect URL: https://YOUR_PROJECT.supabase.co/auth/v1/callback
 (Auto-generated, no manual entry)
 ```
@@ -781,6 +782,29 @@ Cross-Platform
    `https://YOUR_PROJECT.supabase.co/auth/v1/callback`
 4. Verify NO typos in scheme name
 5. Clear cache: `npx expo start --clear`
+
+---
+
+### Issue: "Route refused to connect" or app crashes upon Google redirect
+
+**Root Cause:** You are testing inside **Expo Go** (`npx expo start`), but you hardcoded a custom native scheme (`bazaarx://`) as the redirect URL. Expo Go does not recognize custom schemes. It only recognizes `exp://`.
+
+**Solution 1 (Recommended for Native Testing):**
+Compile a native development build. This registers `bazaarx://` natively to your OS.
+Ensure you have Android Studio/Java set up, and run:
+```bash
+npx expo run:android
+```
+
+**Solution 2 (If you must use Expo Go):**
+Dynamically generate the redirect URL via `expo-auth-session` and whitelist it in Supabase temporarily.
+```typescript
+import * as AuthSession from 'expo-auth-session';
+
+const redirectUrl = AuthSession.makeRedirectUri({ path: 'auth/callback' });
+// Pass redirectUrl to signInWithOAuth instead of 'bazaarx://auth/callback'
+```
+*(Remember: You must add the generated `exp://192.168...` URL to the Redirect URIs in Supabase for this to work).*
 
 ---
 
