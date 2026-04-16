@@ -42,7 +42,7 @@ export function createGoogleAuthRequest() {
 export async function startGoogleOAuthFlow(authRequest: any) {
     try {
         // Use Expo Auth Session to handle OAuth flow with native browser
-        const result = await AuthSession.startAsync(authRequest);
+        const result = await (AuthSession as any).startAsync(authRequest);
 
         if (result.type === 'success') {
             const { authentication } = result;

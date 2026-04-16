@@ -80,20 +80,7 @@ export default function SignupScreen({ navigation }: Props) {
 
     useEffect(() => {
         navigation.setOptions({
-            cardStyleInterpolator: ({ current, layouts: { screen } }: any) => {
-                return {
-                    cardStyle: {
-                        transform: [
-                            {
-                                translateX: current.progress.interpolate({
-                                    inputRange: [0, 1],
-                                    outputRange: [screen.width, 0],
-                                }),
-                            },
-                        ],
-                    },
-                };
-            },
+            animation: 'slide_from_right',
         });
     }, [navigation]);
 

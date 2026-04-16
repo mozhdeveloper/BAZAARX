@@ -37,23 +37,9 @@ export default function EmailVerificationScreen({ navigation, route }: Props) {
   // Computed: button appears when cooldown reaches 0
   const canResend = resendCooldown <= 0;
 
-  // Configure left-to-right slide animation
   useEffect(() => {
     navigation.setOptions({
-      cardStyleInterpolator: ({ current, layouts: { screen } }: any) => {
-        return {
-          cardStyle: {
-            transform: [
-              {
-                translateX: current.progress.interpolate({
-                  inputRange: [0, 1],
-                  outputRange: [screen.width, 0],
-                }),
-              },
-            ],
-          },
-        };
-      },
+      animation: 'slide_from_right',
     });
   }, [navigation]);
 
