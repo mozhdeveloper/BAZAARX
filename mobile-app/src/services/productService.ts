@@ -1170,14 +1170,38 @@ export class ProductService {
           )
         `)
         .is('deleted_at', null)
+        .is('disabled_at', null)
         .eq('category.is_active', true);
 
       // Phase 2: Apply filters
 
       // Search query filter
       if (trimmedQuery) {
-        const searchPattern = `%${trimmedQuery}%`;
-        query = query.or(`name.ilike.${searchPattern},description.ilike.${searchPattern}`);
+        const safeQuery = trimmedQuery.replace(/[,()]/g, '');
+        const searchPattern = `%${safeQuery}%`;
+
+        const { data: matchingCategories, error: categoryError } = await supabase
+          .from('categories')
+          .select('id')
+          .ilike('name', searchPattern)
+          .eq('is_active', true);
+
+        if (categoryError) {
+          console.warn('[ProductService] Category lookup failed for search query:', categoryError);
+        }
+
+        const categoryIds = matchingCategories?.map((cat: any) => cat.id) || [];
+        const orParts = [
+          `name.ilike.%${safeQuery}%`,
+          `description.ilike.%${safeQuery}%`,
+        ];
+
+        if (categoryIds.length > 0) {
+          const inClause = categoryIds.join(',');
+          orParts.push(`category_id.in.(${inClause})`);
+        }
+
+        query = query.or(orParts.join(','));
       }
 
       // Category filter
@@ -1221,8 +1245,9 @@ export class ProductService {
           break;
       }
 
-      // Apply pagination
-      query = query.limit(limit * 3); // Fetch more to filter client-side
+      // Apply pagination and fetch enough rows to support client-side filtering
+      const fetchLimit = offset + limit * 3;
+      query = query.limit(fetchLimit);
 
       const { data, error } = await query;
 
@@ -1502,8 +1527,31 @@ export class ProductService {
         .neq('brand', '');
 
       if (trimmedQuery) {
-        const searchPattern = `%${trimmedQuery}%`;
-        query = query.or(`name.ilike.${searchPattern},description.ilike.${searchPattern}`);
+        const safeQuery = trimmedQuery.replace(/[,()]/g, '');
+        const searchPattern = `%${safeQuery}%`;
+
+        const { data: matchingCategories, error: categoryError } = await supabase
+          .from('categories')
+          .select('id')
+          .ilike('name', searchPattern)
+          .eq('is_active', true);
+
+        if (categoryError) {
+          console.warn('[ProductService] Category lookup failed for brand search:', categoryError);
+        }
+
+        const categoryIds = matchingCategories?.map((cat: any) => cat.id) || [];
+        const orParts = [
+          `name.ilike.%${safeQuery}%`,
+          `description.ilike.%${safeQuery}%`,
+        ];
+
+        if (categoryIds.length > 0) {
+          const inClause = categoryIds.join(',');
+          orParts.push(`category_id.in.(${inClause})`);
+        }
+
+        query = query.or(orParts.join(','));
       }
 
       if (filters?.categoryId) {
