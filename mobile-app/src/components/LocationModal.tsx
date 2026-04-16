@@ -784,7 +784,6 @@ export default function LocationModal({
                     region={region}
                     onRegionChangeComplete={onRegionChangeComplete}
                     showsUserLocation={true}
-                    loadingEnabled={false}
                   >
                     {/* Marker stays at center coordinates */}
                     <Marker coordinate={{ latitude: region.latitude, longitude: region.longitude }} />

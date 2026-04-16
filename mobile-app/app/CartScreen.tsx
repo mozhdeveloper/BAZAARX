@@ -64,12 +64,44 @@ export default function CartScreen({ navigation, route }: any) {
     init();
   }, [initializeForCurrentUser, updateQuantity]);
 
-  // Also refresh when screen is focused (returning from product detail, etc.)
+  // Also refresh when screen is focused (returning from product detail, checkout, etc.)
   useFocusEffect(
     useCallback(() => {
-      initializeForCurrentUser();
-    }, [])
+      console.log('[CartScreen] 👁️ Screen focused - reinitializing cart');
+      initializeForCurrentUser().then(() => {
+        // After cart is reinitialized, check and clean up orphaned selections
+        const currentItems = useCartStore.getState().items;
+        const currentItemIds = new Set(currentItems.map(i => i.cartItemId));
+        
+        setSelectedIds(prev => {
+          const orphanedIds = prev.filter(id => !currentItemIds.has(id));
+          if (orphanedIds.length > 0) {
+            console.log('[CartScreen] 🧹 Removed orphaned selections after focus:', orphanedIds);
+            return prev.filter(id => currentItemIds.has(id));
+          }
+          return prev;
+        });
+      });
+    }, [initializeForCurrentUser])
   );
+
+  // Clean up selectedIds when items are deleted (e.g., after payment)
+  // This ensures no ghost selections for items that no longer exist
+  useEffect(() => {
+    if (items.length === 0 && selectedIds.length > 0) {
+      console.log('[CartScreen] ✅ Cart cleared - clearing selectedIds:', selectedIds);
+      setSelectedIds([]);
+    } else if (items.length > 0 && selectedIds.length > 0) {
+      // Check if any selectedIds reference items that no longer exist
+      const currentItemIds = new Set(items.map(i => i.cartItemId));
+      const orphanedIds = selectedIds.filter(id => !currentItemIds.has(id));
+      
+      if (orphanedIds.length > 0) {
+        console.log('[CartScreen] ⚠️ Removing orphaned selections for deleted items:', orphanedIds);
+        setSelectedIds(prev => prev.filter(id => currentItemIds.has(id)));
+      }
+    }
+  }, [items]);
 
 
 

@@ -4,6 +4,7 @@ import { useNavigate, useLocation } from "react-router-dom";
 import { supabase } from "@/lib/supabase";
 import { checkoutService } from "@/services/checkoutService"; // Import checkout service
 import { discountService } from "@/services/discountService";
+import { BASIC_TEST_CARDS, THREE_DS_TEST_CARDS, SCENARIO_TEST_CARDS } from "@/constants/testCards";
 import {
   ArrowLeft,
   ChevronLeft,
@@ -703,7 +704,16 @@ export default function CheckoutPage() {
         discount: discount,
         email: profile.email,
         voucherId: appliedVoucher?.id ?? null,
-        selectedAddressId: selectedAddress?.id ?? null
+        selectedAddressId: selectedAddress?.id ?? null,
+        // Add card details if card payment method is selected
+        ...(formData.paymentMethod === 'card' && {
+          cardDetails: {
+            cardNumber: formData.cardNumber || '',
+            expiryDate: formData.expiryDate || '',
+            cvv: formData.cvv || '',
+            cardName: formData.cardName || '',
+          }
+        })
       };
 
       const result = await checkoutService.processCheckout(payload);
@@ -1004,6 +1014,61 @@ export default function CheckoutPage() {
                 {/* Payment Details - Only show when Card is selected */}
                 {formData.paymentMethod === "card" && (
                   <div className="space-y-4">
+                    {/* Test Card Selector (Development/Sandbox Only) */}
+                    {process.env.NODE_ENV === 'development' && (
+                      <div className="p-4 bg-blue-50 border border-blue-200 rounded-lg">
+                        <div className="flex items-center justify-between mb-3">
+                          <label className="block text-sm font-semibold text-blue-900">
+                            🧪 Quick Fill Test Cards (Dev Only)
+                          </label>
+                        </div>
+                        <div className="space-y-2">
+                          <div className="text-xs text-blue-800 mb-2">
+                            Click a card to auto-fill form for testing:
+                          </div>
+                          <div className="grid grid-cols-2 md:grid-cols-3 gap-2">
+                            {/* Basic Success Cards */}
+                            {BASIC_TEST_CARDS.slice(0, 3).map((card) => (
+                              <button
+                                key={card.number}
+                                type="button"
+                                onClick={() => {
+                                  handleInputChange("cardNumber", card.number);
+                                  handleInputChange("cardName", "TEST CARD");
+                                  handleInputChange("expiryDate", card.expiry);
+                                  handleInputChange("cvv", card.cvc);
+                                }}
+                                className="p-2 text-left text-xs bg-white border border-blue-300 rounded hover:bg-blue-100 transition"
+                                title={card.scenario}
+                              >
+                                <div className="font-semibold text-blue-900">✓ {card.brand}</div>
+                                <div className="text-gray-600 truncate">{card.scenario}</div>
+                              </button>
+                            ))}
+                            
+                            {/* Error Scenario Cards */}
+                            {SCENARIO_TEST_CARDS.slice(0, 3).map((card) => (
+                              <button
+                                key={card.number}
+                                type="button"
+                                onClick={() => {
+                                  handleInputChange("cardNumber", card.number);
+                                  handleInputChange("cardName", "TEST CARD");
+                                  handleInputChange("expiryDate", card.expiry);
+                                  handleInputChange("cvv", card.cvc);
+                                }}
+                                className="p-2 text-left text-xs bg-white border border-red-300 rounded hover:bg-red-50 transition"
+                                title={card.errorReason}
+                              >
+                                <div className="font-semibold text-red-900">✗ {card.errorCode}</div>
+                                <div className="text-gray-600 truncate">{card.scenario}</div>
+                              </button>
+                            ))}
+                          </div>
+                        </div>
+                      </div>
+                    )}
+
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4 animate-in fade-in slide-in-from-top-2">
                       <div className="md:col-span-2">
                         <label className="block text-sm font-medium text-gray-700 mb-2">

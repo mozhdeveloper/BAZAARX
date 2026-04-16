@@ -37,6 +37,13 @@ export interface CheckoutPayload {
         productId: string;
         quantity: number;
     }[];
+    // Card payment details
+    cardDetails?: {
+        cardNumber: string;
+        expiryDate: string;
+        cvv: string;
+        cardName: string;
+    };
 }
 
 export interface CheckoutResult {
@@ -777,10 +784,10 @@ export const processCheckout = async (payload: CheckoutPayload): Promise<Checkou
                 const updatePromises: Promise<any>[] = [];
                 for (const [variantId, quantityToDeduct] of variantUpdateMap) {
                     const currentStock = variantStockMap.get(variantId) || 0;
-                    const updatePromise = supabase
+                    const updatePromise = (supabase
                         .from('product_variants')
                         .update({ stock: Math.max(0, currentStock - quantityToDeduct) })
-                        .eq('id', variantId);
+                        .eq('id', variantId) as unknown as Promise<any>);
                     updatePromises.push(updatePromise);
                 }
 

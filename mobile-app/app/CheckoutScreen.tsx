@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
+import { useFocusEffect } from '@react-navigation/native';
 import {
   View,
   Text,
@@ -40,6 +41,7 @@ import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import type { RootStackParamList } from '../App';
 import type { CartItem, ShippingAddress, Order, Voucher } from '../src/types';
 import { safeImageUri } from '../src/utils/imageUtils';
+import { generateUUID } from '../src/utils/uuid';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'Checkout'>;
 
@@ -237,20 +239,15 @@ export default function CheckoutScreen({ navigation, route }: Props) {
   const [appliedVoucher, setAppliedVoucher] = useState<Voucher | null>(null);
   const [isAnonymous, setIsAnonymous] = useState(false);
 
-  // PayMongo Card Details
-  const [paymongCardNumber, setPaymongoCardNumber] = useState('');
-  const [paymongoCardName, setPaymongoCardName] = useState('');
-  const [paymongoExpiryDate, setPaymongoExpiryDate] = useState('');
-  const [paymonogCvv, setPaymongoCvv] = useState('');
-  const [savedPaymongoCard, setSavedPaymongoCard] = useState<{ lastFour: string; expiry: string } | null>(null);
-  const [paymongoPaymentError, setPaymongoPaymentError] = useState<string | null>(null);
-  const [paymongoProcessing, setPaymongoProcessing] = useState(false);
+  // Saved Payment Methods (for PayMongo)
   const [savedPaymentMethods, setSavedPaymentMethods] = useState<SavedPaymentMethod[]>([]);
   const [selectedPaymentMethodId, setSelectedPaymentMethodId] = useState<string | null>(null);
   const [loadingPaymentMethods, setLoadingPaymentMethods] = useState(false);
 
   // Processing State
   const [isProcessing, setIsProcessing] = useState(false);
+  const [paymentComplete, setPaymentComplete] = useState(false); // Track if payment was successful
+  const [paymentProcessedOrder, setPaymentProcessedOrder] = useState<any>(null); // Store order data after payment
 
   // Bazcoins
   const [useBazcoins, setUseBazcoins] = useState(false);
@@ -295,6 +292,8 @@ export default function CheckoutScreen({ navigation, route }: Props) {
     isMountedRef.current = true;
     return () => {
       isMountedRef.current = false;
+      // Reset processing flag when user navigates away
+      setIsProcessing(false);
     };
   }, []);
 
@@ -440,24 +439,6 @@ export default function CheckoutScreen({ navigation, route }: Props) {
   const [selectedCardId, setSelectedCardId] = useState<string | null>(null);
   const [currentStep, setCurrentStep] = useState<CheckoutStep>('shipping');
 
-  // Validate PayMongo card details are completely filled in (Acceptance Criteria #3)
-  const isPaymongoCardValid = useCallback(() => {
-    if (paymentMethod !== 'paymongo') return true; // Not PayMongo, no validation needed
-    
-    // If a saved card is selected, no manual entry validation needed
-    if (selectedPaymentMethodId) return true;
-    
-    // All card fields must be filled and valid (accepts PayMongo test cards)
-    // Test cards: 4343434343434345, 5555444444444457, 4009930000001421, etc. - all 16 digits
-    const cardNumberClean = paymongCardNumber.replace(/\s/g, '');
-    const isCardNumberValid = cardNumberClean.length === 16 && /^\d+$/.test(cardNumberClean);
-    const isCardNameValid = paymongoCardName.trim().length > 2;
-    const isExpiryValid = paymongoExpiryDate.includes('/') && paymongoExpiryDate.length >= 5;
-    const isCvvValid = paymonogCvv.length >= 3 && /^\d+$/.test(paymonogCvv);
-    
-    return isCardNumberValid && isCardNameValid && isExpiryValid && isCvvValid;
-  }, [paymentMethod, selectedPaymentMethodId, paymongCardNumber, paymongoCardName, paymongoExpiryDate, paymonogCvv]);
-
   // Validate payment method is available (Acceptance Criteria #4, #5: Validate availability and eligibility)
   const isPaymentMethodAvailable = useCallback((method: string): boolean => {
     if (!selectedAddress) return false; // No address = no delivery = no payment
@@ -485,36 +466,6 @@ export default function CheckoutScreen({ navigation, route }: Props) {
     return false;
   }, [selectedAddress, isGift]);
 
-  // Format expiry date input as MM/YY automatically (hoisted before card validation)
-  const handleExpiryChange = useCallback((value: string) => {
-    // Remove all non-numeric characters
-    const cleanValue = value.replace(/\D/g, '');
-    
-    if (cleanValue.length === 0) {
-      setPaymongoExpiryDate('');
-      return;
-    }
-    
-    // Format as MM/YY
-    if (cleanValue.length <= 2) {
-      setPaymongoExpiryDate(cleanValue);
-    } else {
-      const mm = cleanValue.substring(0, 2);
-      const yy = cleanValue.substring(2, 4);
-      setPaymongoExpiryDate(`${mm}/${yy}`);
-    }
-  }, []);
-
-  // Clear card form to allow entering a different card
-  const clearCardForm = useCallback(() => {
-    setPaymongoCardNumber('');
-    setPaymongoCardName('');
-    setPaymongoExpiryDate('');
-    setPaymongoCvv('');
-    setSavedPaymongoCard(null);
-    setPaymongoPaymentError(null);
-  }, []);
-
   const createOrder = (items: CartItem[], addr: any, payment: string, options: any) => {
     return {
       id: `ORD-${Date.now()}`,
@@ -532,23 +483,6 @@ export default function CheckoutScreen({ navigation, route }: Props) {
       ...options
     };
   };
-
-  // NOTE: Payment and card states moved to top of component (after stock validation states)
-
-  // Load saved PayMongo card from AsyncStorage on mount
-  useEffect(() => {
-    const loadSavedCard = async () => {
-      try {
-        const saved = await AsyncStorage.getItem('savedPaymongoCard');
-        if (saved && isMountedRef.current) {
-          setSavedPaymongoCard(JSON.parse(saved));
-        }
-      } catch (err) {
-        console.error('[Checkout] Failed to load saved PayMongo card:', err);
-      }
-    };
-    loadSavedCard();
-  }, []);
 
   // Load saved payment methods when user ID is available
   useEffect(() => {
@@ -1610,7 +1544,7 @@ export default function CheckoutScreen({ navigation, route }: Props) {
         const defaultSavedAddr = addressData.find(a => a.isDefault);
 
         let homeScreenAddress = route.params?.deliveryAddress;
-        let homeScreenCoords = route.params?.deliveryCoordinates;
+        let homeScreenCoords = route.params?.deliveryCoordinates || undefined;
 
         // If no route params, try to get from AsyncStorage or database
         if (!homeScreenAddress || homeScreenAddress === 'Select Location') {
@@ -1619,14 +1553,14 @@ export default function CheckoutScreen({ navigation, route }: Props) {
             const dbCurrentLoc = await addressService.getCurrentDeliveryLocation(user.id);
             if (dbCurrentLoc && dbCurrentLoc.label === 'Current Location') {
               homeScreenAddress = `${dbCurrentLoc.street}, ${dbCurrentLoc.city}`;
-              homeScreenCoords = dbCurrentLoc.coordinates;
+              homeScreenCoords = dbCurrentLoc.coordinates || undefined;
             } else {
               // Fall back to AsyncStorage
               const storedAddress = await AsyncStorage.getItem('currentDeliveryAddress');
               const storedCoords = await AsyncStorage.getItem('currentDeliveryCoordinates');
               if (storedAddress && storedAddress !== 'Select Location') {
                 homeScreenAddress = storedAddress;
-                homeScreenCoords = storedCoords ? JSON.parse(storedCoords) : null;
+                homeScreenCoords = storedCoords ? JSON.parse(storedCoords) : undefined;
               }
             }
           } catch (storageError) {
@@ -1805,11 +1739,20 @@ export default function CheckoutScreen({ navigation, route }: Props) {
       return;
     }
 
-    // Acceptance Criteria #3: Validate PayMongo card details are filled in (must do this BEFORE Place Order)
-    if (!isPaymongoCardValid()) {
-      Alert.alert('Card Details Required', 'Please fill in all PayMongo card details (Card Number, Cardholder Name, Expiry Date, CVV) to proceed.');
+    // For PayMongo with saved card: Create order and proceed to payment gateway
+    if (paymentMethod === 'paymongo' && selectedPaymentMethodId) {
+      // User selected a saved card - proceed to create order and navigate to payment gateway
+      // Continue with normal checkout flow below
+    } else if (paymentMethod === 'paymongo' && !selectedPaymentMethodId) {
+      // User has no saved cards or clicked "Use Different Card" from UI, but they're clicking Place Order
+      // This shouldn't happen since "Use Different Card" navigates directly, but handle it anyway
+      Alert.alert('Payment Method', 'Please select a saved card or click "Use Different Card" to enter a new card.');
       return;
     }
+
+    // Acceptance Criteria #3: PayMongo card details are collected in PaymentGatewayScreen
+    // No card validation needed here - payment gateway handles card input and validation
+    // Users will not have pre-filled card data in CheckoutScreen
 
     setIsProcessing(true);
     
@@ -1860,165 +1803,106 @@ export default function CheckoutScreen({ navigation, route }: Props) {
           }))
       };
 
-      const result = await processCheckout(payload);
-
-      if (!result.success) {
-        throw new Error(result.error || 'Checkout failed');
-      }
-
-      // Update local Bazcoins balance
-      const newBalance = availableBazcoins - bazcoinDiscount + earnedBazcoins;
-      setAvailableBazcoins(newBalance);
-
-      // Refresh cart from database
-      await initializeForCurrentUser();
-
-      // Clear quick order if applicable
-      if (isQuickCheckout) {
-        clearQuickOrder();
-      }
-
-
       // Check if online payment (GCash, PayMongo, Card) - Acceptance Criteria #7: Save payment method before payment
       const isOnlinePayment = ['paymongo', 'gcash', 'card'].includes(paymentMethod.toLowerCase());
+
+      // Check if using saved PayMongo card
+      const hasSavedCard = paymentMethod.toLowerCase() === 'paymongo' && selectedPaymentMethodId;
 
       // Acceptance Criteria #7: Save the selected payment method before payment initiation
       await AsyncStorage.setItem('lastPaymentMethod', paymentMethod);
 
-      const shippingAddressForOrder: ShippingAddress = {
-        name: `${selectedAddress?.firstName || ''} ${selectedAddress?.lastName || ''}`.trim(),
-        email: user.email,
-        phone: selectedAddress?.phone || '',
-        address: `${selectedAddress?.street || ''}${selectedAddress?.barangay ? `, ${selectedAddress.barangay}` : ''}`,
-        city: selectedAddress?.city || '',
-        region: selectedAddress?.province || selectedAddress?.region || '',
-        postalCode: selectedAddress?.zipCode || '',
-      };
-
-      const order: Order = {
-        id: result.orderIds?.[0] || 'ORD-' + Date.now(),
-        orderId: result.orderUuids?.[0],
-        buyerId: user.id,
-        sellerId: checkoutItems[0]?.seller_id || checkoutItems[0]?.sellerId || '',
-        transactionId: 'TXN' + Math.random().toString(36).slice(2, 10).toUpperCase(),
-        items: checkoutItems,
-        total,
-        shippingFee,
-        discount: discount > 0 ? discount : undefined,
-        voucherInfo: appliedVoucher ? {
-          code: appliedVoucher.code,
-          type: appliedVoucher.type,
-          discountAmount: discount
-        } : undefined,
-        campaignDiscounts: campaignDiscountTotal > 0 ? checkoutItems
-          .filter(item => item.campaignDiscount)
-          .map(item => ({
-            campaignId: item.campaignDiscount?.campaignId || '',
-            campaignName: item.campaignDiscount?.campaignName || 'Discount',
-            discountAmount: ((item.originalPrice ?? item.price ?? 0) - (item.price ?? 0)) * item.quantity
-          })) : undefined,
-        status: 'pending',
-        isPaid: false,
-        scheduledDate: new Date(Date.now() + 3 * 24 * 60 * 60 * 1000).toLocaleDateString('en-US'),
-        shippingAddress: shippingAddressForOrder,
-        paymentMethod,
-        createdAt: new Date().toISOString(),
-        isGift,
-        isAnonymous,
-        recipientId: isGift ? recipientId : undefined
-      };
-
-      // Check if online payment (GCash, PayMongo, PayMaya, Card)
-
-      if (isOnlinePayment) {
-        // PayMongo: Process payment immediately with entered card details
-        if (paymentMethod === 'paymongo') {
-          setPaymongoProcessing(true);
-          try {
-            // Parse expiry date
-            const [mm, yy] = paymongoExpiryDate.split('/');
-            const expMonth = parseInt(mm, 10);
-            const expYear = 2000 + parseInt(yy, 10);
-
-            // Process PayMongo payment
-            const paymentResult = await createPayment({
-              orderId: order.orderId || order.id,
-              buyerId: order.buyerId || '',
-              sellerId: order.sellerId || '',
-              amount: order.total,
-              paymentType: 'card',
-              billing: { name: paymongoCardName, email: user.email },
-              cardDetails: {
-                cardNumber: paymongCardNumber.replace(/\s/g, ''),
-                expMonth,
-                expYear,
-                cvc: paymonogCvv,
-              },
-            });
-
-            if (paymentResult.status === 'paid') {
-              // Payment successful - save card details to AsyncStorage AND Supabase
-              const cardLastFour = paymongCardNumber.slice(-4);
-              const cardData = { lastFour: cardLastFour, expiry: paymongoExpiryDate };
-              
-              // Only save if a new card was used (not a saved card)
-              if (!selectedPaymentMethodId) {
-                try {
-                  // Save to paymentMethodService (includes both AsyncStorage and Supabase)
-                  await paymentMethodService.savePaymentMethod(
-                    user.id,
-                    {
-                      cardNumber: paymongCardNumber.replace(/\s/g, ''),
-                      cardName: paymongoCardName,
-                      expiryDate: paymongoExpiryDate,
-                      cvv: paymonogCvv,
-                    },
-                    savedPaymentMethods.length === 0 // First card becomes default
-                  );
-                  
-                  // Also maintain the old AsyncStorage format for backward compatibility
-                  await AsyncStorage.setItem('savedPaymongoCard', JSON.stringify(cardData));
-                  
-                  if (isMountedRef.current) {
-                    setSavedPaymongoCard(cardData);
-                    // Don't reload saved payment methods here - we're navigating away from this screen anyway
-                  }
-                } catch (storageErr) {
-                  console.error('[Checkout] Failed to save PayMongo card:', storageErr);
-                  // Payment is still successful, just show a warning
-                }
-              }
-              
-              // Show success alert
-              Alert.alert(
-                '💳 Payment Successful!',
-                `Your PayMongo payment of ₱${order.total.toLocaleString()} has been processed successfully!\n\nYou earned ${earnedBazcoins} Bazcoins!`,
-                [{ text: 'OK', onPress: () => {
-                  navigation.replace('OrderConfirmation', { order, earnedBazcoins });
-                }}]
-              );
-            } else if (paymentResult.checkoutUrl) {
-              // 3DS or other redirect required - navigate to gateway for completion
-              navigation.navigate('PaymentGateway', { paymentMethod, order, isQuickCheckout, earnedBazcoins });
-            } else {
-              throw new Error(paymentResult.error || 'Payment processing failed');
-            }
-          } catch (paymentError: any) {
-            setPaymongoPaymentError(paymentError.message || 'Payment failed');
-            Alert.alert('Payment Failed', paymentError.message || 'Your PayMongo payment could not be processed. Please try again.');
-          } finally {
-            setPaymongoProcessing(false);
-          }
-        } else {
-          // Other online methods (GCash, etc.) - navigate to payment gateway
-          navigation.navigate('PaymentGateway', { paymentMethod, order, isQuickCheckout, earnedBazcoins });
-        }
+      if (isOnlinePayment && !hasSavedCard) {
+        // Online payment without saved card - navigate to payment gateway for card entry or e-wallet details
+        // PaymentGatewayScreen will handle order creation after successful payment
+        // Pass checkout payload instead of pre-created order
+        navigation.navigate('PaymentGateway' as any, { 
+          paymentMethod, 
+          checkoutPayload: payload,
+          isQuickCheckout,
+          earnedBazcoins,
+          bazcoinDiscount,
+          appliedVoucher,
+          isGift,
+          isAnonymous,
+          recipientId
+        } as any);
       } else {
-        // COD - Cart items already removed per processCheckout; just clear quick order if used
+        // For saved PayMongo cards or COD: create order immediately then navigate
+        const result = await processCheckout(payload);
+
+        if (!result.success) {
+          throw new Error(result.error || 'Checkout failed');
+        }
+
+        // Update local Bazcoins balance
+        const newBalance = availableBazcoins - bazcoinDiscount + earnedBazcoins;
+        setAvailableBazcoins(newBalance);
+
+        // Refresh cart from database
+        await initializeForCurrentUser();
+
+        // Clear quick order if applicable
         if (isQuickCheckout) {
           clearQuickOrder();
         }
-        navigation.navigate('OrderConfirmation', { order, earnedBazcoins });
+
+        const shippingAddressForOrder: ShippingAddress = {
+          name: `${selectedAddress?.firstName || ''} ${selectedAddress?.lastName || ''}`.trim(),
+          email: user.email,
+          phone: selectedAddress?.phone || '',
+          address: `${selectedAddress?.street || ''}${selectedAddress?.barangay ? `, ${selectedAddress.barangay}` : ''}`,
+          city: selectedAddress?.city || '',
+          region: selectedAddress?.province || selectedAddress?.region || '',
+          postalCode: selectedAddress?.zipCode || '',
+        };
+
+        // Validate seller ID before creating order for payment
+        const sellerId = checkoutItems[0]?.seller_id || checkoutItems[0]?.sellerId;
+        if (!sellerId) {
+          throw new Error('Unable to determine seller. Please refresh and try again.');
+        }
+
+        const order: Order = {
+          id: result.orderIds?.[0] || 'ORD-' + Date.now(),
+          orderId: result.orderUuids?.[0],
+          buyerId: user.id,
+          sellerId: sellerId,
+          transactionId: 'TXN' + Math.random().toString(36).slice(2, 10).toUpperCase(),
+          items: checkoutItems,
+          total,
+          shippingFee,
+          discount: discount > 0 ? discount : undefined,
+          voucherInfo: appliedVoucher ? {
+            code: appliedVoucher.code,
+            type: appliedVoucher.type,
+            discountAmount: discount
+          } : undefined,
+          campaignDiscounts: campaignDiscountTotal > 0 ? checkoutItems
+            .filter(item => item.campaignDiscount)
+            .map(item => ({
+              campaignId: item.campaignDiscount?.campaignId || '',
+              campaignName: item.campaignDiscount?.campaignName || 'Discount',
+              discountAmount: ((item.originalPrice ?? item.price ?? 0) - (item.price ?? 0)) * item.quantity
+            })) : undefined,
+          status: 'pending',
+          isPaid: false,
+          scheduledDate: new Date(Date.now() + 3 * 24 * 60 * 60 * 1000).toLocaleDateString('en-US'),
+          shippingAddress: shippingAddressForOrder,
+          paymentMethod,
+          createdAt: new Date().toISOString(),
+          isGift,
+          isAnonymous,
+          recipientId: isGift ? recipientId : undefined
+        };
+
+        if (hasSavedCard) {
+          // PayMongo with saved card - proceed to confirmation
+          navigation.navigate('OrderConfirmation', { order, earnedBazcoins });
+        } else {
+          // COD - proceed to confirmation
+          navigation.navigate('OrderConfirmation', { order, earnedBazcoins });
+        }
       }
 
     } catch (error: any) {
@@ -2278,7 +2162,7 @@ export default function CheckoutScreen({ navigation, route }: Props) {
                 <Shield size={16} color={paymentMethod === 'paymongo' ? COLORS.primary : COLORS.gray400} />
               </Pressable>
 
-              {/* PayMongo Card Form - Appears when PayMongo is selected */}
+              {/* PayMongo Payment Method - Simplified */}
               {paymentMethod === 'paymongo' && (
                 <View style={styles.cardFormContainer}>
                   <Text style={styles.cardFormTitle}>💳 Payment Method</Text>
@@ -2298,10 +2182,7 @@ export default function CheckoutScreen({ navigation, route }: Props) {
                       {savedPaymentMethods.map((method) => (
                         <Pressable
                           key={method.id}
-                          onPress={() => {
-                            setSelectedPaymentMethodId(method.id);
-                            clearCardForm();
-                          }}
+                          onPress={() => setSelectedPaymentMethodId(method.id)}
                           style={[
                             styles.savedCardOption,
                             selectedPaymentMethodId === method.id && styles.savedCardOptionSelected
@@ -2324,128 +2205,94 @@ export default function CheckoutScreen({ navigation, route }: Props) {
                         </Pressable>
                       ))}
                       
-                      {/* Use Different Card Button */}
-                      {selectedPaymentMethodId && (
-                        <Pressable
-                          onPress={() => setSelectedPaymentMethodId(null)}
-                          style={styles.useDifferentCardButton}
-                        >
-                          <Text style={styles.useDifferentCardText}>Use Different Card</Text>
-                        </Pressable>
-                      )}
+                      {/* Use Different Card Button - Create order and navigate to PaymentGatewayScreen */}
+                      <Pressable
+                        onPress={async () => {
+                          try {
+                            // Validate required fields before proceeding to payment gateway
+                            if (!user?.id) {
+                              Alert.alert('Error', 'User not authenticated. Please sign in again.');
+                              return;
+                            }
+                            
+                            if (!selectedAddress) {
+                              Alert.alert('Error', 'Please select a delivery address');
+                              return;
+                            }
+
+                            const sellerId = checkoutItems[0]?.seller_id || checkoutItems[0]?.sellerId;
+                            if (!sellerId) {
+                              Alert.alert('Error', 'No seller found for items. Please try again.');
+                              return;
+                            }
+
+                            // Prepare checkout payload - do NOT create order yet
+                            // Order will be created in PaymentGatewayScreen after successful payment
+                            const payload = {
+                              userId: user.id,
+                              items: checkoutItems,
+                              totalAmount: total,
+                              shippingAddress: {
+                                fullName: `${selectedAddress.firstName} ${selectedAddress.lastName}`,
+                                street: selectedAddress.street || '',
+                                barangay: selectedAddress.barangay || '',
+                                city: selectedAddress.city || 'Manila',
+                                province: selectedAddress.province || 'Metro Manila',
+                                region: selectedAddress.region || 'NCR',
+                                postalCode: selectedAddress.zipCode || '0000',
+                                phone: selectedAddress.phone || '',
+                                country: 'Philippines'
+                              },
+                              paymentMethod: 'paymongo',
+                              usedBazcoins: bazcoinDiscount,
+                              earnedBazcoins,
+                              shippingFee,
+                              discount,
+                              voucherId: appliedVoucher?.id || null,
+                              discountAmount: discount,
+                              email: user.email,
+                              campaignDiscountTotal,
+                              campaignDiscounts: checkoutItems
+                                .filter(item => item.campaignDiscount)
+                                .map(item => ({
+                                  campaignId: item.campaignDiscount?.campaignId,
+                                  campaignName: item.campaignDiscount?.campaignName || 'Discount',
+                                  discountAmount: ((item.originalPrice ?? item.price ?? 0) - (item.price ?? 0)) * item.quantity,
+                                  productId: item.id,
+                                  quantity: item.quantity
+                                }))
+                            };
+                            
+                            // Navigate to payment gateway with checkout data (not pre-created order)
+                            // PaymentGatewayScreen will create order after successful payment
+                            navigation.navigate('PaymentGateway' as any, { 
+                              paymentMethod: 'paymongo', 
+                              checkoutPayload: payload,
+                              isQuickCheckout: false,
+                              earnedBazcoins,
+                              bazcoinDiscount,
+                              appliedVoucher,
+                              isGift: false,
+                              isAnonymous: false,
+                              recipientId: undefined
+                            } as any);
+                          } catch (error: any) {
+                            Alert.alert('Error', error?.message || 'Failed to process order. Please try again.');
+                          }
+                        }}
+                        style={styles.useDifferentCardButton}
+                      >
+                        <Text style={styles.useDifferentCardText}>💳 Use Different Card</Text>
+                      </Pressable>
                     </View>
                   )}
 
-                  {/* Manual Card Entry - Show if no saved cards selected */}
-                  {!selectedPaymentMethodId && (
-                    <>
-                      {savedPaymentMethods.length > 0 && (
-                        <Text style={styles.orDivider}>or enter new card</Text>
-                      )}
-                      
-                      <Text style={[styles.cardFormTitle, { marginTop: 16, fontSize: 14 }]}>
-                        Enter Your Card Details
+                  {/* No Saved Cards - Show message to use different card */}
+                  {!loadingPaymentMethods && savedPaymentMethods.length === 0 && (
+                    <View style={{ backgroundColor: '#F0F9FF', borderColor: '#0EA5E9', borderWidth: 1, borderRadius: 8, padding: 12, marginVertical: 8 }}>
+                      <Text style={{ fontSize: 13, color: '#0369A1', lineHeight: 20 }}>
+                        Enter your card details on the next screen after clicking "Place Order"
                       </Text>
-
-                      {/* Required Fields Notice */}
-                      <View style={styles.requiredFieldsBox}>
-                        <AlertCircle size={14} color="#D97706" strokeWidth={2} />
-                        <Text style={styles.requiredFieldsText}>
-                          All fields are required to complete checkout
-                        </Text>
-                      </View>
-                  
-                      {/* Card Number */}
-                      <View style={styles.paymongoInputGroup}>
-                        <Text style={styles.paymongoInputLabel}>Card Number</Text>
-                        <TextInput
-                          style={[styles.cardInput, paymongoPaymentError?.includes('card number') && styles.inputError]}
-                          placeholder="1234 5678 9012 3456"
-                          placeholderTextColor="#999"
-                          value={paymongCardNumber}
-                          onChangeText={setPaymongoCardNumber}
-                          keyboardType="numeric"
-                          maxLength={19}
-                          editable={!paymongoProcessing}
-                        />
-                      </View>
-
-                      {/* Cardholder Name */}
-                  <View style={styles.paymongoInputGroup}>
-                    <Text style={styles.paymongoInputLabel}>Cardholder Name</Text>
-                    <TextInput
-                      style={[styles.cardInput, paymongoPaymentError?.includes('name') && styles.inputError]}
-                      placeholder="JUAN DELA CRUZ"
-                      placeholderTextColor="#999"
-                      value={paymongoCardName}
-                      onChangeText={setPaymongoCardName}
-                      editable={!paymongoProcessing}
-                    />
-                  </View>
-
-                  {/* Expiry & CVV Row */}
-                  <View style={styles.paymongoRowInputs}>
-                    <View style={[styles.paymongoInputGroup, { flex: 1 }]}>
-                      <Text style={styles.paymongoInputLabel}>Expiry Date</Text>
-                      <TextInput
-                        style={[styles.cardInput, paymongoPaymentError?.includes('expiry') && styles.inputError]}
-                        placeholder="MM/YY"
-                        placeholderTextColor="#999"
-                        value={paymongoExpiryDate}
-                        onChangeText={handleExpiryChange}
-                        keyboardType="numeric"
-                        maxLength={5}
-                        editable={!paymongoProcessing}
-                      />
-                    </View>
-                    <View style={[styles.paymongoInputGroup, { flex: 1, marginLeft: 12 }]}>
-                      <Text style={styles.paymongoInputLabel}>CVV</Text>
-                      <TextInput
-                        style={[styles.cardInput, paymongoPaymentError?.includes('cvv') && styles.inputError]}
-                        placeholder="123"
-                        placeholderTextColor="#999"
-                        value={paymonogCvv}
-                        onChangeText={setPaymongoCvv}
-                        keyboardType="numeric"
-                        maxLength={4}
-                        secureTextEntry
-                        editable={!paymongoProcessing}
-                      />
-                    </View>
-                  </View>
-
-                      {/* Success Message - Show saved card details */}
-                      {savedPaymongoCard && (
-                        <View style={styles.savedCardContainer}>
-                          <View style={styles.savedCardBadge}>
-                            <Check size={16} color="#10B981" />
-                            <Text style={styles.savedCardText}>
-                              Card ending in {savedPaymongoCard.lastFour} • Expires {savedPaymongoCard.expiry}
-                            </Text>
-                          </View>
-                          <Pressable
-                            style={styles.changeCardButton}
-                            onPress={clearCardForm}
-                            disabled={paymongoProcessing}
-                          >
-                            <Text style={styles.changeCardButtonText}>Use Different Card</Text>
-                          </Pressable>
-                        </View>
-                      )}
-
-                      {/* Error Message */}
-                      {paymongoPaymentError && (
-                        <View style={styles.errorBadge}>
-                          <Text style={styles.errorText}>{paymongoPaymentError}</Text>
-                        </View>
-                      )}
-                    </>
-                  )}
-
-                  {/* Error Message - Show outside card form */}
-                  {paymongoPaymentError && selectedPaymentMethodId && (
-                    <View style={styles.errorBadge}>
-                      <Text style={styles.errorText}>{paymongoPaymentError}</Text>
                     </View>
                   )}
                 </View>
@@ -2472,9 +2319,9 @@ export default function CheckoutScreen({ navigation, route }: Props) {
                 </Pressable>
 
                 {/* Saved Cards List */}
-                {paymentMethod === 'card' && user?.savedCards && user.savedCards.length > 0 && (
+                {paymentMethod === 'card' && savedPaymentMethods && savedPaymentMethods.length > 0 && (
                   <View style={styles.savedCardsContainer}>
-                    {user.savedCards.map((card) => (
+                    {savedPaymentMethods.map((card: any) => (
                       <Pressable
                         key={card.id}
                         style={[

@@ -44,6 +44,7 @@ const OrdersPage = lazy(() => import("./pages/OrdersPage"));
 const OrderDetailPage = lazy(() => import("./pages/OrderDetailPage"));
 const DeliveryTrackingPage = lazy(() => import("./pages/DeliveryTrackingPage"));
 const PaymentCallbackPage = lazy(() => import("./pages/PaymentCallbackPage"));
+const PaymentResultPage = lazy(() => import("./pages/PaymentResultPage"));
 const RegistryAndGiftingPage = lazy(() => import("./pages/RegistryAndGiftingPage"));
 const SharedRegistryPage = lazy(() => import("./pages/SharedRegistryPage"));
 const NotFoundPage = lazy(() => import("./pages/NotFoundPage"));
@@ -388,6 +389,7 @@ function App() {
             <Route path="/payment/success" element={<PaymentCallbackPage />} />
             <Route path="/payment/failed" element={<PaymentCallbackPage />} />
             <Route path="/payment/sandbox-ewallet" element={<PaymentCallbackPage />} />
+            <Route path="/payment/result" element={<PaymentResultPage />} />
             <Route
               path="/orders"
               element={

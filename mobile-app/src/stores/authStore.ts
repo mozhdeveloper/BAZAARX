@@ -8,14 +8,18 @@ import { create } from 'zustand';
 import { persist, createJSONStorage } from 'zustand/middleware';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { authService, type AuthResult } from '@/services/authService';
+import { paymentMethodService } from '@/services/paymentMethodService';
 import type { Profile } from '@/types/database.types';
 import { useWishlistStore } from './wishlistStore';
 
-export interface SavedCard {
+export interface PaymentMethod {
   id: string;
-  last4: string;
-  brand: string;
-  expiry: string;
+  type: 'card' | 'wallet';
+  brand: string; // Visa, MasterCard, GCash, Maya, etc.
+  last4?: string; // For cards
+  expiry?: string; // For cards
+  accountNumber?: string; // For wallets (masked)
+  isDefault: boolean;
 }
 
 interface User {
@@ -24,7 +28,7 @@ interface User {
   email: string;
   phone: string;
   avatar?: string;
-  savedCards?: SavedCard[];
+  paymentMethods?: PaymentMethod[];
   roles?: string[];
   bazcoins?: number;
 }
@@ -51,6 +55,11 @@ interface AuthState {
   resetOnboarding: () => void;
   loginAsGuest: () => void;
   updateProfile: (updates: Partial<User>) => void;
+
+  // Payment Methods Management
+  addPaymentMethod: (method: PaymentMethod) => void;
+  deletePaymentMethod: (id: string) => void;
+  setDefaultPaymentMethod: (id: string) => void;
 
   // Role Management
   switchRole: (role: 'buyer' | 'seller') => void;
@@ -90,6 +99,23 @@ export const useAuthStore = create<AuthState>()(
             const fullName = `${firstName} ${lastName}`.trim() || result.user.email?.split('@')[0] || 'User';
             // Get avatar from buyer record if available
             const buyer = await authService.getBuyerProfile(result.user.id).catch(() => null);
+            
+            // Fetch saved payment methods from Supabase
+            const savedPaymentMethods = await paymentMethodService.getSavedPaymentMethods(result.user.id).catch((err) => {
+              console.log('Could not fetch payment methods:', err);
+              return [];
+            });
+            
+            // Convert saved payment methods to PaymentMethod format
+            const paymentMethods: PaymentMethod[] = savedPaymentMethods.map(m => ({
+              id: m.id,
+              type: 'card',
+              brand: m.cardBrand === 'mastercard' ? 'MasterCard' : 'Visa',
+              last4: m.lastFour,
+              expiry: m.expiryDate,
+              isDefault: m.isDefault,
+            }));
+            
             const user: User = {
               id: result.user.id,
               email: result.user.email || email,
@@ -97,7 +123,7 @@ export const useAuthStore = create<AuthState>()(
               phone: profile?.phone || '',
               avatar: buyer?.avatar_url || undefined,
               roles: roles.length > 0 ? roles : ['buyer'],
-              savedCards: [],
+              paymentMethods,
               bazcoins: buyer?.bazcoins || 0
             };
             // Determine active role from roles
@@ -232,12 +258,6 @@ export const useAuthStore = create<AuthState>()(
       },
 
       setUser: (user: User) => {
-        if (!user.savedCards) {
-          user.savedCards = [
-            { id: 'card_1', last4: '4242', brand: 'Visa', expiry: '12/28' },
-            { id: 'card_2', last4: '8888', brand: 'MasterCard', expiry: '10/26' },
-          ];
-        }
         if (!user.roles) {
           user.roles = ['buyer'];
         }
@@ -293,6 +313,42 @@ export const useAuthStore = create<AuthState>()(
       updateProfile: (updates: Partial<User>) => {
         set((state) => ({
           user: state.user ? { ...state.user, ...updates } : null,
+        }));
+      },
+
+      addPaymentMethod: (method: PaymentMethod) => {
+        set((state) => ({
+          user: state.user
+            ? {
+                ...state.user,
+                paymentMethods: [...(state.user.paymentMethods || []), method],
+              }
+            : null,
+        }));
+      },
+
+      deletePaymentMethod: (id: string) => {
+        set((state) => ({
+          user: state.user
+            ? {
+                ...state.user,
+                paymentMethods: (state.user.paymentMethods || []).filter(m => m.id !== id),
+              }
+            : null,
+        }));
+      },
+
+      setDefaultPaymentMethod: (id: string) => {
+        set((state) => ({
+          user: state.user
+            ? {
+                ...state.user,
+                paymentMethods: (state.user.paymentMethods || []).map(m => ({
+                  ...m,
+                  isDefault: m.id === id,
+                })),
+              }
+            : null,
         }));
       },
 

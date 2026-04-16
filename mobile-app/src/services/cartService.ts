@@ -91,6 +91,7 @@ export class CartService {
   /**
    * Get or create cart for a buyer
    * New schema: simplified cart creation
+   * Handles race condition: if INSERT fails due to duplicate key, fetch existing cart
    */
   async getOrCreateCart(buyerId: string): Promise<Cart> {
     if (!isSupabaseConfigured()) {
@@ -119,7 +120,18 @@ export class CartService {
         const createDuration = Date.now() - createStart;
         console.log(`[CartService] Cart creation completed in ${createDuration}ms`);
 
-        if (createError) throw createError;
+        if (createError) {
+          // Handle race condition: if duplicate key error, fetch the existing cart
+          if (createError.code === '23505') {
+            console.log('[CartService] ⚠️ Duplicate key error (race condition), fetching existing cart...');
+            const existingCart = await this.getCart(buyerId);
+            if (existingCart) {
+              console.log('[CartService] ✅ Retrieved existing cart after race condition:', existingCart.id);
+              return existingCart;
+            }
+          }
+          throw createError;
+        }
         if (!newCart) throw new Error('Failed to create new cart');
 
         return newCart;
