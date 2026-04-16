@@ -23,7 +23,7 @@ import {
   ActivityIndicator,
   StyleSheet,
 } from 'react-native';
-import { Check, ChevronDown, ChevronUp, Truck, AlertCircle } from 'lucide-react-native';
+import { Check, ChevronDown, ChevronUp, Truck, AlertCircle, AlertTriangle } from 'lucide-react-native';
 import type { ShippingMethodOption } from '@/services/shippingService';
 import type { ShippingMethod } from '@/services/shippingService';
 
@@ -38,6 +38,10 @@ interface ShippingMethodPickerProps {
   onSelectMethod: (method: ShippingMethod) => void;
   isLoading: boolean;
   error: string | null;
+  /** Non-blocking warning (e.g. seller missing shipping origin) */
+  warning?: string | null;
+  /** Called when user taps "Retry" on error state */
+  onRetry?: () => void;
 }
 
 export default function ShippingMethodPicker({
@@ -46,6 +50,8 @@ export default function ShippingMethodPicker({
   onSelectMethod,
   isLoading,
   error,
+  warning,
+  onRetry,
 }: ShippingMethodPickerProps) {
   const [isExpanded, setIsExpanded] = useState(false);
 
@@ -78,6 +84,11 @@ export default function ShippingMethodPicker({
         <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
           <AlertCircle size={14} color="#DC2626" />
           <Text style={styles.errorText}>{error}</Text>
+          {onRetry && (
+            <Pressable onPress={onRetry} style={styles.retryButton}>
+              <Text style={styles.retryText}>Retry</Text>
+            </Pressable>
+          )}
         </View>
       </View>
     );
@@ -169,6 +180,14 @@ export default function ShippingMethodPicker({
           </View>
         </Pressable>
       ))}
+
+      {/* Soft warning banner (e.g. seller missing origin) */}
+      {warning && (
+        <View style={styles.warningContainer}>
+          <AlertTriangle size={13} color="#92400E" />
+          <Text style={styles.warningText}>{warning}</Text>
+        </View>
+      )}
     </View>
   );
 }
@@ -267,5 +286,33 @@ const styles = StyleSheet.create({
     height: 0,
     borderRadius: 4,
     backgroundColor: 'transparent',
+  },
+  warningContainer: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: 6,
+    padding: 10,
+    backgroundColor: '#FFFBEB',
+    borderTopWidth: 1,
+    borderTopColor: '#FDE68A',
+  },
+  warningText: {
+    fontSize: 11,
+    color: '#92400E',
+    flex: 1,
+    lineHeight: 15,
+  },
+  retryButton: {
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    backgroundColor: '#FEE2E2',
+    borderRadius: 6,
+    borderWidth: 1,
+    borderColor: '#FECACA',
+  },
+  retryText: {
+    fontSize: 11,
+    fontWeight: '600',
+    color: '#DC2626',
   },
 });

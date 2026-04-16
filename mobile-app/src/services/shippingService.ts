@@ -27,6 +27,12 @@ import type { CartItem } from '../types';
 export type ShippingZone = 'NCR' | 'Luzon' | 'Visayas' | 'Mindanao';
 export type ShippingMethod = 'standard' | 'economy' | 'same_day' | 'bulky';
 
+/**
+ * Static international surcharge (₱) added on top of the J&T calculation
+ * when the buyer's address is outside the Philippines.
+ */
+const INTERNATIONAL_STATIC_FEE = 70;
+
 // ---------------------------------------------------------------------------
 // Philippine island-group bounding boxes (geographic constants, NOT config)
 // Source: approximate island-group extents used for logistics zone classification
@@ -147,7 +153,7 @@ async function fetchShippingConfig(): Promise<ShippingConfigRow> {
         return _configCache;
     }
 
-    const { data, error } = await supabase
+    const { data, error } = await (supabase as any)
         .from('shipping_config')
         .select('*')
         .limit(1)
@@ -166,7 +172,7 @@ async function fetchShippingConfig(): Promise<ShippingConfigRow> {
         };
     }
 
-    _configCache = data as ShippingConfigRow;
+    _configCache = data as unknown as ShippingConfigRow;
     _configCacheTime = now;
     return _configCache;
 }
@@ -175,7 +181,7 @@ async function fetchShippingZones(
     originZone: ShippingZone,
     destinationZone: ShippingZone,
 ): Promise<ShippingZoneRow[]> {
-    const { data, error } = await supabase
+    const { data, error } = await (supabase as any)
         .from('shipping_zones')
         .select('*')
         .eq('origin_zone', originZone)
@@ -197,6 +203,7 @@ export interface ShippingBreakdown {
     weightSurcharge: number; // Sw = max(0, Wc−1) × per_kg_increment
     valuationFee: number;    // Fv = total_item_value × insurance_rate
     odzFee: number;          // from shipping_zones.odz_fee
+    internationalFee: number; // Static ₱70 surcharge for international buyers (0 for domestic)
 }
 
 export interface ShippingMethodOption {
@@ -218,6 +225,10 @@ export interface SellerShippingResult {
     methods: ShippingMethodOption[];
     defaultMethod: ShippingMethodOption | null;
     error: string | null;
+    /** true if seller had GPS coords or province text data for origin zone. */
+    sellerHasOrigin: boolean;
+    /** Non-blocking warning message (e.g. seller missing origin). */
+    warning: string | null;
 }
 
 export interface SellerShippingInput {
@@ -277,28 +288,32 @@ function buildMethodOption(
     config: ShippingConfigRow,
     originZone: ShippingZone,
     destinationZone: ShippingZone,
+    isInternational: boolean = false,
 ): ShippingMethodOption {
     const Sw = Math.max(0, chargeableWeight - 1) * config.per_kg_increment;
     const Fv = totalValue * config.insurance_rate;
-    const fee = Math.round(row.base_rate + Sw + Fv + row.odz_fee);
+    const intlFee = isInternational ? INTERNATIONAL_STATIC_FEE : 0;
+    const fee = Math.round(row.base_rate + Sw + Fv + row.odz_fee + intlFee);
 
     const daysMin = row.estimated_days_min;
     const daysMax = row.estimated_days_max;
+    const method = row.shipping_method as ShippingMethod;
     const estimatedDays = daysMin === 0 && daysMax === 0
-        ? 'Today'
+        ? (method === 'same_day' ? 'Today' : 'Estimate unavailable')
         : daysMin === daysMax
             ? `${daysMin} day${daysMin !== 1 ? 's' : ''}`
             : `${daysMin}–${daysMax} days`;
 
     return {
-        method: row.shipping_method as ShippingMethod,
-        label: METHOD_LABELS[row.shipping_method as ShippingMethod] ?? row.shipping_method,
+        method,
+        label: METHOD_LABELS[method] ?? row.shipping_method,
         fee,
         breakdown: {
             baseRate: row.base_rate,
             weightSurcharge: parseFloat(Sw.toFixed(2)),
             valuationFee: parseFloat(Fv.toFixed(2)),
             odzFee: row.odz_fee,
+            internationalFee: intlFee,
         },
         estimatedDays,
         originZone,
@@ -325,9 +340,13 @@ export async function calculateShippingForSellers(
     buyerRegion?: string | null,
 ): Promise<SellerShippingResult[]> {
     // Resolve buyer destination zone once (shared across all sellers)
-    const destinationZone: ShippingZone = buyerCoords
-        ? (getZoneFromCoords(buyerCoords.latitude, buyerCoords.longitude) ?? getZoneFromText(buyerProvince ?? null, buyerRegion ?? null))
-        : getZoneFromText(buyerProvince ?? null, buyerRegion ?? null);
+    // If buyer coords are outside PH, getZoneFromCoords returns null → international
+    const buyerZoneFromCoords = buyerCoords
+        ? getZoneFromCoords(buyerCoords.latitude, buyerCoords.longitude)
+        : null;
+    const isInternational = buyerCoords !== null && buyerZoneFromCoords === null;
+    const destinationZone: ShippingZone = buyerZoneFromCoords
+        ?? getZoneFromText(buyerProvince ?? null, buyerRegion ?? null);
 
     // Fetch config once for all sellers
     const config = await fetchShippingConfig();
@@ -336,10 +355,21 @@ export async function calculateShippingForSellers(
 
     for (const input of sellerInputs) {
         try {
+            // Determine if seller has any origin data at all
+            const hasCoords = input.sellerCoords !== null;
+            const hasProvince = !!(input.sellerProvince && input.sellerProvince.trim());
+            const hasRegion = !!(input.sellerRegion && input.sellerRegion.trim());
+            const sellerHasOrigin = hasCoords || hasProvince || hasRegion;
+
             // Resolve seller origin zone
-            const originZone: ShippingZone = input.sellerCoords
-                ? (getZoneFromCoords(input.sellerCoords.latitude, input.sellerCoords.longitude) ?? getZoneFromText(input.sellerProvince ?? null, input.sellerRegion ?? null))
+            const originZone: ShippingZone = hasCoords
+                ? (getZoneFromCoords(input.sellerCoords!.latitude, input.sellerCoords!.longitude) ?? getZoneFromText(input.sellerProvince ?? null, input.sellerRegion ?? null))
                 : getZoneFromText(input.sellerProvince ?? null, input.sellerRegion ?? null);
+
+            // Build warning for missing origin (soft warning — does NOT block checkout)
+            const warning: string | null = sellerHasOrigin
+                ? null
+                : `Seller "${input.sellerName}" has not set a shipping origin. Shipping is estimated from Metro Luzon and may not be accurate.`;
 
             const chargeableWeight = computeChargeableWeight(input.items, config.volumetric_divisor);
             const totalValue = computeTotalItemValue(input.items);
@@ -358,6 +388,8 @@ export async function calculateShippingForSellers(
                     methods: [],
                     defaultMethod: null,
                     error: 'Shipping rates unavailable for this route. Please try again later.',
+                    sellerHasOrigin,
+                    warning,
                 });
                 continue;
             }
@@ -383,7 +415,7 @@ export async function calculateShippingForSellers(
                     }
                 }
 
-                methods.push(buildMethodOption(row, chargeableWeight, totalValue, config, originZone, destinationZone));
+                methods.push(buildMethodOption(row, chargeableWeight, totalValue, config, originZone, destinationZone, isInternational));
             }
 
             // Sort: standard first, then economy, same_day, bulky
@@ -399,6 +431,8 @@ export async function calculateShippingForSellers(
                 methods,
                 defaultMethod: methods[0] ?? null,
                 error: null,
+                sellerHasOrigin,
+                warning,
             });
         } catch (err: any) {
             console.error(`[shippingService] Error for seller ${input.sellerId}:`, err.message);
@@ -411,6 +445,8 @@ export async function calculateShippingForSellers(
                 methods: [],
                 defaultMethod: null,
                 error: err.message ?? 'Shipping calculation failed.',
+                sellerHasOrigin: false,
+                warning: null,
             });
         }
     }

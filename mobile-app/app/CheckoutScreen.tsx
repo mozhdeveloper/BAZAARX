@@ -499,12 +499,16 @@ export default function CheckoutScreen({ navigation, route }: Props) {
 
         setShippingResults(results);
 
-        // Auto-select default method for sellers without a selection
+        // Auto-select default method for sellers without a selection,
+        // and auto-clear stale selections whose method is no longer available.
         setSelectedMethods(prev => {
           const updated = { ...prev };
           for (const r of results) {
             if (!updated[r.sellerId] && r.defaultMethod) {
               updated[r.sellerId] = r.defaultMethod.method;
+            } else if (updated[r.sellerId] && !r.methods.find(m => m.method === updated[r.sellerId])) {
+              // Stale selection — auto-fallback to default
+              updated[r.sellerId] = r.defaultMethod?.method ?? '';
             }
           }
           return updated;
@@ -517,6 +521,63 @@ export default function CheckoutScreen({ navigation, route }: Props) {
     }, 300);
 
     return () => { if (shippingTimerRef.current) clearTimeout(shippingTimerRef.current); };
+  }, [selectedAddress, groupedCheckoutItems, sellerMetadata, addressValidation?.valid]);
+
+  // BX-09-001 — Retry shipping calculation (used by ShippingMethodPicker error state)
+  const retryShipping = useCallback(() => {
+    // Clear results and force recalculation by toggling the calculating state
+    setShippingResults([]);
+    setIsCalculatingShipping(true);
+    // Clear the timer and set a short debounce to re-trigger the useEffect
+    if (shippingTimerRef.current) clearTimeout(shippingTimerRef.current);
+    shippingTimerRef.current = setTimeout(() => {
+      // The useEffect above will fire because shippingResults was cleared
+      // We manually invoke the same logic here for immediate retry
+      (async () => {
+        try {
+          if (!selectedAddress || !addressValidation?.valid) return;
+
+          const buyerCoords = selectedAddress.coordinates?.latitude
+            ? { latitude: selectedAddress.coordinates.latitude, longitude: selectedAddress.coordinates.longitude }
+            : null;
+
+          const sellerInputs = Object.entries(groupedCheckoutItems).map(([sellerId, items]) => {
+            const meta = sellerMetadata[sellerId];
+            return {
+              sellerId,
+              sellerName: meta?.storeName || items[0]?.seller || 'Unknown Seller',
+              sellerCoords: meta?.coords || null,
+              sellerProvince: meta?.province,
+              sellerRegion: meta?.region,
+              items,
+            };
+          });
+
+          const { calculateShippingForSellers } = require('@/services/shippingService');
+          const results = await calculateShippingForSellers(
+            sellerInputs,
+            buyerCoords,
+            selectedAddress.province,
+            selectedAddress.region
+          );
+
+          setShippingResults(results);
+          setSelectedMethods(prev => {
+            const updated = { ...prev };
+            for (const r of results) {
+              if (!updated[r.sellerId] && r.defaultMethod) {
+                updated[r.sellerId] = r.defaultMethod.method;
+              }
+            }
+            return updated;
+          });
+        } catch (err) {
+          console.error('[Checkout] Retry shipping failed:', err);
+        } finally {
+          setIsCalculatingShipping(false);
+        }
+      })();
+    }, 100);
   }, [selectedAddress, groupedCheckoutItems, sellerMetadata, addressValidation?.valid]);
 
   // BX-09-001 — Per-store shipping fees derived from shippingResults
@@ -1723,6 +1784,17 @@ export default function CheckoutScreen({ navigation, route }: Props) {
       return;
     }
 
+    // BX-09-001 — Block if any seller has no available shipping methods
+    const noMethodSellers = shippingResults.filter(r => r.methods.length === 0 && r.error === null);
+    if (noMethodSellers.length > 0) {
+      Alert.alert(
+        'No Shipping Available',
+        `No shipping options are available for: ${noMethodSellers.map(s => s.sellerName).join(', ')}. This may be due to the delivery route or item restrictions.`,
+        [{ text: 'OK' }]
+      );
+      return;
+    }
+
     // BX-09-002 — Final method revalidation
     // Catches stale selections (e.g., buyer selected same-day then changed address to non-NCR)
     for (const result of shippingResults) {
@@ -2128,6 +2200,8 @@ export default function CheckoutScreen({ navigation, route }: Props) {
                       }}
                       isLoading={isCalculatingShipping}
                       error={sellerResult?.error ?? null}
+                      warning={sellerResult?.warning ?? null}
+                      onRetry={retryShipping}
                     />
                   </View>
                   {/* Per-Store Subtotal Including Shipping */}
