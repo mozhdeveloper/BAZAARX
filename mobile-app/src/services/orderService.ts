@@ -551,7 +551,7 @@ export class OrderService {
     try {
       const { data, error } = await supabase
         .from('orders')
-        .select('id, order_number, buyer_id, payment_status, shipment_status, paid_at, created_at, updated_at, order_items(id, product_id, product_name, price, price_discount, quantity, thumbnail_url)')
+        .select('id, order_number, buyer_id, payment_status, shipment_status, paid_at, created_at, updated_at, order_items(id, product_id, product_name, price, price_discount, quantity, primary_image_url)')
         .eq('buyer_id', buyerId)
         .order('created_at', { ascending: false })
         .limit(50);
@@ -581,7 +581,7 @@ export class OrderService {
         .select(`
           id, order_number, buyer_id, payment_status, shipment_status, paid_at, order_type, created_at, updated_at, address_id,
           order_items(
-            id, product_id, product_name, price, price_discount, quantity, thumbnail_url,
+            id, product_id, product_name, price, price_discount, quantity, primary_image_url,
             variant:product_variants(id, variant_name, size, color, price, thumbnail_url)
           ),
           order_vouchers(

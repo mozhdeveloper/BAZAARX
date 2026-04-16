@@ -17,7 +17,7 @@ END $$;
 
 -- Drop policies that may depend on order_id type before ALTER COLUMN TYPE.
 -- They will be recreated at the end of this migration.
-DROP POLICY IF EXISTS "Buyers can read own order sahipments" ON public.order_shipments;
+DROP POLICY IF EXISTS "Buyers can read own order shipments" ON public.order_shipments;
 DROP POLICY IF EXISTS "Buyers can read own order shipments" ON public.order_shipments;
 DROP POLICY IF EXISTS "Sellers can read own shipments" ON public.order_shipments;
 DROP POLICY IF EXISTS "Sellers can update own shipments" ON public.order_shipments;
