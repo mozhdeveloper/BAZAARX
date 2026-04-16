@@ -27,6 +27,13 @@ export interface Message {
   message_type?: 'user' | 'system' | 'text' | 'image' | 'video' | 'document';
   message_content?: string;
   order_event_type?: string;
+  // Reply-to support
+  reply_to_message_id?: string | null;
+  reply_to_content?: string;          // Joined — not in DB
+  reply_to_sender_type?: 'buyer' | 'seller'; // Joined — not in DB
+  // UI-only fields (not persisted)
+  _status?: 'sending' | 'failed';
+  _pendingUpload?: any;
 }
 
 export interface Conversation {
@@ -41,7 +48,7 @@ export interface Conversation {
   last_message_at?: string;
   buyer_unread_count?: number;
   seller_unread_count?: number;
-  is_online?: boolean; 
+  is_online?: boolean;
   isOnline?: boolean;
   last_sender_type?: 'buyer' | 'seller' | null;
   // Joined profile data
@@ -62,6 +69,10 @@ export interface Conversation {
   seller?: {
     store_name?: string;
   };
+}
+
+export interface SendMessageOptions {
+  targetSellerId?: string;
 }
 
 class ChatService {
@@ -92,7 +103,7 @@ class ChatService {
           .eq('order_id', orderId)
           .limit(1)
           .single();
-          
+
         return (joinData?.product as any)?.seller_id || null;
       }
 
@@ -114,10 +125,14 @@ class ChatService {
   /**
    * Helper: Get buyer's full name from profile
    */
-  private getBuyerFullName(profile: { first_name?: string; last_name?: string }): string {
+  private getBuyerFullName(profile: { first_name?: string; last_name?: string; email?: string }): string {
     const firstName = profile.first_name || '';
     const lastName = profile.last_name || '';
-    return `${firstName} ${lastName}`.trim() || 'Unknown Buyer';
+    const full = `${firstName} ${lastName}`.trim();
+    if (full) return full;
+    // Fallback to email prefix if name is empty
+    if (profile.email) return profile.email.split('@')[0];
+    return 'Unknown Buyer';
   }
 
   /**
@@ -130,29 +145,32 @@ class ChatService {
     sellerUnreadCount: number;
     lastSenderType: 'buyer' | 'seller' | null;
   }> {
-    // Get last message
-    const { data: lastMsg } = await supabase
-      .from('messages')
-      .select('content, message_content, message_type, sender_type, created_at')
-      .eq('conversation_id', conversationId)
-      .order('created_at', { ascending: false })
-      .limit(1)
-      .single();
+    // Step 11: Run all 3 stats queries in parallel
+    const [lastMsgResult, buyerUnreadResult, sellerUnreadResult] = await Promise.all([
+      supabase
+        .from('messages')
+        .select('content, message_content, message_type, sender_type, created_at')
+        .eq('conversation_id', conversationId)
+        .order('created_at', { ascending: false })
+        .limit(1)
+        .single(),
+      supabase
+        .from('messages')
+        .select('id', { count: 'exact', head: true })
+        .eq('conversation_id', conversationId)
+        .eq('sender_type', 'seller')
+        .eq('is_read', false),
+      supabase
+        .from('messages')
+        .select('id', { count: 'exact', head: true })
+        .eq('conversation_id', conversationId)
+        .eq('sender_type', 'buyer')
+        .eq('is_read', false),
+    ]);
 
-    // Get unread counts
-    const { count: buyerUnread } = await supabase
-      .from('messages')
-      .select('id', { count: 'exact', head: true })
-      .eq('conversation_id', conversationId)
-      .eq('sender_type', 'seller')
-      .eq('is_read', false);
-
-    const { count: sellerUnread } = await supabase
-      .from('messages')
-      .select('id', { count: 'exact', head: true })
-      .eq('conversation_id', conversationId)
-      .eq('sender_type', 'buyer')
-      .eq('is_read', false);
+    const lastMsg = lastMsgResult.data;
+    const buyerUnread = buyerUnreadResult.count;
+    const sellerUnread = sellerUnreadResult.count;
 
     const mediaPreviewMap: Record<string, string> = {
       image: '📷 Photo',
@@ -175,11 +193,63 @@ class ChatService {
   }
 
   /**
-   * Get or create a conversation between a buyer and seller
-   * Note: New schema doesn't have seller_id, but we track via order or messages
+   * Store lightweight metadata on buyer messages so direct (non-order) chats
+   * can be re-resolved even before the seller replies.
+   */
+  private buildBuyerMessageMetadata(targetSellerId?: string): string | null {
+    if (!targetSellerId) return null;
+    return JSON.stringify({
+      schema: 'buyer_chat_metadata_v1',
+      targetSellerId,
+    });
+  }
+
+  /**
+   * Parse seller hint metadata from buyer-authored message_content JSON.
+   */
+  private parseBuyerMessageMetadata(messageContent?: string | null): { targetSellerId: string } | null {
+    if (!messageContent || messageContent[0] !== '{') return null;
+    try {
+      const parsed = JSON.parse(messageContent);
+      const targetSellerId = typeof parsed?.targetSellerId === 'string'
+        ? parsed.targetSellerId
+        : (typeof parsed?.target_seller_id === 'string' ? parsed.target_seller_id : null);
+      if (!targetSellerId) return null;
+      return { targetSellerId };
+    } catch {
+      return null;
+    }
+  }
+
+  /**
+   * Resolve seller ID from buyer message metadata within a conversation.
+   */
+  private async getSellerIdFromBuyerMessageMetadata(conversationId: string): Promise<string | null> {
+    const { data: buyerMsgs } = await supabase
+      .from('messages')
+      .select('message_content, created_at')
+      .eq('conversation_id', conversationId)
+      .eq('sender_type', 'buyer')
+      .not('message_content', 'is', null)
+      .order('created_at', { ascending: false })
+      .limit(10);
+
+    for (const msg of buyerMsgs || []) {
+      const meta = this.parseBuyerMessageMetadata((msg as any).message_content);
+      if (meta?.targetSellerId) return meta.targetSellerId;
+    }
+
+    return null;
+  }
+
+  /**
+   * Get or create a conversation between a buyer and seller.
+   * Robust lookup to prevent duplicate conversations for the same buyer-seller pair.
+   * Since the conversations table has NO seller_id column, we resolve via:
+   *   1) order_id match, 2) seller messages, 3) order→product→seller resolution.
    */
   async getOrCreateConversation(buyerId: string, sellerId: string, orderId?: string): Promise<Conversation | null> {
-    // First, try to find existing conversation via order if provided
+    // 1. If orderId provided, look for order-specific conversation first
     if (orderId) {
       const { data: existing, error: findError } = await supabase
         .from('conversations')
@@ -193,28 +263,64 @@ class ChatService {
       }
     }
 
-    // Try to find by buyer_id and check if any messages involve this seller
+    // 2. Batch: find ANY message from this seller across all buyer conversations
     const { data: convList } = await supabase
       .from('conversations')
       .select('id, buyer_id, order_id, created_at, updated_at')
       .eq('buyer_id', buyerId);
 
-    for (const conv of convList || []) {
-      // Check if this conversation has messages from/to this seller
-      const { data: sellerMsg } = await supabase
+    if (convList && convList.length > 0) {
+      const convIds = convList.map(c => c.id);
+
+      // Single query: check if seller has sent any messages in any of these conversations
+      const { data: sellerMsgs } = await supabase
         .from('messages')
-        .select('id')
-        .eq('conversation_id', conv.id)
+        .select('conversation_id')
+        .in('conversation_id', convIds)
         .eq('sender_id', sellerId)
         .limit(1)
-        .single();
+        .maybeSingle();
 
-      if (sellerMsg) {
-        return this.enrichConversation(conv, sellerId);
+      if (sellerMsgs) {
+        const matchedConv = convList.find(c => c.id === sellerMsgs.conversation_id);
+        if (matchedConv) return this.enrichConversation(matchedConv, sellerId);
+      }
+
+      // Fallback: resolve by buyer message metadata (direct non-order chat hint)
+      const { data: buyerHintMessages } = await supabase
+        .from('messages')
+        .select('conversation_id, message_content, created_at')
+        .in('conversation_id', convIds)
+        .eq('sender_type', 'buyer')
+        .not('message_content', 'is', null)
+        .ilike('message_content', `%${sellerId}%`)
+        .order('created_at', { ascending: false })
+        .limit(200);
+
+      if (buyerHintMessages && buyerHintMessages.length > 0) {
+        for (const msg of buyerHintMessages) {
+          const meta = this.parseBuyerMessageMetadata((msg as any).message_content);
+          if (meta?.targetSellerId !== sellerId) continue;
+          const matchedConv = convList.find(c => c.id === msg.conversation_id);
+          if (matchedConv) return this.enrichConversation(matchedConv, sellerId);
+        }
+      }
+
+      // Fallback: check order → seller resolution in parallel
+      const orderConvs = convList.filter(c => c.order_id);
+      if (orderConvs.length > 0) {
+        const orderResults = await Promise.all(
+          orderConvs.map(async (conv) => {
+            const resolvedSellerId = await this.getSellerIdFromOrder(conv.order_id!);
+            return { conv, match: resolvedSellerId === sellerId };
+          })
+        );
+        const matched = orderResults.find(r => r.match);
+        if (matched) return this.enrichConversation(matched.conv, sellerId);
       }
     }
 
-    // Create new conversation
+    // 3. No existing conversation found — create new
     const { data: newConv, error: createError } = await supabase
       .from('conversations')
       .insert({
@@ -236,28 +342,13 @@ class ChatService {
    * Enrich conversation with buyer/seller info and computed fields
    */
   private async enrichConversation(conv: any, sellerId?: string): Promise<Conversation> {
-    // Get buyer info using new schema (first_name, last_name)
-    const { data: buyer } = await supabase
-      .from('profiles')
-      .select('first_name, last_name, email')
-      .eq('id', conv.buyer_id)
-      .single();
-
-    const { data: buyerData } = await supabase
-      .from('buyers')
-      .select('avatar_url')
-      .eq('id', conv.buyer_id)
-      .single();
-
-    // Try to get seller from order if not provided
-    // Prioritize passed sellerId, then conv.seller_id (if migration applied), then order resolution
+    // Step 1: Resolve seller ID (must be sequential — depends on order/messages fallback)
     let resolvedSellerId = sellerId || conv.seller_id;
-    
+
     if (!resolvedSellerId && conv.order_id) {
       resolvedSellerId = await this.getSellerIdFromOrder(conv.order_id) || undefined;
     }
 
-    // Fallback: If still no seller, try to find from messages (last resort for old chats)
     if (!resolvedSellerId) {
       const { data: msg } = await supabase
         .from('messages')
@@ -265,38 +356,52 @@ class ChatService {
         .eq('conversation_id', conv.id)
         .eq('sender_type', 'seller')
         .limit(1)
-        .single();
-      
-      if (msg) {
-        resolvedSellerId = msg.sender_id;
+        .maybeSingle();
+      if (msg?.sender_id) resolvedSellerId = msg.sender_id;
+    }
+
+    if (!resolvedSellerId) {
+      resolvedSellerId = await this.getSellerIdFromBuyerMessageMetadata(conv.id) || undefined;
+    }
+
+    // Step 11: Batch all remaining independent queries in parallel
+    const sellerQuery = resolvedSellerId
+      ? supabase.from('sellers').select('store_name, avatar_url').eq('id', resolvedSellerId).single()
+      : Promise.resolve({ data: null, error: null });
+
+    const presenceUserId = conv.buyer_id;
+    const [
+      { data: buyer },
+      { data: buyerData },
+      { data: sellerData },
+      { data: presence },
+      stats,
+    ] = await Promise.all([
+      supabase.from('profiles').select('first_name, last_name, email').eq('id', conv.buyer_id).single(),
+      supabase.from('buyers').select('avatar_url').eq('id', conv.buyer_id).single(),
+      sellerQuery,
+      supabase.from('user_presence').select('is_online').eq('user_id', presenceUserId).maybeSingle(),
+      this.getConversationStats(conv.id, conv.buyer_id, resolvedSellerId),
+    ]);
+
+    const seller = sellerData;
+    let sellerStoreName = 'Unknown Store';
+    if (seller?.store_name) {
+      sellerStoreName = seller.store_name;
+    } else if (resolvedSellerId) {
+      // Fallback: profile name (only if no store_name)
+      const { data: sellerProfile } = await supabase
+        .from('profiles')
+        .select('first_name, last_name')
+        .eq('id', resolvedSellerId)
+        .maybeSingle();
+      if (sellerProfile) {
+        const name = `${sellerProfile.first_name || ''} ${sellerProfile.last_name || ''}`.trim();
+        if (name) sellerStoreName = name;
       }
     }
 
-    let seller = null;
-    if (resolvedSellerId) {
-      const { data } = await supabase
-        .from('sellers')
-        .select('store_name, avatar_url')
-        .eq('id', resolvedSellerId)
-        .single();
-      seller = data;
-    }
-
-    // Fetch Real-time Presence
-    let isOnline = false;
-    const targetUserId = resolvedSellerId || conv.buyer_id;
-    if (targetUserId) {
-        const { data: presence } = await supabase
-            .from('user_presence')
-            .select('is_online')
-            .eq('user_id', targetUserId)
-            .maybeSingle();
-        isOnline = !!presence?.is_online;
-    }
-
-    // Get conversation stats
-    const stats = await this.getConversationStats(conv.id, conv.buyer_id, resolvedSellerId);
-
+    const isOnline = !!presence?.is_online;
     const buyerFullName = buyer ? this.getBuyerFullName(buyer as any) : 'Unknown Buyer';
 
     return {
@@ -305,7 +410,7 @@ class ChatService {
       buyer_name: buyerFullName,
       buyer_email: buyer?.email,
       buyer_avatar: buyerData?.avatar_url,
-      seller_store_name: seller?.store_name,
+      seller_store_name: sellerStoreName,
       seller_avatar: seller?.avatar_url,
       last_message: stats.lastMessage,
       last_message_at: stats.lastMessageAt || conv.updated_at,
@@ -353,9 +458,19 @@ class ChatService {
       })
     );
 
-    // Filter out empty conversations (no messages yet), then sort by last_message_at
-    return enrichedConversations
-      .filter((c) => !!c.last_message)
+    // Step 8: Deduplicate by seller_id — keep most recent per seller, skip unresolvable
+    const sellerMap = new Map<string, Conversation>();
+    for (const conv of enrichedConversations) {
+      if (!conv.seller_id) continue; // Step 8: skip conversations with no resolved seller
+      if (!conv.last_message) continue; // skip empty conversations
+      const sid = conv.seller_id;
+      const existing = sellerMap.get(sid);
+      if (!existing || new Date(conv.last_message_at || conv.updated_at).getTime() > new Date(existing.last_message_at || existing.updated_at).getTime()) {
+        sellerMap.set(sid, conv);
+      }
+    }
+
+    return Array.from(sellerMap.values())
       .sort((a, b) =>
         new Date(b.last_message_at || b.updated_at).getTime() -
         new Date(a.last_message_at || a.updated_at).getTime()
@@ -367,14 +482,36 @@ class ChatService {
    * New schema: no seller_id in conversations, so we find via messages
    */
   async getSellerConversations(sellerId: string): Promise<Conversation[]> {
-    // Find all conversations where this seller has sent/received messages
+    // Find all conversations where this seller has messages or buyer metadata hints.
     const { data: sellerMessages } = await supabase
       .from('messages')
       .select('conversation_id')
       .eq('sender_id', sellerId)
       .eq('sender_type', 'seller');
 
-    const conversationIds = [...new Set(sellerMessages?.map(m => m.conversation_id) || [])];
+    // For first-time buyer-initiated direct chats, seller may not have replied yet.
+    // Use buyer metadata hints to discover those conversations.
+    const { data: buyerHintMessages } = await supabase
+      .from('messages')
+      .select('conversation_id, message_content, created_at')
+      .eq('sender_type', 'buyer')
+      .not('message_content', 'is', null)
+      .ilike('message_content', `%${sellerId}%`)
+      .order('created_at', { ascending: false })
+      .limit(500);
+
+    const hintedConversationIds = new Set<string>();
+    for (const msg of buyerHintMessages || []) {
+      const meta = this.parseBuyerMessageMetadata((msg as any).message_content);
+      if (meta?.targetSellerId === sellerId) {
+        hintedConversationIds.add(msg.conversation_id);
+      }
+    }
+
+    const conversationIds = [...new Set([
+      ...(sellerMessages?.map(m => m.conversation_id) || []),
+      ...Array.from(hintedConversationIds),
+    ])];
 
     if (conversationIds.length === 0) {
       return [];
@@ -402,11 +539,59 @@ class ChatService {
       })
     );
 
-    // Sort by last_message_at
-    return enrichedConversations.sort((a, b) => 
-      new Date(b.last_message_at || b.updated_at).getTime() - 
-      new Date(a.last_message_at || a.updated_at).getTime()
-    );
+    // Deduplicate by buyer_id — keep conversation with most recent message per buyer
+    const buyerMap = new Map<string, Conversation>();
+    for (const conv of enrichedConversations) {
+      const bid = conv.buyer_id;
+      const existing = buyerMap.get(bid);
+      if (!existing || new Date(conv.last_message_at || conv.updated_at).getTime() > new Date(existing.last_message_at || existing.updated_at).getTime()) {
+        buyerMap.set(bid, conv);
+      }
+    }
+
+    return Array.from(buyerMap.values())
+      .sort((a, b) =>
+        new Date(b.last_message_at || b.updated_at).getTime() -
+        new Date(a.last_message_at || a.updated_at).getTime()
+      );
+  }
+
+  /**
+   * Fetch and enrich a single buyer conversation for fast realtime insertion.
+   * Returns null if the conversation does not belong to the buyer or has no
+   * resolvable seller/last message yet.
+   */
+  async getBuyerConversationById(conversationId: string, buyerId: string): Promise<Conversation | null> {
+    const { data: conv, error } = await supabase
+      .from('conversations')
+      .select('id, buyer_id, order_id, created_at, updated_at')
+      .eq('id', conversationId)
+      .eq('buyer_id', buyerId)
+      .maybeSingle();
+
+    if (error || !conv) return null;
+
+    const enriched = await this.enrichConversation(conv);
+    if (!enriched.seller_id || !enriched.last_message) return null;
+    return enriched;
+  }
+
+  /**
+   * Fetch and enrich a single seller conversation for fast realtime insertion.
+   * Returns null if the seller is not a participant or no last message exists yet.
+   */
+  async getSellerConversationById(conversationId: string, sellerId: string): Promise<Conversation | null> {
+    const { data: conv, error } = await supabase
+      .from('conversations')
+      .select('id, buyer_id, order_id, created_at, updated_at')
+      .eq('id', conversationId)
+      .maybeSingle();
+
+    if (error || !conv) return null;
+
+    const enriched = await this.enrichConversation(conv, sellerId);
+    if (enriched.seller_id !== sellerId || !enriched.last_message) return null;
+    return enriched;
   }
 
   /**
@@ -415,7 +600,7 @@ class ChatService {
   async getMessages(conversationId: string): Promise<Message[]> {
     const { data, error } = await supabase
       .from('messages')
-      .select('id, conversation_id, sender_id, sender_type, content, message_content, created_at, is_read, message_type, image_url, media_url, media_type')
+      .select('id, conversation_id, sender_id, sender_type, content, message_content, created_at, is_read, message_type, image_url, media_url, media_type, reply_to_message_id')
       .eq('conversation_id', conversationId)
       .order('created_at', { ascending: true })
       .limit(100);
@@ -425,13 +610,27 @@ class ChatService {
       return [];
     }
 
-    return (data || []).map((msg: any) => ({
+    const messages: Message[] = (data || []).map((msg: any) => ({
       ...msg,
       // Normalize legacy image_url into media_url for old rows
       media_url: msg.media_url || msg.image_url || undefined,
       media_type: msg.media_type || (msg.image_url && !msg.media_url ? 'image' : undefined),
       content: msg.message_type === 'system' ? msg.message_content : msg.content,
     }));
+
+    // Resolve reply-to references from the local array
+    const msgMap = new Map(messages.map(m => [m.id, m]));
+    for (const msg of messages) {
+      if (msg.reply_to_message_id) {
+        const original = msgMap.get(msg.reply_to_message_id);
+        if (original) {
+          msg.reply_to_content = original.content;
+          msg.reply_to_sender_type = original.sender_type;
+        }
+      }
+    }
+
+    return messages;
   }
 
   /**
@@ -445,8 +644,14 @@ class ChatService {
     content: string,
     imageUrl?: string,
     mediaUrl?: string,
-    mediaType?: 'image' | 'video' | 'document'
+    mediaType?: 'image' | 'video' | 'document',
+    replyToMessageId?: string,
+    options?: SendMessageOptions
   ): Promise<Message | null> {
+    const buyerMessageMetadata = senderType === 'buyer'
+      ? this.buildBuyerMessageMetadata(options?.targetSellerId)
+      : null;
+
     const { data: message, error: msgError } = await supabase
       .from('messages')
       .insert({
@@ -458,7 +663,9 @@ class ChatService {
         media_url: mediaUrl || null,
         media_type: mediaType || null,
         message_type: mediaType || 'text',
+        message_content: buyerMessageMetadata,
         is_read: false,
+        reply_to_message_id: replyToMessageId || null,
       } as any)
       .select()
       .single();
@@ -485,10 +692,13 @@ class ChatService {
 
     // Send notification to the recipient
     try {
-      if (senderType === 'buyer' && conv?.order_id) {
-        // Buyer sent message → try to notify seller via order
-        const sellerId = await this.getSellerIdFromOrder(conv.order_id);
-        if (sellerId) {
+      if (senderType === 'buyer') {
+        // Buyer sent message → notify seller via order or explicit metadata hint.
+        const resolvedTargetSellerId = conv?.order_id
+          ? await this.getSellerIdFromOrder(conv.order_id)
+          : (options?.targetSellerId || await this.getSellerIdFromBuyerMessageMetadata(conversationId));
+
+        if (resolvedTargetSellerId) {
           const { data: buyer } = await supabase
             .from('profiles')
             .select('first_name, last_name')
@@ -498,7 +708,7 @@ class ChatService {
           const buyerName = buyer ? this.getBuyerFullName(buyer as any) : 'A customer';
 
           await notificationService.notifySellerNewMessage({
-            sellerId,
+            sellerId: resolvedTargetSellerId,
             buyerName,
             conversationId,
             messagePreview: content,
@@ -570,7 +780,7 @@ class ChatService {
   async markAsRead(conversationId: string, userId: string, userType: 'buyer' | 'seller'): Promise<void> {
     // Mark all messages from the other party as read
     const otherType = userType === 'buyer' ? 'seller' : 'buyer';
-    
+
     await supabase
       .from('messages')
       .update({ is_read: true })
@@ -594,7 +804,7 @@ class ChatService {
     onMessage: (message: Message) => void
   ): () => void {
     const channelName = `messages:${conversationId}`;
-    
+
     // Unsubscribe from existing if any
     this.unsubscribe(channelName);
 
@@ -754,7 +964,7 @@ class ChatService {
         (payload) => {
           const newRecord = payload.new as any;
           if (newRecord && newRecord.user_id) {
-             onPresenceChange(newRecord.user_id, newRecord.is_online === true);
+            onPresenceChange(newRecord.user_id, newRecord.is_online === true);
           }
         }
       )
@@ -768,8 +978,8 @@ class ChatService {
    * Update Global Presence
    */
   async updateUserPresence(userId: string, status: 'online' | 'offline', platform: 'mobile' | 'web' | 'both'): Promise<void> {
-    await supabase.from('user_presence').upsert({ 
-      user_id: userId, 
+    await supabase.from('user_presence').upsert({
+      user_id: userId,
       is_online: status === 'online',
       last_seen: new Date().toISOString(),
       updated_at: new Date().toISOString()

@@ -109,6 +109,12 @@ export default function MessagesScreen() {
   const [refreshing, setRefreshing] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [debouncedQuery, setDebouncedQuery] = useState('');
+  const conversationsRef = useRef<Conversation[]>([]);
+  const pendingConversationLoadsRef = useRef<Set<string>>(new Set());
+
+  useEffect(() => {
+    conversationsRef.current = conversations;
+  }, [conversations]);
 
   const shimmer = useRef(new Animated.Value(0)).current;
   useEffect(() => {
@@ -140,11 +146,47 @@ export default function MessagesScreen() {
     }
   }, [user?.id]);
 
+  const fetchAndMergeMissingConversation = useCallback(async (conversationId: string) => {
+    if (!user?.id) return;
+    if (pendingConversationLoadsRef.current.has(conversationId)) return;
+
+    pendingConversationLoadsRef.current.add(conversationId);
+    try {
+      const conv = await chatService.getBuyerConversationById(conversationId, user.id);
+      if (!conv) return;
+
+      setConversations(prev => {
+        const merged = [conv, ...prev.filter(c => c.id !== conv.id)];
+        return merged.sort((a, b) =>
+          new Date(b.last_message_at || b.updated_at).getTime() -
+          new Date(a.last_message_at || a.updated_at).getTime()
+        );
+      });
+    } catch (err) {
+      console.error('[BuyerMessages] Error merging realtime conversation:', err);
+    } finally {
+      pendingConversationLoadsRef.current.delete(conversationId);
+    }
+  }, [user?.id]);
+
   useEffect(() => { loadConversations(); }, [loadConversations]);
 
   useEffect(() => {
     if (!user?.id) return;
     return chatService.subscribeToAllNewMessages((newMsg) => {
+      // Ignore buyer messages authored by other users.
+      if (newMsg.sender_type === 'buyer' && newMsg.sender_id !== user.id) {
+        return;
+      }
+
+      const existsInList = conversationsRef.current.some(c => c.id === newMsg.conversation_id);
+
+      // New first-message conversation: fetch and merge in background.
+      if (!existsInList && newMsg.sender_type === 'buyer' && newMsg.sender_id === user.id) {
+        void fetchAndMergeMissingConversation(newMsg.conversation_id);
+        return;
+      }
+
       setConversations(prev => {
         const idx = prev.findIndex(c => c.id === newMsg.conversation_id);
         if (idx === -1) return prev;
@@ -171,7 +213,7 @@ export default function MessagesScreen() {
         );
       });
     });
-  }, [user?.id]);
+  }, [user?.id, fetchAndMergeMissingConversation]);
 
   useFocusEffect(
     useCallback(() => {
@@ -264,12 +306,11 @@ export default function MessagesScreen() {
           <Search size={18} color="#9CA3AF" />
           <TextInput
             style={styles.searchInput}
-            placeholder="Search conversations..."
+            placeholder="Search Conversation"
             placeholderTextColor="#9CA3AF"
             value={searchQuery}
             onChangeText={setSearchQuery}
             returnKeyType="search"
-            clearButtonMode="while-editing"
           />
           {searchQuery.length > 0 && (
             <Pressable onPress={() => setSearchQuery('')} hitSlop={8}>
@@ -350,7 +391,7 @@ const styles = StyleSheet.create({
   unreadCount: { fontSize: 11, fontWeight: '700', color: '#FFFFFF' },
 
   emptyContent: { flex: 1 },
-  emptyState: { flex: 1, alignItems: 'center', justifyContent: 'center', paddingTop: 80 },
+  emptyState: { flex: 1, alignItems: 'center', justifyContent: 'center', paddingBottom: 120 },
   iconContainer: { width: 80, height: 80, borderRadius: 40, backgroundColor: '#F9FAFB', justifyContent: 'center', alignItems: 'center', marginBottom: 20 },
   emptyTitle: { fontSize: 18, fontWeight: '700', color: '#1F2937', marginBottom: 6 },
   emptySubtitle: { fontSize: 14, color: '#9CA3AF', textAlign: 'center', paddingHorizontal: 40 },
