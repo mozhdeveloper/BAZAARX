@@ -15,16 +15,21 @@ as $$
 declare
   v_now timestamptz := now();
   v_payment_status text;
+  v_shipment_status text;
   v_next_payment_status text;
 begin
-  select payment_status
-  into v_payment_status
+  select payment_status, shipment_status
+  into v_payment_status, v_shipment_status
   from public.orders
   where id = p_order_id
   for update;
 
   if not found then
     raise exception 'Order not found: %', p_order_id using errcode = 'P0002';
+  end if;
+
+  if v_shipment_status in ('shipped', 'delivered', 'received') then
+    raise exception 'Cannot cancel an order that has already been shipped or delivered.' using errcode = 'P0001';
   end if;
 
   if v_payment_status in ('paid', 'partially_refunded') then
