@@ -711,13 +711,28 @@ export const processCheckout = async (payload: CheckoutPayload): Promise<Checkou
                         }
                     }
                     if (variantId && variantStockMap.has(variantId)) {
-                        const currentStock = variantStockMap.get(variantId) || 0;
-                        await supabase
-                            .from('product_variants')
-                            .update({ stock: Math.max(0, currentStock - item.quantity) })
-                            .eq('id', variantId);
+                        // Accumulate quantity to subtract per variant
+                        variantUpdateMap.set(variantId, (variantUpdateMap.get(variantId) || 0) + item.quantity);
                     }
                 }
+
+                const updatePromises: any[] = [];
+                for (const [variantId, quantityToDeduct] of variantUpdateMap) {
+                    const currentStock = variantStockMap.get(variantId) || 0;
+                    const updatePromise = supabase
+                        .from('product_variants')
+                        .update({ stock: Math.max(0, currentStock - quantityToDeduct) })
+                        .eq('id', variantId);
+                    updatePromises.push(updatePromise);
+                }
+
+                // Execute all stock updates in parallel
+                if (updatePromises.length > 0) {
+                    const results = await Promise.allSettled(updatePromises);
+                    const failedUpdates = results.filter(r => r.status === 'rejected');
+                    if (failedUpdates.length > 0) {
+                        console.warn('[Checkout] ⚠️ Some stock updates failed:', failedUpdates.map(r => (r as any).reason?.message));
+                    }
             } catch (stockErr) {
                 console.warn('[Checkout] Failed to update stock:', stockErr);
                 // Continue — don't fail checkout for stock update issues

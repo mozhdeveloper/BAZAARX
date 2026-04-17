@@ -55,6 +55,7 @@ export type RootStackParamList = {
   AddressSetup: { signupData: any };
   Login: undefined;
   Signup: undefined;
+  EmailVerification: { email: string; otpAlreadySent?: boolean };
   ForgotPassword: undefined;
   ResetPassword: undefined;
   SellerLogin: undefined;
@@ -126,7 +127,7 @@ export type RootStackParamList = {
 const Stack = createNativeStackNavigator<RootStackParamList>();
 const Tab = createBottomTabNavigator<TabParamList>();
 
-// Deep link configuration for payment callbacks
+// Deep link configuration for payment callbacks and OAuth
 const linking: LinkingOptions<RootStackParamList> = {
   prefixes: ['bazaarx://'],
   config: {
@@ -140,6 +141,10 @@ const linking: LinkingOptions<RootStackParamList> = {
           src: (src: string) => src,
         },
       },
+      // OAuth callback deep link for Google Sign-In redirect
+      // When Supabase redirects after Google auth, it will call: bazaarx://auth/callback?...
+      // This matches the redirectTo in LoginScreen's signInWithOAuth call
+      // Note: Navigation happens via linking, but we handle OAuth in LoginScreen/SplashScreen
     },
   },
 };
@@ -366,6 +371,11 @@ export default function App() {
                 name="ResetPassword"
                 getComponent={() => require('./app/ResetPasswordScreen').default}
                 options={{ animation: 'slide_from_bottom' }}
+              />
+              <Stack.Screen
+                name="EmailVerification"
+                getComponent={() => require('./app/onboarding/EmailVerificationScreen').default}
+                options={{ animation: 'slide_from_right' }}
               />
               <Stack.Screen
                 name="Terms"
