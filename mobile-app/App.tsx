@@ -1,43 +1,43 @@
-import 'react-native-gesture-handler';
-import React, { useEffect, useRef } from 'react';
-import { NavigationContainer, NavigatorScreenParams, LinkingOptions } from '@react-navigation/native';
-import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
+import { LinkingOptions, NavigationContainer, NavigatorScreenParams } from '@react-navigation/native';
+import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { StatusBar } from 'expo-status-bar';
+import { Home, MessageCircle, ShoppingCart, Store, User } from 'lucide-react-native';
+import React, { useRef } from 'react';
+import { AppState, AppStateStatus, LogBox } from 'react-native';
+import 'react-native-gesture-handler';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { SafeAreaProvider, useSafeAreaInsets } from 'react-native-safe-area-context';
-import { Home, Store, ShoppingCart, MessageCircle, User } from 'lucide-react-native';
-import { AppState, AppStateStatus, Linking, LogBox } from 'react-native';
 import type { CartItem } from './src/types';
 
 // ---------------------------------------------------------------------------
 // Eager imports — critical-path screens loaded at startup
 // ---------------------------------------------------------------------------
-import SplashScreen from './app/SplashScreen';
-import OnboardingScreen from './app/OnboardingScreen';
-import LoginScreen from './app/LoginScreen';
-import SignupScreen from './app/SignupScreen';
-import HomeScreen from './app/HomeScreen';
-import ShopScreen from './app/ShopScreen';
 import CartScreen from './app/CartScreen';
-import ProfileScreen from './app/ProfileScreen';
+import HomeScreen from './app/HomeScreen';
+import LoginScreen from './app/LoginScreen';
 import MessagesScreen from './app/MessagesScreen';
+import OnboardingScreen from './app/OnboardingScreen';
+import ProfileScreen from './app/ProfileScreen';
+import ShopScreen from './app/ShopScreen';
+import SignupScreen from './app/SignupScreen';
+import SplashScreen from './app/SplashScreen';
 
 // Onboarding flow (shown right after signup — keep eager)
-import TermsScreen from './app/onboarding/TermsScreen';
-import CategoryPreferenceScreen from './app/onboarding/CategoryPreferenceScreen';
 import AddressSetupScreen from './app/onboarding/AddressSetupScreen';
+import CategoryPreferenceScreen from './app/onboarding/CategoryPreferenceScreen';
+import TermsScreen from './app/onboarding/TermsScreen';
 
 // ---------------------------------------------------------------------------
 // ALL other screens use getComponent — loaded only when navigated to
 // ---------------------------------------------------------------------------
 
 // Import types
-import type { Product, Order } from './src/types';
-import { supabase } from './src/lib/supabase';
-import { useAuthStore } from './src/stores/authStore';
-import { chatService } from './src/services/chatService';
 import { ErrorBoundary } from './src/components/ErrorBoundary';
+import { supabase } from './src/lib/supabase';
+import { chatService } from './src/services/chatService';
+import { useAuthStore } from './src/stores/authStore';
+import type { Order, Product } from './src/types';
 
 // Navigation reference for imperative navigation (used for logout redirect)
 export const navigationRef = React.createRef<any>();
@@ -133,7 +133,7 @@ export type RootStackParamList = {
   CreateTicket: undefined;
   TicketDetail: { ticketId: string };
   Messages: undefined;
-  Categories: undefined;
+  Categories: { categoryId?: string; categoryName?: string } | undefined;
   AddProduct: undefined;
   PaymentCallback: {
     type: 'success' | 'failed' | 'callback' | 'sandbox-ewallet';

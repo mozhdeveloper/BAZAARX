@@ -1,26 +1,26 @@
 // Forced sync at 2026-03-12 11:30
-import React, { useEffect, useState, useMemo, useCallback } from 'react';
-import {
-  View,
-  Text,
-  FlatList,
-  TextInput,
-  Pressable,
-  StyleSheet,
-  Dimensions,
-  ActivityIndicator,
-  StatusBar,
-} from 'react-native';
-import { LinearGradient } from 'expo-linear-gradient';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { Search, FolderOpen, Package, ArrowLeft, ChevronRight } from 'lucide-react-native';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
-import type { RootStackParamList } from '../App';
-import { supabase } from '../src/lib/supabase';
-import { COLORS } from '../src/constants/theme';
-import { safeImageUri } from '../src/utils/imageUtils';
 import { Image as ExpoImage } from 'expo-image';
+import { LinearGradient } from 'expo-linear-gradient';
+import { ArrowLeft, FolderOpen, Search } from 'lucide-react-native';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import {
+    ActivityIndicator,
+    Dimensions,
+    FlatList,
+    Pressable,
+    StatusBar,
+    StyleSheet,
+    Text,
+    TextInput,
+    View,
+} from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import type { RootStackParamList } from '../App';
 import { CURATED_CATEGORY_IMAGES } from '../src/constants/categories';
+import { COLORS } from '../src/constants/theme';
+import { supabase } from '../src/lib/supabase';
+import { safeImageUri } from '../src/utils/imageUtils';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'Categories'>;
 
@@ -107,7 +107,7 @@ const CategoryCard = React.memo(({ item, index, onPress }: { item: Category; ind
   );
 });
 
-export default function CategoriesScreen({ navigation }: Props) {
+export default function CategoriesScreen({ navigation, route }: Props) {
   const insets = useSafeAreaInsets();
   const [allCategories, setAllCategories] = useState<Category[]>([]);
   const [displayCategories, setDisplayCategories] = useState<Category[]>([]);
@@ -115,6 +115,7 @@ export default function CategoriesScreen({ navigation }: Props) {
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedParent, setSelectedParent] = useState<Category | null>(null);
   const [breadcrumb, setBreadcrumb] = useState<string[]>([]);
+  const categoryId = route.params?.categoryId;
 
   useEffect(() => {
     const fetchCategories = async () => {
@@ -164,7 +165,20 @@ export default function CategoriesScreen({ navigation }: Props) {
         // Initially show only main categories (parent_id is null, undefined, or empty string)
         const mainCategories = deduplicated.filter(c => !c.parentId || c.parentId === '' || c.parentId === 'null');
         console.log('[CategoriesScreen] Main categories:', mainCategories.length);
-        setDisplayCategories(mainCategories);
+
+        if (categoryId) {
+          const parentCategory = deduplicated.find((c) => c.id === categoryId);
+          if (parentCategory) {
+            const subcategories = deduplicated.filter((c) => c.parentId === parentCategory.id);
+            setSelectedParent(parentCategory);
+            setBreadcrumb([parentCategory.name]);
+            setDisplayCategories(subcategories);
+          } else {
+            setDisplayCategories(mainCategories);
+          }
+        } else {
+          setDisplayCategories(mainCategories);
+        }
       } catch (err) {
         console.error('[CategoriesScreen] Failed to load categories:', err);
       } finally {
@@ -172,7 +186,7 @@ export default function CategoriesScreen({ navigation }: Props) {
       }
     };
     fetchCategories();
-  }, []);
+  }, [categoryId]);
 
   const filtered = useMemo(() => {
     if (!searchQuery.trim()) return displayCategories;
