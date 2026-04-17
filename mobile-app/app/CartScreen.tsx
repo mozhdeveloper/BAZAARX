@@ -22,11 +22,20 @@ import type { ActiveDiscount } from '../src/types/discount';
 
 
 export default function CartScreen({ navigation, route }: any) {
-  const { items, removeItem, updateQuantity, clearCart, initializeForCurrentUser, clearQuickOrder, updateItemVariant, removeItems } = useCartStore(); // Add clearQuickOrder
+  const { items, removeItem, updateQuantity, clearCart, initializeForCurrentUser, clearQuickOrder, updateItemVariant, removeItems, error } = useCartStore(); // Add clearQuickOrder
   const insets = useSafeAreaInsets();
 
   // Use global theme color
   const BRAND_PRIMARY = COLORS.primary;
+
+  // Handle cart store errors with alert
+  useEffect(() => {
+    if (error) {
+      // Clear the error state immediately to prevent re-renders from queuing multiple alerts
+      useCartStore.setState({ error: null });
+      Alert.alert('Cart Error', error);
+    }
+  }, [error]);
 
   useEffect(() => {
     const init = async () => {
@@ -353,7 +362,14 @@ export default function CartScreen({ navigation, route }: any) {
                     <View style={{ flex: 1 }}>
                       <CartItemRow
                         item={item}
-                        onIncrement={() => updateQuantity(item.cartItemId, item.quantity + 1)}
+                        onIncrement={() => {
+                          const s = getItemStock(item);
+                          if (s !== null && item.quantity >= s) {
+                            Alert.alert('Maximum Stock Reached', `Only ${s} items available.`);
+                            return;
+                          }
+                          updateQuantity(item.cartItemId, item.quantity + 1);
+                        }}
                         onDecrement={() => updateQuantity(item.cartItemId, item.quantity - 1)}
                         onChange={() => {}}
                         onRemove={() => handleRemoveSingle(item)}
