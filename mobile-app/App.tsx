@@ -39,6 +39,9 @@ import { useAuthStore } from './src/stores/authStore';
 import { chatService } from './src/services/chatService';
 import { ErrorBoundary } from './src/components/ErrorBoundary';
 
+// Navigation reference for imperative navigation (used for logout redirect)
+export const navigationRef = React.createRef<any>();
+
 export type TabParamList = {
   Home: undefined;
   Shop: { category?: string; searchQuery?: string; view?: 'featured' };
@@ -55,6 +58,7 @@ export type RootStackParamList = {
   AddressSetup: { signupData: any };
   Login: undefined;
   Signup: undefined;
+  EmailVerification: { email: string; otpAlreadySent?: boolean };
   ForgotPassword: undefined;
   ResetPassword: undefined;
   SellerLogin: undefined;
@@ -146,7 +150,7 @@ export type RootStackParamList = {
 const Stack = createNativeStackNavigator<RootStackParamList>();
 const Tab = createBottomTabNavigator<TabParamList>();
 
-// Deep link configuration for payment callbacks
+// Deep link configuration for payment callbacks and OAuth
 const linking: LinkingOptions<RootStackParamList> = {
   prefixes: ['bazaarx://'],
   config: {
@@ -160,6 +164,10 @@ const linking: LinkingOptions<RootStackParamList> = {
           src: (src: string) => src,
         },
       },
+      // OAuth callback deep link for Google Sign-In redirect
+      // When Supabase redirects after Google auth, it will call: bazaarx://auth/callback?...
+      // This matches the redirectTo in LoginScreen's signInWithOAuth call
+      // Note: Navigation happens via linking, but we handle OAuth in LoginScreen/SplashScreen
     },
   },
 };
@@ -321,6 +329,17 @@ export default function App() {
     return () => subscription.unsubscribe();
   }, []);
 
+  // Handle logout navigation — when user becomes null, navigate to Splash
+  React.useEffect(() => {
+    if (!user && navigationRef.current) {
+      // User has logged out, reset navigation stack to Splash
+      navigationRef.current.reset({
+        index: 0,
+        routes: [{ name: 'Splash' }],
+      });
+    }
+  }, [user]);
+
   // Global Presence Listener
   React.useEffect(() => {
     if (!user?.id) return;
@@ -348,7 +367,7 @@ export default function App() {
     <GestureHandlerRootView style={{ flex: 1 }}>
       <SafeAreaProvider>
         <ErrorBoundary>
-          <NavigationContainer linking={linking}>
+          <NavigationContainer linking={linking} ref={navigationRef}>
             <StatusBar style="dark" />
             <Stack.Navigator
               initialRouteName="Splash"
@@ -386,6 +405,11 @@ export default function App() {
                 name="ResetPassword"
                 getComponent={() => require('./app/ResetPasswordScreen').default}
                 options={{ animation: 'slide_from_bottom' }}
+              />
+              <Stack.Screen
+                name="EmailVerification"
+                getComponent={() => require('./app/onboarding/EmailVerificationScreen').default}
+                options={{ animation: 'slide_from_right' }}
               />
               <Stack.Screen
                 name="Terms"

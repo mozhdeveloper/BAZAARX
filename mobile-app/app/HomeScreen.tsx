@@ -191,6 +191,18 @@ export default function HomeScreen({ navigation }: Props) {
   const BRAND_COLOR = COLORS.primary;
   const { user, isGuest } = useAuthStore();
 
+  // Log user data for debugging (moved from render level to avoid repeated logs)
+  useEffect(() => {
+    if (user?.id) {
+      console.log('[HomeScreen] Current User Data:', {
+        id: user?.id,
+        name: user?.name,
+        email: user?.email,
+        isGuest
+      });
+    }
+  }, [user?.id, user?.name, user?.email, isGuest]);
+
   const [activeTab, setActiveTab] = useState<'Home' | 'Category'>('Home');
   const [showAIChat, setShowAIChat] = useState(false);
   // Removed showNotifications state
@@ -497,14 +509,31 @@ export default function HomeScreen({ navigation }: Props) {
     }
   }, [user?.id, isGuest]);
 
+  // Separate effect for focus listener - only depends on navigation and user ID
+  useEffect(() => {
+    const unsubFocus = navigation.addListener('focus', async () => {
+      if (user?.id && !isGuest) {
+        try {
+          const data = await notificationService.getNotifications(user.id, 'buyer', 20);
+          if (mountedRef.current) {
+            setUnreadCount(data.filter(n => !n.is_read).length);
+          }
+        } catch (error) {
+          console.error('[HomeScreen] Error loading notifications on focus:', error);
+        }
+      }
+    });
+    return () => unsubFocus();
+  }, [navigation, user?.id, isGuest]);
+
+  // Separate effect for setting up subscriptions and polling - only depends on user ID and guest status
   useEffect(() => {
     mountedRef.current = true;
 
-    // Refresh count on focus
-    const unsubFocus = navigation.addListener('focus', () => {
+    // Initial load
+    if (user?.id && !isGuest) {
       loadNotifications();
-    });
-    loadNotifications();
+    }
 
     // Set up persistent real-time subscription if not already set up
     if (user?.id && !isGuest && !unsubRealtimeRef.current) {
@@ -514,10 +543,9 @@ export default function HomeScreen({ navigation }: Props) {
         'buyer',
         (newNotification) => {
           console.log('[HomeScreen] New notification received:', newNotification);
-          // Immediately increment badge and reload
+          // Immediately increment badge
           if (mountedRef.current) {
             setUnreadCount((prev) => prev + 1);
-            loadNotifications();
           }
         }
       );
@@ -531,17 +559,24 @@ export default function HomeScreen({ navigation }: Props) {
 
     // Poll every 30 seconds as fallback — 2s was causing re-renders during scroll
     if (user?.id && !isGuest) {
-      pollIntervalRef.current = setInterval(() => {
-        if (mountedRef.current && user?.id) {
-          loadNotifications();
+      pollIntervalRef.current = setInterval(async () => {
+        if (mountedRef.current && user?.id && !isGuest) {
+          try {
+            const data = await notificationService.getNotifications(user.id, 'buyer', 20);
+            if (mountedRef.current) {
+              setUnreadCount(data.filter(n => !n.is_read).length);
+            }
+          } catch (error) {
+            console.error('[HomeScreen] Error polling notifications:', error);
+          }
         }
       }, 30000);
     }
 
     return () => {
-      unsubFocus();
+      // Cleanup is handled by the separate unmount effect below
     };
-  }, [navigation, loadNotifications, user?.id, isGuest]);
+  }, [user?.id, isGuest]);
 
   // Cleanup subscriptions on unmount
   useEffect(() => {

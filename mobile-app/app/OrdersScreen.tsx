@@ -140,6 +140,7 @@ export default function OrdersScreen({ navigation, route }: Props) {
   const [sortOrder, setSortOrder] = useState<'latest' | 'oldest'>('latest');
 
   const [dbOrders, setDbOrders] = useState<Order[]>([]);
+  const [isError, setIsError] = useState(false);
   const updateOrderStatus = useOrderStore((state) => state.updateOrderStatus);
   const addItem = useCartStore((state) => state.addItem);
   const insets = useSafeAreaInsets();
@@ -150,9 +151,7 @@ export default function OrdersScreen({ navigation, route }: Props) {
   const loadOrders = async () => {
     if (!user?.id) return;
     try {
-      const { data, error } = await supabase
-        .from('orders')
-        .select(`
+      const orderSelectWithShipments = `
           *,
           address:shipping_addresses!address_id (
             id,
@@ -202,18 +201,94 @@ export default function OrdersScreen({ navigation, route }: Props) {
           ),
           shipments:order_shipments(*),
           history:order_status_history(status, created_at)
-        `)
-        .eq('buyer_id', user.id)
-        .order('created_at', { ascending: false })
-        .limit(30);
+        `;
+
+      const orderSelectWithoutShipments = `
+          *,
+          address:shipping_addresses!address_id (
+            id,
+            label,
+            address_line_1,
+            address_line_2,
+            city,
+            province,
+            region,
+            postal_code
+          ),
+          items:order_items (
+            *,
+            product:products (
+              id,
+              name,
+              description,
+              price,
+              brand,
+              is_free_shipping,
+              seller_id,
+              seller:sellers!products_seller_id_fkey (
+                id,
+                store_name,
+                store_description,
+                avatar_url
+              ),
+              images:product_images (
+                image_url,
+                is_primary,
+                sort_order
+              )
+            )
+          ),
+          reviews (
+            *
+          ),
+          cancellations:order_cancellations (
+            id, reason, cancelled_at, cancelled_by, created_at
+          ),
+          vouchers:order_vouchers (
+            *,
+            voucher:vouchers (code, title, voucher_type)
+          ),
+          return_requests:refund_return_periods (
+            id, status, is_returnable, refund_date
+          ),
+          history:order_status_history(status, created_at)
+        `;
+
+      const runQuery = (selectClause: string) => {
+        return supabase
+          .from('orders')
+          .select(selectClause)
+          .eq('buyer_id', user.id)
+          .order('created_at', { ascending: false })
+          .limit(30);
+      };
+
+      let { data, error } = await runQuery(orderSelectWithShipments);
+
+      const isMissingOrderShipmentsRelation =
+        error?.code === 'PGRST200' &&
+        `${error?.message || ''} ${error?.details || ''}`.includes('order_shipments');
+
+      if (isMissingOrderShipmentsRelation) {
+        console.warn('[OrdersScreen] order_shipments relation missing. Retrying without embedded shipments.');
+        const fallback = await runQuery(orderSelectWithoutShipments);
+        data = fallback.data as any;
+        error = fallback.error;
+
+        if (!error) {
+          data = (data || []).map((row: any) => ({ ...row, shipments: [] }));
+        }
+      }
 
       if (error) {
         console.error('[OrdersScreen] Error loading orders:', error);
         setDbOrders([]);
+        setIsError(true);
         return;
       }
 
       console.log('Fetched orders:', data); // Log the fetched orders
+      setIsError(false);
       setDbOrders((data || []) as any);
 
       const mapped: Order[] = (data || []).map((order: any) => {
@@ -257,7 +332,7 @@ export default function OrdersScreen({ navigation, route }: Props) {
 
         const items = (order.items || []).map((it: any) => {
           const p = it.product || {};
-          const productName = p.name || it.product_name || 'Product Unavailable';
+          const productName = it.product_name || p.name || 'Product Unavailable';
 
           // Get primary image from product_images
           const productImages = p.images || [];
@@ -443,6 +518,7 @@ export default function OrdersScreen({ navigation, route }: Props) {
     } catch (e) {
       console.error('[OrdersScreen] Unexpected error:', e);
       setDbOrders([]);
+      setIsError(true);
     } finally {
       setRefreshing(false);
     }
@@ -677,7 +753,6 @@ export default function OrdersScreen({ navigation, route }: Props) {
 
       setShowCancelModal(false);
       setCancellingOrder(null);
-      setActiveTab('cancelled');
       Alert.alert('Order Cancelled', 'Your order has been cancelled.');
       await loadOrders();
     } catch (e: any) {
@@ -959,12 +1034,12 @@ export default function OrdersScreen({ navigation, route }: Props) {
           {(['all', 'pending', 'confirmed', 'shipped', 'delivered', 'received', 'returned', 'cancelled', 'reviewed'] as const).map((tab) => {
             const labelMap: Record<string, string> = {
               all: 'All Orders',
-              pending: 'Pending',
-              confirmed: 'Processing',
-              shipped: 'Shipped',
+              pending: 'To Pay',
+              confirmed: 'To Ship',
+              shipped: 'To Receive',
               delivered: 'Delivered',
               received: 'Received',
-              reviewed: 'Reviewed',
+              reviewed: 'Completed',
               returned: 'Return/Refund',
               cancelled: 'Cancelled'
             };
@@ -991,11 +1066,29 @@ export default function OrdersScreen({ navigation, route }: Props) {
         showsVerticalScrollIndicator={false}
         contentContainerStyle={{ padding: 16, paddingBottom: 100 }}
       >
-        {filteredOrders.length === 0 ? (
+        {isError ? (
+          <View style={styles.emptyContainer}>
+            <Package size={64} color="#EF4444" />
+            <Text style={[styles.emptyTitle, { color: '#DC2626' }]}>Failed to Load Orders</Text>
+            <Text style={styles.emptyText}>Something went wrong while loading your orders.</Text>
+            <Pressable 
+              style={[styles.primaryButton, { marginTop: 24, backgroundColor: '#EF4444', paddingVertical: 12, paddingHorizontal: 32 }]} 
+              onPress={loadOrders}
+            >
+              <Text style={styles.primaryButtonText}>Tap to Retry</Text>
+            </Pressable>
+          </View>
+        ) : filteredOrders.length === 0 ? (
           <View style={styles.emptyContainer}>
             <Package size={64} color="#D1D5DB" />
             <Text style={styles.emptyTitle}>No Orders Found</Text>
             <Text style={styles.emptyText}>Items you purchase will appear here</Text>
+            <Pressable 
+              style={[styles.primaryButton, { marginTop: 24, backgroundColor: BRAND_COLOR, paddingVertical: 12, paddingHorizontal: 32 }]} 
+              onPress={() => navigation.navigate('MainTabs', { screen: 'Home' })}
+            >
+              <Text style={styles.primaryButtonText}>Shop Now</Text>
+            </Pressable>
           </View>
         ) : (
           filteredOrders.map(renderOrderCard)

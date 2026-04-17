@@ -45,9 +45,9 @@ Deno.serve(async (req: Request) => {
 
       productIds.length > 0
         ? supabaseClient
-            .from('products')
-            .select('id, seller_id, sellers(id, store_name, approval_status, avatar_url)')
-            .in('id', productIds)
+          .from('products')
+          .select('id, seller_id, sellers(id, store_name, approval_status, avatar_url)')
+          .in('id', productIds)
         : Promise.resolve({ data: [], error: null }),
     ]);
 

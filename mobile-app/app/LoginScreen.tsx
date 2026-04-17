@@ -12,13 +12,16 @@ import {
   ActivityIndicator,
   Image,
   Modal,
+  Dimensions,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { LinearGradient } from 'expo-linear-gradient';
-import { Mail, Lock, Eye, EyeOff, ArrowRight, Store, X, Beaker } from 'lucide-react-native';
+import { Mail, Lock, Eye, EyeOff, ArrowRight, Store, X, Beaker, User } from 'lucide-react-native';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
+import * as WebBrowser from 'expo-web-browser';
+import * as AuthSession from 'expo-auth-session';
 import type { RootStackParamList } from '../App';
 import { useAuthStore } from '../src/stores/authStore';
+import { authService } from '../src/services/authService';
 import { supabase } from '../src/lib/supabase';
 import { COLORS } from '../src/constants/theme';
 
@@ -35,6 +38,7 @@ export default function LoginScreen({ navigation }: Props) {
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
+  const [isGoogleLoading, setIsGoogleLoading] = useState(false);
   const [showTestModal, setShowTestModal] = useState(false);
 
   const validateEmail = (value: string) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value);
@@ -95,9 +99,9 @@ export default function LoginScreen({ navigation }: Props) {
           name: fullName,
           email: data.user.email || '',
           phone: (profileData as any)?.phone || '',
-          avatar: (buyerData as any)?.avatar_url || 
-                  (profileData as any)?.avatar_url ||
-                  `https://ui-avatars.com/api/?name=${encodeURIComponent(fullName)}&background=FF6B35&color=fff`,
+          avatar: (buyerData as any)?.avatar_url ||
+            (profileData as any)?.avatar_url ||
+            `https://ui-avatars.com/api/?name=${encodeURIComponent(fullName)}&background=FF6B35&color=fff`,
           bazcoins: bazcoins
         });
 
@@ -125,6 +129,84 @@ export default function LoginScreen({ navigation }: Props) {
     setShowTestModal(false);
   };
 
+  const handleGoogleSignIn = async () => {
+    setIsGoogleLoading(true);
+    try {
+      // Create dynamic redirect URL for Expo Go vs Production
+      const redirectUrl = AuthSession.makeRedirectUri({ path: 'auth/callback' });
+      console.log('👉 Add THIS exactly to Custom Redirect URIs in Supabase:', redirectUrl);
+
+      // Step 1: Get OAuth URL from Supabase
+      const { data, error } = await supabase.auth.signInWithOAuth({
+        provider: 'google',
+        options: {
+          redirectTo: redirectUrl,
+          skipBrowserRedirect: false,
+        },
+      });
+
+      if (error) {
+        Alert.alert('Google Sign-In Error', error.message);
+        setIsGoogleLoading(false);
+        return;
+      }
+
+      if (!data?.url) {
+        Alert.alert('Error', 'Failed to initialize Google Sign-In');
+        setIsGoogleLoading(false);
+        return;
+      }
+
+      // Step 2: Open browser for user to authenticate with Google
+      // When user confirms, Supabase redirects to bazaarx://auth/callback
+      // The OS will route this back to the app, and deep linking + onAuthStateChange
+      // will automatically handle session setup and checkSession() call
+      const result = await WebBrowser.openBrowserAsync(data.url);
+
+      if (result.type === 'cancel' || result.type === 'dismiss') {
+        console.log('[LoginScreen] Google Sign-In canceled by user');
+        setIsGoogleLoading(false);
+        return;
+      }
+
+      // Step 3: Browser closed (either by redirect or user dismissal)
+      // The deep link handler will have processed the OAuth redirect
+      // and onAuthStateChange will have triggered checkSession()
+      // Wait a moment for session to settle, then check if authenticated
+
+      await new Promise(resolve => setTimeout(resolve, 800));
+
+      const { data: sessionData } = await supabase.auth.getSession();
+      if (sessionData.session?.user) {
+        console.log('[LoginScreen] Google Sign-In successful, session established');
+
+        // Session is established and auth store should be synced via onAuthStateChange
+        // Now navigate to main app
+        // Use replace to prevent going back to login
+        navigation.replace('MainTabs', { screen: 'Home' });
+      } else {
+        Alert.alert(
+          'Error',
+          'Google Sign-In completed but session was not established. Please try again.'
+        );
+        setIsGoogleLoading(false);
+      }
+    } catch (error) {
+      console.error('[LoginScreen] Google Sign-In error:', error);
+      Alert.alert(
+        'Google Sign-In Error',
+        error instanceof Error ? error.message : 'An unexpected error occurred. Please try again.'
+      );
+      setIsGoogleLoading(false);
+    }
+  };
+
+  React.useEffect(() => {
+    navigation.setOptions({
+      animation: 'slide_from_right',
+    });
+  }, [navigation]);
+
   return (
     <SafeAreaView style={styles.container} edges={['top']}>
       <KeyboardAvoidingView
@@ -145,13 +227,12 @@ export default function LoginScreen({ navigation }: Props) {
                 resizeMode="contain"
               />
             </View>
-            <Text style={[styles.brandName, { color: COLORS.textHeadline }]}>BazaarX</Text>
             <Text style={[styles.welcomeText, { color: COLORS.textHeadline }]}>Welcome back!</Text>
             <Text style={[styles.subtitle, { color: COLORS.textMuted }]}>Sign in to continue shopping</Text>
-          </View>          
+          </View>
 
           {/* Developer Tool: Test Accounts Trigger */}
-          <Pressable 
+          <Pressable
             style={styles.demoTriggerButton}
             onPress={() => setShowTestModal(true)}
           >
@@ -161,84 +242,96 @@ export default function LoginScreen({ navigation }: Props) {
 
           {/* Login Form */}
           <View style={styles.form}>
-            <View style={styles.inputContainer}>
-              <Text style={styles.label}>Email Address</Text>
-              <View style={styles.inputWrapper}>
-                <Mail size={20} color="#FF6A00" style={styles.inputIcon} />
-                <TextInput
-                  style={styles.input}
-                  placeholder="Enter your email"
-                  placeholderTextColor="#9CA3AF"
-                  value={email}
-                  onChangeText={setEmail}
-                  keyboardType="email-address"
-                  autoCapitalize="none"
-                  autoComplete="email"
-                />
+            <View style={styles.signInContainer}>
+              <View style={styles.inputContainer}>
+                <Text style={styles.label}>Email Address</Text>
+                <View style={styles.inputWrapper}>
+                  <Mail size={20} color="#D97706" style={styles.inputIcon} />
+                  <TextInput
+                    style={styles.input}
+                    placeholder="Enter your email"
+                    placeholderTextColor="#9CA3AF"
+                    value={email}
+                    onChangeText={setEmail}
+                    keyboardType="email-address"
+                    autoCapitalize="none"
+                    autoComplete="email"
+                  />
+                </View>
               </View>
-            </View>
 
-            <View style={styles.inputContainer}>
-              <Text style={styles.label}>Password</Text>
-              <View style={styles.inputWrapper}>
-                <Lock size={20} color="#FF6A00" style={styles.inputIcon} />
-                <TextInput
-                  style={styles.input}
-                  placeholder="Enter your password"
-                  placeholderTextColor="#9CA3AF"
-                  value={password}
-                  onChangeText={setPassword}
-                  secureTextEntry={!showPassword}
-                  autoCapitalize="none"
-                />
-                <Pressable
-                  onPress={() => setShowPassword(!showPassword)}
-                  style={styles.eyeIcon}
-                >
-                  {showPassword ? (
-                    <EyeOff size={20} color="#9CA3AF" />
-                  ) : (
-                    <Eye size={20} color="#9CA3AF" />
-                  )}
-                </Pressable>
+              <View style={styles.inputContainer}>
+                <View style={styles.labelRow}>
+                  <Text style={styles.label}>Password</Text>
+                  <Pressable style={styles.forgotPassword} onPress={() => navigation.navigate('ForgotPassword')}>
+                    <Text style={styles.forgotPasswordText}>Forgot Password?</Text>
+                  </Pressable>
+                </View>
+                <View style={styles.inputWrapper}>
+                  <Lock size={20} color="#D97706" style={styles.inputIcon} />
+                  <TextInput
+                    style={styles.input}
+                    placeholder="Enter your password"
+                    placeholderTextColor="#9CA3AF"
+                    value={password}
+                    onChangeText={setPassword}
+                    secureTextEntry={!showPassword}
+                    autoCapitalize="none"
+                  />
+                  <Pressable
+                    onPress={() => setShowPassword(!showPassword)}
+                    style={styles.eyeIcon}
+                  >
+                    {showPassword ? (
+                      <EyeOff size={20} color="#9CA3AF" />
+                    ) : (
+                      <Eye size={20} color="#9CA3AF" />
+                    )}
+                  </Pressable>
+                </View>
               </View>
-            </View>
 
-            <Pressable style={styles.forgotPassword} onPress={() => navigation.navigate('ForgotPassword')}>
-              <Text style={styles.forgotPasswordText}>Forgot Password?</Text>
-            </Pressable>
-
-            <Pressable
-              style={[styles.loginButton, isLoading && styles.loginButtonDisabled]}
-              onPress={handleLogin}
-              disabled={isLoading}
-            >
-              <LinearGradient
-                colors={['#FF6A00', '#E65F00']}
-                style={styles.buttonGradient}
-                start={{ x: 0, y: 0 }}
-                end={{ x: 1, y: 0 }}
+              <Pressable
+                style={[styles.loginButton, isLoading && styles.loginButtonDisabled]}
+                onPress={handleLogin}
+                disabled={isLoading}
               >
                 {isLoading ? (
                   <ActivityIndicator color="#FFFFFF" />
                 ) : (
                   <>
                     <Text style={styles.loginButtonText}>Sign In</Text>
-                    <ArrowRight size={20} color="#FFFFFF" />
                   </>
                 )}
-              </LinearGradient>
-            </Pressable>
+              </Pressable>
+            </View>
           </View>
+
+          <View style={styles.dividerContainer}>
+            <View style={styles.dividerLine} />
+            <Text style={styles.dividerText}>OR</Text>
+            <View style={styles.dividerLine} />
+          </View>
+
+          <Pressable
+            style={styles.googleButton}
+            onPress={handleGoogleSignIn}
+            disabled={isGoogleLoading}
+          >
+            {isGoogleLoading ? (
+              <ActivityIndicator color="#374151" />
+            ) : (
+              <>
+                <Image
+                  source={{ uri: 'https://www.gstatic.com/images/branding/product/2x/googleg_48dp.png' }}
+                  style={styles.googleIcon}
+                />
+                <Text style={styles.googleButtonText}>Sign in with Google</Text>
+              </>
+            )}
+          </Pressable>
 
           {/* Footer Actions */}
-          <View style={styles.registerSection}>
-            <Text style={styles.registerText}>Don't have an account? </Text>
-            <Pressable onPress={() => navigation.navigate('Signup')}>
-              <Text style={styles.registerLink}>Sign Up</Text>
-            </Pressable>
-          </View>
-
           <Pressable
             style={styles.guestButton}
             onPress={() => {
@@ -246,6 +339,7 @@ export default function LoginScreen({ navigation }: Props) {
               navigation.replace('MainTabs', { screen: 'Home' });
             }}
           >
+            <User size={20} color="#6B7280" strokeWidth={2.5} />
             <Text style={styles.guestButtonText}>Continue as Guest</Text>
           </Pressable>
 
@@ -253,10 +347,17 @@ export default function LoginScreen({ navigation }: Props) {
             style={styles.sellerPortalButton}
             onPress={() => navigation.navigate('SellerAuthChoice')}
           >
-            <Store size={20} color="#FF6A00" strokeWidth={2.5} />
+            <Store size={20} color="#D97706" strokeWidth={2.5} />
             <Text style={styles.sellerPortalText}>Start Selling</Text>
-            <ArrowRight size={18} color="#FF6A00" />
+            <ArrowRight size={18} color="#D97706" />
           </Pressable>
+
+          <View style={styles.registerSection}>
+            <Text style={styles.registerText}>Don't have an account? </Text>
+            <Pressable onPress={() => navigation.navigate('Signup')}>
+              <Text style={styles.registerLink}>Sign Up</Text>
+            </Pressable>
+          </View>
 
         </ScrollView>
       </KeyboardAvoidingView>
@@ -278,9 +379,9 @@ export default function LoginScreen({ navigation }: Props) {
             </View>
 
             {TEST_ACCOUNTS.map((acc, index) => (
-              <Pressable 
-                key={index} 
-                style={styles.testAccountRow} 
+              <Pressable
+                key={index}
+                style={styles.testAccountRow}
                 onPress={() => autofillCredentials(acc.email, acc.password)}
               >
                 <View style={styles.testAccountAvatar}>
@@ -324,10 +425,13 @@ const styles = StyleSheet.create({
     width: 120,
     height: 120,
     marginBottom: 16,
+    borderRadius: 24,
+    overflow: 'hidden',
   },
   logo: {
     width: '100%',
     height: '100%',
+    borderRadius: 24,
   },
   brandName: {
     fontSize: 32,
@@ -348,14 +452,25 @@ const styles = StyleSheet.create({
   form: {
     marginBottom: 24,
   },
+
+  signInContainer: {
+    flexDirection: 'column',
+    gap: 6,
+  },
+
   inputContainer: {
-    marginBottom: 16,
+    flexDirection: 'column',
+    gap: 6,
   },
   label: {
     fontSize: 14,
     fontWeight: '600',
     color: '#111827',
-    marginBottom: 8,
+  },
+  labelRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
   },
   inputWrapper: {
     flexDirection: 'row',
@@ -363,51 +478,50 @@ const styles = StyleSheet.create({
     backgroundColor: '#FFFFFF',
     borderWidth: 1,
     borderColor: '#E5E7EB',
-    borderRadius: 12,
-    paddingHorizontal: 16,
-    height: 56,
+    borderRadius: 14,
+    paddingHorizontal: 20,
+    height: 48,
   },
   inputIcon: {
-    marginRight: 12,
+    marginRight: 10,
   },
   input: {
     flex: 1,
-    fontSize: 16,
+    fontSize: 15,
     color: '#111827',
   },
   eyeIcon: {
     padding: 4,
   },
   forgotPassword: {
-    alignSelf: 'flex-end',
-    marginBottom: 24,
+    paddingVertical: 4,
   },
   forgotPasswordText: {
     fontSize: 14,
-    color: '#FF6A00',
+    color: '#9CA3AF',
     fontWeight: '700',
   },
   loginButton: {
-    borderRadius: 28, // Updated to Pill Shape per guidelines
+    marginTop: 12,
+    borderRadius: 14,
     overflow: 'hidden',
-    shadowColor: '#FF6A00',
+    backgroundColor: '#D97706',
+    shadowColor: '#D97706',
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.2,
     shadowRadius: 8,
     elevation: 4,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 14,
+    gap: 8,
   },
   loginButtonDisabled: {
     opacity: 0.6,
   },
-  buttonGradient: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingVertical: 16,
-    gap: 8,
-  },
   loginButtonText: {
-    fontSize: 18,
+    fontSize: 16,
     fontWeight: '700',
     color: '#FFFFFF',
   },
@@ -415,6 +529,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'center',
     alignItems: 'center',
+    marginTop: 32,
     marginBottom: 16,
   },
   registerText: {
@@ -423,19 +538,23 @@ const styles = StyleSheet.create({
   },
   registerLink: {
     fontSize: 14,
-    color: '#FF6A00',
+    color: '#D97706',
     fontWeight: '700',
   },
   guestButton: {
+    marginTop: 16,
     paddingVertical: 14,
-    borderRadius: 28,
+    borderRadius: 14,
     borderWidth: 1,
     borderColor: '#E5E7EB',
-    alignItems: 'center',
     backgroundColor: '#FFFFFF',
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 8,
   },
   guestButtonText: {
-    fontSize: 16,
+    fontSize: 15,
     fontWeight: '600',
     color: '#6B7280',
   },
@@ -445,19 +564,19 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     gap: 8,
-    backgroundColor: '#FFF5F0',
+    backgroundColor: '#FEF3C7',
     paddingVertical: 14,
     paddingHorizontal: 24,
-    borderRadius: 28,
+    borderRadius: 14,
     borderWidth: 1,
-    borderColor: '#FF6A00',
+    borderColor: '#D97706',
   },
   sellerPortalText: {
-    fontSize: 16,
+    fontSize: 15,
     fontWeight: '700',
-    color: '#FF6A00',
+    color: '#D97706',
   },
-  
+
   // ── Demo Trigger ──────────────────────────────────────────
   demoTriggerButton: {
     flexDirection: 'row',
@@ -542,6 +661,46 @@ const styles = StyleSheet.create({
   testAccountBadgeText: {
     fontSize: 12,
     fontWeight: '600',
-    color: '#FF6A00',
+    color: '#D97706',
+  },
+  dividerContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 24,
+    paddingHorizontal: 10,
+  },
+  dividerLine: {
+    flex: 1,
+    height: 1,
+    backgroundColor: '#E5E7EB',
+  },
+  dividerText: {
+    marginHorizontal: 16,
+    fontSize: 12,
+    fontWeight: '700',
+    color: '#9CA3AF',
+    textTransform: 'uppercase',
+    letterSpacing: 1.2,
+  },
+  googleButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#FFFFFF',
+    paddingVertical: 14,
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: '#E5E7EB',
+    gap: 10,
+    marginBottom: 0,
+  },
+  googleIcon: {
+    width: 20,
+    height: 20,
+  },
+  googleButtonText: {
+    fontSize: 15,
+    fontWeight: '600',
+    color: '#374151',
   },
 });

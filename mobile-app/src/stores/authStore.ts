@@ -33,6 +33,15 @@ interface User {
   bazcoins?: number;
 }
 
+export interface PendingSignupData {
+  firstName: string;
+  lastName: string;
+  email: string;
+  phone: string;
+  password?: string;
+  user_type?: 'buyer' | 'seller';
+}
+
 interface AuthState {
   user: User | null;
   profile: Profile | null;
@@ -42,6 +51,7 @@ interface AuthState {
   activeRole: 'buyer' | 'seller';
   loading: boolean;
   error: string | null;
+  pendingSignupData: PendingSignupData | null;
 
   // Auth Actions (using authService)
   signIn: (email: string, password: string) => Promise<boolean>;
@@ -69,6 +79,10 @@ interface AuthState {
   // Session
   checkSession: () => Promise<void>;
 
+  // Pending Signup
+  setPendingSignup: (data: PendingSignupData) => void;
+  clearPendingSignup: () => void;
+
   // Deprecated
   login: (email: string, password: string) => Promise<boolean>;
 }
@@ -84,6 +98,7 @@ export const useAuthStore = create<AuthState>()(
       activeRole: 'buyer',
       loading: false,
       error: null,
+      pendingSignupData: null,
 
       signIn: async (email: string, password: string) => {
         set({ loading: true, error: null });
@@ -231,6 +246,7 @@ export const useAuthStore = create<AuthState>()(
               user,
               profile,
               isAuthenticated: true,
+              isGuest: false,
               activeRole: roles.includes('seller') ? 'seller' : 'buyer',
             });
             // Load wishlist from Supabase after session restore
@@ -370,6 +386,14 @@ export const useAuthStore = create<AuthState>()(
           }
           return state;
         });
+      },
+
+      setPendingSignup: (data: PendingSignupData) => {
+        set({ pendingSignupData: data });
+      },
+
+      clearPendingSignup: () => {
+        set({ pendingSignupData: null });
       },
 
       checkForSellerAccount: async () => {

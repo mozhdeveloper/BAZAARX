@@ -79,6 +79,8 @@ export default function OrderDetailScreen({ route, navigation }: Props) {
   // Payment & Delivery state
   const [paymentTx, setPaymentTx] = useState<PaymentTransaction | null>(null);
   const [deliveryTracking, setDeliveryTracking] = useState<DeliveryTrackingResult | null>(null);
+  const [isTrackingError, setIsTrackingError] = useState(false);
+  const [isPaymentError, setIsPaymentError] = useState(false);
   const [receiptPhotos, setReceiptPhotos] = useState<string[]>([]);
   const [selectedPhoto, setSelectedPhoto] = useState<string | null>(null);
   const [showReceiptModal, setShowReceiptModal] = useState(false);
@@ -87,15 +89,53 @@ export default function OrderDetailScreen({ route, navigation }: Props) {
   const fetchTrackingByOrderId = useDeliveryStore((s) => s.fetchTrackingByOrderId);
   const deliveryStoreTracking = useDeliveryStore((s) => s.tracking);
 
+  // BX-09-003 — Shipment details (method, fee, ETA) from order_shipments table
+  const [shipmentInfo, setShipmentInfo] = useState<{
+    shipping_method_label: string;
+    calculated_fee: number;
+    estimated_days_text: string;
+    origin_zone: string;
+    destination_zone: string;
+    tracking_number: string | null;
+    status: string;
+  } | null>(null);
+
   // Fetch payment transaction and delivery tracking for this order
   useEffect(() => {
     const realOrderId = (order as any).orderId || order.id;
+    
+    setIsPaymentError(false);
     getTransactionByOrderId(realOrderId)
-      .then((tx) => setPaymentTx(tx))
-      .catch(() => { });
+      .then((tx) => {
+        setPaymentTx(tx);
+        setIsPaymentError(false);
+      })
+      .catch(() => {
+        setIsPaymentError(true);
+      });
+    
+    setIsTrackingError(false);
     fetchTrackingByOrderId(realOrderId)
-      .then(() => { })
-      .catch(() => { });
+      .then(() => {
+        setIsTrackingError(false);
+      })
+      .catch(() => {
+        setIsTrackingError(true);
+      });
+
+    // BX-09-003 — Fetch shipment record
+    (async () => {
+      try {
+        const { data } = await supabase
+          .from('order_shipments')
+          .select('shipping_method_label, calculated_fee, estimated_days_text, origin_zone, destination_zone, tracking_number, status')
+          .eq('order_id', realOrderId)
+          .maybeSingle();
+        if (data) setShipmentInfo(data as any);
+      } catch (err) {
+        // Silently ignore shipment fetch errors
+      }
+    })();
   }, [(order as any).orderId, order.id]);
 
   useEffect(() => {
@@ -535,6 +575,26 @@ export default function OrderDetailScreen({ route, navigation }: Props) {
              );
           }
 
+          if (isTrackingError) {
+             return (
+               <View style={styles.trackingCard}>
+                  <Text style={styles.trackingLocationText}>Tracking information is currently unavailable. Please check back later.</Text>
+                  <Pressable 
+                    style={[styles.solidButton, { marginTop: 16, backgroundColor: COLORS.primary }]}
+                    onPress={() => {
+                      const realOrderId = (order as any).orderId || order.id;
+                      setIsTrackingError(false);
+                      fetchTrackingByOrderId(realOrderId)
+                        .then(() => setIsTrackingError(false))
+                        .catch(() => setIsTrackingError(true));
+                    }}
+                  >
+                    <Text style={styles.solidButtonText}>Tap to Retry</Text>
+                  </Pressable>
+               </View>
+             );
+          }
+
           const latestEvent = deliveryTracking?.events?.[0];
           const originCity = deliveryTracking?.booking?.pickupAddress?.city || 'Origin';
           const destCity = deliveryTracking?.booking?.deliveryAddress?.city || order.shippingAddress?.city || 'Destination';
@@ -586,7 +646,7 @@ export default function OrderDetailScreen({ route, navigation }: Props) {
 
                 <View style={styles.trackingFooter}>
                   <Text style={styles.trackingStatusDetail}>
-                    {latestEvent?.description || getStatusText()}
+                    {(!deliveryTracking?.events || deliveryTracking.events.length === 0) && (uiStatus === 'confirmed' || uiStatus === 'processing') ? 'Preparing shipment' : latestEvent?.description || getStatusText()}
                   </Text>
                   <Text style={styles.trackingTimestamp}>
                     {formatEventTime(latestEvent?.eventAt || order.createdAt)}
@@ -629,8 +689,33 @@ export default function OrderDetailScreen({ route, navigation }: Props) {
             </View>
           )}
 
+          {/* BX-09-003 — Shipping Method & ETA from order_shipments */}
+          {shipmentInfo && (
+            <View style={{ borderTopWidth: 1, borderTopColor: '#E5E7EB', paddingTop: 16, marginBottom: deliveryTracking?.booking ? 0 : 0 }}>
+              <Text style={styles.metaLabel}>Shipping Method</Text>
+              <Text style={styles.primaryInfo}>{shipmentInfo.shipping_method_label}</Text>
+              <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginTop: 8 }}>
+                <View>
+                  <Text style={styles.metaLabel}>Estimated Delivery</Text>
+                  <Text style={[styles.primaryInfo, { color: COLORS.primary }]}>{shipmentInfo.estimated_days_text}</Text>
+                </View>
+                <View style={{ alignItems: 'flex-end' }}>
+                  <Text style={styles.metaLabel}>Shipping Fee</Text>
+                  <Text style={styles.primaryInfo}>
+                    {shipmentInfo.calculated_fee === 0 ? 'FREE' : `\u20b1${shipmentInfo.calculated_fee.toLocaleString()}`}
+                  </Text>
+                </View>
+              </View>
+              <View style={{ flexDirection: 'row', alignItems: 'center', marginTop: 8, gap: 4 }}>
+                <Text style={{ fontSize: 11, color: '#9CA3AF' }}>
+                  {shipmentInfo.origin_zone} \u2192 {shipmentInfo.destination_zone}
+                </Text>
+              </View>
+            </View>
+          )}
+
           {/* Delivery Details Sub-section */}
-          {deliveryTracking?.booking && (
+          {deliveryTracking?.booking && deliveryTracking.booking.trackingNumber && (
             <View style={{ borderTopWidth: 1, borderTopColor: '#E5E7EB', paddingTop: 16 }}>
                <Text style={styles.metaLabel}>Courier Information</Text>
                <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
@@ -657,45 +742,72 @@ export default function OrderDetailScreen({ route, navigation }: Props) {
         <View style={styles.consolidatedCard}>
           <Text style={styles.cardSectionHeader}>Items & Payment</Text>
           
-          <View style={{ gap: 16, marginBottom: 20 }}>
-            {order.items.filter(item => item && item.name).map((item, index) => (
-              <View key={item.id || index} style={styles.compactItemRow}>
-                <Image source={{ uri: safeImageUri(item.image) }} style={styles.compactItemImage} />
-                <View style={{ flex: 1 }}>
-                  <Text style={styles.compactItemName} numberOfLines={1}>{item.name}</Text>
-                  <Text style={styles.metaLabel}>{item.quantity} x ₱{item.price?.toLocaleString()}</Text>
-                </View>
-                <Text style={styles.compactItemPrice}>₱{((item.price || 0) * item.quantity).toLocaleString()}</Text>
+          {isPaymentError ? (
+            <View style={{ marginVertical: 16 }}>
+              <Text style={[styles.secondaryInfo, { color: '#DC2626', marginBottom: 12 }]}>
+                Payment information is currently unavailable. Please check back later.
+              </Text>
+              <Pressable 
+                style={[styles.solidButton, { marginTop: 8, backgroundColor: COLORS.primary }]}
+                onPress={() => {
+                  const realOrderId = (order as any).orderId || order.id;
+                  setIsPaymentError(false);
+                  getTransactionByOrderId(realOrderId)
+                    .then((tx) => {
+                      setPaymentTx(tx);
+                      setIsPaymentError(false);
+                    })
+                    .catch(() => {
+                      setIsPaymentError(true);
+                    });
+                }}
+              >
+                <Text style={styles.solidButtonText}>Tap to Retry</Text>
+              </Pressable>
+            </View>
+          ) : (
+            <>
+              <View style={{ gap: 16, marginBottom: 20 }}>
+                {order.items.filter(item => item && item.name).map((item, index) => (
+                  <View key={item.id || index} style={styles.compactItemRow}>
+                    <Image source={{ uri: safeImageUri(item.image) }} style={styles.compactItemImage} />
+                    <View style={{ flex: 1 }}>
+                      <Text style={styles.compactItemName} numberOfLines={1}>{item.name}</Text>
+                      <Text style={styles.metaLabel}>{item.quantity} x ₱{item.price?.toLocaleString()}</Text>
+                    </View>
+                    <Text style={styles.compactItemPrice}>₱{((item.price || 0) * item.quantity).toLocaleString()}</Text>
+                  </View>
+                ))}
               </View>
-            ))}
-          </View>
 
-          <View style={{ borderTopWidth: 1, borderTopColor: '#E5E7EB', paddingTop: 16, gap: 12 }}>
-             <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
-                <Text style={styles.metaLabel}>Payment Method</Text>
-                <Text style={styles.primaryInfo}>{order.paymentMethod}</Text>
-             </View>
-             
-             <View style={styles.summaryRow}>
-                <Text style={styles.summaryLabel}>Subtotal</Text>
-                <Text style={styles.summaryValue}>₱{(order as any).subtotal?.toLocaleString()}</Text>
-             </View>
-             <View style={styles.summaryRow}>
-                <Text style={styles.summaryLabel}>Shipping</Text>
-                <Text style={styles.summaryValue}>{order.shippingFee === 0 ? 'FREE' : `₱${order.shippingFee.toLocaleString()}`}</Text>
-             </View>
-             {order.voucherInfo && (
-                <View style={styles.summaryRow}>
-                   <Text style={[styles.summaryLabel, { color: '#10B981' }]}>Voucher ({order.voucherInfo.code})</Text>
-                   <Text style={[styles.summaryValue, { color: '#10B981' }]}>-₱{order.voucherInfo.discountAmount?.toLocaleString()}</Text>
-                </View>
-             )}
+              <View style={{ borderTopWidth: 1, borderTopColor: '#E5E7EB', paddingTop: 16, gap: 12 }}>
+                 <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
+                    <Text style={styles.metaLabel}>Payment Method</Text>
+                    <Text style={styles.primaryInfo}>{order.paymentMethod}</Text>
+                 </View>
+                 
+                 <View style={styles.summaryRow}>
+                    <Text style={styles.summaryLabel}>Subtotal</Text>
+                    <Text style={styles.summaryValue}>₱{(order as any).subtotal?.toLocaleString()}</Text>
+                 </View>
+                 <View style={styles.summaryRow}>
+                    <Text style={styles.summaryLabel}>Shipping</Text>
+                    <Text style={styles.summaryValue}>{order.shippingFee === 0 ? 'FREE' : `₱${order.shippingFee.toLocaleString()}`}</Text>
+                 </View>
+                 {order.voucherInfo && (
+                    <View style={styles.summaryRow}>
+                       <Text style={[styles.summaryLabel, { color: '#10B981' }]}>Voucher ({order.voucherInfo.code})</Text>
+                       <Text style={[styles.summaryValue, { color: '#10B981' }]}>-₱{order.voucherInfo.discountAmount?.toLocaleString()}</Text>
+                    </View>
+                 )}
 
-             <View style={[styles.totalRow, { marginTop: 4, paddingTop: 12, borderTopWidth: 1, borderTopColor: '#E5E7EB' }]}>
-                <Text style={styles.totalLabel}>Total Amount</Text>
-                <Text style={styles.totalValue}>₱{order.total.toLocaleString()}</Text>
-             </View>
-          </View>
+                 <View style={[styles.totalRow, { marginTop: 4, paddingTop: 12, borderTopWidth: 1, borderTopColor: '#E5E7EB' }]}>
+                    <Text style={styles.totalLabel}>Total Amount</Text>
+                    <Text style={styles.totalValue}>₱{order.total.toLocaleString()}</Text>
+                 </View>
+              </View>
+            </>
+          )}
         </View>
       </ScrollView>
 
