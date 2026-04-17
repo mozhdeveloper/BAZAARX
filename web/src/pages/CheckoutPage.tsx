@@ -4,6 +4,7 @@ import { useNavigate, useLocation } from "react-router-dom";
 import { supabase } from "@/lib/supabase";
 import { checkoutService } from "@/services/checkoutService"; // Import checkout service
 import { discountService } from "@/services/discountService";
+import { BASIC_TEST_CARDS, THREE_DS_TEST_CARDS, SCENARIO_TEST_CARDS } from "@/constants/testCards";
 import {
   ArrowLeft,
   ChevronLeft,
@@ -168,7 +169,7 @@ export default function CheckoutPage() {
 
   useEffect(() => {
     const checkVacationSellers = async () => {
-      const sellerIds = [...new Set(checkoutItems.map(item => item.sellerId || item.seller_id).filter(Boolean))];
+      const sellerIds = [...new Set(checkoutItems.map(item => item.sellerId).filter(Boolean))];
       if (sellerIds.length === 0) {
         setVacationSellers([]);
         return;
@@ -180,7 +181,7 @@ export default function CheckoutPage() {
         .in('id', sellerIds)
         .eq('is_vacation_mode', true);
 
-      const vacationSellerNames = (data || []).map(s => s.store_name || 'Unknown Seller');
+      const vacationSellerNames = ((data as any[]) || []).map(s => s.store_name || 'Unknown Seller');
       setVacationSellers(vacationSellerNames);
     };
 
@@ -524,11 +525,11 @@ export default function CheckoutPage() {
       } else if (formData.gcashNumber.replace(/\D/g, '').length < 11) {
         newErrors.gcashNumber = "Valid 11-digit GCash number required";
       }
-    } else if (formData.paymentMethod === "paymaya") {
-      if (!formData.paymayaNumber?.trim()) {
-        newErrors.paymayaNumber = "PayMaya number is required";
-      } else if (formData.paymayaNumber.replace(/\D/g, '').length < 11) {
-        newErrors.paymayaNumber = "Valid 11-digit PayMaya number required";
+    } else if (formData.paymentMethod === "maya") {
+      if (!formData.mayaNumber?.trim()) {
+        newErrors.mayaNumber = "Maya number is required";
+      } else if (formData.mayaNumber.replace(/\D/g, '').length < 11) {
+        newErrors.mayaNumber = "Valid 11-digit Maya number required";
       }
     }
 
@@ -703,7 +704,16 @@ export default function CheckoutPage() {
         discount: discount,
         email: profile.email,
         voucherId: appliedVoucher?.id ?? null,
-        selectedAddressId: selectedAddress?.id ?? null
+        selectedAddressId: selectedAddress?.id ?? null,
+        // Add card details if card payment method is selected
+        ...(formData.paymentMethod === 'card' && {
+          cardDetails: {
+            cardNumber: formData.cardNumber || '',
+            expiryDate: formData.expiryDate || '',
+            cvv: formData.cvv || '',
+            cardName: formData.cardName || '',
+          }
+        })
       };
 
       const result = await checkoutService.processCheckout(payload);
@@ -1004,6 +1014,61 @@ export default function CheckoutPage() {
                 {/* Payment Details - Only show when Card is selected */}
                 {formData.paymentMethod === "card" && (
                   <div className="space-y-4">
+                    {/* Test Card Selector (Development/Sandbox Only) */}
+                    {process.env.NODE_ENV === 'development' && (
+                      <div className="p-4 bg-blue-50 border border-blue-200 rounded-lg">
+                        <div className="flex items-center justify-between mb-3">
+                          <label className="block text-sm font-semibold text-blue-900">
+                            🧪 Quick Fill Test Cards (Dev Only)
+                          </label>
+                        </div>
+                        <div className="space-y-2">
+                          <div className="text-xs text-blue-800 mb-2">
+                            Click a card to auto-fill form for testing:
+                          </div>
+                          <div className="grid grid-cols-2 md:grid-cols-3 gap-2">
+                            {/* Basic Success Cards */}
+                            {BASIC_TEST_CARDS.slice(0, 3).map((card) => (
+                              <button
+                                key={card.number}
+                                type="button"
+                                onClick={() => {
+                                  handleInputChange("cardNumber", card.number);
+                                  handleInputChange("cardName", "TEST CARD");
+                                  handleInputChange("expiryDate", card.expiry);
+                                  handleInputChange("cvv", card.cvc);
+                                }}
+                                className="p-2 text-left text-xs bg-white border border-blue-300 rounded hover:bg-blue-100 transition"
+                                title={card.scenario}
+                              >
+                                <div className="font-semibold text-blue-900">✓ {card.brand}</div>
+                                <div className="text-gray-600 truncate">{card.scenario}</div>
+                              </button>
+                            ))}
+                            
+                            {/* Error Scenario Cards */}
+                            {SCENARIO_TEST_CARDS.slice(0, 3).map((card) => (
+                              <button
+                                key={card.number}
+                                type="button"
+                                onClick={() => {
+                                  handleInputChange("cardNumber", card.number);
+                                  handleInputChange("cardName", "TEST CARD");
+                                  handleInputChange("expiryDate", card.expiry);
+                                  handleInputChange("cvv", card.cvc);
+                                }}
+                                className="p-2 text-left text-xs bg-white border border-red-300 rounded hover:bg-red-50 transition"
+                                title={card.errorReason}
+                              >
+                                <div className="font-semibold text-red-900">✗ {card.errorCode}</div>
+                                <div className="text-gray-600 truncate">{card.scenario}</div>
+                              </button>
+                            ))}
+                          </div>
+                        </div>
+                      </div>
+                    )}
+
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4 animate-in fade-in slide-in-from-top-2">
                       <div className="md:col-span-2">
                         <label className="block text-sm font-medium text-gray-700 mb-2">
@@ -1137,16 +1202,16 @@ export default function CheckoutPage() {
                   </div>
                 )}
 
-                {formData.paymentMethod === "paymaya" && (
+                {formData.paymentMethod === "maya" && (
                   <div className="space-y-4">
                     {profile?.paymentMethods?.filter(pm => pm.type === 'wallet' && pm.brand === 'Maya').map(wallet => (
                       <div
                         key={wallet.id}
-                        onClick={() => handleInputChange("paymayaNumber", wallet.accountNumber || "")}
+                        onClick={() => handleInputChange("mayaNumber", wallet.accountNumber || "")}
                         className="flex items-center p-3 border rounded-lg cursor-pointer hover:bg-gray-50 transition-colors mb-2"
                       >
-                        <div className={`w-4 h-4 rounded-full border mr-3 flex items-center justify-center ${formData.paymayaNumber === wallet.accountNumber ? "border-[var(--brand-primary)] bg-[var(--brand-primary)]" : "border-gray-300"}`}>
-                          {formData.paymayaNumber === wallet.accountNumber && <Check className="w-3 h-3 text-white" />}
+                        <div className={`w-4 h-4 rounded-full border mr-3 flex items-center justify-center ${formData.mayaNumber === wallet.accountNumber ? "border-[var(--brand-primary)] bg-[var(--brand-primary)]" : "border-gray-300"}`}>
+                          {formData.mayaNumber === wallet.accountNumber && <Check className="w-3 h-3 text-white" />}
                         </div>
                         <div className="flex-1">
                           <p className="font-medium text-gray-900">Linked Maya: {wallet.accountNumber}</p>
@@ -1154,23 +1219,23 @@ export default function CheckoutPage() {
                       </div>
                     ))}
                     <label className="block text-sm font-medium text-gray-700 mb-2">
-                      PayMaya Number *
+                      Maya Number *
                     </label>
                     <input
                       type="text"
-                      value={formData.paymayaNumber || ""}
+                      value={formData.mayaNumber || ""}
                       onChange={(e) =>
-                        handleInputChange("paymayaNumber", e.target.value)
+                        handleInputChange("mayaNumber", e.target.value)
                       }
-                      className={`w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-[var(--brand-primary)] focus:border-transparent ${errors.paymayaNumber
+                      className={`w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-[var(--brand-primary)] focus:border-transparent ${errors.mayaNumber
                         ? "border-red-500"
                         : "border-gray-300"
                         }`}
                       placeholder="+63 912 345 6789"
                     />
-                    {errors.paymayaNumber && (
+                    {errors.mayaNumber && (
                       <p className="text-sm text-red-500 mt-1">
-                        {errors.paymayaNumber}
+                        {errors.mayaNumber}
                       </p>
                     )}
                   </div>

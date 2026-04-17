@@ -1,43 +1,46 @@
-import 'react-native-gesture-handler';
-import React, { useEffect, useRef } from 'react';
-import { NavigationContainer, NavigatorScreenParams, LinkingOptions } from '@react-navigation/native';
-import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
+import { LinkingOptions, NavigationContainer, NavigatorScreenParams } from '@react-navigation/native';
+import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { StatusBar } from 'expo-status-bar';
+import { Home, MessageCircle, ShoppingCart, Store, User } from 'lucide-react-native';
+import React, { useRef } from 'react';
+import { AppState, AppStateStatus, LogBox } from 'react-native';
+import 'react-native-gesture-handler';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { SafeAreaProvider, useSafeAreaInsets } from 'react-native-safe-area-context';
-import { Home, Store, ShoppingCart, MessageCircle, User } from 'lucide-react-native';
-import { AppState, AppStateStatus, Linking, LogBox } from 'react-native';
 import type { CartItem } from './src/types';
 
 // ---------------------------------------------------------------------------
 // Eager imports — critical-path screens loaded at startup
 // ---------------------------------------------------------------------------
-import SplashScreen from './app/SplashScreen';
-import OnboardingScreen from './app/OnboardingScreen';
-import LoginScreen from './app/LoginScreen';
-import SignupScreen from './app/SignupScreen';
-import HomeScreen from './app/HomeScreen';
-import ShopScreen from './app/ShopScreen';
 import CartScreen from './app/CartScreen';
-import ProfileScreen from './app/ProfileScreen';
+import HomeScreen from './app/HomeScreen';
+import LoginScreen from './app/LoginScreen';
 import MessagesScreen from './app/MessagesScreen';
+import OnboardingScreen from './app/OnboardingScreen';
+import ProfileScreen from './app/ProfileScreen';
+import ShopScreen from './app/ShopScreen';
+import SignupScreen from './app/SignupScreen';
+import SplashScreen from './app/SplashScreen';
 
 // Onboarding flow (shown right after signup — keep eager)
-import TermsScreen from './app/onboarding/TermsScreen';
-import CategoryPreferenceScreen from './app/onboarding/CategoryPreferenceScreen';
 import AddressSetupScreen from './app/onboarding/AddressSetupScreen';
+import CategoryPreferenceScreen from './app/onboarding/CategoryPreferenceScreen';
+import TermsScreen from './app/onboarding/TermsScreen';
 
 // ---------------------------------------------------------------------------
 // ALL other screens use getComponent — loaded only when navigated to
 // ---------------------------------------------------------------------------
 
 // Import types
-import type { Product, Order } from './src/types';
-import { supabase } from './src/lib/supabase';
-import { useAuthStore } from './src/stores/authStore';
-import { chatService } from './src/services/chatService';
 import { ErrorBoundary } from './src/components/ErrorBoundary';
+import { supabase } from './src/lib/supabase';
+import { chatService } from './src/services/chatService';
+import { useAuthStore } from './src/stores/authStore';
+import type { Order, Product } from './src/types';
+
+// Navigation reference for imperative navigation (used for logout redirect)
+export const navigationRef = React.createRef<any>();
 
 export type TabParamList = {
   Home: undefined;
@@ -55,6 +58,7 @@ export type RootStackParamList = {
   AddressSetup: { signupData: any };
   Login: undefined;
   Signup: undefined;
+  EmailVerification: { email: string; otpAlreadySent?: boolean };
   ForgotPassword: undefined;
   ResetPassword: undefined;
   SellerLogin: undefined;
@@ -76,8 +80,28 @@ export type RootStackParamList = {
     registryLocation?: string;
     recipientId?: string;
   };
-  PaymentGateway: { paymentMethod: string; order: Order; isQuickCheckout?: boolean; earnedBazcoins?: number };
+  PaymentGateway: { 
+    paymentMethod: string; 
+    order?: Order; 
+    isQuickCheckout?: boolean; 
+    earnedBazcoins?: number;
+    checkoutPayload?: any;
+    bazcoinDiscount?: number;
+    appliedVoucher?: any;
+    isGift?: boolean;
+    isAnonymous?: boolean;
+    recipientId?: string;
+  };
   OrderConfirmation: { order: Order; earnedBazcoins?: number };
+  OrderResult: {
+    order: Order;
+    status: 'success' | 'failed' | 'processing' | 'pending_3ds' | 'insufficient_funds' | 'card_expired' | 'invalid_cvc' | 'fraudulent' | 'generic_decline' | 'processor_blocked';
+    earnedBazcoins?: number;
+    paymentMethod?: string;
+    transactionID?: string;
+    errorCode?: string;
+    errorMessage?: string;
+  };
   Orders: { initialTab?: 'all' | 'pending' | 'confirmed' | 'shipped' | 'delivered' | 'reviewed' | 'returned' | 'cancelled' };
   OrderDetail: { order: Order };
   SellerOrderDetail: { orderId: string };
@@ -109,7 +133,7 @@ export type RootStackParamList = {
   CreateTicket: undefined;
   TicketDetail: { ticketId: string };
   Messages: undefined;
-  Categories: undefined;
+  Categories: { categoryId?: string; categoryName?: string } | undefined;
   AddProduct: undefined;
   PaymentCallback: {
     type: 'success' | 'failed' | 'callback' | 'sandbox-ewallet';
@@ -126,7 +150,7 @@ export type RootStackParamList = {
 const Stack = createNativeStackNavigator<RootStackParamList>();
 const Tab = createBottomTabNavigator<TabParamList>();
 
-// Deep link configuration for payment callbacks
+// Deep link configuration for payment callbacks and OAuth
 const linking: LinkingOptions<RootStackParamList> = {
   prefixes: ['bazaarx://'],
   config: {
@@ -140,6 +164,10 @@ const linking: LinkingOptions<RootStackParamList> = {
           src: (src: string) => src,
         },
       },
+      // OAuth callback deep link for Google Sign-In redirect
+      // When Supabase redirects after Google auth, it will call: bazaarx://auth/callback?...
+      // This matches the redirectTo in LoginScreen's signInWithOAuth call
+      // Note: Navigation happens via linking, but we handle OAuth in LoginScreen/SplashScreen
     },
   },
 };
@@ -301,6 +329,17 @@ export default function App() {
     return () => subscription.unsubscribe();
   }, []);
 
+  // Handle logout navigation — when user becomes null, navigate to Login
+  React.useEffect(() => {
+    if (!user && navigationRef.current) {
+      // User has logged out, go directly to Login (not Splash, which re-checks session)
+      navigationRef.current.reset({
+        index: 0,
+        routes: [{ name: 'Login' }],
+      });
+    }
+  }, [user]);
+
   // Global Presence Listener
   React.useEffect(() => {
     if (!user?.id) return;
@@ -328,7 +367,7 @@ export default function App() {
     <GestureHandlerRootView style={{ flex: 1 }}>
       <SafeAreaProvider>
         <ErrorBoundary>
-          <NavigationContainer linking={linking}>
+          <NavigationContainer linking={linking} ref={navigationRef}>
             <StatusBar style="dark" />
             <Stack.Navigator
               initialRouteName="Splash"
@@ -366,6 +405,11 @@ export default function App() {
                 name="ResetPassword"
                 getComponent={() => require('./app/ResetPasswordScreen').default}
                 options={{ animation: 'slide_from_bottom' }}
+              />
+              <Stack.Screen
+                name="EmailVerification"
+                getComponent={() => require('./app/onboarding/EmailVerificationScreen').default}
+                options={{ animation: 'slide_from_right' }}
               />
               <Stack.Screen
                 name="Terms"
@@ -416,6 +460,7 @@ export default function App() {
               <Stack.Screen name="PaymentGateway" getComponent={() => require('./app/PaymentGatewayScreen').default} options={{ headerShown: false }} />
               <Stack.Screen name="PaymentCallback" getComponent={() => require('./app/PaymentCallbackScreen').default} options={{ headerShown: false }} />
               <Stack.Screen name="OrderConfirmation" getComponent={() => require('./app/OrderConfirmation').default} />
+              <Stack.Screen name="OrderResult" getComponent={() => require('./app/OrderResultScreen').default} options={{ headerShown: false }} />
               <Stack.Screen name="Orders" getComponent={() => require('./app/OrdersScreen').default} options={{ headerShown: false }} />
               <Stack.Screen name="OrderDetail" getComponent={() => require('./app/OrderDetailScreen').default} />
               <Stack.Screen

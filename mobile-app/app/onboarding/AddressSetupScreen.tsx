@@ -32,6 +32,7 @@ import type { RootStackParamList } from '../../App';
 import { addressService, type Address } from '../../src/services/addressService';
 import { authService } from '../../src/services/authService';
 import { useAuthStore } from '../../src/stores/authStore';
+import { supabase } from '../../src/lib/supabase';
 import { COLORS } from '../../src/constants/theme';
 import { regions, provinces, cities, barangays } from 'select-philippines-address';
 
@@ -45,10 +46,10 @@ const DEFAULT_REGION = {
 };
 
 export default function AddressSetupScreen({ navigation, route }: Props) {
-  // Get signup data passed from previous screens
-  const { signupData } = route.params || {};
+  // Get signup data passed from previous screens or persistent store
+  const signupData = route.params?.signupData || useAuthStore.getState().pendingSignupData;
 
-  const { user } = useAuthStore();
+  const { user, clearPendingSignup } = useAuthStore();
   const [isSaving, setIsSaving] = useState(false);
 
   // Map & Geocoding States
@@ -205,31 +206,12 @@ export default function AddressSetupScreen({ navigation, route }: Props) {
     setIsSaving(true);
 
     try {
-        let userId = '';
+        // 1. Get current user ID from session
+        const { data: { user: currentUser } } = await supabase.auth.getUser();
+        const userId = currentUser?.id || useAuthStore.getState().user?.id;
 
-        // 1. Perform Deferred Signup (using authService for proper profile/buyer/roles creation)
-        if (signupData) {
-            const result = await authService.signUp(
-                signupData.email,
-                signupData.password,
-                {
-                    first_name: signupData.firstName,
-                    last_name: signupData.lastName,
-                    phone: signupData.phone,
-                    user_type: 'buyer',
-                    email: signupData.email,
-                    password: signupData.password,
-                }
-            );
-
-            if (!result || !result.user) throw new Error('Signup failed. Please try again.');
-            
-            userId = result.user.id;
-        } else {
-            // Fallback for testing or if auth state is somehow different
-             const { user } = useAuthStore.getState();
-             if (!user) throw new Error('No signup data found.');
-             userId = user.id;
+        if (!userId) {
+          throw new Error('You must be signed in to complete setup.');
         }
 
         // 2. Save Address for the new user
@@ -239,6 +221,9 @@ export default function AddressSetupScreen({ navigation, route }: Props) {
             {
                 text: 'Get Started',
                 onPress: () => {
+                     // Clear temporary data on success
+                     clearPendingSignup();
+                     
                      navigation.reset({
                         index: 0,
                         routes: [{ name: 'MainTabs' }],

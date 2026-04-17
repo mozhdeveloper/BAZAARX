@@ -2,10 +2,10 @@ import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react'
 import {
   View, Text, StyleSheet, TextInput, Pressable, FlatList,
   KeyboardAvoidingView, Platform, ActivityIndicator, Image, ListRenderItemInfo,
-  Alert, Linking, Dimensions, Keyboard, Animated,
+  Alert, Linking, Dimensions, Keyboard, Animated, ScrollView,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { ChevronLeft, Send, Store, User, Ticket, ImageIcon, FileText, Play, Paperclip, ChevronRight } from 'lucide-react-native';
+import { ChevronLeft, Send, Store, User, Ticket, ImageIcon, FileText, Play, Paperclip, ChevronRight, ArrowDown, Reply, X, MessageSquare, AlertCircle } from 'lucide-react-native';
 import { useNavigation, useRoute } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { COLORS } from '../constants/theme';
@@ -41,6 +41,11 @@ export default function ChatScreen({ conversation, currentUserId, userType, onBa
   const effectiveUserId = isScreen ? route.params?.currentUserId : currentUserId;
   const effectiveUserType = isScreen ? route.params?.userType : userType;
   const handleBack = isScreen ? () => navigation.goBack() : onBack;
+  const targetSellerId = useMemo(() => {
+    if (effectiveUserType !== 'buyer') return undefined;
+    const sellerId = effectiveConversation?.seller_id;
+    return typeof sellerId === 'string' && sellerId.length > 0 ? sellerId : undefined;
+  }, [effectiveConversation?.seller_id, effectiveUserType]);
 
   const conversationId = effectiveConversation?.id;
   const [messages, setMessages] = useState<Message[]>([]);
@@ -65,6 +70,31 @@ export default function ChatScreen({ conversation, currentUserId, userType, onBa
 
   // Attachment panel: shown by default, auto-hides when user starts typing
   const [showAttachments, setShowAttachments] = useState(true);
+
+  // Reply-to state
+  const [replyingTo, setReplyingTo] = useState<Message | null>(null);
+
+  // Jump-to-latest button
+  const [showJumpToLatest, setShowJumpToLatest] = useState(false);
+  const jumpButtonOpacity = useRef(new Animated.Value(0)).current;
+
+  // Quick reply chips
+  const [usedQuickReplies, setUsedQuickReplies] = useState<Record<string, number>>({});
+
+  // Compute whether chips are currently visible
+  const chipsVisible = useMemo(() => {
+    if (effectiveUserType !== 'buyer') return false;
+    const now = Date.now();
+    const ONE_HOUR = 3600000;
+    const quickReplies = ['Is this available?', 'Can I see real photos?', 'Do you offer discounts?', 'When will you ship?'];
+    return quickReplies.some(r => {
+      const usedAt = usedQuickReplies[r];
+      return !usedAt || (now - usedAt) > ONE_HOUR;
+    });
+  }, [usedQuickReplies, effectiveUserType]);
+
+  // Jump button bottom: higher when chips are visible
+  const jumpBottom = chipsVisible ? 135 : 90;
 
   // Track keyboard visibility with smooth animation
   const bottomPadAnim = useRef(new Animated.Value(Math.max(insets.bottom, 12))).current;
@@ -155,9 +185,22 @@ export default function ChatScreen({ conversation, currentUserId, userType, onBa
             m.content === newMsg.content
         );
         if (tempIdx !== -1) {
+          // Step 4: carry over reply preview from temp message
+          if (newMsg.reply_to_message_id && !newMsg.reply_to_content) {
+            newMsg.reply_to_content = prev[tempIdx].reply_to_content;
+            newMsg.reply_to_sender_type = prev[tempIdx].reply_to_sender_type;
+          }
           const updated = [...prev];
           updated[tempIdx] = newMsg;
           return updated;
+        }
+        // Step 4: for incoming replies, resolve content from existing messages
+        if (newMsg.reply_to_message_id && !newMsg.reply_to_content) {
+          const original = prev.find(m => m.id === newMsg.reply_to_message_id);
+          if (original) {
+            newMsg.reply_to_content = original.content;
+            newMsg.reply_to_sender_type = original.sender_type;
+          }
         }
         return [...prev, newMsg];
       });
@@ -170,9 +213,9 @@ export default function ChatScreen({ conversation, currentUserId, userType, onBa
   }, [conversationId, effectiveUserId, effectiveUserType]);
 
   // ─── Optimistic send ──────────────────────────────────────────────────────
-  const handleSend = async () => {
-    if (!newMessage.trim() || !conversationId) return;
-    const messageText = newMessage.trim();
+  const handleSend = async (overrideText?: string) => {
+    const messageText = (overrideText || newMessage).trim();
+    if (!messageText || !conversationId) return;
     const tempId = `temp-${Date.now()}`;
 
     // 1. Clear input + append temp message immediately
@@ -185,13 +228,19 @@ export default function ChatScreen({ conversation, currentUserId, userType, onBa
       is_read: false,
       created_at: new Date().toISOString(),
       message_type: 'user',
+      reply_to_message_id: replyingTo?.id || null,
+      reply_to_content: replyingTo?.content,
+      reply_to_sender_type: replyingTo?.sender_type,
     };
     setMessages(prev => [...prev, tempMsg]);
-    setNewMessage('');
+    if (!overrideText) setNewMessage('');
+    setReplyingTo(null);
 
     try {
       const sentMsg = await chatService.sendMessage(
-        conversationId, effectiveUserId, effectiveUserType, messageText
+        conversationId, effectiveUserId, effectiveUserType, messageText,
+        undefined, undefined, undefined, replyingTo?.id,
+        effectiveUserType === 'buyer' ? { targetSellerId } : undefined
       );
       if (sentMsg) {
         setMessages(prev =>
@@ -199,10 +248,13 @@ export default function ChatScreen({ conversation, currentUserId, userType, onBa
             ? prev.filter(m => m.id !== tempId)
             : prev.map(m => m.id === tempId ? sentMsg : m)
         );
+      } else {
+        setMessages(prev => prev.filter(m => m.id !== tempId));
+        if (!overrideText) setNewMessage(messageText);
       }
     } catch (error) {
       setMessages(prev => prev.filter(m => m.id !== tempId));
-      setNewMessage(messageText);
+      if (!overrideText) setNewMessage(messageText);
     }
   };
 
@@ -297,7 +349,15 @@ export default function ChatScreen({ conversation, currentUserId, userType, onBa
       pendingUpload.current = null;
 
       const sentMsg = await chatService.sendMessage(
-        conversationId, effectiveUserId, effectiveUserType, placeholder, undefined, url, mediaType
+        conversationId,
+        effectiveUserId,
+        effectiveUserType,
+        placeholder,
+        undefined,
+        url,
+        mediaType,
+        undefined,
+        effectiveUserType === 'buyer' ? { targetSellerId } : undefined
       );
       if (sentMsg) {
         setMessages(prev =>
@@ -305,6 +365,9 @@ export default function ChatScreen({ conversation, currentUserId, userType, onBa
             ? prev.filter(m => m.id !== tempId)
             : prev.map(m => m.id === tempId ? sentMsg : m)
         );
+      } else {
+        setMessages(prev => prev.filter(m => m.id !== tempId));
+        Alert.alert('Send failed', 'Message was not saved. Please try again.');
       }
     } catch (err) {
       console.error('[ChatScreen] upload error:', err);
@@ -368,68 +431,100 @@ export default function ChatScreen({ conversation, currentUserId, userType, onBa
 
     return (
       <View style={[styles.msgOuterWrapper, isMe ? styles.msgOuterRight : styles.msgOuterLeft]}>
-        <Pressable
-          onPress={() => { if (!hasAnyMedia) toggleTimestamp(); }}
-          onLongPress={toggleTimestamp}
-          delayLongPress={400}
-        >
-          <View style={[
-            styles.messageBubble,
-            isMe ? styles.myMessage : styles.theirMessage,
-            isExpanded && (isMe ? styles.myMessageExpanded : styles.theirMessageExpanded),
-            // Remove inner padding for doc-only bubbles (docBubble has its own)
-            isDoc && !showText && styles.noPadBubble,
-          ]}>
-            {/* Image — tap opens preview, long-press shows timestamp */}
-            {imgUrl && isImage && (
-              <Pressable
-                onPress={() => openPreview(imgUrl!, 'image')}
-                onLongPress={toggleTimestamp}
-                delayLongPress={400}
-              >
-                <Image source={{ uri: imgUrl }} style={styles.mediaBubbleImage} resizeMode="cover" />
-              </Pressable>
-            )}
-            {/* Video — tap opens preview, long-press shows timestamp */}
-            {hasMedia && isVideo && (
-              <Pressable
-                onPress={() => openPreview(msg.media_url!, 'video')}
-                onLongPress={toggleTimestamp}
-                delayLongPress={400}
-                style={styles.videoThumb}
-              >
-                <Play size={28} color="#FFFFFF" />
-                <Text style={styles.videoLabel}>Tap to play</Text>
-              </Pressable>
-            )}
-            {/* Document — tap opens preview, long-press shows timestamp */}
-            {hasMedia && isDoc && (
-              <Pressable
-                onPress={() => openPreview(msg.media_url!, 'document')}
-                onLongPress={toggleTimestamp}
-                delayLongPress={400}
-                style={[styles.docBubble, isMe ? styles.docBubbleMy : styles.docBubbleTheir, { width: DOC_BUBBLE_W }]}
-              >
-                {/* Fixed-size icon container — never compresses the filename */}
-                <View style={styles.docIconBox}>
-                  <FileText size={18} color={isMe ? '#FFFFFF' : COLORS.primary} />
-                </View>
-                <View style={{ flex: 1, minWidth: 0 }}>
-                  <Text style={[styles.docText, isMe ? styles.docTextMy : styles.docTextTheir]} numberOfLines={1}>
-                    {extractFileName(msg.media_url!)}
+        {/* Horizontal row — reply icon beside bubble */}
+        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 2 }}>
+          {/* Sent msg: reply icon on the LEFT of bubble */}
+          {isMe && !isPending && (msg.message_type as string) !== 'system' && (
+            <Pressable onPress={() => setReplyingTo(msg)} hitSlop={8} style={{ padding: 2 }}>
+              <Reply size={14} color="#9CA3AF" />
+            </Pressable>
+          )}
+          <Pressable
+            onPress={() => { if (!hasAnyMedia) toggleTimestamp(); }}
+            onLongPress={toggleTimestamp}
+            delayLongPress={400}
+          >
+            <View style={[
+              styles.messageBubble,
+              isMe ? styles.myMessage : styles.theirMessage,
+              isExpanded && (isMe ? styles.myMessageExpanded : styles.theirMessageExpanded),
+              // Remove inner padding for doc-only bubbles (docBubble has its own)
+              isDoc && !showText && styles.noPadBubble,
+            ]}>
+              {/* Replied-to preview inside bubble (Step 9h) */}
+              {msg.reply_to_message_id && (
+                <Pressable
+                  onPress={() => {
+                    const idx = listData.findIndex(i => i.id === msg.reply_to_message_id);
+                    if (idx >= 0) flatListRef.current?.scrollToIndex({ index: idx, animated: true });
+                  }}
+                  style={[styles.repliedToPreview, isMe ? styles.repliedToPreviewMy : styles.repliedToPreviewTheir]}
+                >
+                  <Text style={[styles.repliedToName, isMe ? { color: 'rgba(255,255,255,0.8)' } : { color: COLORS.primary }]} numberOfLines={1}>
+                    {msg.reply_to_sender_type === effectiveUserType ? 'You' : displayName}
                   </Text>
-                  <Text style={[styles.docSubText, isMe ? styles.docSubTextMy : styles.docSubTextTheir]}>PDF · Tap to open</Text>
-                </View>
-              </Pressable>
-            )}
-            {/* Text */}
-            {showText && (
-              <Text style={[styles.messageText, isMe ? styles.myMessageText : styles.theirMessageText]}>
-                {msg.content}
-              </Text>
-            )}
-          </View>
-        </Pressable>
+                  <Text style={[styles.repliedToText, isMe ? { color: 'rgba(255,255,255,0.6)' } : { color: '#6B7280' }]} numberOfLines={2}>
+                    {msg.reply_to_content || '...'}
+                  </Text>
+                </Pressable>
+              )}
+              {/* Image — tap opens preview, long-press shows timestamp */}
+              {imgUrl && isImage && (
+                <Pressable
+                  onPress={() => openPreview(imgUrl!, 'image')}
+                  onLongPress={toggleTimestamp}
+                  delayLongPress={400}
+                >
+                  <Image source={{ uri: imgUrl }} style={styles.mediaBubbleImage} resizeMode="cover" />
+                </Pressable>
+              )}
+              {/* Video — tap opens preview, long-press shows timestamp */}
+              {hasMedia && isVideo && (
+                <Pressable
+                  onPress={() => openPreview(msg.media_url!, 'video')}
+                  onLongPress={toggleTimestamp}
+                  delayLongPress={400}
+                  style={styles.videoThumb}
+                >
+                  <Play size={28} color="#FFFFFF" />
+                  <Text style={styles.videoLabel}>Tap to play</Text>
+                </Pressable>
+              )}
+              {/* Document — tap opens preview, long-press shows timestamp */}
+              {hasMedia && isDoc && (
+                <Pressable
+                  onPress={() => openPreview(msg.media_url!, 'document')}
+                  onLongPress={toggleTimestamp}
+                  delayLongPress={400}
+                  style={[styles.docBubble, isMe ? styles.docBubbleMy : styles.docBubbleTheir, { width: DOC_BUBBLE_W }]}
+                >
+                  {/* Fixed-size icon container — never compresses the filename */}
+                  <View style={styles.docIconBox}>
+                    <FileText size={18} color={isMe ? '#FFFFFF' : COLORS.primary} />
+                  </View>
+                  <View style={{ flex: 1, minWidth: 0 }}>
+                    <Text style={[styles.docText, isMe ? styles.docTextMy : styles.docTextTheir]} numberOfLines={1}>
+                      {extractFileName(msg.media_url!)}
+                    </Text>
+                    <Text style={[styles.docSubText, isMe ? styles.docSubTextMy : styles.docSubTextTheir]}>PDF · Tap to open</Text>
+                  </View>
+                </Pressable>
+              )}
+              {/* Text */}
+              {showText && (
+                <Text style={[styles.messageText, isMe ? styles.myMessageText : styles.theirMessageText]}>
+                  {msg.content}
+                </Text>
+              )}
+            </View>
+          </Pressable>
+          {/* Received msg: reply icon on the RIGHT of bubble */}
+          {!isMe && !isPending && (msg.message_type as string) !== 'system' && (
+            <Pressable onPress={() => setReplyingTo(msg)} hitSlop={8} style={{ padding: 2 }}>
+              <Reply size={14} color="#9CA3AF" />
+            </Pressable>
+          )}
+        </View>
         {/* Timestamp — OUTSIDE bubble, shown on tap/long-press */}
         {isExpanded && !isPending && (
           <Text style={[styles.messageTimeOutside, isMe ? styles.myMessageTimeOutside : styles.theirMessageTimeOutside]}>
@@ -446,8 +541,22 @@ export default function ChatScreen({ conversation, currentUserId, userType, onBa
         <Pressable onPress={handleBack} style={styles.backButton}>
           <ChevronLeft size={24} color="#FFFFFF" strokeWidth={2.5} />
         </Pressable>
-        {/* 👈 NEW: Refactored headerInfo for Online/Offline UI */}
-        <View style={styles.headerInfo}>
+        {/* 👈 NEW: Refactored headerInfo for Online/Offline UI + Store Navigation (Step 5) */}
+        <Pressable
+          style={styles.headerInfo}
+          onPress={() => {
+            if (effectiveUserType === 'buyer' && effectiveConversation?.seller_id) {
+              navigation.navigate('StoreDetail' as any, {
+                store: {
+                  id: effectiveConversation.seller_id,
+                  name: effectiveConversation.seller_store_name || displayName,
+                  image: effectiveConversation.seller_avatar || avatarUrl,
+                }
+              });
+            }
+          }}
+          disabled={effectiveUserType !== 'buyer'}
+        >
           <View style={styles.avatarContainer}>
             {avatarUrl ? (
               <Image source={{ uri: avatarUrl }} style={styles.avatarImage} />
@@ -466,7 +575,7 @@ export default function ChatScreen({ conversation, currentUserId, userType, onBa
               </Text>
             </View>
           </View>
-        </View>
+        </Pressable>
         <View style={{ flexDirection: 'row' }}>
           <Pressable style={styles.menuButton} onPress={() => navigation.navigate('CreateTicket')}>
             <Ticket size={24} color="#FFFFFF" />
@@ -475,7 +584,14 @@ export default function ChatScreen({ conversation, currentUserId, userType, onBa
       </View>
 
       {loading ? (
-        <View style={styles.loadingContainer}><ActivityIndicator size="large" color={COLORS.primary} /></View>
+        <View style={styles.loadingContainer}>
+          {/* Skeleton loading bubbles */}
+          {[{ align: 'flex-start' as const, w: 0.65 }, { align: 'flex-end' as const, w: 0.50 }, { align: 'flex-start' as const, w: 0.45 }, { align: 'flex-end' as const, w: 0.70 }, { align: 'flex-start' as const, w: 0.55 }, { align: 'flex-end' as const, w: 0.40 }, { align: 'flex-start' as const, w: 0.60 }, { align: 'flex-end' as const, w: 0.55 }].map((item, i) => (
+            <View key={i} style={{ alignSelf: item.align, marginVertical: 6 }}>
+              <View style={{ width: Dimensions.get('window').width * item.w - 32, height: 44, borderRadius: 16, backgroundColor: '#D1D5DB' }} />
+            </View>
+          ))}
+        </View>
       ) : (
         <FlatList<ListItem>
           ref={flatListRef}
@@ -484,14 +600,85 @@ export default function ChatScreen({ conversation, currentUserId, userType, onBa
           renderItem={renderItem}
           inverted={true}
           style={styles.messagesContainer}
-          contentContainerStyle={styles.messagesContent}
+          contentContainerStyle={listData.length === 0 ? { flexGrow: 1 } : styles.messagesContent}
           keyboardDismissMode="interactive"
           showsVerticalScrollIndicator={false}
           maintainVisibleContentPosition={{ minIndexForVisible: 0 }}
+          ListEmptyComponent={
+            <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center', transform: [{ scaleY: -1 }] }}>
+              <MessageSquare size={48} color="#D1D5DB" />
+              <Text style={{ marginTop: 12, color: '#6B7280', fontSize: 16, fontWeight: '600' }}>Start Messaging</Text>
+              <Text style={{ marginTop: 4, color: '#9CA3AF', textAlign: 'center' }}>Send your first message to {displayName}</Text>
+            </View>
+          }
+          onScroll={(event) => {
+            const offsetY = event.nativeEvent.contentOffset.y;
+            const scrolledAway = offsetY > 300;
+            if (scrolledAway && !showJumpToLatest) {
+              setShowJumpToLatest(true);
+              Animated.timing(jumpButtonOpacity, { toValue: 1, duration: 200, useNativeDriver: true }).start();
+            } else if (!scrolledAway && showJumpToLatest) {
+              Animated.timing(jumpButtonOpacity, { toValue: 0, duration: 200, useNativeDriver: true }).start(() => setShowJumpToLatest(false));
+            }
+          }}
+          scrollEventThrottle={16}
         />
       )}
 
+      {/* Jump to latest button — always rendered for smooth fade in/out */}
+      <Animated.View
+        style={[styles.jumpToLatestButton, { opacity: jumpButtonOpacity, bottom: jumpBottom }]}
+        pointerEvents={showJumpToLatest ? 'auto' : 'none'}
+      >
+        <Pressable onPress={() => flatListRef.current?.scrollToOffset({ offset: 0, animated: true })} style={styles.jumpToLatestPressable}>
+          <ArrowDown size={18} color="#FFFFFF" strokeWidth={2.5} />
+        </Pressable>
+      </Animated.View>
+
+      {/* Reply preview bar (Step 9g) */}
+      {replyingTo && (
+        <View style={styles.replyPreviewBar}>
+          <View style={styles.replyPreviewAccent} />
+          <View style={{ flex: 1 }}>
+            <Text style={styles.replyPreviewName}>
+              Replying to {replyingTo.sender_type === effectiveUserType ? 'yourself' : displayName}
+            </Text>
+            <Text style={styles.replyPreviewText} numberOfLines={2}>
+              {ALL_PLACEHOLDERS.includes(replyingTo.content) ? (MEDIA_PLACEHOLDER_MAP as any)[replyingTo.media_type || 'image'] || replyingTo.content : replyingTo.content}
+            </Text>
+          </View>
+          <Pressable onPress={() => setReplyingTo(null)} hitSlop={8}>
+            <X size={18} color="#9CA3AF" />
+          </Pressable>
+        </View>
+      )}
+
+
       <Animated.View style={[styles.inputContainer, { paddingBottom: bottomPadAnim }]}>
+        {/* Quick reply chips — inside input container so they share white bg, flush above input */}
+        {effectiveUserType === 'buyer' && (() => {
+          const now = Date.now();
+          const ONE_HOUR = 3600000;
+          const quickReplies = ['Is this available?', 'Can I see real photos?', 'Do you offer discounts?', 'When will you ship?'];
+          const available = quickReplies.filter(r => {
+            const usedAt = usedQuickReplies[r];
+            if (!usedAt) return true;
+            return (now - usedAt) > ONE_HOUR;
+          });
+          if (available.length === 0) return null;
+          return (
+            <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginBottom: 6 }} contentContainerStyle={{ paddingHorizontal: 16, gap: 8, alignItems: 'center' }}>
+              {available.map((reply, i) => (
+                <Pressable key={i} style={styles.replyChip} onPress={() => {
+                  setUsedQuickReplies(prev => ({ ...prev, [reply]: Date.now() }));
+                  handleSend(reply);
+                }}>
+                  <Text style={styles.replyChipText}>{reply}</Text>
+                </Pressable>
+              ))}
+            </ScrollView>
+          );
+        })()}
         <View style={styles.inputBar}>
           {/* Expand toggle — only shown when attachment icons are hidden */}
           {!showAttachments && (
@@ -561,7 +748,7 @@ const styles = StyleSheet.create({
   statusDotOffline: { width: 6, height: 6, borderRadius: 3, backgroundColor: '#9CA3AF' },
   statusText: { fontSize: 12, color: 'rgba(255,255,255,0.8)' },
   menuButton: { padding: 8 },
-  loadingContainer: { flex: 1, justifyContent: 'center', alignItems: 'center' },
+  loadingContainer: { flex: 1, paddingHorizontal: 16, paddingTop: 24 },
   messagesContainer: { flex: 1, backgroundColor: '#F5F5F7' },
   messagesContent: { padding: 16, paddingBottom: 20, gap: 8 },
   systemMessageWrapper: { flexDirection: 'row', alignItems: 'center', marginVertical: 16, paddingHorizontal: 20 },
@@ -570,7 +757,7 @@ const styles = StyleSheet.create({
   msgOuterWrapper: { marginVertical: 2 },
   msgOuterRight: { alignItems: 'flex-end' },
   msgOuterLeft: { alignItems: 'flex-start' },
-  messageBubble: { maxWidth: '75%', borderRadius: 16, padding: 12, overflow: 'hidden' },
+  messageBubble: { maxWidth: Dimensions.get('window').width * 0.75 - 32, borderRadius: 16, padding: 12, overflow: 'hidden' },
   myMessage: { backgroundColor: COLORS.primary, borderBottomRightRadius: 4 },
   theirMessage: { backgroundColor: '#FFFFFF', borderBottomLeftRadius: 4, borderWidth: 1, borderColor: '#E5E7EB' },
   myMessageExpanded: { backgroundColor: '#C2631A' },
@@ -584,7 +771,7 @@ const styles = StyleSheet.create({
   dateSepWrapper: { flexDirection: 'row', alignItems: 'center', marginVertical: 12, paddingHorizontal: 16 },
   dateSepLine: { flex: 1, height: 1, backgroundColor: '#E5E7EB' },
   dateSepText: { marginHorizontal: 10, fontSize: 11, fontWeight: '600', color: '#9CA3AF', textTransform: 'uppercase', letterSpacing: 0.5 },
-  inputContainer: { backgroundColor: '#FFFFFF', paddingHorizontal: 16, paddingTop: 12 },
+  inputContainer: { backgroundColor: '#FFFFFF', paddingHorizontal: 12, paddingTop: 8 },
   inputBar: { flexDirection: 'row', alignItems: 'flex-end', gap: 12 },
   input: {
     flex: 1,
@@ -615,4 +802,21 @@ const styles = StyleSheet.create({
   docSubText: { fontSize: 11, marginTop: 1 },
   docSubTextMy: { color: 'rgba(255,255,255,0.6)' },
   docSubTextTheir: { color: '#9CA3AF' },
+  // Reply-to styles (Step 9)
+  repliedToPreview: { padding: 8, borderRadius: 8, marginBottom: 6, borderLeftWidth: 3 },
+  repliedToPreviewMy: { backgroundColor: 'rgba(255,255,255,0.15)', borderLeftColor: 'rgba(255,255,255,0.5)' },
+  repliedToPreviewTheir: { backgroundColor: '#F3F4F6', borderLeftColor: COLORS.primary },
+  repliedToName: { fontSize: 11, fontWeight: '700', marginBottom: 2 },
+  repliedToText: { fontSize: 12, lineHeight: 16 },
+  replyIconBtn: { padding: 2 },
+  replyPreviewBar: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 16, paddingVertical: 10, backgroundColor: '#F3F4F6', gap: 10 },
+  replyPreviewAccent: { width: 3, height: '100%' as any, backgroundColor: COLORS.primary, borderRadius: 2 },
+  replyPreviewName: { fontSize: 12, fontWeight: '700', color: COLORS.primary },
+  replyPreviewText: { fontSize: 13, color: '#6B7280', marginTop: 2 },
+  // Jump-to-latest styles (Step 14)
+  jumpToLatestButton: { position: 'absolute', right: 16, bottom: 90, zIndex: 100 },
+  jumpToLatestPressable: { width: 40, height: 40, borderRadius: 20, backgroundColor: COLORS.primary, alignItems: 'center', justifyContent: 'center', borderWidth: 2, borderColor: '#FFFFFF', shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.25, shadowRadius: 4, elevation: 5 },
+  // Quick reply chips
+  replyChip: { height: 30, paddingHorizontal: 10, paddingTop: 5, borderRadius: 14, backgroundColor: '#F3F4F6', borderWidth: 1, borderColor: '#E5E7EB' },
+  replyChipText: { fontSize: 13, lineHeight: 18, fontWeight: '500', color: '#374151' },
 });

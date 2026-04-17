@@ -151,8 +151,10 @@ export class SellerService {
                 throw error;
             }
             return this.transformSeller(data);
-        } catch (error) {
-            console.error('Error fetching seller:', error);
+        } catch (error: any) {
+            if (error?.code !== 'PGRST116') {
+                console.error('Error fetching seller:', error);
+            }
             return null; // Return null instead of throwing to avoid UI crashes
         }
     }

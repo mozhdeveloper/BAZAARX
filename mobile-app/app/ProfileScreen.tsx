@@ -3,7 +3,9 @@ import { View, Text, ScrollView, Pressable, StyleSheet, Alert, StatusBar, Modal,
 import { LinearGradient } from 'expo-linear-gradient';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import * as ImagePicker from 'expo-image-picker';
-import { User, MapPin, CreditCard, Bell, HelpCircle, Shield, ChevronRight, Store, Star, Package, Heart, Settings, Edit2, Power, X, Camera, RotateCcw, Clock, Gift, Truck, Wallet, MessageSquarePlus } from 'lucide-react-native';
+import * as WebBrowser from 'expo-web-browser';
+import * as AuthSession from 'expo-auth-session';
+import { User, MapPin, CreditCard, Bell, HelpCircle, Shield, ChevronRight, Store, Star, Package, Heart, Settings, Edit2, Power, X, Camera, RotateCcw, Clock, Gift, Truck, Wallet, MessageSquarePlus, ArrowRight } from 'lucide-react-native';
 import type { CompositeScreenProps } from '@react-navigation/native';
 import type { BottomTabScreenProps } from '@react-navigation/bottom-tabs';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
@@ -23,7 +25,7 @@ type Props = CompositeScreenProps<
 >;
 
 export default function ProfileScreen({ navigation }: Props) {
-  const { user, logout, updateProfile, isGuest } = useAuthStore();
+  const { user, signOut, updateProfile, isGuest } = useAuthStore();
   const { seller } = useSellerStore();
   const wishlistItems = useWishlistStore(state => state.items);
   const insets = useSafeAreaInsets();
@@ -43,6 +45,8 @@ export default function ProfileScreen({ navigation }: Props) {
   const [editAvatar, setEditAvatar] = React.useState('');
   const [isSaving, setIsSaving] = React.useState(false);
   const [isSwitching, setIsSwitching] = React.useState(false);
+  const [isGoogleLinked, setIsGoogleLinked] = React.useState(false);
+  const [isLinkingGoogle, setIsLinkingGoogle] = React.useState(false);
   const avatarBase64Ref = React.useRef<{ base64: string; mimeType: string } | null>(null);
   const slideAnim = useRef(new Animated.Value(Dimensions.get('window').height)).current;
 
@@ -97,6 +101,12 @@ export default function ProfileScreen({ navigation }: Props) {
 
         if (!orderError && count !== null) {
           setTotalOrders(count);
+        }
+
+        // 3. Fetch Identities for Google link check
+        const { data: identityData } = await supabase.auth.getUserIdentities();
+        if (identityData?.identities) {
+          setIsGoogleLinked(identityData.identities.some(id => id.provider === 'google'));
         }
       } catch (error) {
         console.error('Error fetching profile data:', error);
@@ -306,6 +316,65 @@ export default function ProfileScreen({ navigation }: Props) {
     </Pressable>
   );
 
+  const handleLinkGoogle = async () => {
+    if (isGoogleLinked) {
+      Alert.alert('Unlink Google', 'Are you sure you want to unlink your Google account?', [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Unlink',
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              setIsLinkingGoogle(true);
+              const { data } = await supabase.auth.getUserIdentities();
+              const googleIdentity = data?.identities?.find(id => id.provider === 'google');
+              if (googleIdentity) {
+                const { error } = await supabase.auth.unlinkIdentity(googleIdentity);
+                if (error) throw error;
+                setIsGoogleLinked(false);
+                Alert.alert('Success', 'Google account unlinked.');
+              }
+            } catch (e) {
+              Alert.alert('Error', e instanceof Error ? e.message : 'Could not unlink account.');
+            } finally {
+              setIsLinkingGoogle(false);
+            }
+          }
+        }
+      ]);
+      return;
+    }
+
+    setIsLinkingGoogle(true);
+    try {
+      const redirectUrl = AuthSession.makeRedirectUri({ path: 'auth/callback' });
+      const { data, error } = await supabase.auth.linkIdentity({
+        provider: 'google',
+        options: {
+          redirectTo: redirectUrl,
+          skipBrowserRedirect: false,
+        }
+      });
+      if (error) throw error;
+      if (data?.url) {
+        const result = await WebBrowser.openBrowserAsync(data.url);
+        if (result.type === 'cancel' || result.type === 'dismiss') {
+          setIsLinkingGoogle(false);
+          return;
+        }
+        await new Promise(resolve => setTimeout(resolve, 800));
+        const { data: identityData } = await supabase.auth.getUserIdentities();
+        const linked = identityData?.identities?.some(id => id.provider === 'google') || false;
+        setIsGoogleLinked(linked);
+        if (linked) Alert.alert('Success', 'Google account linked!');
+      }
+    } catch (e) {
+      Alert.alert('Error', e instanceof Error ? e.message : 'An unexpected error occurred. Please try again.');
+    } finally {
+      setIsLinkingGoogle(false);
+    }
+  };
+
   const handleLogout = () => {
     Alert.alert(
       'Logout',
@@ -315,9 +384,13 @@ export default function ProfileScreen({ navigation }: Props) {
         {
           text: 'Logout',
           style: 'destructive',
-          onPress: () => {
-            logout();
-            navigation.getParent()?.navigate('Login');
+          onPress: async () => {
+            try {
+              await signOut(); // Calls supabase.auth.signOut() + clears store
+              // App.tsx's user watcher resets navigation to Splash → Login
+            } catch (err) {
+              Alert.alert('Error', 'Could not log out. Please try again.');
+            }
           },
         },
       ]
@@ -381,12 +454,9 @@ export default function ProfileScreen({ navigation }: Props) {
   if (!user || isGuest) {
     return (
       <View style={styles.container}>
-        <StatusBar barStyle="dark-content" />
-        <LinearGradient
-          colors={['#FFFBF5', '#FDF2E9', '#FFFBF5']} // Soft Parchment Header
-          start={{ x: 0, y: 0 }}
-          end={{ x: 1, y: 1 }}
-          style={[styles.header, { paddingTop: insets.top + 20 }]}
+        <StatusBar barStyle="light-content" />
+        <View
+          style={[styles.header, { paddingTop: insets.top + 20, backgroundColor: COLORS.primary }]}
         >
           <View style={styles.profileHeader}>
             <View style={styles.avatarWrapper}>
@@ -395,33 +465,36 @@ export default function ProfileScreen({ navigation }: Props) {
               </View>
             </View>
             <View style={styles.headerInfo}>
-              <Text style={styles.userName}>Guest User</Text>
-              <Text style={styles.userSub}>Welcome to BazaarX!</Text>
+              <Text style={[styles.userName, { color: '#FFFFFF' }]}>Guest User</Text>
+              <Text style={[styles.userSub, { color: 'rgba(255, 255, 255, 0.8)' }]}>Welcome to BazaarX!</Text>
             </View>
           </View>
-        </LinearGradient>
+        </View>
 
         <ScrollView contentContainerStyle={styles.scrollContent}>
-          {/* Main Actions for Guest */}
-          <View style={styles.card}>
-            <Pressable style={[styles.menuItem, styles.borderBottom]} onPress={() => navigation.getParent()?.navigate('Login')}>
-              <View style={styles.iconContainer}>
-                <User size={20} color={BRAND_COLOR} strokeWidth={2} />
-              </View>
-              <Text style={styles.menuLabel}>Login / Sign Up</Text>
-              <ChevronRight size={18} color={COLORS.textMuted} />
-            </Pressable>
+          <View style={[styles.menuGroup, { marginTop: 20 }]}>
+            {/* Main Actions for Guest */}
+            <Text style={styles.groupTitle}>Account</Text>
+            <View style={styles.card}>
+              <Pressable style={[styles.menuItem, styles.borderBottom]} onPress={() => navigation.getParent()?.navigate('Login')}>
+                <View style={styles.iconContainer}>
+                  <User size={20} color={BRAND_COLOR} strokeWidth={2} />
+                </View>
+                <Text style={styles.menuLabel}>Login / Sign Up</Text>
+                <ChevronRight size={18} color={COLORS.textMuted} />
+              </Pressable>
 
-            <Pressable style={styles.menuItem} onPress={() => navigation.navigate('SellerAuthChoice')}>
-              <View style={styles.iconContainer}>
-                <Store size={20} color={BRAND_COLOR} strokeWidth={2} />
-              </View>
-              <Text style={styles.menuLabel}>Start Selling</Text>
-              <ChevronRight size={18} color={COLORS.textMuted} />
-            </Pressable>
+              <Pressable style={styles.menuItem} onPress={() => navigation.navigate('SellerAuthChoice')}>
+                <View style={styles.iconContainer}>
+                  <Store size={20} color={BRAND_COLOR} strokeWidth={2} />
+                </View>
+                <Text style={styles.menuLabel}>Start Selling</Text>
+                <ChevronRight size={18} color={COLORS.textMuted} />
+              </Pressable>
+            </View>
           </View>
 
-          <View style={[styles.menuGroup, { marginTop: 25 }]}>
+          <View style={styles.menuGroup}>
             <Text style={styles.groupTitle}>Support</Text>
             <View style={styles.card}>
               {supportMenuItems.map((item, i) => (
@@ -492,7 +565,7 @@ export default function ProfileScreen({ navigation }: Props) {
         </View>
         {/* My Purchases Section */}
         <View style={styles.menuGroup}>
-          <Text style={[styles.groupTitle, { marginTop: 20 }]}>My Purchases</Text>
+          <Text style={styles.groupTitle}>My Purchases</Text>
           <View style={styles.purchasesContainer}>
             <View style={styles.purchasesGrid}>
               {[
@@ -541,7 +614,7 @@ export default function ProfileScreen({ navigation }: Props) {
           <Text style={styles.groupTitle}>Settings</Text>
           <View style={styles.card}>
             {settingsMenuItems.map((item, i) => (
-              <Pressable key={i} style={[styles.menuItem, i !== settingsMenuItems.length - 1 && styles.borderBottom]} onPress={item.onPress}>
+              <Pressable key={i} style={[styles.menuItem, styles.borderBottom]} onPress={item.onPress}>
                 <View style={styles.iconContainer}>
                   <item.icon size={20} color={BRAND_COLOR} strokeWidth={2} />
                 </View>
@@ -549,6 +622,27 @@ export default function ProfileScreen({ navigation }: Props) {
                 <ChevronRight size={18} color={COLORS.textMuted} />
               </Pressable>
             ))}
+            <View style={{ borderTopWidth: 1, borderTopColor: '#F9FAFB', paddingVertical: 15 }}>
+              <Pressable
+                style={styles.googleButton}
+                onPress={handleLinkGoogle}
+                disabled={isLinkingGoogle}
+              >
+                {isLinkingGoogle ? (
+                  <ActivityIndicator color="#374151" />
+                ) : (
+                  <>
+                    <Image
+                      source={{ uri: 'https://www.gstatic.com/images/branding/product/2x/googleg_48dp.png' }}
+                      style={styles.googleIcon}
+                    />
+                    <Text style={[styles.googleButtonText, isGoogleLinked && { color: '#059669' }]}>
+                      {isGoogleLinked ? 'Google Account Linked' : 'Link Google Account'}
+                    </Text>
+                  </>
+                )}
+              </Pressable>
+            </View>
           </View>
         </View>
 
@@ -569,24 +663,19 @@ export default function ProfileScreen({ navigation }: Props) {
 
         {/* 3.5 SELLING SWITCH (Moved to Footer) */}
         <Pressable
-          style={[styles.logoutBtn, { marginBottom: 15, borderRadius: 10, backgroundColor: BRAND_COLOR, shadowOpacity: 0.1, elevation: 2, borderWidth: 0 }]}
+          style={styles.sellerPortalButton}
           onPress={handleSellerSwitch}
           disabled={isSwitching}
         >
-          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
-            <View style={[styles.iconContainer, { width: 32, height: 32, backgroundColor: 'transparent', margin: 0, marginRight: 0 }]}>
-              {isSwitching ? (
-                <ActivityIndicator size="small" color="#FFF" />
-              ) : (
-                <Store size={18} color="#FFF" strokeWidth={2.5} />
-              )}
-            </View>
-            <View>
-              <Text style={[styles.logoutText, { color: '#FFF', fontSize: 16 }]}>
-                {isSwitching ? 'Checking Account...' : (isSeller ? 'Switch to Seller Mode' : 'Start Selling')}
-              </Text>
-            </View>
-          </View>
+          {isSwitching ? (
+            <ActivityIndicator size="small" color="#D97706" />
+          ) : (
+            <Store size={20} color="#D97706" strokeWidth={2.5} />
+          )}
+          <Text style={styles.sellerPortalText}>
+            {isSwitching ? 'Checking Account...' : (isSeller ? 'Switch to Seller Mode' : 'Start Selling')}
+          </Text>
+          {!isSwitching && <ArrowRight size={18} color="#D97706" />}
         </Pressable>
 
         {/* 4. LOGOUT BUTTON */}
@@ -851,7 +940,7 @@ const styles = StyleSheet.create({
     fontWeight: '500',
     color: COLORS.textPrimary,
   },
-  menuGroup: { marginBottom: 15, paddingHorizontal: 20 },
+  menuGroup: { marginTop: 25, paddingHorizontal: 20 },
   groupTitle: { fontSize: 13, fontWeight: '700', color: '#D97706', textTransform: 'uppercase', letterSpacing: 1, marginLeft: 10, marginBottom: 10 },
   card: { backgroundColor: '#FFF', borderRadius: 10, paddingHorizontal: 15, shadowColor: '#000', shadowOpacity: 0.02, shadowRadius: 10, elevation: 2 },
   menuItem: { flexDirection: 'row', alignItems: 'center', paddingVertical: 15 },
@@ -865,19 +954,64 @@ const styles = StyleSheet.create({
   },
   menuLabel: { flex: 1, fontSize: 15, fontWeight: '600', color: COLORS.textHeadline },
 
-  // Footer & Logout (FIXED MISSING PROPERTIES)
+  // Footer & Logout
   logoutBtn: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: '#FFF',
+    backgroundColor: '#FFFFFF',
     marginHorizontal: 20,
-    paddingVertical: 16,
-    borderRadius: 30,
-    gap: 10,
-    borderWidth: 0,
+    paddingVertical: 14,
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: '#E5E7EB',
+    gap: 8,
   },
-  logoutText: { fontSize: 16, fontWeight: '700', color: '#EF4444' },
+  logoutText: {
+    fontSize: 15,
+    fontWeight: '600',
+    color: '#EF4444',
+  },
+  sellerPortalButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginTop: 18,
+    gap: 8,
+    backgroundColor: '#FEF3C7',
+    marginHorizontal: 20,
+    marginBottom: 16,
+    paddingVertical: 14,
+    paddingHorizontal: 24,
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: '#D97706',
+  },
+  sellerPortalText: {
+    fontSize: 15,
+    fontWeight: '700',
+    color: '#D97706',
+  },
+  googleButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#F9FAFB',
+    paddingVertical: 14,
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: '#E5E7EB',
+    gap: 10,
+  },
+  googleIcon: {
+    width: 20,
+    height: 20,
+  },
+  googleButtonText: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#374151',
+  },
   footer: { alignItems: 'center', marginTop: 30, gap: 4 },
   versionText: { fontSize: 12, color: COLORS.textMuted, fontWeight: '600' },
   footerText: { fontSize: 12, color: COLORS.textMuted, fontWeight: '500' },

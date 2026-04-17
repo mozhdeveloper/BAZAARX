@@ -13,6 +13,7 @@ import { COLORS } from '../../src/constants/theme';
 import { StatusBar } from 'expo-status-bar';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import type { RootStackParamList } from '../../App';
+import { useAuthStore } from '../../src/stores/authStore';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'Terms'>;
 
@@ -22,7 +23,10 @@ export default function TermsScreen({ navigation, route }: Props) {
 
   const handleContinue = () => {
     if (agreed) {
-      navigation.navigate('CategoryPreference', { signupData: route.params.signupData });
+      // Prioritize navigation params, fallback to persistent store
+      const signupData = route.params?.signupData || useAuthStore.getState().pendingSignupData;
+      
+      navigation.navigate('CategoryPreference', { signupData });
     }
   };
 

@@ -1,25 +1,20 @@
 import React, { useEffect, useState, useRef } from 'react';
-import { View, Text, ScrollView, Pressable, StyleSheet, Modal, StatusBar, TextInput, ActivityIndicator, KeyboardAvoidingView, Platform } from 'react-native';
+import { View, Text, ScrollView, Pressable, StyleSheet, Modal, StatusBar, ActivityIndicator, TextInput } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { ChevronLeft, Plus, Edit2, Trash2, Home, Briefcase, MapPinned, X, ChevronDown, ChevronUp, Search, Check, Building2, Move, MapPin } from 'lucide-react-native';
-import MapView, { Marker, Region, PROVIDER_GOOGLE, PROVIDER_DEFAULT } from 'react-native-maps';
+import { ChevronLeft, Plus, Edit2, Trash2, Home, Briefcase, MapPinned, ChevronUp, ChevronDown, Search } from 'lucide-react-native';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import type { RootStackParamList } from '../App';
 import { COLORS } from '../src/constants/theme';
 import { type Address } from '../src/services/addressService';
 import { useAddressStore } from '../src/stores/addressStore';
 import { useAuthStore } from '../src/stores/authStore';
+import AddressFormModal from '../src/components/AddressFormModal';
 import { regions, provinces, cities, barangays } from 'select-philippines-address';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'Addresses'>;
 
-const DEFAULT_REGION = {
-  latitude: 14.5995,
-  longitude: 120.9842,
-  latitudeDelta: 0.01,
-  longitudeDelta: 0.01,
-};
+
 
 export default function AddressesScreen({ navigation }: Props) {
   const insets = useSafeAreaInsets();
@@ -40,52 +35,16 @@ export default function AddressesScreen({ navigation }: Props) {
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [selectedAddressId, setSelectedAddressId] = useState<string | null>(null);
   const [isAddressModalOpen, setIsAddressModalOpen] = useState(false);
-  const [editingId, setEditingId] = useState<string | null>(null);
-  const [isSaving, setIsSaving] = useState(false);
-
-  // Map & Geocoding States
-  const [isMapModalOpen, setIsMapModalOpen] = useState(false);
-  const [mapRegion, setMapRegion] = useState<Region>(DEFAULT_REGION);
-  const [isGeocoding, setIsGeocoding] = useState(false);
-  const [isReverseGeocoding, setIsReverseGeocoding] = useState(false);
-
-  // Dropdown States
-  const [isLoadingLocation, setIsLoadingLocation] = useState(false);
+  const [editingAddress, setEditingAddress] = useState<Address | null>(null);
+  
+  // Dropdown and location states
   const [openDropdown, setOpenDropdown] = useState<'region' | 'province' | 'city' | 'barangay' | null>(null);
   const [searchText, setSearchText] = useState('');
-
+  const [isLoadingLocation, setIsLoadingLocation] = useState(false);
   const [regionList, setRegionList] = useState<any[]>([]);
   const [provinceList, setProvinceList] = useState<any[]>([]);
   const [cityList, setCityList] = useState<any[]>([]);
   const [barangayList, setBarangayList] = useState<any[]>([]);
-
-  // Geo codes captured from dropdown selections
-  const [geoCodes, setGeoCodes] = useState<{
-    regionCode?: string;
-    provinceCode?: string;
-    cityCode?: string;
-    barangayCode?: string;
-  }>({});
-
-  const initialAddressState: Omit<Address, 'id'> = {
-    label: '',
-    firstName: '',
-    lastName: '',
-    phone: '',
-    street: '',
-    barangay: '',
-    city: '',
-    province: '',
-    region: '',
-    zipCode: '',
-    landmark: '',
-    deliveryInstructions: '',
-    addressType: 'residential',
-    isDefault: false,
-    coordinates: null,
-  };
-
-  const [newAddress, setNewAddress] = useState<Omit<Address, 'id'>>(initialAddressState);
 
   const getAddressIcon = (type: string) => {
     switch (type.toLowerCase()) {
@@ -102,349 +61,22 @@ export default function AddressesScreen({ navigation }: Props) {
   }, []);
 
   useEffect(() => {
-    regions().then(res => { if (isMounted.current) setRegionList(res); });
-  }, []);
-
-  useEffect(() => {
     if (!user) return;
     loadSavedAddresses(user.id);
   }, [user]);
 
-  // --- FORWARD GEOCODING: address → coords ---
-  const attemptGeocode = async (overrideAddress?: Partial<typeof newAddress>) => {
-    const current = { ...newAddress, ...overrideAddress };
-    const queryParts = [current.street, current.barangay, current.city, current.province, "Philippines"].filter(Boolean);
-    if (queryParts.length < 3) return;
-
-    const query = queryParts.join(', ');
-    if (!isMounted.current) return;
-    setIsGeocoding(true);
-
-    try {
-      const response = await fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(query)}&limit=1`, {
-        headers: { 'User-Agent': 'BazaarXApp/1.0' }
-      });
-      const data = await response.json();
-
-      if (data && data.length > 0 && isMounted.current) {
-        const lat = parseFloat(data[0].lat);
-        const lon = parseFloat(data[0].lon);
-
-        setNewAddress(prev => ({ ...prev, coordinates: { latitude: lat, longitude: lon } }));
-        setMapRegion({
-          latitude: lat,
-          longitude: lon,
-          latitudeDelta: 0.005,
-          longitudeDelta: 0.005,
-        });
-      }
-    } catch (error) {
-      console.log('Forward geocoding error:', error);
-    } finally {
-      if (isMounted.current) setIsGeocoding(false);
-    }
-  };
-
-  // --- REVERSE GEOCODING: coords → address + auto-fill dropdowns ---
-  const reverseGeocodeAndAutoFill = async (lat: number, lng: number) => {
-    if (!isMounted.current) return;
-    setIsReverseGeocoding(true);
-
-    try {
-      const response = await fetch(
-        `https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lng}&addressdetails=1`,
-        { headers: { 'User-Agent': 'BazaarXApp/1.0' } }
-      );
-      const data = await response.json();
-      if (!data?.display_name || !isMounted.current) return;
-
-      const addr = data.address || {};
-      const gStreet = addr.road || addr.pedestrian || '';
-      const gBarangay = addr.neighbourhood || addr.suburb || addr.village || '';
-      const gCity = addr.city || addr.municipality || addr.town || '';
-      const gProvince = addr.county || addr.state || '';
-      const gRegion = addr.region || addr.state || '';
-      const gPostalCode = addr.postcode || '';
-
-      // Auto-fill form fields
-      setNewAddress(prev => ({
-        ...prev,
-        street: gStreet || prev.street,
-        barangay: gBarangay,
-        city: gCity,
-        province: gProvince,
-        region: gRegion,
-        zipCode: gPostalCode || prev.zipCode,
-        coordinates: { latitude: lat, longitude: lng },
-      }));
-
-      // Try to match to Philippine address API and load dropdown lists
-      let regList = regionList;
-      if (regList.length === 0) {
-        regList = await regions();
-        if (isMounted.current) setRegionList(regList);
-      }
-
-      // Find matching region
-      const matchedRegion = regList.find((r: any) => {
-        const rName = r.region_name?.toLowerCase() || '';
-        const gR = gRegion.toLowerCase();
-        const gC = gCity.toLowerCase();
-        // Metro Manila heuristic
-        if (rName.includes('metro manila') || rName.includes('ncr') || rName.includes('national capital')) {
-          const metroCities = ['manila', 'quezon', 'makati', 'pasig', 'taguig', 'marikina', 'paranaque', 'pasay', 'caloocan', 'malabon', 'navotas', 'valenzuela', 'muntinlupa', 'las piñas', 'san juan', 'mandaluyong', 'pateros'];
-          if (gR.includes('metro manila') || gR.includes('ncr') || gR.includes('national capital') || metroCities.some(c => gC.includes(c))) {
-            return true;
-          }
-        }
-        return rName.includes(gR) || gR.includes(rName);
-      });
-
-      if (!matchedRegion || !isMounted.current) return;
-
-      const newGeoCodes: typeof geoCodes = { regionCode: matchedRegion.region_code };
-      setNewAddress(prev => ({ ...prev, region: matchedRegion.region_name }));
-
-      // Load provinces
-      const provList = await provinces(matchedRegion.region_code);
-      if (!isMounted.current) return;
-      setProvinceList(provList);
-
-      const isMetroManila = matchedRegion.region_name?.toLowerCase().includes('metro manila') ||
-        matchedRegion.region_name?.toLowerCase().includes('ncr') ||
-        matchedRegion.region_code === '13';
-
-      if (isMetroManila) {
-        // Load all cities from all districts for Metro Manila
-        let allCities: any[] = [];
-        for (const prov of provList) {
-          const provCities = await cities(prov.province_code);
-          allCities = [...allCities, ...provCities];
-        }
-        if (!isMounted.current) return;
-        setCityList(allCities);
-
-        const matchedCity = allCities.find((c: any) => {
-          const cName = c.city_name?.toLowerCase() || '';
-          return cName.includes(gCity.toLowerCase()) || gCity.toLowerCase().includes(cName.split(' ')[0]);
-        });
-
-        if (matchedCity) {
-          newGeoCodes.cityCode = matchedCity.city_code;
-          setNewAddress(prev => ({ ...prev, city: matchedCity.city_name }));
-          const brgyList = await barangays(matchedCity.city_code);
-          if (!isMounted.current) return;
-          setBarangayList(brgyList);
-
-          if (gBarangay) {
-            const matchedBrgy = brgyList.find((b: any) => {
-              const bName = b.brgy_name?.toLowerCase() || '';
-              return bName.includes(gBarangay.toLowerCase()) || gBarangay.toLowerCase().includes(bName);
-            });
-            if (matchedBrgy) {
-              newGeoCodes.barangayCode = matchedBrgy.brgy_code;
-              setNewAddress(prev => ({ ...prev, barangay: matchedBrgy.brgy_name }));
-            }
-          }
-        }
-      } else {
-        // Non-Metro Manila: find province, then city, then barangay
-        const matchedProv = provList.find((p: any) => {
-          const pName = p.province_name?.toLowerCase() || '';
-          return pName.includes(gProvince.toLowerCase()) || gProvince.toLowerCase().includes(pName);
-        });
-
-        if (matchedProv) {
-          newGeoCodes.provinceCode = matchedProv.province_code;
-          setNewAddress(prev => ({ ...prev, province: matchedProv.province_name }));
-
-          const cityListData = await cities(matchedProv.province_code);
-          if (!isMounted.current) return;
-          setCityList(cityListData);
-
-          const matchedCity = cityListData.find((c: any) => {
-            const cName = c.city_name?.toLowerCase() || '';
-            return cName.includes(gCity.toLowerCase()) || gCity.toLowerCase().includes(cName.split(' ')[0]);
-          });
-
-          if (matchedCity) {
-            newGeoCodes.cityCode = matchedCity.city_code;
-            setNewAddress(prev => ({ ...prev, city: matchedCity.city_name }));
-
-            const brgyList = await barangays(matchedCity.city_code);
-            if (!isMounted.current) return;
-            setBarangayList(brgyList);
-
-            if (gBarangay) {
-              const matchedBrgy = brgyList.find((b: any) => {
-                const bName = b.brgy_name?.toLowerCase() || '';
-                return bName.includes(gBarangay.toLowerCase()) || gBarangay.toLowerCase().includes(bName);
-              });
-              if (matchedBrgy) {
-                newGeoCodes.barangayCode = matchedBrgy.brgy_code;
-                setNewAddress(prev => ({ ...prev, barangay: matchedBrgy.brgy_name }));
-              }
-            }
-          }
-        }
-      }
-
-      if (isMounted.current) setGeoCodes(newGeoCodes);
-    } catch (error) {
-      console.log('Reverse geocode error:', error);
-    } finally {
-      if (isMounted.current) setIsReverseGeocoding(false);
-    }
-  };
-
-  // --- HANDLERS ---
-  const toggleDropdown = (name: 'region' | 'province' | 'city' | 'barangay') => {
-    if (openDropdown === name) {
-      setOpenDropdown(null);
-    } else {
-      setSearchText('');
-      setOpenDropdown(name);
-    }
-  };
-
-  const onRegionChange = async (code: string) => {
-    const name = regionList.find(i => i.region_code === code)?.region_name || '';
-    setNewAddress({ ...newAddress, region: name, province: '', city: '', barangay: '', coordinates: null });
-    setGeoCodes({ regionCode: code });
-    setOpenDropdown(null);
-    setIsLoadingLocation(true);
-    const provs = await provinces(code);
-    if (!isMounted.current) return;
-    setProvinceList(provs);
-    setCityList([]);
-    setBarangayList([]);
-    setIsLoadingLocation(false);
-  };
-
-  const onProvinceChange = async (code: string) => {
-    const name = provinceList.find(i => i.province_code === code)?.province_name || '';
-    setNewAddress({ ...newAddress, province: name, city: '', barangay: '', coordinates: null });
-    setGeoCodes(prev => ({ ...prev, provinceCode: code, cityCode: undefined, barangayCode: undefined }));
-    setOpenDropdown(null);
-    setIsLoadingLocation(true);
-    const cts = await cities(code);
-    if (!isMounted.current) return;
-    setCityList(cts);
-    setBarangayList([]);
-    setIsLoadingLocation(false);
-  };
-
-  const onCityChange = async (code: string) => {
-    const name = cityList.find(i => i.city_code === code)?.city_name || '';
-    setNewAddress({ ...newAddress, city: name, barangay: '', coordinates: null });
-    setGeoCodes(prev => ({ ...prev, cityCode: code, barangayCode: undefined }));
-    setOpenDropdown(null);
-    setIsLoadingLocation(true);
-    const brgys = await barangays(code);
-    if (!isMounted.current) return;
-    setBarangayList(brgys);
-    setIsLoadingLocation(false);
-    attemptGeocode({ city: name, barangay: '' });
-  };
-
-  const onBarangayChange = (name: string, brgyCode?: string) => {
-    setNewAddress({ ...newAddress, barangay: name });
-    if (brgyCode) setGeoCodes(prev => ({ ...prev, barangayCode: brgyCode }));
-    setOpenDropdown(null);
-    attemptGeocode({ barangay: name });
-  };
-
-  const onStreetBlur = () => {
-    if (newAddress.street.length > 3) {
-      attemptGeocode();
-    }
-  };
-
-  const handleOpenAddressModal = async (address?: Address) => {
-    setOpenDropdown(null);
-    setSearchText('');
-    setGeoCodes({});
-
-    if (address) {
-      setEditingId(address.id);
-      setNewAddress({ ...address });
-      setGeoCodes({
-        regionCode: address.regionCode,
-        provinceCode: address.provinceCode,
-        cityCode: address.cityCode,
-        barangayCode: address.barangayCode,
-      });
-      if (address.coordinates) {
-        setMapRegion({
-          latitude: address.coordinates.latitude,
-          longitude: address.coordinates.longitude,
-          latitudeDelta: 0.005,
-          longitudeDelta: 0.005,
-        });
-      }
-    } else {
-      setEditingId(null);
-      setProvinceList([]);
-      setCityList([]);
-      setBarangayList([]);
-      setNewAddress({
-        ...initialAddressState,
-        firstName: user?.name?.split(' ')[0] || '',
-        lastName: user?.name?.split(' ').slice(1).join(' ') || '',
-        phone: user?.phone || '',
-        isDefault: addresses.length === 0,
-      });
-      setMapRegion(DEFAULT_REGION);
-    }
+  const handleOpenAddressForm = (address?: Address) => {
+    setEditingAddress(address ?? null);
     setIsAddressModalOpen(true);
   };
 
-  const handleOpenMap = () => {
-    setIsMapModalOpen(true);
-  };
-
-  const handleConfirmLocation = () => {
-    const lat = mapRegion.latitude;
-    const lng = mapRegion.longitude;
-
-    setNewAddress(prev => ({
-      ...prev,
-      coordinates: { latitude: lat, longitude: lng },
-    }));
-    setIsMapModalOpen(false);
-
-    // Reverse geocode the pinned location and auto-fill dropdowns
-    reverseGeocodeAndAutoFill(lat, lng);
-  };
-
-  const handleSaveAddress = async () => {
-    if (!user) return;
-    if (!isMounted.current) return;
-    setIsSaving(true);
-
-    try {
-      // Attach geo codes to the address data
-      const payload: any = {
-        ...newAddress,
-        barangayCode: geoCodes.barangayCode,
-        cityCode: geoCodes.cityCode,
-        provinceCode: geoCodes.provinceCode,
-        regionCode: geoCodes.regionCode,
-      };
-
-      if (editingId) {
-        await updateSavedAddress(user.id, editingId, payload);
-      } else {
-        await addSavedAddress(user.id, payload);
-      }
-    } catch (error) {
-      console.error('Error saving address:', error);
+  const handleAddressSaved = (saved: Address) => {
+    if (editingAddress) {
+      // update in store
+      updateSavedAddress(user!.id, saved.id, saved).catch(console.error);
     }
-
-    if (isMounted.current) {
-      setIsSaving(false);
-      setIsAddressModalOpen(false);
-    }
+    // reload list to reflect changes
+    if (user) loadSavedAddresses(user.id);
   };
 
   const handleSetDefault = async (id: string) => {
@@ -473,73 +105,7 @@ export default function AddressesScreen({ navigation }: Props) {
     }
   };
 
-  // --- STRICTLY FORMATTED DROPDOWN ---
-  const Dropdown = ({ label, value, type, list, disabled = false, placeholder = "Select..." }: any) => {
-    const isOpen = openDropdown === type;
-    const filteredList = list.filter((item: any) => {
-      const itemName = item.region_name || item.province_name || item.city_name || item.brgy_name || '';
-      return itemName.toLowerCase().includes(searchText.toLowerCase());
-    });
 
-    return (
-      <View style={{ marginBottom: 12, zIndex: isOpen ? 100 : 1 }}>
-        <Text style={styles.inputLabel}>{label}</Text>
-        <Pressable
-          onPress={() => toggleDropdown(type)}
-          disabled={disabled}
-          style={[styles.dropdownTrigger, disabled && styles.dropdownDisabled, isOpen && styles.dropdownActive]}
-        >
-          <Text style={[styles.dropdownText, !value && styles.placeholderText, disabled && { color: '#9CA3AF' }]} numberOfLines={1}>
-            {value || placeholder}
-          </Text>
-          {isLoadingLocation && isOpen ? (
-            <ActivityIndicator size="small" color="#FF6A00" />
-          ) : (
-            isOpen ? <ChevronUp size={20} color={disabled ? "#9CA3AF" : "#4B5563"} /> : <ChevronDown size={20} color={disabled ? "#9CA3AF" : "#4B5563"} />
-          )}
-        </Pressable>
-        {isOpen && (
-          <View style={styles.dropdownListContainer}>
-            <View style={styles.searchContainer}>
-              <Search size={16} color="#9CA3AF" />
-              <TextInput
-                style={styles.searchInput}
-                placeholder="Search..."
-                value={searchText}
-                onChangeText={setSearchText}
-                autoFocus={true}
-              />
-            </View>
-            <ScrollView style={styles.selectList} nestedScrollEnabled={true} keyboardShouldPersistTaps="handled">
-              {filteredList.map((item: any, index: number) => {
-                const key = `${type}-${index}`;
-                let name = '';
-                if (type === 'region') name = item.region_name;
-                else if (type === 'province') name = item.province_name;
-                else if (type === 'city') name = item.city_name;
-                else name = item.brgy_name;
-
-                return (
-                  <Pressable
-                    key={key}
-                    style={({ pressed }) => [styles.selectItem, pressed && { backgroundColor: '#FFF7ED' }]}
-                    onPress={() => {
-                      if (type === 'region') onRegionChange(item.region_code);
-                      else if (type === 'province') onProvinceChange(item.province_code);
-                      else if (type === 'city') onCityChange(item.city_code);
-                      else onBarangayChange(item.brgy_name, item.brgy_code);
-                    }}
-                  >
-                    <Text style={styles.selectItemText}>{name}</Text>
-                  </Pressable>
-                );
-              })}
-            </ScrollView>
-          </View>
-        )}
-      </View>
-    );
-  };
 
   return (
     <View style={styles.container}>
@@ -559,7 +125,7 @@ export default function AddressesScreen({ navigation }: Props) {
 
       {/* ADDRESS LIST */}
       <ScrollView style={styles.scrollView} contentContainerStyle={styles.scrollContent}>
-        <Pressable style={({ pressed }) => [styles.addButton, pressed && styles.addButtonPressed]} onPress={() => handleOpenAddressModal()}>
+        <Pressable style={({ pressed }) => [styles.addButton, pressed && styles.addButtonPressed]} onPress={() => handleOpenAddressForm()}>
           <Plus size={20} color="#FFFFFF" />
           <Text style={styles.addButtonText}>Add New Address</Text>
         </Pressable>
@@ -582,7 +148,7 @@ export default function AddressesScreen({ navigation }: Props) {
               <Text style={styles.addressDetails}>{address.city}, {address.province}</Text>
               <View style={styles.actionButtons}>
                 {!address.isDefault && <Pressable style={styles.actionButton} onPress={() => handleSetDefault(address.id)}><Text style={styles.actionButtonText}>Set Default</Text></Pressable>}
-                <Pressable style={styles.actionButton} onPress={() => handleOpenAddressModal(address)}><Text style={styles.actionButtonText}>Edit</Text></Pressable>
+                <Pressable style={styles.actionButton} onPress={() => handleOpenAddressForm(address)}><Text style={styles.actionButtonText}>Edit</Text></Pressable>
                 <Pressable style={styles.deleteButton} onPress={() => { setSelectedAddressId(address.id); setShowDeleteModal(true); }}><Text style={styles.deleteButtonText}>Delete</Text></Pressable>
               </View>
             </View>
@@ -603,165 +169,16 @@ export default function AddressesScreen({ navigation }: Props) {
         </View>
       </Modal>
 
-      {/* ADD/EDIT ADDRESS MODAL */}
-      <Modal visible={isAddressModalOpen} animationType="slide" presentationStyle="pageSheet" onRequestClose={() => setIsAddressModalOpen(false)}>
-        <KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : "height"} style={{ flex: 1, backgroundColor: '#FFFFFF' }}>
-          <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 20, paddingTop: 20, paddingBottom: 16, borderBottomWidth: 1, borderBottomColor: '#F3F4F6' }}>
-            <Text style={{ fontSize: 20, fontWeight: '800', color: '#1F2937' }}>{editingId ? 'Edit Address' : 'Add Address'}</Text>
-            <Pressable onPress={() => setIsAddressModalOpen(false)} style={{ width: 36, height: 36, borderRadius: 18, backgroundColor: '#F5F5F7', justifyContent: 'center', alignItems: 'center' }}>
-              <X size={22} color="#1F2937" />
-            </Pressable>
-          </View>
-
-          <ScrollView contentContainerStyle={{ padding: 20, paddingBottom: 100 }} keyboardShouldPersistTaps="handled">
-
-            <View style={styles.typeSelectorContainer}>
-              <Pressable
-                style={[styles.typeOption, newAddress.addressType === 'residential' && styles.typeOptionActive]}
-                onPress={() => setNewAddress({ ...newAddress, addressType: 'residential' })}
-              >
-                <Home size={16} color={newAddress.addressType === 'residential' ? '#FF6A00' : '#6B7280'} />
-                <Text style={[styles.typeOptionText, newAddress.addressType === 'residential' && styles.typeOptionTextActive]}>Residential</Text>
-              </Pressable>
-              <Pressable
-                style={[styles.typeOption, newAddress.addressType === 'commercial' && styles.typeOptionActive]}
-                onPress={() => setNewAddress({ ...newAddress, addressType: 'commercial' })}
-              >
-                <Building2 size={16} color={newAddress.addressType === 'commercial' ? '#FF6A00' : '#6B7280'} />
-                <Text style={[styles.typeOptionText, newAddress.addressType === 'commercial' && styles.typeOptionTextActive]}>Commercial</Text>
-              </Pressable>
-            </View>
-
-            <Text style={styles.sectionHeader}>Contact Information</Text>
-            <View style={{ flexDirection: 'row', gap: 12 }}>
-              <View style={{ flex: 1 }}>
-                <Text style={styles.inputLabel}>First Name</Text>
-                <TextInput value={newAddress.firstName} onChangeText={(t) => setNewAddress({ ...newAddress, firstName: t })} style={styles.input} placeholder="John" />
-              </View>
-              <View style={{ flex: 1 }}>
-                <Text style={styles.inputLabel}>Last Name</Text>
-                <TextInput value={newAddress.lastName} onChangeText={(t) => setNewAddress({ ...newAddress, lastName: t })} style={styles.input} placeholder="Doe" />
-              </View>
-            </View>
-            <Text style={styles.inputLabel}>Phone Number</Text>
-            <TextInput value={newAddress.phone} onChangeText={(t) => setNewAddress({ ...newAddress, phone: t })} style={styles.input} placeholder="+63" keyboardType="phone-pad" />
-
-            <Text style={[styles.sectionHeader, { marginTop: 12 }]}>Location Details</Text>
-            <Text style={styles.inputLabel}>Label</Text>
-            <TextInput value={newAddress.label} onChangeText={(t) => setNewAddress({ ...newAddress, label: t })} style={styles.input} placeholder="Home, Office..." />
-
-            <Dropdown label="Region" type="region" value={newAddress.region} list={regionList} />
-            <Dropdown label="Province" type="province" value={newAddress.province} list={provinceList} disabled={!newAddress.region} />
-            <Dropdown label="City / Municipality" type="city" value={newAddress.city} list={cityList} disabled={!newAddress.province} />
-            <Dropdown label="Barangay" type="barangay" value={newAddress.barangay} list={barangayList} disabled={!newAddress.city} />
-
-            <Text style={styles.inputLabel}>Street / House No.</Text>
-            <TextInput
-              value={newAddress.street}
-              onChangeText={(t) => setNewAddress({ ...newAddress, street: t })}
-              onEndEditing={onStreetBlur}
-              style={styles.input}
-              placeholder="123 Acacia St."
-            />
-
-            {/* --- LIVE MAP PREVIEW --- */}
-            <Text style={styles.inputLabel}>Pin Location</Text>
-            <View style={styles.mapPreviewWrapper}>
-              <MapView
-                provider={Platform.OS === 'android' ? PROVIDER_GOOGLE : PROVIDER_DEFAULT}
-                style={styles.mapPreview}
-                region={mapRegion}
-                scrollEnabled={false} // Disable form-scroll conflict
-                zoomEnabled={false}
-                rotateEnabled={false}
-                pitchEnabled={false}
-              >
-                {/* Marker always at the calculated/selected coordinates */}
-                {newAddress.coordinates && (
-                  <Marker coordinate={newAddress.coordinates} />
-                )}
-              </MapView>
-
-              {/* Loading Overlay */}
-              {(isGeocoding || isReverseGeocoding) && (
-                <View style={styles.mapLoadingOverlay}>
-                  <ActivityIndicator color="#FF6A00" />
-                  <Text style={{ fontSize: 12, color: '#374151', marginTop: 4 }}>
-                    {isReverseGeocoding ? 'Reading location...' : 'Locating...'}
-                  </Text>
-                </View>
-              )}
-
-              {/* Adjust Button Overlay */}
-              <View style={styles.mapOverlay}>
-                <Pressable style={styles.editPinButton} onPress={handleOpenMap}>
-                  <Move size={14} color="#FFF" />
-                  <Text style={styles.editPinText}>Adjust Pin</Text>
-                </Pressable>
-              </View>
-            </View>
-
-            <Text style={[styles.inputLabel, { marginTop: 12 }]}>Landmark (Optional)</Text>
-            <TextInput value={newAddress.landmark || ''} onChangeText={(t) => setNewAddress({ ...newAddress, landmark: t })} style={styles.input} placeholder="Near 7-Eleven, Colored gate" />
-
-            <Text style={styles.inputLabel}>Delivery Instructions (Optional)</Text>
-            <TextInput
-              value={newAddress.deliveryInstructions || ''}
-              onChangeText={(t) => setNewAddress({ ...newAddress, deliveryInstructions: t })}
-              style={[styles.input, { height: 80, textAlignVertical: 'top', paddingTop: 10 }]}
-              placeholder="Leave at front desk..."
-              multiline={true}
-            />
-
-            <Text style={styles.inputLabel}>Postal Code</Text>
-            <TextInput value={newAddress.zipCode} onChangeText={(t) => setNewAddress({ ...newAddress, zipCode: t })} style={styles.input} placeholder="1000" keyboardType="number-pad" />
-
-            <Pressable style={[styles.checkboxContainer, newAddress.isDefault && styles.checkboxActive]} onPress={() => setNewAddress({ ...newAddress, isDefault: !newAddress.isDefault })}>
-              <View style={[styles.checkbox, newAddress.isDefault && { borderColor: '#16A34A', backgroundColor: '#16A34A' }]}>
-                {newAddress.isDefault && <View style={{ width: 8, height: 8, backgroundColor: '#FFF', borderRadius: 4 }} />}
-              </View>
-              <Text style={[styles.checkboxText, newAddress.isDefault && { color: '#16A34A' }]}>Set as default delivery address</Text>
-            </Pressable>
-          </ScrollView>
-
-          <View style={styles.stickyFooter}>
-            <Pressable style={[styles.confirmButton, isSaving && { opacity: 0.7 }]} onPress={handleSaveAddress} disabled={isSaving}>
-              {isSaving ? <ActivityIndicator color="#FFF" /> : <Text style={styles.confirmButtonText}>{editingId ? 'Save Changes' : 'Add Address'}</Text>}
-            </Pressable>
-          </View>
-        </KeyboardAvoidingView>
-      </Modal>
-
-      {/* --- PRECISION MAP MODAL --- */}
-      <Modal visible={isMapModalOpen} animationType="slide" onRequestClose={() => setIsMapModalOpen(false)}>
-        <View style={{ flex: 1, backgroundColor: '#FFF' }}>
-          <MapView
-            style={{ flex: 1 }}
-            region={mapRegion}
-            onRegionChangeComplete={(region: Region) => setMapRegion(region)}
-            showsUserLocation={true}
-            showsMyLocationButton={true}
-          />
-          <View style={styles.centerMarkerContainer} pointerEvents="none">
-            <MapPin size={48} color="#FF6A00" fill="#FF6A00" />
-            <View style={styles.markerShadow} />
-          </View>
-          <View style={[styles.mapHeader, { paddingTop: insets.top + 10 }]}>
-            <Pressable onPress={() => setIsMapModalOpen(false)} style={styles.mapCloseButton}>
-              <ChevronLeft size={24} color="#1F2937" />
-            </Pressable>
-            <Text style={styles.mapTitle}>Adjust Location</Text>
-            <View style={{ width: 40 }} />
-          </View>
-          <View style={styles.mapFooter}>
-            <Text style={styles.mapInstruction}>Drag map to pin exact location</Text>
-            <Pressable style={styles.confirmButton} onPress={handleConfirmLocation}>
-              <Text style={styles.confirmButtonText}>Confirm Pin</Text>
-            </Pressable>
-          </View>
-        </View>
-      </Modal>
-
+      {/* ADD/EDIT ADDRESS — shared form */}
+      <AddressFormModal
+        visible={isAddressModalOpen}
+        onClose={() => setIsAddressModalOpen(false)}
+        onSaved={handleAddressSaved}
+        initialData={editingAddress}
+        userId={user?.id ?? ''}
+        existingCount={addresses.length}
+        context="buyer"
+      />
 
     </View>
   );

@@ -1080,3 +1080,11 @@ export type RejectionStage = 'digital' | 'physical';
 export type OrderItemStatus = 'pending' | 'confirmed' | 'preparing' | 'shipped' | 'delivered' | 'cancelled' | 'returned';
 export type AdminRole = 'admin' | 'super_admin' | 'moderator';
 export type ReturnStatus = 'requested' | 'approved' | 'denied' | 'completed';
+
+export interface VerificationCode {
+  id: string;
+  email: string;
+  code: string;
+  expires_at: string;
+  created_at: string;
+}

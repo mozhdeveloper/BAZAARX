@@ -37,6 +37,30 @@ export interface CheckoutPayload {
         productId: string;
         quantity: number;
     }[];
+    // Card payment details
+    cardDetails?: {
+        cardNumber: string;
+        expiryDate: string;
+        cvv: string;
+        cardName: string;
+    };
+    // BX-09-001 — Per-seller shipping breakdown
+    shippingBreakdown?: {
+        sellerId: string;
+        sellerName: string;
+        method: string;
+        methodLabel: string;
+        fee: number;
+        breakdown: {
+            baseRate: number;
+            weightSurcharge: number;
+            valuationFee: number;
+            odzFee: number;
+        };
+        estimatedDays: string;
+        originZone: string;
+        destinationZone: string;
+    }[];
 }
 
 export interface CheckoutResult {
@@ -50,17 +74,11 @@ export interface CheckoutResult {
 /**
  * Generate a fallback order number (only used if DB trigger is not deployed).
  * Prefer server-side generation via the trg_set_order_number trigger.
- * This function adds randomness and uniqueness to prevent collisions.
  */
-let orderNumberCounter = 0;
 const generateOrderNumber = (): string => {
     const year = new Date().getFullYear();
-    const timestamp = Date.now();
-    const millisPart = timestamp % 1000; // Last 3 digits for sub-second uniqueness
-    const seq = Math.floor(timestamp / 1000).toString(36).toUpperCase();
-    const randomPart = Math.random().toString(36).substring(2, 6).toUpperCase(); // 4 random alphanumeric chars
-    const counter = String(++orderNumberCounter).padStart(2, '0'); // Sequential counter
-    return `ORD-${year}${seq}${randomPart}${counter}`;
+    const seq = Date.now().toString(36).toUpperCase();
+    return `ORD-${year}${seq}`;
 };
 
 /**
@@ -90,17 +108,14 @@ export const processCheckout = async (payload: CheckoutPayload): Promise<Checkou
         campaignDiscounts
     } = payload;
 
-    // Performance monitoring - start timer
-    const checkoutStartTime = performance.now();
-
     try {
         // 1. Validate Stock — batch query all variants at once instead of per-item loop
         const productIdsForStock = items.map(i => i.id).filter(Boolean) as string[];
-        
+
         let allVariants: { id: string; product_id: string; stock: number }[] = [];
         let allProducts: { id: string; stock: number }[] = [];
         // Note: 'stock' doesn't exist on products table; derived from variants below
-        
+
         if (productIdsForStock.length > 0) {
             // Fetch variants
             const { data: variantsData, error: variantError } = await supabase
@@ -125,7 +140,7 @@ export const processCheckout = async (payload: CheckoutPayload): Promise<Checkou
         // Validate stock per item using the batched result
         for (const item of items) {
             if (!item.id) continue;
-            
+
             const itemVariants = allVariants.filter(v => v.product_id === item.id);
             const productStock = allProducts.find(p => p.id === item.id)?.stock || 0;
 
@@ -158,7 +173,7 @@ export const processCheckout = async (payload: CheckoutPayload): Promise<Checkou
         }
 
         // 2. Group items by seller — batch query all seller IDs at once
-        const itemsMissingSeller = items.filter(item => 
+        const itemsMissingSeller = items.filter(item =>
             item.id && !(item as any).seller_id && !(item as any).sellerId
         );
         const sellerLookupMap = new Map<string, string>();
@@ -268,67 +283,21 @@ export const processCheckout = async (payload: CheckoutPayload): Promise<Checkou
 
             if (!addressData) throw new Error('Failed to resolve shipping address');
 
-            // Create recipient record with buyer details
-            const nameParts = (shippingAddress.fullName || '').trim().split(' ');
-            const recipientFirstName = nameParts[0] || '';
-            const recipientLastName = nameParts.slice(1).join(' ') || '';
-
-            const { data: recipientResult, error: recipientError } = await supabase
-                .from('order_recipients')
-                .insert({
-                    first_name: recipientFirstName,
-                    last_name: recipientLastName,
-                    phone: shippingAddress.phone || '',
-                    email: email || ''
-                })
-                .select('id')
-                .single();
-
-            if (recipientError) throw recipientError;
-            const recipientId = recipientResult?.id;
-            if (!recipientId) throw new Error('Failed to create recipient');
-
             // Create order with multiple fallback strategies for robustness
             let orderData: { id: string; order_number: string; buyer_id: string } | null = null;
-            
+
             // Strategy 1: Try the safe RPC function (if it exists in the database)
             // This function has built-in exception handling for trigger errors
-            // With retry logic for network timeouts/aborts
-            let rpcAttempt = 0;
-            let rpcError: any = null;
-            let rpcResult: any = null;
-            
-            while (rpcAttempt < 2 && !rpcResult) {
-                try {
-                    const response = await supabase
-                        .rpc('create_order_safe', {
-                            p_order_number: orderNumber,
-                            p_buyer_id: userId,
-                            p_order_type: 'ONLINE',
-                            p_address_id: addressData.id,
-                            p_recipient_id: recipientId,
-                            p_payment_status: 'pending_payment',
-                            p_shipment_status: 'waiting_for_seller',
-                            p_notes: `Order from ${shippingAddress.fullName}`
-                        });
-                    
-                    rpcError = response.error;
-                    rpcResult = response.data;
-                    
-                    if (!rpcError) {
-                        break; // Success
-                    }
-                } catch (err: any) {
-                    // Handle fetch/network errors
-                    if (rpcAttempt === 0 && (err?.message?.includes('Aborted') || err?.name === 'AbortError')) {
-                        console.warn('[Checkout] ⚠️ RPC call aborted/network timeout, retrying...');
-                        rpcAttempt++;
-                        await new Promise(resolve => setTimeout(resolve, 500)); // Wait before retry
-                        continue;
-                    }
-                    throw err; // Re-throw if not a timeout/abort
-                }
-            }
+            const { data: rpcResult, error: rpcError } = await supabase
+                .rpc('create_order_safe', {
+                    p_order_number: orderNumber,
+                    p_buyer_id: userId,
+                    p_order_type: 'ONLINE',
+                    p_address_id: addressData.id,
+                    p_payment_status: 'pending_payment',
+                    p_shipment_status: 'waiting_for_seller',
+                    p_notes: `Order from ${shippingAddress.fullName}`
+                });
 
             if (!rpcError && rpcResult && (rpcResult as any).success) {
                 // RPC function worked
@@ -344,7 +313,7 @@ export const processCheckout = async (payload: CheckoutPayload): Promise<Checkou
             } else {
                 // Strategy 2: Fall back to direct insert (RPC might not exist yet)
                 console.log('[Checkout] RPC not available or failed, using direct insert...');
-                
+
                 const { data: insertedOrder, error: orderError } = await supabase
                     .from('orders')
                     .insert({
@@ -352,7 +321,6 @@ export const processCheckout = async (payload: CheckoutPayload): Promise<Checkou
                         buyer_id: userId,
                         order_type: 'ONLINE',
                         address_id: addressData.id,
-                        recipient_id: recipientId,
                         payment_status: 'pending_payment',
                         shipment_status: 'waiting_for_seller',
                         notes: `Order from ${shippingAddress.fullName}`,
@@ -363,69 +331,20 @@ export const processCheckout = async (payload: CheckoutPayload): Promise<Checkou
                     .single();
 
                 if (orderError) {
-                    const isDuplicateKeyError = orderError.code === '23505'; // Unique constraint violation
                     const isMaterializedViewError = orderError.message?.includes('materialized view') ||
-                                                     orderError.message?.includes('concurrently') ||
-                                                     orderError.code === '55000';
-                    
-                    if (isDuplicateKeyError) {
-                        console.warn('[Checkout] ⚠️ Duplicate order number detected, regenerating with retry...');
-                        
-                        // Generate a new order number and retry
-                        let retryCount = 0;
-                        const maxRetries = 3;
-                        let finalOrderData: { id: string; order_number: string; buyer_id: string } | null = null;
-                        
-                        while (retryCount < maxRetries && !finalOrderData) {
-                            const newOrderNumber = `${generateOrderNumber()}#${sellerIndex}`;
-                            console.log(`[Checkout] Retry ${retryCount + 1}/${maxRetries} with order number: ${newOrderNumber}`);
-                            
-                            const { data: retryInsert, error: retryError } = await supabase
-                                .from('orders')
-                                .insert({
-                                    order_number: newOrderNumber,
-                                    buyer_id: userId,
-                                    order_type: 'ONLINE',
-                                    address_id: addressData.id,
-                                    recipient_id: recipientId,
-                                    payment_status: 'pending_payment',
-                                    shipment_status: 'waiting_for_seller',
-                                    notes: `Order from ${shippingAddress.fullName}`,
-                                    created_at: new Date().toISOString(),
-                                    updated_at: new Date().toISOString()
-                                })
-                                .select()
-                                .single();
-                            
-                            if (!retryError && retryInsert) {
-                                finalOrderData = retryInsert as { id: string; order_number: string; buyer_id: string };
-                                console.log('[Checkout] ✅ Order created on retry:', finalOrderData.order_number);
-                            } else if (retryError?.code === '23505') {
-                                // Still duplicate, wait and retry
-                                retryCount++;
-                                if (retryCount < maxRetries) {
-                                    await new Promise(resolve => setTimeout(resolve, 200 * retryCount));
-                                }
-                            } else if (retryError) {
-                                throw retryError;
-                            }
-                        }
-                        
-                        if (!finalOrderData) {
-                            throw new Error('Failed to create order after multiple retries. Duplicate order number persists.');
-                        }
-                        
-                        orderData = finalOrderData;
-                    } else if (isMaterializedViewError) {
+                        orderError.message?.includes('concurrently') ||
+                        orderError.code === '55000';
+
+                    if (isMaterializedViewError) {
                         console.warn('[Checkout] ⚠️ Materialized view error detected, attempting recovery...');
-                        
+
                         // Wait a moment for any async operations to complete
                         await new Promise(resolve => setTimeout(resolve, 200));
-                        
+
                         // Try to fetch the order with retry logic
                         let retryCount = 0;
                         const maxRetries = 3;
-                        
+
                         while (retryCount < maxRetries && !orderData) {
                             const { data: existingOrder } = await supabase
                                 .from('orders')
@@ -433,7 +352,7 @@ export const processCheckout = async (payload: CheckoutPayload): Promise<Checkou
                                 .eq('order_number', orderNumber)
                                 .eq('buyer_id', userId)
                                 .maybeSingle();
-                            
+
                             if (existingOrder) {
                                 console.log('[Checkout] ✅ Order found on retry', retryCount + 1, ':', orderNumber);
                                 orderData = existingOrder as { id: string; order_number: string; buyer_id: string };
@@ -444,7 +363,7 @@ export const processCheckout = async (payload: CheckoutPayload): Promise<Checkou
                                 }
                             }
                         }
-                        
+
                         if (!orderData) {
                             // Order wasn't created - need database fix
                             console.error('[Checkout] ❌ Order not found after retries. Database fix required.');
@@ -461,7 +380,7 @@ export const processCheckout = async (payload: CheckoutPayload): Promise<Checkou
                     orderData = insertedOrder as { id: string; order_number: string; buyer_id: string };
                 }
             }
-            
+
             if (!orderData) {
                 throw new Error('Failed to create order - no order data returned');
             }
@@ -470,6 +389,36 @@ export const processCheckout = async (payload: CheckoutPayload): Promise<Checkou
             createdOrderUuids.push(orderData.id);
 
             console.log(`[Checkout] ✅ Order created: ${orderData.order_number} for seller ${sellerId}`);
+
+            // BX-09-002 — Persist per-seller shipment record
+            if (payload.shippingBreakdown && payload.shippingBreakdown.length > 0) {
+                const sellerBreakdown = payload.shippingBreakdown.find((sb: any) => sb.sellerId === sellerId);
+                if (sellerBreakdown) {
+                    supabase
+                        .from('order_shipments')
+                        .insert({
+                            order_id: orderData.id,
+                            seller_id: sellerId,
+                            shipping_method: sellerBreakdown.method,
+                            shipping_method_label: sellerBreakdown.methodLabel,
+                            calculated_fee: sellerBreakdown.fee,
+                            fee_breakdown: sellerBreakdown.breakdown,
+                            origin_zone: sellerBreakdown.originZone,
+                            destination_zone: sellerBreakdown.destinationZone,
+                            estimated_days_text: sellerBreakdown.estimatedDays,
+                            chargeable_weight_kg: 0,
+                            tracking_number: null,
+                            status: 'pending',
+                        })
+                        .then(({ error: shipErr }) => {
+                            if (shipErr) {
+                                console.warn(`[Checkout] ⚠️ Failed to insert order_shipment for seller ${sellerId}:`, shipErr.message);
+                            } else {
+                                console.log(`[Checkout] ✅ Shipment record created for order ${orderData!.order_number}, seller ${sellerId}`);
+                            }
+                        });
+                }
+            }
 
             // � Send bell notification to buyer about order placed (only this one, no duplicate 'pending')
             notificationService.notifyBuyerOrderStatus({
@@ -533,10 +482,10 @@ export const processCheckout = async (payload: CheckoutPayload): Promise<Checkou
             const orderItemsData = sellerItems.map(item => {
                 // Build personalized options with dynamic labels and legacy support
                 let personalizedOptions: Record<string, any> | null = null;
-                
+
                 if (item.selectedVariant) {
                     personalizedOptions = {};
-                    
+
                     // Store dynamic variant labels and values
                     if (item.selectedVariant.option1Value) {
                         personalizedOptions.option1Label = item.selectedVariant.option1Label || 'Option 1';
@@ -546,7 +495,7 @@ export const processCheckout = async (payload: CheckoutPayload): Promise<Checkou
                         personalizedOptions.option2Label = item.selectedVariant.option2Label || 'Option 2';
                         personalizedOptions.option2Value = item.selectedVariant.option2Value;
                     }
-                    
+
                     // Legacy support for color/size
                     if (item.selectedVariant.size) {
                         personalizedOptions.size = item.selectedVariant.size;
@@ -554,12 +503,12 @@ export const processCheckout = async (payload: CheckoutPayload): Promise<Checkou
                     if (item.selectedVariant.color) {
                         personalizedOptions.color = item.selectedVariant.color;
                     }
-                    
+
                     // Store variant ID if available
                     if (item.selectedVariant.variantId) {
                         personalizedOptions.variantId = item.selectedVariant.variantId;
                     }
-                    
+
                     // Build display name
                     const displayParts: string[] = [];
                     if (personalizedOptions.option1Value) {
@@ -573,16 +522,16 @@ export const processCheckout = async (payload: CheckoutPayload): Promise<Checkou
                         if (personalizedOptions.size) displayParts.push(`Size: ${personalizedOptions.size}`);
                         if (personalizedOptions.color) displayParts.push(`Color: ${personalizedOptions.color}`);
                     }
-                    
+
                     if (displayParts.length > 0) {
                         personalizedOptions.name = displayParts.join(', ');
                     }
                 }
-                
+
                 // Calculate price discount (campaign discount) per item
                 const itemOriginalPrice = item.originalPrice ?? item.price ?? 0;
                 const itemPriceDiscount = itemOriginalPrice - (item.price ?? 0);
-                
+
                 return {
                     order_id: orderData.id,
                     product_id: item.id,
@@ -607,41 +556,41 @@ export const processCheckout = async (payload: CheckoutPayload): Promise<Checkou
             // Handle materialized view error on order_items - the insert might have succeeded
             if (itemsError) {
                 const isMaterializedViewError = itemsError.message?.includes('materialized view') ||
-                                                 itemsError.message?.includes('concurrently') ||
-                                                 itemsError.code === '55000';
-                
+                    itemsError.message?.includes('concurrently') ||
+                    itemsError.code === '55000';
+
                 if (isMaterializedViewError) {
                     console.warn('[Checkout] ⚠️ Materialized view error on order_items, checking if items were created...');
-                    
+
                     // Wait briefly and check if items exist
                     await new Promise(resolve => setTimeout(resolve, 200));
-                    
+
                     const { data: existingItems } = await supabase
                         .from('order_items')
                         .select('id')
                         .eq('order_id', orderData.id);
-                    
+
                     if (existingItems && existingItems.length > 0) {
                         console.log('[Checkout] ✅ Order items found despite trigger error');
                         // Items were created - continue
                     } else {
                         // Items weren't created - try one more time without the trigger issue
                         console.warn('[Checkout] Order items not found, retrying insert...');
-                        
+
                         const { error: retryError } = await supabase
                             .from('order_items')
                             .insert(orderItemsData as any);
-                        
+
                         if (retryError && !retryError.message?.includes('materialized view')) {
                             throw retryError; // Real error
                         }
-                        
+
                         // Check again
                         const { data: retryItems } = await supabase
                             .from('order_items')
                             .select('id')
                             .eq('order_id', orderData.id);
-                        
+
                         if (!retryItems || retryItems.length === 0) {
                             console.error('[Checkout] ❌ Failed to create order items. Database fix required.');
                             throw new Error(
@@ -690,10 +639,10 @@ export const processCheckout = async (payload: CheckoutPayload): Promise<Checkou
 
             // Record campaign discount usage — batch insert all at once
             if (campaignDiscounts && campaignDiscounts.length > 0) {
-                const sellerDiscounts = campaignDiscounts.filter(cd => 
+                const sellerDiscounts = campaignDiscounts.filter(cd =>
                     sellerItems.some(si => si.id === cd.productId)
                 );
-                
+
                 const discountInserts = sellerDiscounts
                     .filter(cd => cd.campaignId && cd.discountAmount > 0)
                     .map(cd => ({
@@ -716,7 +665,7 @@ export const processCheckout = async (payload: CheckoutPayload): Promise<Checkou
             // Update stock in product_variants — batch fetch current stock then update
             const variantIdsToUpdate: string[] = [];
             const productIdsForFallback: string[] = [];
-            
+
             for (const item of sellerItems) {
                 if (!item.id) continue;
                 if (item.selectedVariant?.variantId) {
@@ -729,14 +678,18 @@ export const processCheckout = async (payload: CheckoutPayload): Promise<Checkou
             try {
                 // Batch fetch all variant stocks we need
                 const variantStockMap = new Map<string, number>();
-                const variantUpdateMap = new Map<string, number>(); // Track updates per variant
+                const variantUpdateMap = new Map<string, number>();
+                const variantToProductMap = new Map<string, string>(); // Track variant -> product mapping
 
                 if (variantIdsToUpdate.length > 0) {
                     const { data: varStocks } = await supabase
                         .from('product_variants')
-                        .select('id, stock')
+                        .select('id, stock, product_id')
                         .in('id', variantIdsToUpdate);
-                    varStocks?.forEach(v => variantStockMap.set(v.id, v.stock || 0));
+                    varStocks?.forEach(v => {
+                        variantStockMap.set(v.id, v.stock || 0);
+                        variantToProductMap.set(v.id, v.product_id);
+                    });
                 }
 
                 // For items without specific variant, get primary variant per product
@@ -752,19 +705,23 @@ export const processCheckout = async (payload: CheckoutPayload): Promise<Checkou
                         if (!seen.has(v.product_id)) {
                             seen.add(v.product_id);
                             variantStockMap.set(v.id, v.stock || 0);
+                            variantToProductMap.set(v.id, v.product_id);
                         }
                     });
                 }
 
-                // Build all stock updates in a single operation
+                // Now update each variant stock (these are individual UPDATEs but with pre-fetched data)
                 for (const item of sellerItems) {
                     if (!item.id) continue;
                     let variantId = item.selectedVariant?.variantId;
                     if (!variantId) {
                         // Find the fallback variant ID from our map
-                        for (const [vid, _] of variantStockMap) {
-                            const belongsToProduct = allVariants.some(v => v.id === vid && v.product_id === item.id);
-                            if (belongsToProduct) { variantId = vid; break; }
+                        for (const [vid, productId] of variantToProductMap) {
+                            // Match by checking if this variant belongs to this product
+                            if (productId === item.id) {
+                                variantId = vid;
+                                break;
+                            }
                         }
                     }
                     if (variantId && variantStockMap.has(variantId)) {
@@ -773,14 +730,13 @@ export const processCheckout = async (payload: CheckoutPayload): Promise<Checkou
                     }
                 }
 
-                // Batch update all variant stocks in a single transaction
-                const updatePromises: Promise<any>[] = [];
+                const updatePromises: any[] = [];
                 for (const [variantId, quantityToDeduct] of variantUpdateMap) {
                     const currentStock = variantStockMap.get(variantId) || 0;
-                    const updatePromise = supabase
+                    const updatePromise = (supabase
                         .from('product_variants')
                         .update({ stock: Math.max(0, currentStock - quantityToDeduct) })
-                        .eq('id', variantId);
+                        .eq('id', variantId) as unknown as Promise<any>);
                     updatePromises.push(updatePromise);
                 }
 
@@ -858,26 +814,9 @@ export const processCheckout = async (payload: CheckoutPayload): Promise<Checkou
             orderUuids: createdOrderUuids
         };
 
-    } catch (error: any) {        // Handle abort errors gracefully (network interruption, component unmount, timeout)
-        const isAbortError = error?.name === 'AbortError' || 
-                            error?.message?.includes('Aborted') ||
-                            error?.code === 'ABORT_ERR' ||
-                            error?.message?.includes('timed out');
-        
-        if (isAbortError) {
-            console.warn('[Checkout] ⚠️ Checkout interrupted by network or timeout:', error.message);
-            return {
-                success: false,
-                error: 'Checkout was interrupted. Please check your connection and try again.'
-            };
-        }
-        console.error('[Checkout] ❌ Checkout processing failed:', error);
+    } catch (error: any) {
+        console.error('[Checkout] \u274c Checkout processing failed:', error);
         return { success: false, error: error.message || 'Unknown error occurred' };
-    } finally {
-        // Performance logging
-        const checkoutEndTime = performance.now();
-        const checkoutDuration = (checkoutEndTime - checkoutStartTime).toFixed(2);
-        console.log(`[Checkout] ✅ Total processing time: ${checkoutDuration}ms`);
     }
 };
 

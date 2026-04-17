@@ -51,6 +51,32 @@ function mapDbCartItemsToCartItems(dbItems: any[]): CartItem[] {
       const variant = ci.variant || null;
       const productImages = product.images || [];
 
+      // Evaluate seller operational status based on restriction columns
+      const seller = product.seller || {};
+      const now = new Date();
+      const tempBlacklistUntil = seller.temp_blacklist_until ? new Date(seller.temp_blacklist_until) : null;
+      const isTempBlacklistExpired = tempBlacklistUntil && now > tempBlacklistUntil;
+
+      const isSellerActive = !(
+        seller.is_permanently_blacklisted ||
+        seller.suspended_at ||
+        seller.is_vacation_mode ||
+        seller.approval_status === 'rejected' ||
+        seller.approval_status === 'suspended' ||
+        (tempBlacklistUntil && !isTempBlacklistExpired)
+      );
+
+      let sellerRestrictionReason: string | null = null;
+      if (!isSellerActive) {
+        if (seller.is_vacation_mode) {
+          sellerRestrictionReason = 'ON VACATION';
+        } else if (seller.suspended_at || seller.is_permanently_blacklisted || (tempBlacklistUntil && now <= tempBlacklistUntil)) {
+          sellerRestrictionReason = 'RESTRICTED';
+        } else {
+          sellerRestrictionReason = 'UNAVAILABLE';
+        }
+      }
+
       // Find primary image or first image
       const primaryImg = productImages.find((img: any) => img.is_primary);
       const sortedImages = [...productImages].sort((a: any, b: any) => (a.sort_order || 0) - (b.sort_order || 0));
@@ -104,7 +130,6 @@ function mapDbCartItemsToCartItems(dbItems: any[]): CartItem[] {
       const price = discountedPrice < originalPrice ? discountedPrice : originalPrice;
 
       // Get seller info
-      const seller = product.seller || {};
       const sellerName = seller.store_name || 'Shop';
       const sellerId = seller.id || product.seller_id || '';
 
@@ -160,6 +185,7 @@ function mapDbCartItemsToCartItems(dbItems: any[]): CartItem[] {
           ? variant.stock
           : (product.variants?.reduce((sum: number, v: any) => sum + (v.stock ?? 0), 0) ?? null),
         isFreeShipping: !!product.is_free_shipping,
+        is_vacation_mode: !!product.seller?.is_vacation_mode,
         quantity: ci.quantity || 1,
         selectedVariant,
         // Pass essential product fields for variant selection modal
@@ -168,6 +194,10 @@ function mapDbCartItemsToCartItems(dbItems: any[]): CartItem[] {
         variant_label_2: product.variant_label_2,
         option1Values: product.option1Values || [],
         option2Values: product.option2Values || [],
+        // Seller operational status
+        isSellerActive,
+        sellerRestrictionReason,
+        isVacationMode: !!seller.is_vacation_mode,
       } as CartItem;
     });
 }
@@ -215,39 +245,24 @@ export const useCartStore = create<CartStore>()(
       },
 
       initializeForCurrentUser: async () => {
-        console.log('[CartStore] initializeForCurrentUser starting...');
         const userId = useAuthStore.getState().user?.id;
-        if (!userId || userId === 'guest') {
-          console.log('[CartStore] No valid user ID, skipping initialization');
-          return;
-        }
+        if (!userId || userId === 'guest') return;
         set({ isLoading: true, error: null });
         try {
-          console.log('[CartStore] Fetching or creating cart for user:', userId);
-          const cartStart = Date.now();
           const cart = await cartService.getOrCreateCart(userId);
-          const cartDuration = Date.now() - cartStart;
-          console.log(`[CartStore] getOrCreateCart completed in ${cartDuration}ms:`, cart);
           set({ cartId: cart.id });
 
           const cartId = get().cartId;
           if (cartId) {
-            console.log('[CartStore] Fetching cart items for cart:', cartId);
-            const itemsStart = Date.now();
             const rawItems = await cartService.getCartItems(cartId);
-            const itemsDuration = Date.now() - itemsStart;
-            console.log(`[CartStore] getCartItems completed in ${itemsDuration}ms, found ${rawItems.length} items`);
             const dbItems = mapDbCartItemsToCartItems(rawItems);
             const mergedItems = mergeDbAndLocalItems(dbItems, get().items);
-            console.log('[CartStore] Items mapped and merged, total:', mergedItems.length);
             set({ items: mergedItems });
           }
         } catch (e: any) {
-          console.error('[CartStore] ❌ initializeForCurrentUser error:', e);
           set({ error: e?.message || 'Failed to load cart', items: [] });
         } finally {
           set({ isLoading: false });
-          console.log('[CartStore] initializeForCurrentUser completed');
         }
       },
 
@@ -357,7 +372,7 @@ export const useCartStore = create<CartStore>()(
             set({ items: mergeDbAndLocalItems(dbItems, get().items) });
           } catch (e) {
             // Rollback on error
-            set({ items: previousItems });
+            set({ items: previousItems, error: 'Failed to remove item. Please try again.' });
             console.error('[CartStore] Failed to remove item:', e);
           }
         };
@@ -524,9 +539,8 @@ export const useCartStore = create<CartStore>()(
           }
         } catch (e) {
           // Rollback on error
-          set({ items: previousItems });
+          set({ items: previousItems, error: 'Failed to remove item. Please try again.' });
           console.error('[CartStore] Failed to remove multiple items:', e);
-          set({ error: 'Failed to delete selected items' });
         }
       },
 
