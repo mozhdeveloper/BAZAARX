@@ -1,4 +1,4 @@
-﻿import React, { useState, useRef, useEffect, useMemo, useCallback } from 'react';
+import React, { useState, useRef, useEffect, useMemo, useCallback } from 'react';
 import {
   View,
   Text,
@@ -59,7 +59,7 @@ import {
 import { ProductCard, MasonryProductCard } from '../src/components/ProductCard';
 import { VariantSelectionModal } from '../src/components/VariantSelectionModal';
 import CameraSearchModal from '../src/components/CameraSearchModal';
-import StoreChatModal from '../src/components/StoreChatModal';
+import { chatService } from '../src/services/chatService';
 import { AIChatBubble } from '../src/components/AIChatBubble';
 import { AddedToCartModal } from '../src/components/AddedToCartModal';
 import { QuantityStepper } from '../src/components/QuantityStepper';
@@ -351,7 +351,7 @@ export default function ProductDetailScreen({ route, navigation }: Props) {
     }
   };
   const [showCameraSearch, setShowCameraSearch] = useState(false);
-  const [showChat, setShowChat] = useState(false);
+  const [chatLoading, setChatLoading] = useState(false);
   const [currentImageIndex, setCurrentImageIndex] = useState(0);
   const [isSearchFocused, setIsSearchFocused] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
@@ -671,7 +671,7 @@ export default function ProductDetailScreen({ route, navigation }: Props) {
   };
 
   // Handle variant modal confirm
-  const handleVariantModalConfirm = () => {
+  const handleVariantModalConfirm = async () => {
     // Validate that required variants are selected
     if (hasOption1 && !modalSelectedOption1) {
       Alert.alert(`Select ${finalVariantLabel1}`, `Please select a ${finalVariantLabel1.toLowerCase()} before continuing`);
@@ -697,7 +697,7 @@ export default function ProductDetailScreen({ route, navigation }: Props) {
     }
 
     if (variantModalAction === 'cart') {
-      addItem({
+      const addItemResult = await addItem({
         ...product,
         price: variantPrice,
         selectedVariant: {
@@ -717,13 +717,17 @@ export default function ProductDetailScreen({ route, navigation }: Props) {
       }
       const variantText = variantParts.length > 0 ? ` (${variantParts.join(', ')})` : '';
 
-      setTimeout(() => {
-        setAddedProductInfo({
-          name: `${product.name}${variantText}`,
-          image: matchedVariant?.thumbnail_url || productImages[0] || product.image
-        });
-        setShowAddedToCartModal(true);
-      }, 300);
+      if (addItemResult) {
+        setTimeout(() => {
+          setAddedProductInfo({
+            name: `${product.name}${variantText}`,
+            image: matchedVariant?.thumbnail_url || productImages[0] || product.image
+          });
+          setShowAddedToCartModal(true);
+        }, 300);
+      } else {
+        Alert.alert('Unable to Add', useCartStore.getState().error || 'Unable to add item.');
+      }
       return;
     } else {
       setQuickOrder({
@@ -745,7 +749,7 @@ export default function ProductDetailScreen({ route, navigation }: Props) {
   };
 
   // NEW Handle Confirm from Shared Modal
-  const handleSharedModalConfirm = (
+  const handleSharedModalConfirm = async (
     selectedVariant: {
       option1Value?: string;
       option2Value?: string;
@@ -765,7 +769,7 @@ export default function ProductDetailScreen({ route, navigation }: Props) {
     const discountedPrice = discountService.calculateLineDiscount(variantPrice || 0, 1, activeCampaignDiscount).discountedUnitPrice;
 
     if (variantModalAction === 'cart') {
-      addItem({
+      const addItemResult = await addItem({
         ...product,
         originalPrice: variantPrice || 0,
         price: discountedPrice,
@@ -777,15 +781,19 @@ export default function ProductDetailScreen({ route, navigation }: Props) {
         quantity: newQuantity
       } as any);
 
-      // Show Added Modal after exit animation completes
-      setTimeout(() => {
-        const variantText = [selectedVariant.option1Value, selectedVariant.option2Value].filter(Boolean).join(', ');
-        setAddedProductInfo({
-          name: `${product.name}${variantText ? ` (${variantText})` : ''}`,
-          image: selectedVariant.image || productImages[0] || product.image || ''
-        });
-        setShowAddedToCartModal(true);
-      }, 300);
+      if (addItemResult) {
+        // Show Added Modal after exit animation completes
+        setTimeout(() => {
+          const variantText = [selectedVariant.option1Value, selectedVariant.option2Value].filter(Boolean).join(', ');
+          setAddedProductInfo({
+            name: `${product.name}${variantText ? ` (${variantText})` : ''}`,
+            image: selectedVariant.image || productImages[0] || product.image || ''
+          });
+          setShowAddedToCartModal(true);
+        }, 300);
+      } else {
+        Alert.alert('Unable to Add', useCartStore.getState().error || 'Unable to add item.');
+      }
 
     } else {
       setQuickOrder({
@@ -807,7 +815,7 @@ export default function ProductDetailScreen({ route, navigation }: Props) {
     setQuantity(newQuantity);
   };
 
-  const handleAddToCart = useCallback(() => {
+  const handleAddToCart = useCallback(async () => {
     if (hasVariants) {
       openVariantModal('cart');
       return;
@@ -836,26 +844,33 @@ export default function ProductDetailScreen({ route, navigation }: Props) {
 
     const discountedPrice = discountService.calculateLineDiscount(product.price || 0, 1, activeCampaignDiscount).discountedUnitPrice;
 
-    // Add to cart with discount info embedded so it persists in the cart
-    addItem({
-      ...product,
-      originalPrice: product.price || 0,
-      price: discountedPrice,
-      activeCampaignDiscount: activeCampaignDiscount || undefined,
-      selectedVariant,
-      quantity
-    } as any);
+    try {
+      // Add to cart with discount info embedded so it persists in the cart
+      const addItemResult = await addItem({
+        ...product,
+        originalPrice: product.price || 0,
+        price: discountedPrice,
+        activeCampaignDiscount: activeCampaignDiscount || undefined,
+        selectedVariant,
+        quantity
+      } as any);
 
-    const variantText = selectedVariant
-      ? ` (${[selectedVariant.color, selectedVariant.size].filter(Boolean).join(', ')})`
-      : '';
+      if (addItemResult) {
+        const variantText = selectedVariant
+          ? ` (${[selectedVariant.color, selectedVariant.size].filter(Boolean).join(', ')})`
+          : '';
 
-    // Show Added to Cart Modal
-    setAddedProductInfo({
-      name: `${product.name}${variantText}`,
-      image: productImages[0] || product.image || ''
-    });
-    setShowAddedToCartModal(true);
+        setAddedProductInfo({
+          name: `${product.name}${variantText}`,
+          image: productImages[0] || product.image || ''
+        });
+        setShowAddedToCartModal(true);
+      } else {
+        Alert.alert('Unable to add to cart', useCartStore.getState().error || 'This item is no longer available.');
+      }
+    } catch {
+      Alert.alert('Unable to add to cart', useCartStore.getState().error || 'This item is no longer available.');
+    }
   }, [hasVariants, isGuest, product, quantity, activeCampaignDiscount, productImages, addItem]);
 
   const handleBuyNow = useCallback(() => {
@@ -924,14 +939,33 @@ export default function ProductDetailScreen({ route, navigation }: Props) {
     }
   };
 
-  const handleChat = () => {
+  const handleChat = async () => {
     const { isGuest } = useAuthStore.getState();
     if (isGuest) {
       setGuestModalMessage("Sign up to chat with sellers.");
       setShowGuestModal(true);
       return;
     }
-    setShowChat(true);
+    if (chatLoading) return;
+    const sellerId = product.seller_id || product.sellerId;
+    const buyerId = user?.id;
+    if (!sellerId || !buyerId) return;
+    setChatLoading(true);
+    try {
+      const conversation = await chatService.getOrCreateConversation(buyerId, sellerId);
+      if (conversation) {
+        (navigation as any).navigate('Chat', {
+          conversation,
+          currentUserId: buyerId,
+          userType: 'buyer',
+        });
+      }
+    } catch (error) {
+      console.error('[ProductDetail] Error opening chat:', error);
+      Alert.alert('Error', 'Could not open chat. Please try again.');
+    } finally {
+      setChatLoading(false);
+    }
   }
 
   const handleVisitStore = () => {
@@ -1560,7 +1594,7 @@ export default function ProductDetailScreen({ route, navigation }: Props) {
 
       {/* --- BOTTOM ACTIONS (SOLID ORANGE) --- */}
       <View style={[styles.bottomBar, { paddingBottom: insets.bottom + 12 }]}>
-        <Pressable style={styles.chatSellerBtn} onPress={() => setShowChat(true)}>
+        <Pressable style={styles.chatSellerBtn} onPress={handleChat}>
           <MessageCircle size={22} color="#FFF" />
         </Pressable>
 
@@ -1605,12 +1639,7 @@ export default function ProductDetailScreen({ route, navigation }: Props) {
 
       <CameraSearchModal visible={showCameraSearch} onClose={() => setShowCameraSearch(false)} />
 
-      <StoreChatModal
-        visible={showChat}
-        onClose={() => setShowChat(false)}
-        storeName={displayStoreName}
-        sellerId={product.seller_id || product.sellerId}
-      />
+
 
       <Modal
         visible={showVariantFilterModal}
@@ -2000,7 +2029,7 @@ export default function ProductDetailScreen({ route, navigation }: Props) {
           store_name: displayStoreName,
           rating: product.sellerRating,
         }}
-        onTalkToSeller={() => setShowChat(true)}
+        onTalkToSeller={handleChat}
       />
 
     </View >

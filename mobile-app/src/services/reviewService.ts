@@ -592,6 +592,10 @@ export class ReviewService {
       const { data, error, count } = await query;
       
       if (error) {
+        // Suppress AbortError — it's expected when requests overlap or component unmounts
+        if (error.message?.includes('Aborted') || error.code === 'ABORT_ERR') {
+          return { reviews: [], total: 0, stats: { averageRating: 0, total: 0, distribution: [0, 0, 0, 0, 0], withImages: 0 } };
+        }
         console.error('Error fetching reviews:', error);
         throw error;
       }
@@ -622,7 +626,11 @@ export class ReviewService {
              total: count || computedStats.total
         },
       };
-    } catch (error) {
+    } catch (error: any) {
+      // Suppress AbortError — it's expected when component unmounts or requests overlap
+      if (error?.message?.includes('Aborted') || error?.code === 'ABORT_ERR') {
+        return { reviews: [], total: 0, stats: { averageRating: 0, total: 0, distribution: [0, 0, 0, 0, 0], withImages: 0 } };
+      }
       console.error('[ReviewService] Error fetching product reviews:', error);
       return { reviews: [], total: 0, stats: { averageRating: 0, total: 0, distribution: [0, 0, 0, 0, 0], withImages: 0 } };
     }
@@ -659,7 +667,11 @@ export class ReviewService {
       }
 
       return (data || []) as Review[];
-    } catch (error) {
+    } catch (error: any) {
+      // Suppress AbortError — it's expected when component unmounts
+      if (error?.message?.includes('Aborted') || error?.code === 'ABORT_ERR') {
+        return [];
+      }
       console.error('[ReviewService] Error fetching buyer reviews:', error);
       throw new Error('Failed to fetch your reviews');
     }
@@ -769,7 +781,11 @@ export class ReviewService {
       }
 
       return (data || []).map((review) => mapReviewRowToFeedItem(review));
-    } catch (error) {
+    } catch (error: any) {
+      // Suppress AbortError — it's expected when component unmounts
+      if (error?.message?.includes('Aborted') || error?.code === 'ABORT_ERR') {
+        return [];
+      }
       console.error('[ReviewService] Error fetching seller reviews:', error);
       throw new Error('Failed to fetch store reviews');
     }

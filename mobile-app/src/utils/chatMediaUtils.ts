@@ -69,3 +69,21 @@ export const MEDIA_PLACEHOLDER_MAP: Record<ChatMediaType, string> = {
 };
 
 export const ALL_PLACEHOLDERS = ['[Image]', '[Video]', '[Document]'];
+
+/**
+ * Extract a human-readable filename from a Supabase storage URL.
+ * Strips the timestamp prefix added on upload: "1712345678_report.pdf" → "report.pdf"
+ * Decodes percent-encoded characters and strips query strings.
+ */
+export function extractFileName(url: string, fallback = 'Document.pdf'): string {
+  try {
+    if (!url) return fallback;
+    const raw = decodeURIComponent(url.split('/').pop()?.split('?')[0] || fallback);
+    if (!raw || raw === fallback) return fallback;
+    const match = raw.match(/^\d+_(.+)$/);
+    const name = match ? match[1] : raw;
+    return name.trim() || fallback;
+  } catch {
+    return fallback;
+  }
+}

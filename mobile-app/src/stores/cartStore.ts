@@ -1,3 +1,4 @@
+import { Alert } from 'react-native';
 import { create } from 'zustand';
 import { persist, createJSONStorage } from 'zustand/middleware';
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -7,6 +8,7 @@ import { useAuthStore } from './authStore';
 import { PLACEHOLDER_PRODUCT } from '../utils/imageUtils';
 
 let cartChannel: any = null;
+let debounceTimers: Record<string, ReturnType<typeof setTimeout> | undefined> = {};
 
 interface CartStore {
   items: CartItem[];
@@ -48,6 +50,32 @@ function mapDbCartItemsToCartItems(dbItems: any[]): CartItem[] {
       const product = ci.product || {};
       const variant = ci.variant || null;
       const productImages = product.images || [];
+
+      // Evaluate seller operational status based on restriction columns
+      const seller = product.seller || {};
+      const now = new Date();
+      const tempBlacklistUntil = seller.temp_blacklist_until ? new Date(seller.temp_blacklist_until) : null;
+      const isTempBlacklistExpired = tempBlacklistUntil && now > tempBlacklistUntil;
+
+      const isSellerActive = !(
+        seller.is_permanently_blacklisted ||
+        seller.suspended_at ||
+        seller.is_vacation_mode ||
+        seller.approval_status === 'rejected' ||
+        seller.approval_status === 'suspended' ||
+        (tempBlacklistUntil && !isTempBlacklistExpired)
+      );
+
+      let sellerRestrictionReason: string | null = null;
+      if (!isSellerActive) {
+        if (seller.is_vacation_mode) {
+          sellerRestrictionReason = 'ON VACATION';
+        } else if (seller.suspended_at || seller.is_permanently_blacklisted || (tempBlacklistUntil && now <= tempBlacklistUntil)) {
+          sellerRestrictionReason = 'RESTRICTED';
+        } else {
+          sellerRestrictionReason = 'UNAVAILABLE';
+        }
+      }
 
       // Find primary image or first image
       const primaryImg = productImages.find((img: any) => img.is_primary);
@@ -102,7 +130,6 @@ function mapDbCartItemsToCartItems(dbItems: any[]): CartItem[] {
       const price = discountedPrice < originalPrice ? discountedPrice : originalPrice;
 
       // Get seller info
-      const seller = product.seller || {};
       const sellerName = seller.store_name || 'Shop';
       const sellerId = seller.id || product.seller_id || '';
 
@@ -158,6 +185,7 @@ function mapDbCartItemsToCartItems(dbItems: any[]): CartItem[] {
           ? variant.stock
           : (product.variants?.reduce((sum: number, v: any) => sum + (v.stock ?? 0), 0) ?? null),
         isFreeShipping: !!product.is_free_shipping,
+        is_vacation_mode: !!product.seller?.is_vacation_mode,
         quantity: ci.quantity || 1,
         selectedVariant,
         // Pass essential product fields for variant selection modal
@@ -166,6 +194,10 @@ function mapDbCartItemsToCartItems(dbItems: any[]): CartItem[] {
         variant_label_2: product.variant_label_2,
         option1Values: product.option1Values || [],
         option2Values: product.option2Values || [],
+        // Seller operational status
+        isSellerActive,
+        sellerRestrictionReason,
+        isVacationMode: !!seller.is_vacation_mode,
       } as CartItem;
     });
 }
@@ -290,35 +322,9 @@ export const useCartStore = create<CartStore>()(
             return (added as any)?.id as string | undefined;
           } catch (e: any) {
             const msg = String(e?.message || e || '');
-            // For missing product FK errors, treat as non-fatal and silently fall back to local cart entry
-            if (msg.includes('Product not found') || msg.includes('violates foreign key')) {
-              const localItem: CartItem = {
-                id: product.id,
-                cartItemId: `local-${Date.now()}-${Math.random().toString(36).slice(2,8)}`,
-                name: product.name || 'Product',
-                description: product.description || '',
-                price: typeof product.price === 'number' ? product.price : parseFloat(String(product.price) || '0'),
-                originalPrice: typeof product.price === 'number' ? product.price : parseFloat(String(product.price) || '0'),
-                image: product.image || PLACEHOLDER_PRODUCT,
-                images: product.images || [],
-                seller: product.seller || 'Shop',
-                sellerId: (product as any).sellerId || '',
-                category: (product as any).category || '',
-                stock: (product as any).stock || 0,
-                isFreeShipping: !!(product as any).isFreeShipping,
-                quantity: (product as any).quantity || 1,
-                selectedVariant: (product as any).selectedVariant || null,
-                variants: (product as any).variants || [],
-              } as CartItem;
-
-              // Add local item WITHOUT calling initializeForCurrentUser() to prevent overwrite
-              set(state => ({ items: [localItem, ...state.items] }));
-              return localItem.cartItemId;
-            } else {
-              console.error('[CartStore] Failed to add item:', msg || e);
-              set({ error: msg || 'Failed to add item to cart' });
-              return undefined;
-            }
+            console.error('[CartStore] Failed to add item:', msg || e);
+            set({ error: msg || 'Failed to add item to cart' });
+            return undefined;
           }
         };
         
@@ -366,7 +372,7 @@ export const useCartStore = create<CartStore>()(
             set({ items: mergeDbAndLocalItems(dbItems, get().items) });
           } catch (e) {
             // Rollback on error
-            set({ items: previousItems });
+            set({ items: previousItems, error: 'Failed to remove item. Please try again.' });
             console.error('[CartStore] Failed to remove item:', e);
           }
         };
@@ -417,21 +423,32 @@ export const useCartStore = create<CartStore>()(
             )
           }));
 
-          try {
-            const item = previousItems.find(i => i.cartItemId === itemId);
-            if (item) {
-              await cartService.updateCartItemQuantity(item.cartItemId, nextQuantity);
-            } else {
-              const verifiedCartId = cartId as string;
-              await cartService.updateQuantity(verifiedCartId, itemId, nextQuantity);
-            }
-            // No re-fetch needed — optimistic update is accurate.
-            // A full refresh happens automatically on next screen focus.
-          } catch (e) {
-            // Rollback on error
-            set({ items: previousItems });
-            console.error('[CartStore] Failed to update quantity:', e);
+          // Clear any existing debounce timer for this item
+          if (debounceTimers[itemId]) {
+            clearTimeout(debounceTimers[itemId]);
           }
+
+          // Debounce the API call by 500ms from the user's last tap
+          debounceTimers[itemId] = setTimeout(async () => {
+            try {
+              const item = previousItems.find(i => i.cartItemId === itemId);
+              if (item) {
+                await cartService.updateCartItemQuantity(item.cartItemId, nextQuantity);
+              } else {
+                const verifiedCartId = cartId as string;
+                await cartService.updateQuantity(verifiedCartId, itemId, nextQuantity);
+              }
+              // No re-fetch needed — optimistic update is accurate.
+              // A full refresh happens automatically on next screen focus.
+              delete debounceTimers[itemId];
+            } catch (e) {
+              // Rollback on error
+              set({ items: previousItems });
+              console.error('[CartStore] Failed to update quantity:', e);
+              Alert.alert('Cannot Update Quantity', e instanceof Error ? e.message : 'Unable to update item quantity');
+              delete debounceTimers[itemId];
+            }
+          }, 500);
         };
         run();
       },
@@ -522,9 +539,8 @@ export const useCartStore = create<CartStore>()(
           }
         } catch (e) {
           // Rollback on error
-          set({ items: previousItems });
+          set({ items: previousItems, error: 'Failed to remove item. Please try again.' });
           console.error('[CartStore] Failed to remove multiple items:', e);
-          set({ error: 'Failed to delete selected items' });
         }
       },
 

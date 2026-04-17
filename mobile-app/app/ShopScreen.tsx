@@ -1,43 +1,37 @@
-import React, { useState, useMemo, useEffect, useCallback, useRef } from 'react';
+import MultiSlider from '@ptomasroos/react-native-multi-slider';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import type { BottomTabScreenProps } from '@react-navigation/bottom-tabs';
+import type { CompositeScreenProps } from '@react-navigation/native';
+import type { NativeStackScreenProps } from '@react-navigation/native-stack';
+import { FlashList } from "@shopify/flash-list";
+import { Bell, Camera, Check, ChevronDown, MapPin, Search, SlidersHorizontal, Star, X } from 'lucide-react-native';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
-  View,
-  Text,
-  TextInput,
-  StyleSheet,
+  ActivityIndicator,
   Dimensions,
   Modal,
-  ScrollView,
-  FlatList,
-  StatusBar,
-  ActivityIndicator,
   Pressable,
   RefreshControl,
+  ScrollView,
+  StatusBar,
+  StyleSheet,
+  Text,
+  TextInput,
+  View
 } from 'react-native';
-import { LinearGradient } from 'expo-linear-gradient';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { Search, SlidersHorizontal, X, Check, Camera, Star, CheckCircle2, Bell, MapPin, ChevronDown } from 'lucide-react-native';
-import MultiSlider from '@ptomasroos/react-native-multi-slider';
-import CameraSearchModal from '../src/components/CameraSearchModal';
-import LocationModal from '../src/components/LocationModal';
-import { GuestLoginModal } from '../src/components/GuestLoginModal';
-import { FlashList } from "@shopify/flash-list";
-import { ProductCard, MasonryProductCard } from '../src/components/ProductCard';
-import { productService } from '../src/services/productService';
-import { categoryService } from '../src/services/categoryService';
-import { addressService } from '../src/services/addressService';
-import { notificationService } from '../src/services/notificationService';
-import { featuredProductService, type FeaturedProductMobile } from '../src/services/featuredProductService';
-import { adBoostService, type AdBoostMobile } from '../src/services/adBoostService';
-import { useAuthStore } from '../src/stores/authStore';
-import { useSellerStore } from '../src/stores/sellerStore';
-import AsyncStorage from '@react-native-async-storage/async-storage';
-import { supabase } from '../src/lib/supabase';
-import type { CompositeScreenProps } from '@react-navigation/native';
-import type { BottomTabScreenProps } from '@react-navigation/bottom-tabs';
-import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import type { RootStackParamList, TabParamList } from '../App';
-import type { Product } from '../src/types';
+import CameraSearchModal from '../src/components/CameraSearchModal';
+import { MasonryProductCard } from '../src/components/ProductCard';
 import { COLORS } from '../src/constants/theme';
+import { adBoostService, type AdBoostMobile } from '../src/services/adBoostService';
+import { addressService } from '../src/services/addressService';
+import { categoryService } from '../src/services/categoryService';
+import { featuredProductService, type FeaturedProductMobile } from '../src/services/featuredProductService';
+import { notificationService } from '../src/services/notificationService';
+import { productService } from '../src/services/productService';
+import { useAuthStore } from '../src/stores/authStore';
+import type { Product } from '../src/types';
 
 type Props = CompositeScreenProps<
   BottomTabScreenProps<TabParamList, 'Shop'>,
@@ -529,15 +523,13 @@ export default function ShopScreen({ navigation, route }: Props) {
 
     let filtered = sourceProducts.filter((product) => {
       const productName = (product.name || '').toLowerCase();
-      const productCategory = product.category || '';
-      const productSeller = (product.seller || '').toLowerCase();
+      const productDescription = (product.description || '').toLowerCase();
       const productPrice = toNumber(product.price, 0);
 
       const searchMatch =
         normalizedQuery.length === 0 ||
         productName.includes(normalizedQuery) ||
-        productCategory.toLowerCase().includes(normalizedQuery) ||
-        productSeller.includes(normalizedQuery);
+        productDescription.includes(normalizedQuery);
 
       const categoryMatch =
         selectedCategory === 'all' ||
@@ -802,9 +794,30 @@ export default function ShopScreen({ navigation, route }: Props) {
                 onChangeText={setSearchQuery}
                 placeholderTextColor={COLORS.textMuted}
                 onFocus={() => setIsSearchFocused(true)}
+                onSubmitEditing={() => {
+                  const trimmedQuery = searchQuery.trim();
+                  if (trimmedQuery) {
+                    setIsSearchFocused(false);
+                    navigation.navigate('ProductListing', { searchQuery: trimmedQuery });
+                  }
+                }}
               />
+             
               <Pressable onPress={() => setShowCameraSearch(true)}>
                 <Camera size={18} color={COLORS.primary} />
+              </Pressable>
+
+               <Pressable
+                onPress={() => {
+                  const trimmedQuery = searchQuery.trim();
+                  if (trimmedQuery) {
+                    setIsSearchFocused(false);
+                    navigation.navigate('ProductListing', { searchQuery: trimmedQuery });
+                  }
+                }}
+                style={styles.searchActionButton}
+              >
+                <Text style={styles.searchActionText}>Search</Text>
               </Pressable>
             </View>
           </View>
@@ -988,6 +1001,8 @@ const styles = StyleSheet.create({
   searchBarWrapper: { flex: 1, flexDirection: 'row', alignItems: 'center' },
   searchBarInner: { flex: 1, flexDirection: 'row', alignItems: 'center', backgroundColor: '#FFFFFF', borderRadius: 24, paddingHorizontal: 15, height: 48, gap: 10 },
   searchInput: { flex: 1, fontSize: 14, color: COLORS.textHeadline },
+  searchActionButton: { paddingHorizontal: 12, paddingVertical: 8, borderRadius: 18, backgroundColor: COLORS.primary, justifyContent: 'center', alignItems: 'center' },
+  searchActionText: { color: '#FFFFFF', fontSize: 13, fontWeight: '700' },
   headerRight: { flexDirection: 'row', gap: 10, paddingLeft: 5 },
   headerIconButton: { padding: 4, position: 'relative' },
   badge: { position: 'absolute', top: 0, right: 0, minWidth: 16, height: 16, borderRadius: 8, alignItems: 'center', justifyContent: 'center' },

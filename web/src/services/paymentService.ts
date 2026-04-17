@@ -99,13 +99,42 @@ export class PaymentService {
 
             // Insert detail record
             if (method.type === 'card' && pm) {
-                const [expMonth, expYear] = (method.expiry || '').split('/');
+                // Defensive parsing with validation
+                const parts = (method.expiry || '').split('/');
+                if (parts.length !== 2) {
+                    console.error('[PaymentService] Invalid expiry format:', method.expiry);
+                    throw new Error('Invalid card expiry format');
+                }
+
+                const expMonth = parseInt(parts[0], 10);
+                const expYearShort = parseInt(parts[1], 10);
+
+                // Validate month range (1-12)
+                if (isNaN(expMonth) || expMonth < 1 || expMonth > 12) {
+                    console.error('[PaymentService] Invalid month:', parts[0]);
+                    throw new Error('Invalid card expiry month');
+                }
+
+                // Convert 2-digit year to 4-digit year: "26" → 2026
+                let expYear: number;
+                if (expYearShort < 100) {
+                    expYear = 2000 + expYearShort;
+                } else {
+                    expYear = expYearShort;
+                }
+
+                // Validate year is >= 2024 (database constraint)
+                if (isNaN(expYear) || expYear < 2024) {
+                    console.error('[PaymentService] Card year is invalid or expired:', expYearShort);
+                    throw new Error('Card expired or invalid year');
+                }
+                
                 await supabase.from('payment_method_cards').insert({
                     payment_method_id: pm.id,
                     card_last4: method.last4 || '',
                     card_brand: method.brand || '',
-                    expiry_month: parseInt(expMonth) || 1,
-                    expiry_year: parseInt(expYear) || 2026,
+                    expiry_month: expMonth,
+                    expiry_year: expYear,
                 });
             } else if (method.type === 'wallet' && pm) {
                 await supabase.from('payment_method_wallets').insert({
