@@ -152,38 +152,71 @@ export class AuthService {
       if (authError) throw authError;
 
       // Create or update profile (new schema - no user_type)
+      // NOTE: A Supabase DB trigger (handle_new_user) also creates the profile.
+      // We poll until the profile row exists before creating user_roles,
+      // since user_roles has a FK chain: user_roles.user_id → profiles.id → auth.users.id
       if (authData.user) {
-        const { error: profileError } = await supabase
-          .from('profiles')
-          .upsert(
-            {
-              id: authData.user.id,
-              email,
+        const userId = authData.user.id;
+
+        // Poll until the profile row exists (created by trigger) — max 5 seconds
+        let profileExists = false;
+        for (let i = 0; i < 10; i++) {
+          await new Promise(resolve => setTimeout(resolve, 500));
+          const { data: profileCheck } = await supabase
+            .from('profiles')
+            .select('id')
+            .eq('id', userId)
+            .maybeSingle();
+          if (profileCheck?.id) {
+            profileExists = true;
+            break;
+          }
+        }
+
+        if (!profileExists) {
+          // Trigger didn't fire or is very slow — attempt a direct upsert as fallback
+          const { error: profileError } = await supabase
+            .from('profiles')
+            .upsert(
+              {
+                id: userId,
+                email,
+                first_name: first_name || null,
+                last_name: last_name || null,
+                phone: userData.phone || null,
+                last_login_at: null,
+              },
+              { onConflict: 'id', ignoreDuplicates: false }
+            );
+          if (profileError) {
+            console.warn('Fallback profile upsert failed (non-fatal):', profileError);
+          }
+        } else {
+          // Profile exists — enrich it with additional data from the signup form
+          await supabase
+            .from('profiles')
+            .update({
               first_name: first_name || null,
               last_name: last_name || null,
               phone: userData.phone || null,
-              last_login_at: null,
-            },
-            {
-              onConflict: 'id',
-              ignoreDuplicates: false,
-            }
-          );
-
-        if (profileError) throw profileError;
+            })
+            .eq('id', userId);
+        }
 
         // Create user_role entry (new normalized schema)
-        await this.addUserRole(authData.user.id, userData.user_type);
+        await this.addUserRole(userId, userData.user_type);
 
         // Create user-type specific record
-        await this.createUserTypeRecord(authData.user.id, userData.user_type);
-
-        // Supabase sends a verification link automatically upon signUp by default
+        await this.createUserTypeRecord(userId, userData.user_type);
       }
 
       return { user: authData.user, session: authData.session };
     } catch (error: any) {
       console.error('Error signing up:', error);
+
+      if (error?.message?.includes('rate limit exceeded')) {
+        throw new Error('Too many registration attempts. Please wait a while before trying again or use a different email.');
+      }
 
       // Check if this is a "user already registered" error
       if (error?.message?.includes('User already registered') ||
@@ -315,11 +348,20 @@ export class AuthService {
 
     if (existingRole) return; // Role already exists
 
-    const { error } = await supabase
-      .from('user_roles')
-      .insert({ user_id: userId, role });
+    // Retry up to 3 times — user_roles has a FK to profiles which may still be
+    // propagating from the auth trigger when this is called during signup.
+    for (let attempt = 1; attempt <= 3; attempt++) {
+      const { error } = await supabase
+        .from('user_roles')
+        .insert({ user_id: userId, role });
 
-    if (error) {
+      if (!error) return;
+
+      if (error.code === '23503' && attempt < 3) {
+        await new Promise(resolve => setTimeout(resolve, 500 * attempt));
+        continue;
+      }
+
       console.error('Error adding user role:', error);
       throw error;
     }
@@ -699,6 +741,9 @@ export class AuthService {
       return true;
     } catch (error: any) {
       console.error('Error resending verification link:', error);
+      if (error.message?.includes('rate limit exceeded')) {
+        throw new Error('Resend limit reached. Please wait a while before requesting another link.');
+      }
       throw new Error(error.message || 'Failed to resend verification link. Please try again.');
     }
   }
@@ -761,8 +806,11 @@ export class AuthService {
       });
 
       if (error) throw error;
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error resetting password:', error);
+      if (error?.message?.includes('rate limit exceeded')) {
+        throw new Error('Password reset limit reached. Please wait a while before trying again.');
+      }
       throw new Error('Failed to send password reset email.');
     }
   }

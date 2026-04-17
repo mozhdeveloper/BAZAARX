@@ -437,7 +437,7 @@ export default function AddressFormModal({
             }
 
             const position = await Location.getCurrentPositionAsync({
-                accuracy: 6, // HIGH accuracy
+                accuracy: 3 as any, // LocationAccuracy.High = 3; named export missing from installed type defs
             });
             const { latitude, longitude } = position.coords;
 

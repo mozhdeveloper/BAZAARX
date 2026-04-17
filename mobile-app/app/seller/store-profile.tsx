@@ -121,11 +121,12 @@ export default function StoreProfileScreen() {
         .from('sellers')
         .select('*')
         .eq('id', user.id)
-        .single();
+        .maybeSingle();
 
       if (sellerError) {
         console.error('Error fetching seller:', sellerError);
-        throw sellerError;
+        // We only throw if it's a real error, not a "not found" (which maybeSingle handles by returning null data)
+        if (sellerError.code !== 'PGRST116') throw sellerError;
       }
 
       // Fetch profile data separately to avoid join issues
@@ -133,9 +134,9 @@ export default function StoreProfileScreen() {
         .from('profiles')
         .select('first_name, last_name, email, phone')
         .eq('id', user.id)
-        .single();
+        .maybeSingle();
         
-      if (profileError) {
+      if (profileError && profileError.code !== 'PGRST116') {
         console.warn('Error fetching profile:', profileError);
       }
 
@@ -144,19 +145,19 @@ export default function StoreProfileScreen() {
         .from('seller_business_profiles')
         .select('*')
         .eq('seller_id', user.id)
-        .single();
+        .maybeSingle();
 
       const { data: payoutData } = await supabase
         .from('seller_payout_accounts')
         .select('*')
         .eq('seller_id', user.id)
-        .single();
+        .maybeSingle();
 
       const { data: docsData } = await supabase
         .from('seller_verification_documents')
         .select('*')
         .eq('seller_id', user.id)
-        .single();
+        .maybeSingle();
 
       if (sellerData) {
         const profileName = profileData 
