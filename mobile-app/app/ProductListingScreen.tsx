@@ -3,16 +3,16 @@ import { FlashList } from '@shopify/flash-list';
 import { ArrowLeft, ChevronDown, Search, SlidersHorizontal, X } from 'lucide-react-native';
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import {
-    ActivityIndicator,
-    Dimensions,
-    Pressable,
-    RefreshControl,
-    ScrollView,
-    StatusBar,
-    StyleSheet,
-    Text,
-    TextInput,
-    View,
+  ActivityIndicator,
+  Dimensions,
+  Pressable,
+  RefreshControl,
+  ScrollView,
+  StatusBar,
+  StyleSheet,
+  Text,
+  TextInput,
+  View,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import type { RootStackParamList } from '../App';
@@ -221,7 +221,11 @@ export default function ProductListingScreen({ navigation, route }: Props) {
   }, [filters]);
 
   // Execute search with filters
-  const executeSearch = useCallback(async (query: string, reset = true) => {
+  const executeSearch = useCallback(async (
+    query: string,
+    reset = true,
+    options?: { filters?: ProductFilters; sortOption?: SortOption }
+  ) => {
     const trimmedQuery = query.trim();
 
     if (!trimmedQuery) {
@@ -231,6 +235,9 @@ export default function ProductListingScreen({ navigation, route }: Props) {
       }
       return;
     }
+
+    const filtersToUse = options?.filters ?? filters;
+    const sortToUse = options?.sortOption ?? sortOption;
 
     try {
       if (reset) {
@@ -243,21 +250,21 @@ export default function ProductListingScreen({ navigation, route }: Props) {
 
       const currentOffset = reset ? 0 : offset;
 
-      console.log('[ProductListingScreen] Executing filtered search:', trimmedQuery, 'offset:', currentOffset);
+      console.log('[ProductListingScreen] Executing filtered search:', trimmedQuery, 'offset:', currentOffset, 'sort:', sortToUse, 'filters:', filtersToUse);
 
-      // Use the new filtered search method
+      // Use the filtered search method
       const serverResults = await productService.getFilteredProducts(trimmedQuery, {
-        categoryId: filters.categoryId || undefined,
-        priceRange: filters.priceRange,
-        minRating: filters.minRating,
-        shippedFrom: filters.shippedFrom,
-        withVouchers: filters.withVouchers,
-        onSale: filters.onSale,
-        freeShipping: filters.freeShipping,
-        preferredSeller: filters.preferredSeller,
-        officialStore: filters.officialStore,
-        selectedBrands: filters.selectedBrands.length > 0 ? filters.selectedBrands : undefined,
-        sortBy: sortOption,
+        categoryId: filtersToUse.categoryId || undefined,
+        priceRange: filtersToUse.priceRange,
+        minRating: filtersToUse.minRating,
+        shippedFrom: filtersToUse.shippedFrom,
+        withVouchers: filtersToUse.withVouchers,
+        onSale: filtersToUse.onSale,
+        freeShipping: filtersToUse.freeShipping,
+        preferredSeller: filtersToUse.preferredSeller,
+        officialStore: filtersToUse.officialStore,
+        selectedBrands: filtersToUse.selectedBrands.length > 0 ? filtersToUse.selectedBrands : undefined,
+        sortBy: sortToUse,
         limit: PAGE_SIZE,
         offset: currentOffset,
       });
@@ -305,6 +312,7 @@ export default function ProductListingScreen({ navigation, route }: Props) {
       if (reset) {
         setProducts(normalizedProducts);
         setOffset(PAGE_SIZE);
+        flashListRef.current?.scrollToOffset({ offset: 0, animated: true });
       } else {
         // Filter out duplicates
         const existingIds = new Set(products.map(p => p.id));
@@ -360,24 +368,52 @@ export default function ProductListingScreen({ navigation, route }: Props) {
   // Handle filter apply
   const handleFilterApply = useCallback((newFilters: ProductFilters) => {
     setFilters(newFilters);
-    executeSearch(searchQuery, true);
+    executeSearch(searchQuery, true, { filters: newFilters });
   }, [searchQuery, executeSearch]);
 
   // Handle sort select
   const handleSortSelect = useCallback((newSort: SortOption) => {
     setSortOption(newSort);
-    executeSearch(searchQuery, true);
+    executeSearch(searchQuery, true, { sortOption: newSort });
   }, [searchQuery, executeSearch]);
 
   // Remove individual filter chip
   const handleRemoveFilterChip = useCallback((chipId: string) => {
-    const chips = getActiveFilterChips();
-    const chip = chips.find(c => c.id === chipId);
-    if (chip) {
-      chip.onRemove();
-      executeSearch(searchQuery, true);
-    }
-  }, [searchQuery, executeSearch, getActiveFilterChips]);
+    const updatedFilters = (() => {
+      switch (chipId) {
+        case 'category':
+          return { ...filters, categoryId: null, categoryPath: [] };
+        case 'price':
+          return { ...filters, priceRange: { min: null, max: null } };
+        case 'rating':
+          return { ...filters, minRating: null };
+        case 'location':
+          return { ...filters, shippedFrom: null };
+        case 'vouchers':
+          return { ...filters, withVouchers: false };
+        case 'sale':
+          return { ...filters, onSale: false };
+        case 'freeShipping':
+          return { ...filters, freeShipping: false };
+        case 'preferredSeller':
+          return { ...filters, preferredSeller: false };
+        case 'officialStore':
+          return { ...filters, officialStore: false };
+        default:
+          if (chipId.startsWith('brand-')) {
+            const brand = chipId.replace('brand-', '');
+            return {
+              ...filters,
+              selectedBrands: filters.selectedBrands.filter(b => b !== brand),
+            };
+          }
+          return filters;
+      }
+    })();
+
+    setFilters(updatedFilters);
+    executeSearch(searchQuery, true, { filters: updatedFilters });
+  }, [searchQuery, executeSearch, filters]);
 
   // Pull to refresh
   const handleRefresh = useCallback(async () => {

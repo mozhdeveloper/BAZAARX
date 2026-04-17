@@ -1,14 +1,14 @@
-import React, { useState, useEffect } from 'react';
+import { Check, X } from 'lucide-react-native';
+import React, { useEffect, useState } from 'react';
 import {
-  View,
-  Text,
-  StyleSheet,
   Modal,
+  StyleSheet,
+  Text,
   TouchableOpacity,
+  View,
 } from 'react-native';
-import { X, Check } from 'lucide-react-native';
-import type { SortOption } from '../types/filter.types';
 import { COLORS } from '../constants/theme';
+import type { SortOption } from '../types/filter.types';
 
 interface SortModalProps {
   visible: boolean;
@@ -19,8 +19,10 @@ interface SortModalProps {
 
 const SORT_OPTIONS: { value: SortOption; label: string; description: string }[] = [
   { value: 'relevance', label: 'Relevance', description: 'Most relevant to your search' },
-  { value: 'price-low', label: 'Price: Low to High', description: 'Cheapest first' },
-  { value: 'price-high', label: 'Price: High to Low', description: 'Most expensive first' },
+
+  { value: 'price-low', label: 'Price: Low to high', description: 'Cheapest first' },
+  { value: 'price-high', label: 'Price: High to Low', description: 'Most Expensive first' },
+
   { value: 'rating-high', label: 'Rating: High to Low', description: 'Highest rated first' },
   { value: 'newest', label: 'Newest First', description: 'Recently added products' },
   { value: 'best-selling', label: 'Best Selling', description: 'Most popular products' },
