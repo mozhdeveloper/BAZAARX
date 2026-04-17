@@ -1040,7 +1040,7 @@ export default function HomeScreen({ navigation }: Props) {
                 <Pressable
                   key={item.id}
                   style={[styles.categoryGridItem, { width: CATEGORY_ITEM_WIDTH }]}
-                  onPress={() => navigation.navigate('Shop', { category: item.id })}
+                  onPress={() => navigation.navigate('Categories', { categoryId: item.id })}
                 >
                   <CategoryItem label={item.name} iconValue={item.icon} imageUrl={item.image_url} itemWidth={CATEGORY_ITEM_WIDTH} />
                 </Pressable>
@@ -1274,7 +1274,7 @@ export default function HomeScreen({ navigation }: Props) {
                 <Pressable
                   key={item.id}
                   style={[styles.categoryGridItem, { width: CATEGORY_ITEM_WIDTH }]}
-                  onPress={() => navigation.navigate('Shop', { category: item.id })}
+                  onPress={() => navigation.navigate('Categories', { categoryId: item.id })}
                 >
                   {/* Change iconName to iconValue here */}
                   <CategoryItem label={item.name} iconValue={item.icon} itemWidth={CATEGORY_ITEM_WIDTH} />

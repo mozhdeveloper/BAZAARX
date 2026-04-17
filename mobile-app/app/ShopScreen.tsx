@@ -1008,7 +1008,7 @@ const styles = StyleSheet.create({
   badge: { position: 'absolute', top: 0, right: 0, minWidth: 16, height: 16, borderRadius: 8, alignItems: 'center', justifyContent: 'center' },
   badgeText: { fontSize: 9, fontWeight: '900' },
   scrollView: { flex: 1 },
-  categoryScroll: { paddingHorizontal: 20, paddingVertical: 8, gap: 10 },
+  categoryScroll: { paddingHorizontal: 7, paddingVertical: 8, gap: 10 },
   chip: { paddingHorizontal: 18, paddingVertical: 8, borderRadius: 25, backgroundColor: '#FFFFFF', borderWidth: 1, borderColor: '#E5E7EB' },
   chipText: { fontSize: 13, fontWeight: '600', color: COLORS.textMuted },
   productsSection: { paddingHorizontal: 20, marginTop: 15 },
