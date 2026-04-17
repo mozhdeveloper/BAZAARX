@@ -37,6 +37,13 @@ export interface CheckoutPayload {
         productId: string;
         quantity: number;
     }[];
+    // Card payment details
+    cardDetails?: {
+        cardNumber: string;
+        expiryDate: string;
+        cvv: string;
+        cardName: string;
+    };
     // BX-09-001 — Per-seller shipping breakdown
     shippingBreakdown?: {
         sellerId: string;
@@ -385,7 +392,7 @@ export const processCheckout = async (payload: CheckoutPayload): Promise<Checkou
 
             // BX-09-002 — Persist per-seller shipment record
             if (payload.shippingBreakdown && payload.shippingBreakdown.length > 0) {
-                const sellerBreakdown = payload.shippingBreakdown.find(sb => sb.sellerId === sellerId);
+                const sellerBreakdown = payload.shippingBreakdown.find((sb: any) => sb.sellerId === sellerId);
                 if (sellerBreakdown) {
                     supabase
                         .from('order_shipments')
@@ -726,10 +733,10 @@ export const processCheckout = async (payload: CheckoutPayload): Promise<Checkou
                 const updatePromises: any[] = [];
                 for (const [variantId, quantityToDeduct] of variantUpdateMap) {
                     const currentStock = variantStockMap.get(variantId) || 0;
-                    const updatePromise = supabase
+                    const updatePromise = (supabase
                         .from('product_variants')
                         .update({ stock: Math.max(0, currentStock - quantityToDeduct) })
-                        .eq('id', variantId);
+                        .eq('id', variantId) as unknown as Promise<any>);
                     updatePromises.push(updatePromise);
                 }
 
