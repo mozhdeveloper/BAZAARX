@@ -36,6 +36,13 @@ export interface CheckoutPayload {
     email: string;
     voucherId?: string | null;
     selectedAddressId?: string | null;
+    // Card payment details
+    cardDetails?: {
+        cardNumber: string;
+        expiryDate: string;
+        cvv: string;
+        cardName: string;
+    };
 }
 
 export interface CheckoutResult {
@@ -458,6 +465,15 @@ export class CheckoutService {
                             phone: shippingAddress.phone,
                         },
                         returnUrl: `${window.location.origin}/order/${createdOrderNumbers[0]}`,
+                        // Pass card details if available
+                        ...(payload.cardDetails && {
+                            cardDetails: {
+                                cardNumber: payload.cardDetails.cardNumber,
+                                expMonth: parseInt(payload.cardDetails.expiryDate.split('/')[0], 10),
+                                expYear: 2000 + parseInt(payload.cardDetails.expiryDate.split('/')[1], 10),
+                                cvc: payload.cardDetails.cvv,
+                            }
+                        })
                     });
                 } catch (payErr: any) {
                     console.error('Payment initiation failed:', payErr);
