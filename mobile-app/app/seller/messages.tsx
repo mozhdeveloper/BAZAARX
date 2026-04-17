@@ -4,7 +4,6 @@ import {
   Text,
   StyleSheet,
   TouchableOpacity,
-  ScrollView,
   FlatList,
   Pressable,
   TextInput,
@@ -34,11 +33,14 @@ import {
   Play,
   ArrowDown,
   Reply,
+  Ban,
+  AlertTriangle,
 } from 'lucide-react-native';
 import { Alert, Keyboard } from 'react-native';
 import { chatService, Conversation as ChatConversation, Message as ChatMessage } from '../../src/services/chatService';
 import { getMimeFromExtension, CHAT_MEDIA_LIMITS, ALL_PLACEHOLDERS, MEDIA_PLACEHOLDER_MAP, extractFileName, type ChatMediaType } from '../../src/utils/chatMediaUtils';
 import { formatDateLabel, formatMessageTimestamp } from '../../src/utils/chatDateUtils';
+import { isMessagingBlocked, type MessagingAccountStatus } from '../../src/utils/messagingAccountStatus';
 import ChatMediaPreviewModal from '../../src/components/ChatMediaPreviewModal';
 import ChatSendPreviewModal, { type SendPreviewAsset } from '../../src/components/ChatSendPreviewModal';
 import { useAuthStore } from '../../src/stores/authStore';
@@ -50,6 +52,7 @@ import * as FileSystem from 'expo-file-system/legacy';
 
 const { width: SCREEN_W } = Dimensions.get('window');
 const DOC_BUBBLE_W = SCREEN_W * 0.68; // explicit width so inner flex:1 text resolves correctly
+const SELLER_CHATLIST_STALE_MS = 30_000;
 
 type SellerListItem =
   | { type: 'message'; data: ChatMessage; id: string }
@@ -90,6 +93,7 @@ export default function MessagesScreen() {
   const [chatLoading, setChatLoading] = useState(false);
   const conversationsRef = useRef<ChatConversation[]>([]);
   const pendingConversationLoadsRef = useRef<Set<string>>(new Set());
+  const lastConversationsLoadAtRef = useRef(0);
 
   // Real conversations and messages from database
   const [conversations, setConversations] = useState<ChatConversation[]>([]);
@@ -149,6 +153,7 @@ export default function MessagesScreen() {
   const [showJumpToLatest, setShowJumpToLatest] = useState(false);
   const jumpButtonOpacity = useRef(new Animated.Value(0)).current;
   const showJumpRef = useRef(false);
+  const [sellerMessagingStatus, setSellerMessagingStatus] = useState<MessagingAccountStatus>('active');
 
   const handleInputChange = (text: string) => {
     setNewMessage(text);
@@ -175,25 +180,44 @@ export default function MessagesScreen() {
   }, []);
 
   // Load real conversations from database
-  const loadConversations = useCallback(async () => {
+  const loadConversations = useCallback(async (options?: { force?: boolean; silent?: boolean }) => {
     // Use seller.id from sellerStore (the seller's UUID), not user.id from authStore
     const sellerId = seller?.id;
     if (!sellerId) {
       console.log('[SellerMessages] No seller ID available');
       setLoading(false);
+      setRefreshing(false);
       return;
     }
+
+    const force = options?.force === true;
+    const silent = options?.silent === true;
+    const now = Date.now();
+    const hasExistingData = conversationsRef.current.length > 0;
+    const isFresh = hasExistingData && (now - lastConversationsLoadAtRef.current) < SELLER_CHATLIST_STALE_MS;
+
+    if (!force && isFresh) {
+      if (!silent) setRefreshing(false);
+      return;
+    }
+
+    const startedAt = now;
 
     console.log('[SellerMessages] Loading conversations for seller:', sellerId);
     try {
       const convs = await chatService.getSellerConversations(sellerId);
       console.log('[SellerMessages] Loaded conversations:', convs.length);
       setConversations(convs);
+      lastConversationsLoadAtRef.current = Date.now();
     } catch (error) {
       console.error('[SellerMessages] Error loading conversations:', error);
     } finally {
-      setLoading(false);
+      if (!silent) setLoading(false);
       setRefreshing(false);
+
+      if (typeof __DEV__ !== 'undefined' && __DEV__) {
+        console.log(`[Perf][SellerMessages] Chatlist load: ${Date.now() - startedAt}ms`);
+      }
     }
   }, [seller?.id]);
 
@@ -214,6 +238,7 @@ export default function MessagesScreen() {
           new Date(a.last_message_at || a.updated_at).getTime()
         );
       });
+      lastConversationsLoadAtRef.current = Date.now();
     } catch (error) {
       console.error('[SellerMessages] Error merging realtime conversation:', error);
     } finally {
@@ -222,8 +247,28 @@ export default function MessagesScreen() {
   }, [seller?.id]);
 
   useEffect(() => {
-    loadConversations();
+    void loadConversations({ force: true });
   }, [loadConversations]);
+
+  useEffect(() => {
+    if (!seller?.id) {
+      setSellerMessagingStatus('active');
+      return;
+    }
+
+    let active = true;
+    chatService.getSellerMessagingStatusById(seller.id)
+      .then((status) => {
+        if (active) setSellerMessagingStatus(status);
+      })
+      .catch((error) => {
+        console.error('[SellerMessages] Error loading seller messaging status:', error);
+      });
+
+    return () => {
+      active = false;
+    };
+  }, [seller?.id]);
 
   // Real-time chatlist: lightweight subscription to messages table.
   // Updates conversation preview + unread badge instantly without async enrichment.
@@ -268,6 +313,7 @@ export default function MessagesScreen() {
           new Date(a.last_message_at || a.updated_at).getTime()
         );
       });
+      lastConversationsLoadAtRef.current = Date.now();
     });
   }, [seller?.id, fetchAndMergeMissingConversation]);
 
@@ -277,10 +323,8 @@ export default function MessagesScreen() {
     useCallback(() => {
       const sellerId = seller?.id;
       if (!sellerId || loading) return;
-      chatService.getSellerConversations(sellerId)
-        .then(convs => setConversations(convs))
-        .catch(() => { });
-    }, [seller?.id, loading])
+      void loadConversations({ silent: true });
+    }, [seller?.id, loading, loadConversations])
   );
 
 
@@ -290,6 +334,7 @@ export default function MessagesScreen() {
 
     const loadMessages = async () => {
       setChatLoading(true);
+      const startedAt = Date.now();
       try {
         const msgs = await chatService.getMessages(selectedConversation);
         setMessages(msgs);
@@ -297,14 +342,22 @@ export default function MessagesScreen() {
         setTimeout(() => {
           chatFlatListRef.current?.scrollToOffset({ offset: 0, animated: false });
         }, 100);
-        // Mark as read
+        // Mark as read in the background so message render is not delayed.
         if (seller?.id) {
-          await chatService.markAsRead(selectedConversation, seller.id, 'seller');
+          void chatService
+            .markAsRead(selectedConversation, seller.id, 'seller')
+            .catch((error) => {
+              console.error('[SellerMessages] markAsRead failed:', error);
+            });
         }
       } catch (error) {
         console.error(error);
       } finally {
         setChatLoading(false);
+
+        if (typeof __DEV__ !== 'undefined' && __DEV__) {
+          console.log(`[Perf][SellerMessages] Thread load: ${Date.now() - startedAt}ms`);
+        }
       }
     };
 
@@ -363,7 +416,7 @@ export default function MessagesScreen() {
 
   const onRefresh = () => {
     setRefreshing(true);
-    loadConversations();
+    void loadConversations({ force: true, silent: true });
   };
 
   // Real-time presence: update buyer dot instantly without a full reload
@@ -379,6 +432,24 @@ export default function MessagesScreen() {
   }, []);
 
   const activeConversation = conversations.find((c) => c.id === selectedConversation);
+
+  const sellerRestrictionHeaderText = useMemo(() => {
+    if (sellerMessagingStatus === 'suspended') return 'Your Account is Suspended';
+    if (sellerMessagingStatus === 'restricted') return 'Your Account is Restricted';
+    return null;
+  }, [sellerMessagingStatus]);
+
+  const sellerRestrictionBodyText = useMemo(() => {
+    if (sellerMessagingStatus === 'suspended') return 'You are not able to message while account is suspended.';
+    if (sellerMessagingStatus === 'restricted') return 'You are not able to message while account is restricted.';
+    return null;
+  }, [sellerMessagingStatus]);
+
+  const guardSellerSendBlocked = useCallback(() => {
+    if (!isMessagingBlocked(sellerMessagingStatus) || !sellerRestrictionBodyText) return false;
+    Alert.alert(sellerRestrictionHeaderText || 'Unable to message', sellerRestrictionBodyText);
+    return true;
+  }, [sellerMessagingStatus, sellerRestrictionBodyText, sellerRestrictionHeaderText]);
 
   const handleEscalate = () => {
     if (!activeConversation) return;
@@ -411,6 +482,7 @@ export default function MessagesScreen() {
   // ─── Optimistic send ──────────────────────────────────────────────────────
   const handleSendMessage = async () => {
     if (!newMessage.trim() || !selectedConversation || !seller?.id) return;
+    if (guardSellerSendBlocked()) return;
 
     const messageText = newMessage.trim();
     const tempId = `temp-${Date.now()}`;
@@ -525,6 +597,7 @@ export default function MessagesScreen() {
 
   const handleConfirmSend = async () => {
     if (!pendingUpload.current || !selectedConversation || !seller?.id) return;
+    if (guardSellerSendBlocked()) return;
     const { base64, fileName, mime, mediaType } = pendingUpload.current;
     setUploading(true);
     try {
@@ -733,6 +806,50 @@ export default function MessagesScreen() {
     );
   }, [expandedMsgId, openPreview]);
 
+  const renderConversationItem = ({ item: conv }: { item: ChatConversation }) => (
+    <Pressable
+      style={styles.conversationItem}
+      onPress={() => {
+        // Instantly clear unread badge on tap
+        if ((conv.seller_unread_count || 0) > 0) {
+          setConversations(prev =>
+            prev.map(c => c.id === conv.id ? { ...c, seller_unread_count: 0 } : c)
+          );
+        }
+        setSelectedConversation(conv.id);
+      }}
+    >
+      <View style={{ position: 'relative' }}>
+        <View style={styles.avatar}>
+          <Text style={styles.avatarText}>
+            {getInitials(conv.buyer?.full_name || conv.buyer_name || 'B')}
+          </Text>
+        </View>
+        <View style={conv.is_online ? styles.chatlistOnlineBadge : styles.chatlistOfflineBadge} />
+      </View>
+      <View style={styles.conversationContent}>
+        <View style={styles.conversationHeader}>
+          <Text style={styles.buyerName}>
+            {conv.buyer?.full_name || conv.buyer_name || 'Buyer'}
+          </Text>
+          <Text style={styles.conversationTime}>
+            {formatTime(conv.last_message_at || new Date().toISOString())}
+          </Text>
+        </View>
+        <View style={styles.conversationFooter}>
+          <Text style={styles.lastMessage} numberOfLines={1}>
+            {conv.last_message || 'No messages yet'}
+          </Text>
+          {(conv.seller_unread_count || 0) > 0 && (
+            <View style={styles.unreadBadge}>
+              <Text style={styles.unreadText}>{conv.seller_unread_count || 0}</Text>
+            </View>
+          )}
+        </View>
+      </View>
+    </Pressable>
+  );
+
   if (!selectedConversation) {
     // Conversations List View
     return (
@@ -767,78 +884,42 @@ export default function MessagesScreen() {
           </View>
         </View>
 
-        <ScrollView
-          style={styles.conversationsList}
-          showsVerticalScrollIndicator={false}
-          refreshControl={
-            <RefreshControl refreshing={refreshing} onRefresh={onRefresh} colors={['#2563EB']} />
-          }
-        >
-          {loading && !refreshing ? (
-            <View>
-              {Array.from({ length: SKELETON_COUNT }).map((_, i) => (
-                <SkeletonRow key={i} shimmer={shimmer} />
-              ))}
-            </View>
-          ) : filteredConversations.length === 0 ? (
-            <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', paddingBottom: 120 }}>
-              <MessageSquare size={48} color="#D1D5DB" />
-              <Text style={{ marginTop: 12, color: '#6B7280', fontSize: 16 }}>
-                {searchQuery.trim() ? 'No buyers found' : 'No messages yet'}
-              </Text>
-              <Text style={{ marginTop: 4, color: '#9CA3AF', textAlign: 'center' }}>
-                {searchQuery.trim()
-                  ? `No conversations match "${searchQuery}"`
-                  : 'Messages from buyers will appear here'}
-              </Text>
-            </View>
-          ) : (
-            filteredConversations.map((conv: any) => (
-              <Pressable
-                key={conv.id}
-                style={styles.conversationItem}
-                onPress={() => {
-                  // Instantly clear unread badge on tap
-                  if ((conv.seller_unread_count || 0) > 0) {
-                    setConversations(prev =>
-                      prev.map(c => c.id === conv.id ? { ...c, seller_unread_count: 0 } : c)
-                    );
-                  }
-                  setSelectedConversation(conv.id);
-                }}
-              >
-                <View style={{ position: 'relative' }}>
-                  <View style={styles.avatar}>
-                    <Text style={styles.avatarText}>
-                      {getInitials(conv.buyer?.full_name || conv.buyer_name || 'B')}
-                    </Text>
-                  </View>
-                  <View style={conv.is_online ? styles.chatlistOnlineBadge : styles.chatlistOfflineBadge} />
-                </View>
-                <View style={styles.conversationContent}>
-                  <View style={styles.conversationHeader}>
-                    <Text style={styles.buyerName}>
-                      {conv.buyer?.full_name || conv.buyer_name || 'Buyer'}
-                    </Text>
-                    <Text style={styles.conversationTime}>
-                      {formatTime(conv.last_message_at)}
-                    </Text>
-                  </View>
-                  <View style={styles.conversationFooter}>
-                    <Text style={styles.lastMessage} numberOfLines={1}>
-                      {conv.last_message || 'No messages yet'}
-                    </Text>
-                    {conv.seller_unread_count > 0 && (
-                      <View style={styles.unreadBadge}>
-                        <Text style={styles.unreadText}>{conv.seller_unread_count}</Text>
-                      </View>
-                    )}
-                  </View>
-                </View>
-              </Pressable>
-            ))
-          )}
-        </ScrollView>
+        {loading && !refreshing ? (
+          <View style={styles.conversationsList}>
+            {Array.from({ length: SKELETON_COUNT }).map((_, i) => (
+              <SkeletonRow key={i} shimmer={shimmer} />
+            ))}
+          </View>
+        ) : (
+          <FlatList
+            style={styles.conversationsList}
+            data={filteredConversations}
+            keyExtractor={(item) => item.id}
+            renderItem={renderConversationItem}
+            ListEmptyComponent={
+              <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', paddingBottom: 120 }}>
+                <MessageSquare size={48} color="#D1D5DB" />
+                <Text style={{ marginTop: 12, color: '#6B7280', fontSize: 16 }}>
+                  {searchQuery.trim() ? 'No buyers found' : 'No messages yet'}
+                </Text>
+                <Text style={{ marginTop: 4, color: '#9CA3AF', textAlign: 'center' }}>
+                  {searchQuery.trim()
+                    ? `No conversations match "${searchQuery}"`
+                    : 'Messages from buyers will appear here'}
+                </Text>
+              </View>
+            }
+            refreshControl={
+              <RefreshControl refreshing={refreshing} onRefresh={onRefresh} colors={['#2563EB']} />
+            }
+            initialNumToRender={12}
+            maxToRenderPerBatch={10}
+            windowSize={5}
+            removeClippedSubviews
+            contentContainerStyle={filteredConversations.length === 0 ? styles.emptyConversationsContent : undefined}
+            showsVerticalScrollIndicator={false}
+          />
+        )}
       </View>
     );
   }
@@ -887,6 +968,19 @@ export default function MessagesScreen() {
           </View>
         </View>
       </View>
+
+      {sellerRestrictionHeaderText && (
+        <View style={styles.accountRestrictionBannerWrap}>
+          <View style={styles.accountRestrictionBanner}>
+            {sellerMessagingStatus === 'suspended' ? (
+              <Ban size={13} color="#9B1C1C" />
+            ) : (
+              <AlertTriangle size={13} color="#9B1C1C" />
+            )}
+            <Text style={styles.accountRestrictionText}>{sellerRestrictionHeaderText}</Text>
+          </View>
+        </View>
+      )}
 
       {/* Messages — inverted FlatList */}
       {chatLoading ? (
@@ -1063,6 +1157,9 @@ const styles = StyleSheet.create({
   conversationsList: {
     flex: 1,
   },
+  emptyConversationsContent: {
+    flexGrow: 1,
+  },
   backButton: {
     padding: 4,
   },
@@ -1213,6 +1310,30 @@ const styles = StyleSheet.create({
     color: '#4B5563',
     opacity: 0.9,
     fontWeight: '500',
+  },
+  accountRestrictionBannerWrap: {
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    backgroundColor: '#FFF4EC',
+  },
+  accountRestrictionBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    alignSelf: 'stretch',
+    gap: 6,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: '#FCA5A5',
+    backgroundColor: '#FEF2F2',
+  },
+  accountRestrictionText: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: '#9B1C1C',
+    textAlign: 'center',
   },
   chatHeaderActions: {
     flexDirection: 'row',

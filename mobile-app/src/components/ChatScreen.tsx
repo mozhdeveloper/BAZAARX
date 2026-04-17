@@ -5,13 +5,18 @@ import {
   Alert, Linking, Dimensions, Keyboard, Animated, ScrollView,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { ChevronLeft, Send, Store, User, Ticket, ImageIcon, FileText, Play, Paperclip, ChevronRight, ArrowDown, Reply, X, MessageSquare, AlertCircle } from 'lucide-react-native';
+import { ChevronLeft, Send, Store, User, Ticket, ImageIcon, FileText, Play, Paperclip, ChevronRight, ArrowDown, Reply, X, MessageSquare, Ban, AlertTriangle } from 'lucide-react-native';
 import { useNavigation, useRoute } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { COLORS } from '../constants/theme';
 import { chatService, Conversation, Message } from '../services/chatService';
 import { getMimeFromExtension, detectMediaTypeFromExtension, CHAT_MEDIA_LIMITS, ALL_PLACEHOLDERS, MEDIA_PLACEHOLDER_MAP, extractFileName, type ChatMediaType } from '../utils/chatMediaUtils';
 import { formatDateLabel, formatMessageTimestamp } from '../utils/chatDateUtils';
+import {
+  isMessagingBlocked,
+  resolveSellerMessagingAccountStatus,
+  type MessagingAccountStatus,
+} from '../utils/messagingAccountStatus';
 import ChatMediaPreviewModal from './ChatMediaPreviewModal';
 import ChatSendPreviewModal, { type SendPreviewAsset } from './ChatSendPreviewModal';
 import type { RootStackParamList } from '../../App';
@@ -25,6 +30,9 @@ import * as FileSystem from 'expo-file-system/legacy';
 type MessageItem = { type: 'message'; data: Message; id: string };
 type DateSepItem = { type: 'date_sep'; label: string; id: string };
 type ListItem = MessageItem | DateSepItem;
+
+const BUYER_QUICK_REPLIES = ['Is this available?', 'Can I see real photos?', 'Do you offer discounts?', 'When will you ship?'];
+const QUICK_REPLY_COOLDOWN_MS = 5 * 60 * 1000;
 
 
 const { width: SCREEN_W } = Dimensions.get('window');
@@ -79,19 +87,88 @@ export default function ChatScreen({ conversation, currentUserId, userType, onBa
   const jumpButtonOpacity = useRef(new Animated.Value(0)).current;
 
   // Quick reply chips
-  const [usedQuickReplies, setUsedQuickReplies] = useState<Record<string, number>>({});
+  const [quickReplyCooldowns, setQuickReplyCooldowns] = useState<Record<string, number>>({});
+  const [quickReplyNowMs, setQuickReplyNowMs] = useState(Date.now());
+  const [remoteTargetSellerStatus, setRemoteTargetSellerStatus] = useState<MessagingAccountStatus | null>(null);
+  const [ownSellerStatus, setOwnSellerStatus] = useState<MessagingAccountStatus | null>(null);
+
+  useEffect(() => {
+    const timer = setInterval(() => setQuickReplyNowMs(Date.now()), 15000);
+    return () => clearInterval(timer);
+  }, []);
+
+  useEffect(() => {
+    if (loading) return;
+
+    if (effectiveUserType !== 'buyer' || !targetSellerId) {
+      setRemoteTargetSellerStatus(null);
+      return;
+    }
+
+    let active = true;
+    chatService.getSellerMessagingStatusById(targetSellerId)
+      .then((status) => {
+        if (active) setRemoteTargetSellerStatus(status);
+      })
+      .catch((err) => {
+        console.error('[ChatScreen] Failed to load target seller status:', err);
+      });
+
+    return () => {
+      active = false;
+    };
+  }, [loading, effectiveUserType, targetSellerId, conversationId]);
+
+  useEffect(() => {
+    if (loading) return;
+
+    if (effectiveUserType !== 'seller' || !effectiveUserId) {
+      setOwnSellerStatus(null);
+      return;
+    }
+
+    let active = true;
+    chatService.getSellerMessagingStatusById(effectiveUserId)
+      .then((status) => {
+        if (active) setOwnSellerStatus(status);
+      })
+      .catch((err) => {
+        console.error('[ChatScreen] Failed to load own seller status:', err);
+      });
+
+    return () => {
+      active = false;
+    };
+  }, [loading, effectiveUserType, effectiveUserId, conversationId]);
+
+  const hydrateQuickReplyCooldowns = useCallback(async () => {
+    if (effectiveUserType !== 'buyer' || !conversationId || !effectiveUserId) {
+      setQuickReplyCooldowns({});
+      return;
+    }
+
+    const cooldownMap = await chatService.getBuyerQuickReplyCooldownMap(
+      conversationId,
+      effectiveUserId,
+      BUYER_QUICK_REPLIES,
+      QUICK_REPLY_COOLDOWN_MS
+    );
+    setQuickReplyCooldowns(cooldownMap);
+  }, [conversationId, effectiveUserId, effectiveUserType]);
+
+  useEffect(() => {
+    if (loading) return;
+    void hydrateQuickReplyCooldowns();
+  }, [loading, hydrateQuickReplyCooldowns]);
 
   // Compute whether chips are currently visible
   const chipsVisible = useMemo(() => {
     if (effectiveUserType !== 'buyer') return false;
-    const now = Date.now();
-    const ONE_HOUR = 3600000;
-    const quickReplies = ['Is this available?', 'Can I see real photos?', 'Do you offer discounts?', 'When will you ship?'];
-    return quickReplies.some(r => {
-      const usedAt = usedQuickReplies[r];
-      return !usedAt || (now - usedAt) > ONE_HOUR;
+    return BUYER_QUICK_REPLIES.some(r => {
+      const usedAt = quickReplyCooldowns[r];
+      return !usedAt || (quickReplyNowMs - usedAt) >= QUICK_REPLY_COOLDOWN_MS;
     });
-  }, [usedQuickReplies, effectiveUserType]);
+  }, [effectiveUserType, quickReplyCooldowns, quickReplyNowMs]);
 
   // Jump button bottom: higher when chips are visible
   const jumpBottom = chipsVisible ? 135 : 90;
@@ -148,17 +225,95 @@ export default function ChatScreen({ conversation, currentUserId, userType, onBa
     ? effectiveConversation?.seller_avatar
     : effectiveConversation?.buyer_avatar;
 
+  const sellerStatusFromConversation = useMemo<MessagingAccountStatus>(() => {
+    return resolveSellerMessagingAccountStatus({
+      approval_status: effectiveConversation?.seller_approval_status,
+      blacklisted_at: effectiveConversation?.seller_blacklisted_at,
+      temp_blacklist_until: effectiveConversation?.seller_temp_blacklist_until,
+      cool_down_until: effectiveConversation?.seller_cool_down_until,
+      is_permanently_blacklisted: effectiveConversation?.seller_is_permanently_blacklisted,
+      suspended_at: effectiveConversation?.seller_suspended_at,
+    });
+  }, [
+    effectiveConversation?.seller_approval_status,
+    effectiveConversation?.seller_blacklisted_at,
+    effectiveConversation?.seller_temp_blacklist_until,
+    effectiveConversation?.seller_cool_down_until,
+    effectiveConversation?.seller_is_permanently_blacklisted,
+    effectiveConversation?.seller_suspended_at,
+  ]);
+
+  const messagingStatus = useMemo<MessagingAccountStatus>(() => {
+    if (effectiveUserType === 'buyer') {
+      return remoteTargetSellerStatus ?? sellerStatusFromConversation;
+    }
+    return ownSellerStatus ?? sellerStatusFromConversation;
+  }, [effectiveUserType, remoteTargetSellerStatus, ownSellerStatus, sellerStatusFromConversation]);
+
+  const restrictionHeaderText = useMemo(() => {
+    if (messagingStatus === 'active') return null;
+    if (effectiveUserType === 'seller') {
+      return messagingStatus === 'suspended'
+        ? 'Your Account is Suspended'
+        : 'Your Account is Restricted';
+    }
+    return messagingStatus === 'suspended'
+      ? `${displayName} is Currently Suspended`
+      : `${displayName} is Currently Restricted`;
+  }, [displayName, effectiveUserType, messagingStatus]);
+
+  const restrictionBodyText = useMemo(() => {
+    if (messagingStatus === 'active') return null;
+    if (effectiveUserType === 'seller') {
+      return messagingStatus === 'suspended'
+        ? 'You are not able to message while account is suspended.'
+        : 'You are not able to message while account is restricted.';
+    }
+    return messagingStatus === 'suspended'
+      ? 'You are not able to message suspended accounts.'
+      : 'You are not able to message restricted accounts.';
+  }, [effectiveUserType, messagingStatus]);
+
+  const guardBlockedSend = useCallback(() => {
+    if (!isMessagingBlocked(messagingStatus) || !restrictionBodyText) return false;
+    Alert.alert(restrictionHeaderText || 'Unable to message', restrictionBodyText);
+    return true;
+  }, [messagingStatus, restrictionBodyText, restrictionHeaderText]);
+
+  const buyerBlockedStatusText = useMemo(() => {
+    if (effectiveUserType !== 'buyer' || messagingStatus === 'active') return null;
+    return messagingStatus === 'suspended' ? 'Suspended' : 'Restricted';
+  }, [effectiveUserType, messagingStatus]);
+
+  const sellerRestrictionBannerText = useMemo(() => {
+    if (effectiveUserType !== 'seller' || messagingStatus === 'active') return null;
+    return messagingStatus === 'suspended'
+      ? 'Your Account is Suspended'
+      : 'Your Account is Restricted';
+  }, [effectiveUserType, messagingStatus]);
+
   // ─── Load initial messages ────────────────────────────────────────────────
   const loadMessages = useCallback(async () => {
     if (!conversationId) return;
+    const startedAt = Date.now();
     try {
       const msgs = await chatService.getMessages(conversationId);
       setMessages(msgs);
-      await chatService.markAsRead(conversationId, effectiveUserId, effectiveUserType);
+
+      // Non-blocking read mark so first paint is not delayed.
+      void chatService
+        .markAsRead(conversationId, effectiveUserId, effectiveUserType)
+        .catch((error) => {
+          console.error('[ChatScreen] markAsRead failed:', error);
+        });
     } catch (error) {
       console.error(error);
     } finally {
       setLoading(false);
+
+      if (typeof __DEV__ !== 'undefined' && __DEV__) {
+        console.log(`[Perf][ChatScreen] Thread load: ${Date.now() - startedAt}ms`);
+      }
     }
   }, [conversationId, effectiveUserId, effectiveUserType]);
 
@@ -205,6 +360,18 @@ export default function ChatScreen({ conversation, currentUserId, userType, onBa
         return [...prev, newMsg];
       });
       setTimeout(() => flatListRef.current?.scrollToOffset({ offset: 0, animated: true }), 80);
+      if (
+        effectiveUserType === 'buyer' &&
+        newMsg.sender_type === 'buyer' &&
+        newMsg.sender_id === effectiveUserId &&
+        BUYER_QUICK_REPLIES.includes(newMsg.content)
+      ) {
+        const sentAt = Date.parse(newMsg.created_at);
+        setQuickReplyCooldowns(prev => ({
+          ...prev,
+          [newMsg.content]: Number.isNaN(sentAt) ? Date.now() : sentAt,
+        }));
+      }
       if (newMsg.sender_type !== effectiveUserType) {
         chatService.markAsRead(conversationId, effectiveUserId, effectiveUserType);
       }
@@ -213,9 +380,10 @@ export default function ChatScreen({ conversation, currentUserId, userType, onBa
   }, [conversationId, effectiveUserId, effectiveUserType]);
 
   // ─── Optimistic send ──────────────────────────────────────────────────────
-  const handleSend = async (overrideText?: string) => {
+  const handleSend = async (overrideText?: string, options?: { isQuickReply?: boolean }) => {
     const messageText = (overrideText || newMessage).trim();
     if (!messageText || !conversationId) return;
+    if (guardBlockedSend()) return;
     const tempId = `temp-${Date.now()}`;
 
     // 1. Clear input + append temp message immediately
@@ -248,6 +416,12 @@ export default function ChatScreen({ conversation, currentUserId, userType, onBa
             ? prev.filter(m => m.id !== tempId)
             : prev.map(m => m.id === tempId ? sentMsg : m)
         );
+        if (options?.isQuickReply && effectiveUserType === 'buyer') {
+          setQuickReplyCooldowns(prev => ({
+            ...prev,
+            [messageText]: Date.now(),
+          }));
+        }
       } else {
         setMessages(prev => prev.filter(m => m.id !== tempId));
         if (!overrideText) setNewMessage(messageText);
@@ -326,6 +500,7 @@ export default function ChatScreen({ conversation, currentUserId, userType, onBa
   // Called when user confirms send from the preview modal
   const handleConfirmSend = async () => {
     if (!pendingUpload.current || !conversationId) return;
+    if (guardBlockedSend()) return;
     const { base64, fileName, mime, mediaType } = pendingUpload.current;
     setUploading(true);
     try {
@@ -569,10 +744,23 @@ export default function ChatScreen({ conversation, currentUserId, userType, onBa
           <View>
             <Text style={styles.headerTitle}>{displayName}</Text>
             <View style={styles.statusRow}>
-              <View style={effectiveConversation?.is_online ? styles.statusDot : styles.statusDotOffline} />
-              <Text style={styles.statusText}>
-                {effectiveConversation?.is_online ? 'Online' : 'Offline'}
-              </Text>
+              {buyerBlockedStatusText ? (
+                <View style={styles.blockedStatusBadge}>
+                  {messagingStatus === 'suspended' ? (
+                    <Ban size={11} color="#9B1C1C" />
+                  ) : (
+                    <AlertTriangle size={11} color="#9B1C1C" />
+                  )}
+                  <Text style={styles.statusTextBlocked}>{buyerBlockedStatusText}</Text>
+                </View>
+              ) : (
+                <>
+                  <View style={effectiveConversation?.is_online ? styles.statusDot : styles.statusDotOffline} />
+                  <Text style={styles.statusText}>
+                    {effectiveConversation?.is_online ? 'Online' : 'Offline'}
+                  </Text>
+                </>
+              )}
             </View>
           </View>
         </Pressable>
@@ -583,6 +771,19 @@ export default function ChatScreen({ conversation, currentUserId, userType, onBa
         </View>
       </View>
 
+      {sellerRestrictionBannerText && (
+        <View style={styles.sellerRestrictionBannerWrap}>
+          <View style={styles.sellerRestrictionBanner}>
+            {messagingStatus === 'suspended' ? (
+              <Ban size={13} color="#9B1C1C" />
+            ) : (
+              <AlertTriangle size={13} color="#9B1C1C" />
+            )}
+            <Text style={styles.sellerRestrictionBannerText}>{sellerRestrictionBannerText}</Text>
+          </View>
+        </View>
+      )}
+
       {loading ? (
         <View style={styles.loadingContainer}>
           {/* Skeleton loading bubbles */}
@@ -592,6 +793,12 @@ export default function ChatScreen({ conversation, currentUserId, userType, onBa
             </View>
           ))}
         </View>
+      ) : listData.length === 0 ? (
+        <View style={styles.emptyStateContainer}>
+          <MessageSquare size={48} color="#D1D5DB" />
+          <Text style={styles.emptyStateTitle}>Start Messaging</Text>
+          <Text style={styles.emptyStateSubtitle}>Send your first message to {displayName}</Text>
+        </View>
       ) : (
         <FlatList<ListItem>
           ref={flatListRef}
@@ -600,17 +807,10 @@ export default function ChatScreen({ conversation, currentUserId, userType, onBa
           renderItem={renderItem}
           inverted={true}
           style={styles.messagesContainer}
-          contentContainerStyle={listData.length === 0 ? { flexGrow: 1 } : styles.messagesContent}
+          contentContainerStyle={styles.messagesContent}
           keyboardDismissMode="interactive"
           showsVerticalScrollIndicator={false}
           maintainVisibleContentPosition={{ minIndexForVisible: 0 }}
-          ListEmptyComponent={
-            <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center', transform: [{ scaleY: -1 }] }}>
-              <MessageSquare size={48} color="#D1D5DB" />
-              <Text style={{ marginTop: 12, color: '#6B7280', fontSize: 16, fontWeight: '600' }}>Start Messaging</Text>
-              <Text style={{ marginTop: 4, color: '#9CA3AF', textAlign: 'center' }}>Send your first message to {displayName}</Text>
-            </View>
-          }
           onScroll={(event) => {
             const offsetY = event.nativeEvent.contentOffset.y;
             const scrolledAway = offsetY > 300;
@@ -657,21 +857,17 @@ export default function ChatScreen({ conversation, currentUserId, userType, onBa
       <Animated.View style={[styles.inputContainer, { paddingBottom: bottomPadAnim }]}>
         {/* Quick reply chips — inside input container so they share white bg, flush above input */}
         {effectiveUserType === 'buyer' && (() => {
-          const now = Date.now();
-          const ONE_HOUR = 3600000;
-          const quickReplies = ['Is this available?', 'Can I see real photos?', 'Do you offer discounts?', 'When will you ship?'];
-          const available = quickReplies.filter(r => {
-            const usedAt = usedQuickReplies[r];
+          const available = BUYER_QUICK_REPLIES.filter(r => {
+            const usedAt = quickReplyCooldowns[r];
             if (!usedAt) return true;
-            return (now - usedAt) > ONE_HOUR;
+            return (quickReplyNowMs - usedAt) >= QUICK_REPLY_COOLDOWN_MS;
           });
           if (available.length === 0) return null;
           return (
             <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginBottom: 6 }} contentContainerStyle={{ paddingHorizontal: 16, gap: 8, alignItems: 'center' }}>
               {available.map((reply, i) => (
                 <Pressable key={i} style={styles.replyChip} onPress={() => {
-                  setUsedQuickReplies(prev => ({ ...prev, [reply]: Date.now() }));
-                  handleSend(reply);
+                  handleSend(reply, { isQuickReply: true });
                 }}>
                   <Text style={styles.replyChipText}>{reply}</Text>
                 </Pressable>
@@ -747,8 +943,16 @@ const styles = StyleSheet.create({
   // 👈 NEW: Offline Styles
   statusDotOffline: { width: 6, height: 6, borderRadius: 3, backgroundColor: '#9CA3AF' },
   statusText: { fontSize: 12, color: 'rgba(255,255,255,0.8)' },
+  blockedStatusBadge: { flexDirection: 'row', alignItems: 'center', gap: 6, alignSelf: 'flex-start', paddingHorizontal: 8, paddingVertical: 3, borderRadius: 999, borderWidth: 1, borderColor: '#FCA5A5', backgroundColor: '#F7BABA' },
+  statusTextBlocked: { fontSize: 12, color: '#9B1C1C', fontWeight: '700' },
   menuButton: { padding: 8 },
+  sellerRestrictionBannerWrap: { paddingHorizontal: 16, paddingTop: 8, paddingBottom: 2, backgroundColor: '#F5F5F7' },
+  sellerRestrictionBanner: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, alignSelf: 'stretch', paddingHorizontal: 10, paddingVertical: 6, borderRadius: 0, borderWidth: 1, borderColor: '#FCA5A5', backgroundColor: '#F7BABA' },
+  sellerRestrictionBannerText: { fontSize: 12, color: '#9B1C1C', fontWeight: '600', textAlign: 'center' },
   loadingContainer: { flex: 1, paddingHorizontal: 16, paddingTop: 24 },
+  emptyStateContainer: { flex: 1, backgroundColor: '#F5F5F7', alignItems: 'center', justifyContent: 'center', paddingHorizontal: 24 },
+  emptyStateTitle: { marginTop: 12, color: '#6B7280', fontSize: 16, fontWeight: '600' },
+  emptyStateSubtitle: { marginTop: 4, color: '#9CA3AF', textAlign: 'center' },
   messagesContainer: { flex: 1, backgroundColor: '#F5F5F7' },
   messagesContent: { padding: 16, paddingBottom: 20, gap: 8 },
   systemMessageWrapper: { flexDirection: 'row', alignItems: 'center', marginVertical: 16, paddingHorizontal: 20 },

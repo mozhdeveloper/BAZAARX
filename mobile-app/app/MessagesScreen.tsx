@@ -41,6 +41,7 @@ const SkeletonRow = memo(({ shimmer }: { shimmer: Animated.Value }) => {
 });
 
 const SKELETON_COUNT = 7;
+const BUYER_CHATLIST_STALE_MS = 30_000;
 
 // ---------------------------------------------------------------------------
 // Memoized single conversation row â€” prevents re-renders of unchanged rows
@@ -111,6 +112,7 @@ export default function MessagesScreen() {
   const [debouncedQuery, setDebouncedQuery] = useState('');
   const conversationsRef = useRef<Conversation[]>([]);
   const pendingConversationLoadsRef = useRef<Set<string>>(new Set());
+  const lastConversationsLoadAtRef = useRef(0);
 
   useEffect(() => {
     conversationsRef.current = conversations;
@@ -133,16 +135,38 @@ export default function MessagesScreen() {
     return () => clearTimeout(t);
   }, [searchQuery]);
 
-  const loadConversations = useCallback(async () => {
-    if (!user?.id) { setLoading(false); return; }
+  const loadConversations = useCallback(async (options?: { force?: boolean; silent?: boolean }) => {
+    if (!user?.id) {
+      setLoading(false);
+      setRefreshing(false);
+      return;
+    }
+
+    const force = options?.force === true;
+    const silent = options?.silent === true;
+    const now = Date.now();
+    const hasExistingData = conversationsRef.current.length > 0;
+    const isFresh = hasExistingData && (now - lastConversationsLoadAtRef.current) < BUYER_CHATLIST_STALE_MS;
+
+    if (!force && isFresh) {
+      if (!silent) setRefreshing(false);
+      return;
+    }
+
+    const startedAt = now;
     try {
       const convs = await chatService.getBuyerConversations(user.id);
       setConversations(convs);
+      lastConversationsLoadAtRef.current = Date.now();
     } catch (err) {
       console.error(err);
     } finally {
-      setLoading(false);
+      if (!silent) setLoading(false);
       setRefreshing(false);
+
+      if (typeof __DEV__ !== 'undefined' && __DEV__) {
+        console.log(`[Perf][BuyerMessages] Chatlist load: ${Date.now() - startedAt}ms`);
+      }
     }
   }, [user?.id]);
 
@@ -162,6 +186,7 @@ export default function MessagesScreen() {
           new Date(a.last_message_at || a.updated_at).getTime()
         );
       });
+      lastConversationsLoadAtRef.current = Date.now();
     } catch (err) {
       console.error('[BuyerMessages] Error merging realtime conversation:', err);
     } finally {
@@ -169,7 +194,9 @@ export default function MessagesScreen() {
     }
   }, [user?.id]);
 
-  useEffect(() => { loadConversations(); }, [loadConversations]);
+  useEffect(() => {
+    void loadConversations({ force: true });
+  }, [loadConversations]);
 
   useEffect(() => {
     if (!user?.id) return;
@@ -212,17 +239,21 @@ export default function MessagesScreen() {
           new Date(a.last_message_at || a.updated_at).getTime()
         );
       });
+      lastConversationsLoadAtRef.current = Date.now();
     });
   }, [user?.id, fetchAndMergeMissingConversation]);
 
   useFocusEffect(
     useCallback(() => {
       if (!user?.id || loading) return;
-      chatService.getBuyerConversations(user.id)
-        .then(convs => setConversations(convs))
-        .catch(() => { });
-    }, [user?.id, loading])
+      void loadConversations({ silent: true });
+    }, [user?.id, loading, loadConversations])
   );
+
+  const onRefresh = useCallback(() => {
+    setRefreshing(true);
+    void loadConversations({ force: true, silent: true });
+  }, [loadConversations]);
 
 
   // Real-time: presence dots
@@ -333,7 +364,7 @@ export default function MessagesScreen() {
           keyExtractor={keyExtractor}
           renderItem={renderItem}
           ListEmptyComponent={ListEmpty}
-          refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); loadConversations(); }} tintColor={COLORS.primary} />}
+          refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={COLORS.primary} />}
           // Virtualization tuning
           initialNumToRender={12}
           maxToRenderPerBatch={10}
