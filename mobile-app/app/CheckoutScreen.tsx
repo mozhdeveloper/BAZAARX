@@ -1619,7 +1619,7 @@ export default function CheckoutScreen({ navigation, route }: Props) {
             const dbCurrentLoc = await addressService.getCurrentDeliveryLocation(user.id);
             if (dbCurrentLoc && dbCurrentLoc.label === 'Current Location') {
               homeScreenAddress = `${dbCurrentLoc.street}, ${dbCurrentLoc.city}`;
-              homeScreenCoords = dbCurrentLoc.coordinates;
+              homeScreenCoords = dbCurrentLoc.coordinates || undefined;
             } else {
               // Fall back to AsyncStorage
               const storedAddress = await AsyncStorage.getItem('currentDeliveryAddress');

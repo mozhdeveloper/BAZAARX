@@ -65,7 +65,7 @@ export default function ForgotPasswordPage() {
                   value={email || prefilledEmail}
                   onChange={(e) => setEmail(e.target.value)}
                   placeholder="you@example.com"
-                  className="w-full pl-10 pr-3 py-3 border border-[var(--border)] rounded-lg outline-none focus:border-[var(--brand-primary)] bg-white"
+                  className="w-full pl-10 pr-3 py-3 border border-[var(--border)] rounded-2xl outline-none focus:border-[var(--brand-primary)] bg-white"
                   disabled={isLoading}
                   required
                 />
@@ -79,7 +79,7 @@ export default function ForgotPasswordPage() {
             <button
               type="submit"
               disabled={isLoading}
-              className="w-full h-11 rounded-lg bg-[var(--brand-primary)] text-white font-semibold hover:bg-[var(--brand-primary-dark)] transition-colors disabled:opacity-60 inline-flex items-center justify-center gap-2"
+              className="w-full h-11 rounded-2xl bg-[var(--brand-primary)] text-white font-semibold hover:bg-[var(--brand-primary-dark)] transition-colors disabled:opacity-60 inline-flex items-center justify-center gap-2"
             >
               {isLoading ? "Sending..." : "Send Reset Link"}
               <Send size={16} />

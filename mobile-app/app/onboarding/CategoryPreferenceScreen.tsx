@@ -16,11 +16,14 @@ import { Check, Search, ArrowLeft } from 'lucide-react-native';
 import { safeImageUri } from '../../src/utils/imageUtils';
 import { LinearGradient } from 'expo-linear-gradient';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
+import { CardStyleInterpolators } from '@react-navigation/stack';
 import type { RootStackParamList } from '../../App';
 import { authService } from '../../src/services/authService';
 import { COLORS } from '../../src/constants/theme';
 import { categoryService } from '../../src/services/categoryService';
 import type { Category } from '../../src/types/database.types';
+import { useAuthStore } from '../../src/stores/authStore';
+import { supabase } from '../../src/lib/supabase';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'CategoryPreference'>;
 
@@ -37,9 +40,10 @@ export default function CategoryPreferenceScreen({ navigation, route }: Props) {
   const [selectedCategories, setSelectedCategories] = useState<string[]>([]);
   const [searchQuery, setSearchQuery] = useState('');
   const [isSaving, setIsSaving] = useState(false);
+  const { pendingSignupData, clearPendingSignup } = useAuthStore();
 
-  // Get signup data passed from previous screens
-  const { signupData } = route.params || {};
+  // Get signup data passed from previous screens or persistent store
+  const signupData = route.params?.signupData || pendingSignupData;
 
   useEffect(() => {
     const fetchCategories = async () => {
@@ -80,33 +84,55 @@ export default function CategoryPreferenceScreen({ navigation, route }: Props) {
     setIsSaving(true);
 
     try {
-      const result = await authService.signUp(
-        signupData.email,
-        signupData.password,
-        {
-          first_name: signupData.firstName,
-          last_name: signupData.lastName,
-          phone: signupData.phone,
-          user_type: 'buyer',
-          email: signupData.email,
-          password: signupData.password,
-          // metadata: { interestedCategories: selectedCategories }
-        }
-      );
+      // 1. Get current user ID
+      let { data: { user: currentUser } } = await supabase.auth.getUser();
+      let userId = currentUser?.id || useAuthStore.getState().user?.id;
 
-      if (!result || !result.user) throw new Error('Signup failed. Please try again.');
+      // Fallback: If no userId found, try one last sync with the store
+      if (!userId) {
+        console.log('[CategoryPreference] UserId missing, attempting store sync...');
+        await useAuthStore.getState().checkSession();
+        userId = useAuthStore.getState().user?.id;
+      }
 
-      Alert.alert('Success', 'Welcome to BazaarX!', [
-        {
-          text: 'Get Started',
-          onPress: () => {
-            navigation.reset({
-              index: 0,
-              routes: [{ name: 'MainTabs' }],
-            });
-          }
-        }
-      ]);
+      if (!userId) {
+        throw new Error('You must be signed in to save preferences.');
+      }
+
+      // 2. Save interests to existing buyer record
+      console.log('--- FINALIZING ONBOARDING ---');
+      console.log('User ID:', userId);
+      console.log('Selected Categories:', selectedCategories);
+      console.log('Original Signup Info:', signupData);
+
+      await authService.updateBuyerPreferences(userId, selectedCategories);
+
+      console.log('--- ONBOARDING DATA SAVED SUCCESSFULLY ---');
+
+      // Update local store with the profile data captured during signup
+      // so it reflects immediately on the Profile screen
+      const { updateProfile, checkSession } = useAuthStore.getState();
+      updateProfile({
+        name: `${signupData.firstName} ${signupData.lastName}`,
+        phone: signupData.phone
+      });
+
+      // Full sync to get bazaars/bazcoins/etc and verify session is active
+      // MUST be awaited before navigation to ensure user state is populated
+      await checkSession();
+
+      // Setup complete - clear temporary signup data
+      clearPendingSignup();
+
+      // Configure slide animation (right to left) and navigate to home
+      navigation.getParent()?.setOptions({
+        cardStyleInterpolator: CardStyleInterpolators.forHorizontalIOS,
+      });
+
+      navigation.reset({
+        index: 0,
+        routes: [{ name: 'MainTabs' }],
+      });
 
     } catch (error: any) {
       console.error('Signup Error:', error);
@@ -263,7 +289,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     backgroundColor: '#F9FAFB',
-    borderRadius: 12,
+    borderRadius: 14,
     paddingHorizontal: 12,
     height: 44,
     borderWidth: 1,
@@ -348,7 +374,7 @@ const styles = StyleSheet.create({
   button: {
     backgroundColor: COLORS.primary,
     paddingVertical: 16,
-    borderRadius: 25,
+    borderRadius: 14,
     alignItems: 'center',
     marginBottom: 12,
     shadowColor: '#FF6A00',

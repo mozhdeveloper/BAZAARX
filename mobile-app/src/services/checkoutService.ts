@@ -773,8 +773,7 @@ export const processCheckout = async (payload: CheckoutPayload): Promise<Checkou
                     }
                 }
 
-                // Batch update all variant stocks in a single transaction
-                const updatePromises: Promise<any>[] = [];
+                const updatePromises: any[] = [];
                 for (const [variantId, quantityToDeduct] of variantUpdateMap) {
                     const currentStock = variantStockMap.get(variantId) || 0;
                     const updatePromise = supabase
