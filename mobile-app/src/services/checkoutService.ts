@@ -671,13 +671,18 @@ export const processCheckout = async (payload: CheckoutPayload): Promise<Checkou
             try {
                 // Batch fetch all variant stocks we need
                 const variantStockMap = new Map<string, number>();
+                const variantUpdateMap = new Map<string, number>();
+                const variantToProductMap = new Map<string, string>(); // Track variant -> product mapping
 
                 if (variantIdsToUpdate.length > 0) {
                     const { data: varStocks } = await supabase
                         .from('product_variants')
-                        .select('id, stock')
+                        .select('id, stock, product_id')
                         .in('id', variantIdsToUpdate);
-                    varStocks?.forEach(v => variantStockMap.set(v.id, v.stock || 0));
+                    varStocks?.forEach(v => {
+                        variantStockMap.set(v.id, v.stock || 0);
+                        variantToProductMap.set(v.id, v.product_id);
+                    });
                 }
 
                 // For items without specific variant, get primary variant per product
@@ -693,6 +698,7 @@ export const processCheckout = async (payload: CheckoutPayload): Promise<Checkou
                         if (!seen.has(v.product_id)) {
                             seen.add(v.product_id);
                             variantStockMap.set(v.id, v.stock || 0);
+                            variantToProductMap.set(v.id, v.product_id);
                         }
                     });
                 }
@@ -703,11 +709,12 @@ export const processCheckout = async (payload: CheckoutPayload): Promise<Checkou
                     let variantId = item.selectedVariant?.variantId;
                     if (!variantId) {
                         // Find the fallback variant ID from our map
-                        for (const [vid, _] of variantStockMap) {
+                        for (const [vid, productId] of variantToProductMap) {
                             // Match by checking if this variant belongs to this product
-                            // We stored the primary variant's id in the map
-                            const belongsToProduct = allVariants.some(v => v.id === vid && v.product_id === item.id);
-                            if (belongsToProduct) { variantId = vid; break; }
+                            if (productId === item.id) {
+                                variantId = vid;
+                                break;
+                            }
                         }
                     }
                     if (variantId && variantStockMap.has(variantId)) {
@@ -733,6 +740,7 @@ export const processCheckout = async (payload: CheckoutPayload): Promise<Checkou
                     if (failedUpdates.length > 0) {
                         console.warn('[Checkout] ⚠️ Some stock updates failed:', failedUpdates.map(r => (r as any).reason?.message));
                     }
+                }
             } catch (stockErr) {
                 console.warn('[Checkout] Failed to update stock:', stockErr);
                 // Continue — don't fail checkout for stock update issues
