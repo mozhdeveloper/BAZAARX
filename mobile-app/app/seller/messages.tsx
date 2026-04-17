@@ -32,6 +32,8 @@ import {
   MessageSquare,
   FileText,
   Play,
+  ArrowDown,
+  Reply,
 } from 'lucide-react-native';
 import { Alert, Keyboard } from 'react-native';
 import { chatService, Conversation as ChatConversation, Message as ChatMessage } from '../../src/services/chatService';
@@ -78,17 +80,34 @@ export default function MessagesScreen() {
   const insets = useSafeAreaInsets();
   const { user } = useAuthStore();
   const { seller } = useSellerStore();
-  
+
   const [selectedConversation, setSelectedConversation] = useState<string | null>(null);
   const [newMessage, setNewMessage] = useState('');
   const [searchQuery, setSearchQuery] = useState('');
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [uploading, setUploading] = useState(false);
+  const [chatLoading, setChatLoading] = useState(false);
+  const conversationsRef = useRef<ChatConversation[]>([]);
+  const pendingConversationLoadsRef = useRef<Set<string>>(new Set());
 
   // Real conversations and messages from database
   const [conversations, setConversations] = useState<ChatConversation[]>([]);
   const [messages, setMessages] = useState<ChatMessage[]>([]);
+
+  useEffect(() => {
+    conversationsRef.current = conversations;
+  }, [conversations]);
+
+  // Search filtering — buyer name only
+  const filteredConversations = useMemo(() => {
+    if (!searchQuery.trim()) return conversations;
+    const q = searchQuery.toLowerCase().trim();
+    return conversations.filter(conv => {
+      const name = (conv.buyer?.full_name || conv.buyer_name || '').toLowerCase();
+      return name.includes(q);
+    });
+  }, [conversations, searchQuery]);
 
   // Ref for auto-scrolling the chat (inverted FlatList: scrollToOffset 0 = newest message)
   const chatFlatListRef = useRef<FlatList<SellerListItem>>(null);
@@ -122,6 +141,14 @@ export default function MessagesScreen() {
 
   // Attachment panel — auto-hides when typing, expand-only chevron
   const [showAttachments, setShowAttachments] = useState(true);
+
+  // Reply-to state (Step 9)
+  const [replyingTo, setReplyingTo] = useState<ChatMessage | null>(null);
+
+  // Jump-to-latest button
+  const [showJumpToLatest, setShowJumpToLatest] = useState(false);
+  const jumpButtonOpacity = useRef(new Animated.Value(0)).current;
+  const showJumpRef = useRef(false);
 
   const handleInputChange = (text: string) => {
     setNewMessage(text);
@@ -170,6 +197,30 @@ export default function MessagesScreen() {
     }
   }, [seller?.id]);
 
+  const fetchAndMergeMissingConversation = useCallback(async (conversationId: string) => {
+    const sellerId = seller?.id;
+    if (!sellerId) return;
+    if (pendingConversationLoadsRef.current.has(conversationId)) return;
+
+    pendingConversationLoadsRef.current.add(conversationId);
+    try {
+      const conv = await chatService.getSellerConversationById(conversationId, sellerId);
+      if (!conv) return;
+
+      setConversations(prev => {
+        const merged = [conv, ...prev.filter(c => c.id !== conv.id)];
+        return merged.sort((a, b) =>
+          new Date(b.last_message_at || b.updated_at).getTime() -
+          new Date(a.last_message_at || a.updated_at).getTime()
+        );
+      });
+    } catch (error) {
+      console.error('[SellerMessages] Error merging realtime conversation:', error);
+    } finally {
+      pendingConversationLoadsRef.current.delete(conversationId);
+    }
+  }, [seller?.id]);
+
   useEffect(() => {
     loadConversations();
   }, [loadConversations]);
@@ -179,6 +230,18 @@ export default function MessagesScreen() {
   useEffect(() => {
     if (!seller?.id) return;
     return chatService.subscribeToAllNewMessages((newMsg) => {
+      const existsInList = conversationsRef.current.some(c => c.id === newMsg.conversation_id);
+      const buyerMetadata = typeof newMsg.message_content === 'string' ? newMsg.message_content : '';
+      const likelyTargetsThisSeller = newMsg.sender_type === 'buyer' && buyerMetadata.includes(seller.id);
+      const isOwnSellerMessage = newMsg.sender_type === 'seller' && newMsg.sender_id === seller.id;
+
+      if (!existsInList) {
+        if (likelyTargetsThisSeller || isOwnSellerMessage) {
+          void fetchAndMergeMissingConversation(newMsg.conversation_id);
+        }
+        return;
+      }
+
       setConversations(prev => {
         const idx = prev.findIndex(c => c.id === newMsg.conversation_id);
         if (idx === -1) return prev; // not this seller's conversation
@@ -206,7 +269,7 @@ export default function MessagesScreen() {
         );
       });
     });
-  }, [seller?.id]);
+  }, [seller?.id, fetchAndMergeMissingConversation]);
 
   // Silent refresh when returning to the chatlist from a conversation.
   // Syncs unread badges after markAsRead was called in the chat view.
@@ -216,7 +279,7 @@ export default function MessagesScreen() {
       if (!sellerId || loading) return;
       chatService.getSellerConversations(sellerId)
         .then(convs => setConversations(convs))
-        .catch(() => {});
+        .catch(() => { });
     }, [seller?.id, loading])
   );
 
@@ -226,12 +289,22 @@ export default function MessagesScreen() {
     if (!selectedConversation) return;
 
     const loadMessages = async () => {
-      const msgs = await chatService.getMessages(selectedConversation);
-      setMessages(msgs);
-      
-      // Mark as read
-      if (seller?.id) {
-        await chatService.markAsRead(selectedConversation, seller.id, 'seller');
+      setChatLoading(true);
+      try {
+        const msgs = await chatService.getMessages(selectedConversation);
+        setMessages(msgs);
+        // Scroll to latest (offset 0 = newest in inverted FlatList)
+        setTimeout(() => {
+          chatFlatListRef.current?.scrollToOffset({ offset: 0, animated: false });
+        }, 100);
+        // Mark as read
+        if (seller?.id) {
+          await chatService.markAsRead(selectedConversation, seller.id, 'seller');
+        }
+      } catch (error) {
+        console.error(error);
+      } finally {
+        setChatLoading(false);
       }
     };
 
@@ -257,15 +330,28 @@ export default function MessagesScreen() {
               m.content === newMsg.content
           );
           if (tempIdx !== -1) {
+            // Step 4: carry over reply preview from temp message
+            if (newMsg.reply_to_message_id && !newMsg.reply_to_content) {
+              newMsg.reply_to_content = prev[tempIdx].reply_to_content;
+              newMsg.reply_to_sender_type = prev[tempIdx].reply_to_sender_type;
+            }
             const updated = [...prev];
             updated[tempIdx] = newMsg;
             return updated;
+          }
+          // Step 4: resolve reply content for incoming replies
+          if (newMsg.reply_to_message_id && !newMsg.reply_to_content) {
+            const original = prev.find(m => m.id === newMsg.reply_to_message_id);
+            if (original) {
+              newMsg.reply_to_content = original.content;
+              newMsg.reply_to_sender_type = original.sender_type;
+            }
           }
           return [...prev, newMsg];
         });
         // Auto-scroll on new message
         chatFlatListRef.current?.scrollToOffset({ offset: 0, animated: true });
-        
+
         if (newMsg.sender_type === 'buyer' && seller?.id) {
           chatService.markAsRead(selectedConversation, seller.id, 'seller');
         }
@@ -298,30 +384,30 @@ export default function MessagesScreen() {
     if (!activeConversation) return;
 
     Alert.alert(
-        'Escalate to Support',
-        'Do you want to report this buyer or create a support ticket from this conversation?',
-        [
-            { text: 'Cancel', style: 'cancel' },
-            { 
-                text: 'Escalate', 
-                style: 'destructive',
-                onPress: () => {
-                    const buyerName = activeConversation.buyer_name || 'Buyer';
-                    const transcript = messages
-                      .sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime())
-                      .map(m => `[${new Date(m.created_at).toLocaleString()}] ${m.sender_type === 'seller' ? 'Me' : buyerName}: ${m.content}`)
-                      .join('\n');
+      'Escalate to Support',
+      'Do you want to report this buyer or create a support ticket from this conversation?',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Escalate',
+          style: 'destructive',
+          onPress: () => {
+            const buyerName = activeConversation.buyer_name || 'Buyer';
+            const transcript = messages
+              .sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime())
+              .map(m => `[${new Date(m.created_at).toLocaleString()}] ${m.sender_type === 'seller' ? 'Me' : buyerName}: ${m.content}`)
+              .join('\n');
 
-                    (navigation as any).navigate('CreateTicket', {
-                        initialSubject: `Report Buyer: ${buyerName}`,
-                        initialDescription: `I would like to report an issue with this buyer.\n\nConversation Transcript:\n${transcript}`
-                    });
-                }
-            }
-        ]
+            (navigation as any).navigate('CreateTicket', {
+              initialSubject: `Report Buyer: ${buyerName}`,
+              initialDescription: `I would like to report an issue with this buyer.\n\nConversation Transcript:\n${transcript}`
+            });
+          }
+        }
+      ]
     );
   };
-  
+
   // ─── Optimistic send ──────────────────────────────────────────────────────
   const handleSendMessage = async () => {
     if (!newMessage.trim() || !selectedConversation || !seller?.id) return;
@@ -339,16 +425,21 @@ export default function MessagesScreen() {
       is_read: false,
       created_at: new Date().toISOString(),
       message_type: 'user',
+      reply_to_message_id: replyingTo?.id || null,
+      reply_to_content: replyingTo?.content,
+      reply_to_sender_type: replyingTo?.sender_type,
     };
     setMessages(prev => [...prev, tempMsg]);
     setNewMessage('');
+    setReplyingTo(null);
 
     try {
       const result = await chatService.sendMessage(
         selectedConversation,
         seller.id,
         'seller',
-        messageText
+        messageText,
+        undefined, undefined, undefined, replyingTo?.id
       );
       if (result) {
         setMessages(prev =>
@@ -465,6 +556,9 @@ export default function MessagesScreen() {
             ? prev.filter(m => m.id !== tempId)
             : prev.map(m => m.id === tempId ? sentMsg : m)
         );
+      } else {
+        setMessages(prev => prev.filter(m => m.id !== tempId));
+        Alert.alert('Send failed', 'Message was not saved. Please try again.');
       }
     } catch (err) {
       console.error('[SellerMessages] upload error:', err);
@@ -499,10 +593,11 @@ export default function MessagesScreen() {
     if (minutes < 60) return `${minutes}m ago`;
     if (hours < 24) return `${hours}h ago`;
     if (days === 1) return 'Yesterday';
-    return date.toLocaleDateString();
+    return date.toLocaleDateString([], { month: 'short', day: 'numeric' });
   };
 
   const getInitials = (name: string) => {
+    if (!name) return '?';
     return name.charAt(0).toUpperCase();
   };
 
@@ -551,52 +646,84 @@ export default function MessagesScreen() {
 
     return (
       <View style={[styles.msgOuterWrapper, isSeller ? styles.msgOuterRight : styles.msgOuterLeft]}>
-        <Pressable
-          onPress={() => { if (!hasAnyMedia) toggleTimestamp(); }}
-          onLongPress={toggleTimestamp}
-          delayLongPress={400}
-        >
-          <View
-            style={[
-              styles.messageBubble,
-              isSeller ? styles.messageSeller : styles.messageBuyer,
-              isExpanded && (isSeller ? styles.messageSellerExpanded : styles.messageBuyerExpanded),
-              isDoc && !(msg.content && !(isPlaceholder && (hasMedia || !!msg.image_url))) && styles.noPadBubble,
-            ]}
+        {/* Horizontal row — reply icon beside bubble */}
+        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 2 }}>
+          {/* Seller (sent): reply icon LEFT of bubble */}
+          {isSeller && !isPending && msg.message_type !== 'system' && (
+            <Pressable onPress={() => setReplyingTo(msg)} hitSlop={8} style={{ padding: 2 }}>
+              <Reply size={14} color="#9CA3AF" />
+            </Pressable>
+          )}
+          <Pressable
+            onPress={() => { if (!hasAnyMedia) toggleTimestamp(); }}
+            onLongPress={toggleTimestamp}
+            delayLongPress={400}
           >
-            {/* Image */}
-            {imgUrl && isImage && (
-              <Pressable onPress={() => openPreview(imgUrl!, 'image')} onLongPress={toggleTimestamp} delayLongPress={400}>
-                <Image source={{ uri: imgUrl }} style={{ width: 200, height: 200, borderRadius: 12, marginBottom: 4 }} resizeMode="cover" />
-              </Pressable>
-            )}
-            {/* Video */}
-            {hasMedia && isVideo && (
-              <Pressable onPress={() => openPreview(msg.media_url!, 'video')} onLongPress={toggleTimestamp} delayLongPress={400} style={{ width: 200, height: 140, borderRadius: 12, backgroundColor: '#1F2937', justifyContent: 'center', alignItems: 'center', marginBottom: 4 }}>
-                <Play size={28} color="#FFFFFF" />
-                <Text style={{ color: '#FFF', fontSize: 12, fontWeight: '600', marginTop: 6 }}>Tap to play</Text>
-              </Pressable>
-            )}
-            {/* Document — explicit width so inner flex:1 text always renders */}
-            {hasMedia && isDoc && (
-              <Pressable onPress={() => openPreview(msg.media_url!, 'document')} onLongPress={toggleTimestamp} delayLongPress={400} style={{ flexDirection: 'row', alignItems: 'center', gap: 10, paddingHorizontal: 14, paddingVertical: 12, borderRadius: 16, width: DOC_BUBBLE_W, backgroundColor: isSeller ? 'rgba(255,255,255,0.15)' : '#F3F4F6' }}>
-                <View style={{ width: 36, height: 36, borderRadius: 8, alignItems: 'center', justifyContent: 'center', flexShrink: 0, backgroundColor: isSeller ? 'rgba(255,255,255,0.15)' : '#FEF2F2' }}>
-                  <FileText size={18} color={isSeller ? '#FFFFFF' : '#D97706'} />
-                </View>
-                <View style={{ flex: 1, minWidth: 0 }}>
-                  <Text style={{ fontSize: 14, fontWeight: '700', color: isSeller ? '#FFFFFF' : '#D97706' }} numberOfLines={1}>{extractFileName(msg.media_url!)}</Text>
-                  <Text style={{ fontSize: 11, marginTop: 2, color: isSeller ? 'rgba(255,255,255,0.6)' : '#9CA3AF' }}>PDF · Tap to open</Text>
-                </View>
-              </Pressable>
-            )}
-            {/* Text (hide placeholders when media is present) */}
-            {msg.content && !(isPlaceholder && (hasMedia || !!msg.image_url)) && (
-              <Text style={[styles.messageText, isSeller ? styles.messageTextSeller : styles.messageTextBuyer]}>
-                {msg.content}
-              </Text>
-            )}
-          </View>
-        </Pressable>
+            <View
+              style={[
+                styles.messageBubble,
+                isSeller ? styles.messageSeller : styles.messageBuyer,
+                isExpanded && (isSeller ? styles.messageSellerExpanded : styles.messageBuyerExpanded),
+                isDoc && !(msg.content && !(isPlaceholder && (hasMedia || !!msg.image_url))) && styles.noPadBubble,
+              ]}
+            >
+              {/* Replied-to preview (Step 9) */}
+              {msg.reply_to_message_id && (
+                <Pressable
+                  onPress={() => {
+                    const idx = listData.findIndex(i => i.id === msg.reply_to_message_id);
+                    if (idx >= 0) chatFlatListRef.current?.scrollToIndex({ index: idx, animated: true });
+                  }}
+                  style={{ padding: 8, borderRadius: 8, marginBottom: 6, borderLeftWidth: 3, backgroundColor: isSeller ? 'rgba(255,255,255,0.15)' : '#F3F4F6', borderLeftColor: isSeller ? 'rgba(255,255,255,0.5)' : COLORS.primary }}
+                >
+                  <Text style={{ fontSize: 11, fontWeight: '700', color: isSeller ? 'rgba(255,255,255,0.8)' : COLORS.primary }} numberOfLines={1}>
+                    {msg.reply_to_sender_type === 'seller' ? 'You' : (activeConversation?.buyer_name || 'Buyer')}
+                  </Text>
+                  <Text style={{ fontSize: 12, lineHeight: 16, color: isSeller ? 'rgba(255,255,255,0.6)' : '#6B7280' }} numberOfLines={2}>
+                    {msg.reply_to_content || '...'}
+                  </Text>
+                </Pressable>
+              )}
+              {/* Image */}
+              {imgUrl && isImage && (
+                <Pressable onPress={() => openPreview(imgUrl!, 'image')} onLongPress={toggleTimestamp} delayLongPress={400}>
+                  <Image source={{ uri: imgUrl }} style={{ width: 200, height: 200, borderRadius: 12, marginBottom: 4 }} resizeMode="cover" />
+                </Pressable>
+              )}
+              {/* Video */}
+              {hasMedia && isVideo && (
+                <Pressable onPress={() => openPreview(msg.media_url!, 'video')} onLongPress={toggleTimestamp} delayLongPress={400} style={{ width: 200, height: 140, borderRadius: 12, backgroundColor: '#1F2937', justifyContent: 'center', alignItems: 'center', marginBottom: 4 }}>
+                  <Play size={28} color="#FFFFFF" />
+                  <Text style={{ color: '#FFF', fontSize: 12, fontWeight: '600', marginTop: 6 }}>Tap to play</Text>
+                </Pressable>
+              )}
+              {/* Document */}
+              {hasMedia && isDoc && (
+                <Pressable onPress={() => openPreview(msg.media_url!, 'document')} onLongPress={toggleTimestamp} delayLongPress={400} style={{ flexDirection: 'row', alignItems: 'center', gap: 10, paddingHorizontal: 14, paddingVertical: 12, borderRadius: 16, width: DOC_BUBBLE_W, backgroundColor: isSeller ? 'rgba(255,255,255,0.15)' : '#F3F4F6' }}>
+                  <View style={{ width: 36, height: 36, borderRadius: 8, alignItems: 'center', justifyContent: 'center', flexShrink: 0, backgroundColor: isSeller ? 'rgba(255,255,255,0.15)' : '#FEF2F2' }}>
+                    <FileText size={18} color={isSeller ? '#FFFFFF' : '#D97706'} />
+                  </View>
+                  <View style={{ flex: 1, minWidth: 0 }}>
+                    <Text style={{ fontSize: 14, fontWeight: '700', color: isSeller ? '#FFFFFF' : '#D97706' }} numberOfLines={1}>{extractFileName(msg.media_url!)}</Text>
+                    <Text style={{ fontSize: 11, marginTop: 2, color: isSeller ? 'rgba(255,255,255,0.6)' : '#9CA3AF' }}>PDF · Tap to open</Text>
+                  </View>
+                </Pressable>
+              )}
+              {/* Text */}
+              {msg.content && !(isPlaceholder && (hasMedia || !!msg.image_url)) && (
+                <Text style={[styles.messageText, isSeller ? styles.messageTextSeller : styles.messageTextBuyer]}>
+                  {msg.content}
+                </Text>
+              )}
+            </View>
+          </Pressable>
+          {/* Buyer (received): reply icon RIGHT of bubble */}
+          {!isSeller && !isPending && msg.message_type !== 'system' && (
+            <Pressable onPress={() => setReplyingTo(msg)} hitSlop={8} style={{ padding: 2 }}>
+              <Reply size={14} color="#9CA3AF" />
+            </Pressable>
+          )}
+        </View>
         {isExpanded && !isPending && (
           <Text style={[styles.messageTimeOutside, isSeller ? styles.messageTimeOutsideRight : styles.messageTimeOutsideLeft]}>
             {formatMessageTimestamp(msg.created_at)}
@@ -612,13 +739,14 @@ export default function MessagesScreen() {
       <View style={styles.container}>
         {/* Header */}
         <View style={styles.headerContainer}>
-          <View style={[styles.headerTop, { marginTop: insets.top }]}>
-            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
-                <Pressable onPress={() => navigation.goBack()} style={styles.headerIconButton}>
-                    <ArrowLeft size={24} color="#1F2937" strokeWidth={2.5} />
-                </Pressable>
-                <Text style={styles.headerTitle}>Messages</Text>
-            </View>
+          {/* Step 9: lowered header with centered title */}
+          <View style={[styles.headerTop, { paddingTop: insets.top + 10 }]}>
+            <Pressable onPress={() => navigation.goBack()} style={styles.headerIconButton}>
+              <ArrowLeft size={24} color="#1F2937" strokeWidth={2.5} />
+            </Pressable>
+            <Text style={styles.headerTitle}>Messages</Text>
+            {/* Spacer to balance back button and center title */}
+            <View style={{ width: 32 }} />
           </View>
 
           {/* Search Bar */}
@@ -627,7 +755,7 @@ export default function MessagesScreen() {
             <TextInput
               value={searchQuery}
               onChangeText={setSearchQuery}
-              placeholder="Search messages..."
+              placeholder="Search Conversation"
               placeholderTextColor="#9CA3AF"
               style={{ flex: 1, marginLeft: 8, fontSize: 15, color: '#111827' }}
             />
@@ -639,8 +767,8 @@ export default function MessagesScreen() {
           </View>
         </View>
 
-        <ScrollView 
-          style={styles.conversationsList} 
+        <ScrollView
+          style={styles.conversationsList}
           showsVerticalScrollIndicator={false}
           refreshControl={
             <RefreshControl refreshing={refreshing} onRefresh={onRefresh} colors={['#2563EB']} />
@@ -652,16 +780,20 @@ export default function MessagesScreen() {
                 <SkeletonRow key={i} shimmer={shimmer} />
               ))}
             </View>
-          ) : conversations.length === 0 ? (
-            <View style={{ padding: 40, alignItems: 'center' }}>
+          ) : filteredConversations.length === 0 ? (
+            <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', paddingBottom: 120 }}>
               <MessageSquare size={48} color="#D1D5DB" />
-              <Text style={{ marginTop: 12, color: '#6B7280', fontSize: 16 }}>No messages yet</Text>
+              <Text style={{ marginTop: 12, color: '#6B7280', fontSize: 16 }}>
+                {searchQuery.trim() ? 'No buyers found' : 'No messages yet'}
+              </Text>
               <Text style={{ marginTop: 4, color: '#9CA3AF', textAlign: 'center' }}>
-                Messages from buyers will appear here
+                {searchQuery.trim()
+                  ? `No conversations match "${searchQuery}"`
+                  : 'Messages from buyers will appear here'}
               </Text>
             </View>
           ) : (
-            conversations.map((conv: any) => (
+            filteredConversations.map((conv: any) => (
               <Pressable
                 key={conv.id}
                 style={styles.conversationItem}
@@ -746,7 +878,7 @@ export default function MessagesScreen() {
             </View>
           </View>
           <View style={styles.chatHeaderActions}>
-            <Pressable 
+            <Pressable
               style={styles.iconButton}
               onPress={handleEscalate}
             >
@@ -756,7 +888,16 @@ export default function MessagesScreen() {
         </View>
       </View>
 
-      {/* Messages — inverted FlatList matches buyer keyboard behaviour; KAV handles push-up */}
+      {/* Messages — inverted FlatList */}
+      {chatLoading ? (
+        <View style={{ flex: 1, paddingHorizontal: 16, paddingTop: 24, backgroundColor: '#F5F5F7' }}>
+          {[{ align: 'flex-start' as const, w: 0.65 }, { align: 'flex-end' as const, w: 0.50 }, { align: 'flex-start' as const, w: 0.45 }, { align: 'flex-end' as const, w: 0.70 }, { align: 'flex-start' as const, w: 0.55 }, { align: 'flex-end' as const, w: 0.40 }, { align: 'flex-start' as const, w: 0.60 }, { align: 'flex-end' as const, w: 0.55 }].map((item, i) => (
+            <View key={i} style={{ alignSelf: item.align, marginVertical: 6 }}>
+              <View style={{ width: Dimensions.get('window').width * item.w - 32, height: 44, borderRadius: 16, backgroundColor: '#D1D5DB' }} />
+            </View>
+          ))}
+        </View>
+      ) : (
       <FlatList<SellerListItem>
         ref={chatFlatListRef}
         data={listData}
@@ -770,10 +911,57 @@ export default function MessagesScreen() {
         maintainVisibleContentPosition={{ minIndexForVisible: 0 }}
         ListEmptyComponent={
           <View style={{ padding: 40, alignItems: 'center', transform: [{ scaleY: -1 }] }}>
-            <Text style={{ color: '#9CA3AF' }}>No messages in this conversation</Text>
+            <MessageSquare size={48} color="#D1D5DB" />
+            <Text style={{ marginTop: 12, color: '#6B7280', fontSize: 16, fontWeight: '600' }}>Start Messaging</Text>
+            <Text style={{ marginTop: 4, color: '#9CA3AF', textAlign: 'center' }}>Send your first message to this buyer</Text>
           </View>
         }
+        onScroll={(event) => {
+          const offsetY = event.nativeEvent.contentOffset.y;
+          const scrolledAway = offsetY > 200;
+          if (scrolledAway && !showJumpRef.current) {
+            showJumpRef.current = true;
+            setShowJumpToLatest(true);
+            Animated.timing(jumpButtonOpacity, { toValue: 1, duration: 200, useNativeDriver: true }).start();
+          } else if (!scrolledAway && showJumpRef.current) {
+            showJumpRef.current = false;
+            Animated.timing(jumpButtonOpacity, { toValue: 0, duration: 200, useNativeDriver: true }).start(() => setShowJumpToLatest(false));
+          }
+        }}
+        scrollEventThrottle={16}
       />
+      )}
+
+      {/* Jump to latest button — always rendered for smooth fade */}
+      <Animated.View
+        style={{ position: 'absolute', right: 16, bottom: 90, zIndex: 100, opacity: jumpButtonOpacity }}
+        pointerEvents={showJumpToLatest ? 'auto' : 'none'}
+      >
+        <Pressable
+          onPress={() => chatFlatListRef.current?.scrollToOffset({ offset: 0, animated: true })}
+          style={{ width: 40, height: 40, borderRadius: 20, backgroundColor: COLORS.primary, alignItems: 'center', justifyContent: 'center', borderWidth: 2, borderColor: '#FFFFFF', shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.25, shadowRadius: 4, elevation: 5 }}
+        >
+          <ArrowDown size={18} color="#FFFFFF" strokeWidth={2.5} />
+        </Pressable>
+      </Animated.View>
+
+      {/* Reply preview bar (Step 9) */}
+      {replyingTo && (
+        <View style={{ flexDirection: 'row', alignItems: 'center', paddingHorizontal: 16, paddingVertical: 10, backgroundColor: '#F3F4F6', gap: 10 }}>
+          <View style={{ width: 3, height: '100%' as any, backgroundColor: COLORS.primary, borderRadius: 2 }} />
+          <View style={{ flex: 1 }}>
+            <Text style={{ fontSize: 12, fontWeight: '700', color: COLORS.primary }}>
+              Replying to {replyingTo.sender_type === 'seller' ? 'yourself' : (activeConversation?.buyer_name || 'Buyer')}
+            </Text>
+            <Text style={{ fontSize: 13, color: '#6B7280', marginTop: 2 }} numberOfLines={2}>
+              {replyingTo.content}
+            </Text>
+          </View>
+          <Pressable onPress={() => setReplyingTo(null)} hitSlop={8}>
+            <X size={18} color="#9CA3AF" />
+          </Pressable>
+        </View>
+      )}
 
       {/* Input Area */}
       <Animated.View style={[styles.inputContainer, { paddingBottom: bottomPadAnim }]}>
@@ -841,7 +1029,7 @@ const styles = StyleSheet.create({
     backgroundColor: '#FFF4EC',
     paddingHorizontal: 20,
     borderBottomLeftRadius: 30,
-        borderBottomRightRadius: 20,
+    borderBottomRightRadius: 20,
     paddingBottom: 20,
     marginBottom: 10,
     elevation: 3,
@@ -850,12 +1038,13 @@ const styles = StyleSheet.create({
     shadowRadius: 4,
     zIndex: 10,
   },
-  headerTop: { 
-      marginBottom: 10,
-      justifyContent: 'center',
+  headerTop: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 10,
   },
   headerIconButton: { padding: 4 },
-  headerTitle: { fontSize: 20, fontWeight: '800', color: '#1F2937' },
+  headerTitle: { flex: 1, fontSize: 20, fontWeight: '800', color: '#1F2937', textAlign: 'center' },
   searchContainer: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -969,7 +1158,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     paddingBottom: 12,
     borderBottomLeftRadius: 30,
-        borderBottomRightRadius: 20,
+    borderBottomRightRadius: 20,
     elevation: 3,
   },
   chatHeaderContent: {
@@ -1041,7 +1230,6 @@ const styles = StyleSheet.create({
     paddingBottom: 8,
     gap: 12,
   },
-  // Date separators
   dateSepWrapper: { flexDirection: 'row', alignItems: 'center', marginVertical: 12, paddingHorizontal: 8 },
   dateSepLine: { flex: 1, height: 1, backgroundColor: '#E5E7EB' },
   dateSepText: { marginHorizontal: 10, fontSize: 11, fontWeight: '600', color: '#9CA3AF', textTransform: 'uppercase', letterSpacing: 0.5 },
@@ -1055,7 +1243,7 @@ const styles = StyleSheet.create({
     alignItems: 'flex-start',
   },
   messageBubble: {
-    maxWidth: '70%',
+    maxWidth: Dimensions.get('window').width * 0.75 - 32,
     borderRadius: 16,
     padding: 12,
     overflow: 'hidden',

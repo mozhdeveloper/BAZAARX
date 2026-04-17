@@ -151,6 +151,11 @@ export interface CartItem extends Product {
     discountValue?: number;
     maxDiscountAmount?: number;
   } | null;
+  // Seller operational status
+  isSellerActive?: boolean;
+  sellerRestrictionReason?: string | null;
+  isVacationMode?: boolean;
+  is_vacation_mode?: boolean;
 }
 
 export interface Order {
