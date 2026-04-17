@@ -205,7 +205,10 @@ export default function CheckoutScreen({ navigation, route }: Props) {
   }, [newAddress]);
 
   // Get selected items from navigation params (from CartScreen)
-  const selectedItemsFromCart: CartItem[] = params?.selectedItems || [];
+  // Memoize to prevent creating new array reference on every render
+  const selectedItemsFromCart: CartItem[] = useMemo(() => {
+    return params?.selectedItems || [];
+  }, [params?.selectedItems]);
 
   // Determine which items to checkout: quick order takes precedence, then selected items.
   // We do NOT default to 'items' (all cart items) to avoid accidental checkout of unselected items.
@@ -231,7 +234,7 @@ export default function CheckoutScreen({ navigation, route }: Props) {
   const [shippingResults, setShippingResults] = useState<SellerShippingResult[]>([]);
   const [isCalculatingShipping, setIsCalculatingShipping] = useState(false);
   const [selectedMethods, setSelectedMethods] = useState<Record<string, string>>({});
-  const shippingTimerRef = useRef<ReturnType<typeof setTimeout>>();
+  const shippingTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // Check for unavailable items (stock validation)
   const [unavailableItems, setUnavailableItems] = useState<Array<{ id: string; name: string; reason: string }>>([]);
@@ -239,9 +242,13 @@ export default function CheckoutScreen({ navigation, route }: Props) {
   const hasUnavailableItems = unavailableItems.length > 0;
 
   // Fetch seller metadata (vacation check + shipping origin) on mount
+  // Extract and memoize seller IDs to prevent constant re-fetches
+  const sellerIds = useMemo(() => {
+    return [...new Set(checkoutItems.map((item: any) => item.sellerId || item.seller_id).filter(Boolean))];
+  }, [checkoutItems]);
+
   useEffect(() => {
     const fetchSellerData = async () => {
-      const sellerIds = [...new Set(checkoutItems.map((item: any) => item.sellerId || item.seller_id).filter(Boolean))];
       if (sellerIds.length === 0) {
         setVacationSellers([]);
         setSellerMetadata({});
@@ -278,7 +285,7 @@ export default function CheckoutScreen({ navigation, route }: Props) {
     };
 
     fetchSellerData();
-  }, [checkoutItems]);
+  }, [sellerIds]);
 
   // Validate stock for all checkout items on mount
   useEffect(() => {
@@ -1494,21 +1501,11 @@ export default function CheckoutScreen({ navigation, route }: Props) {
       return;
     }
 
+    // Mark as initialized immediately to prevent race conditions
+    initializedUserId.current = user.id;
+
     const fetchData = async () => {
       setIsLoadingAddresses(true);
-
-      // CRITICAL: If user already has a selectedAddress set (e.g., just created one), 
-      // DO NOT override it with defaults or re-fetch from database
-      if (selectedAddress) {
-        console.log('[🔍 ADDRESS DEBUG 3] Selected address already exists, skipping re-fetch:', {
-          current: { firstName: selectedAddress.firstName, lastName: selectedAddress.lastName, phone: selectedAddress.phone },
-        });
-        initializedUserId.current = user.id;
-        setIsLoadingAddresses(false);
-        const coins = await addressService.getBazcoins(user.id);
-        setAvailableBazcoins(coins || 0);
-        return;
-      }
 
       try {
         // Fetch all saved addresses
@@ -1554,19 +1551,7 @@ export default function CheckoutScreen({ navigation, route }: Props) {
         // If this is a gift, DO NOT overwrite the selected address with defaults
         // The other useEffect handles setting the registry address
         if (isGift) {
-          initializedUserId.current = user.id;
           setIsLoadingAddresses(false);
-          return;
-        }
-
-        // CRITICAL: If user already has a selectedAddress set (e.g., just created one), 
-        // DO NOT override it with defaults
-        if (selectedAddress) {
-          console.log('[🔍 ADDRESS DEBUG 3] Selected address already exists, skipping re-initialization:', selectedAddress);
-          initializedUserId.current = user.id;
-          setIsLoadingAddresses(false);
-          const coins = await addressService.getBazcoins(user.id);
-          setAvailableBazcoins(coins || 0);
           return;
         }
 
@@ -1622,10 +1607,11 @@ export default function CheckoutScreen({ navigation, route }: Props) {
           // Silent fail
         }
 
+        // Determine which address to select (batch all decision logic here)
+        let selectedAddr: Address | null = null;
+
         if (defaultSavedAddr) {
-          // Use default address if user had set one explicitly
-          setSelectedAddress(defaultSavedAddr);
-          setTempSelectedAddress(defaultSavedAddr);
+          selectedAddr = defaultSavedAddr;
           console.log('[🔍 ADDRESS DEBUG 5a] Setting default address:', { firstName: defaultSavedAddr.firstName, lastName: defaultSavedAddr.lastName, phone: defaultSavedAddr.phone });
         } else if (homeScreenAddress && homeScreenAddress !== 'Select Location') {
           // Check if this matches a saved address (including "Current Location" from DB)
@@ -1636,13 +1622,10 @@ export default function CheckoutScreen({ navigation, route }: Props) {
           );
 
           if (matchingAddress) {
-            // Use the matching saved address
-            setSelectedAddress(matchingAddress);
-            setTempSelectedAddress(matchingAddress);
+            selectedAddr = matchingAddress;
             console.log('[🔍 ADDRESS DEBUG 5b] Setting matching HomeScreen address:', { firstName: matchingAddress.firstName, lastName: matchingAddress.lastName });
           } else {
             // Create a temporary address object from HomeScreen's location
-            // Use parsed details from map if available, otherwise parse the address string
             const tempAddr: Address = {
               id: 'temp-' + Date.now(),
               label: 'Current Location',
@@ -1661,22 +1644,23 @@ export default function CheckoutScreen({ navigation, route }: Props) {
               landmark: '',
               addressType: 'residential',
             };
-            setSelectedAddress(tempAddr);
-            setTempSelectedAddress(tempAddr);
+            selectedAddr = tempAddr;
             console.log('[🔍 ADDRESS DEBUG 5c] Creating temp address from HomeScreen location:', { firstName: tempAddr.firstName, phone: tempAddr.phone });
           }
         } else {
           // Use first saved address
           const firstAddr = addressData[0];
           if (firstAddr) {
-            setSelectedAddress(firstAddr);
-            setTempSelectedAddress(firstAddr);
+            selectedAddr = firstAddr;
             console.log('[🔍 ADDRESS DEBUG 5d] Setting first saved address:', { firstName: firstAddr.firstName, lastName: firstAddr.lastName, phone: firstAddr.phone });
           }
         }
 
-        // Mark user as initialized AFTER all selections are complete
-        initializedUserId.current = user.id;
+        // Batch state updates - only call setSelectedAddress and setTempSelectedAddress once
+        if (selectedAddr) {
+          setSelectedAddress(selectedAddr);
+          setTempSelectedAddress(selectedAddr);
+        }
 
         // Fetch Bazcoins balance
         const coins = await addressService.getBazcoins(user.id);
@@ -1688,7 +1672,7 @@ export default function CheckoutScreen({ navigation, route }: Props) {
       }
     };
 
-    fetchData();
+    fetchData().catch(err => console.error('[Checkout] fetchData error:', err));
 
     // Subscribe to real-time Bazcoins updates via service
     const subscription = addressService.subscribeToBazcoinChanges(user.id, (newBalance) => {
@@ -2039,10 +2023,6 @@ export default function CheckoutScreen({ navigation, route }: Props) {
                           <Text style={{ fontSize: 16, fontWeight: '700', color: '#111827' }}>
                             {selectedAddress.firstName} {selectedAddress.lastName}
                           </Text>
-                          {(() => {
-                            console.log('[🔍 ADDRESS DEBUG RENDER] Displaying address:', selectedAddress);
-                            return null;
-                          })()}
                           {selectedAddress.isDefault && (
                             <View style={{ backgroundColor: COLORS.primary, paddingHorizontal: 8, paddingVertical: 2, borderRadius: 4, marginLeft: 8 }}>
                               <Text style={{ color: 'white', fontSize: 10, fontWeight: 'bold' }}>Default</Text>

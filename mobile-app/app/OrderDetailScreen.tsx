@@ -124,15 +124,18 @@ export default function OrderDetailScreen({ route, navigation }: Props) {
       });
 
     // BX-09-003 — Fetch shipment record
-    supabase
-      .from('order_shipments')
-      .select('shipping_method_label, calculated_fee, estimated_days_text, origin_zone, destination_zone, tracking_number, status')
-      .eq('order_id', realOrderId)
-      .maybeSingle()
-      .then(({ data }) => {
+    (async () => {
+      try {
+        const { data } = await supabase
+          .from('order_shipments')
+          .select('shipping_method_label, calculated_fee, estimated_days_text, origin_zone, destination_zone, tracking_number, status')
+          .eq('order_id', realOrderId)
+          .maybeSingle();
         if (data) setShipmentInfo(data as any);
-      })
-      .catch(() => { });
+      } catch (err) {
+        // Silently ignore shipment fetch errors
+      }
+    })();
   }, [(order as any).orderId, order.id]);
 
   useEffect(() => {

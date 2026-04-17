@@ -39,6 +39,9 @@ import { useAuthStore } from './src/stores/authStore';
 import { chatService } from './src/services/chatService';
 import { ErrorBoundary } from './src/components/ErrorBoundary';
 
+// Navigation reference for imperative navigation (used for logout redirect)
+export const navigationRef = React.createRef<any>();
+
 export type TabParamList = {
   Home: undefined;
   Shop: { category?: string; searchQuery?: string; view?: 'featured' };
@@ -306,6 +309,17 @@ export default function App() {
     return () => subscription.unsubscribe();
   }, []);
 
+  // Handle logout navigation — when user becomes null, navigate to Splash
+  React.useEffect(() => {
+    if (!user && navigationRef.current) {
+      // User has logged out, reset navigation stack to Splash
+      navigationRef.current.reset({
+        index: 0,
+        routes: [{ name: 'Splash' }],
+      });
+    }
+  }, [user]);
+
   // Global Presence Listener
   React.useEffect(() => {
     if (!user?.id) return;
@@ -333,7 +347,7 @@ export default function App() {
     <GestureHandlerRootView style={{ flex: 1 }}>
       <SafeAreaProvider>
         <ErrorBoundary>
-          <NavigationContainer linking={linking}>
+          <NavigationContainer linking={linking} ref={navigationRef}>
             <StatusBar style="dark" />
             <Stack.Navigator
               initialRouteName="Splash"
