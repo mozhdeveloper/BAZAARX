@@ -23,6 +23,7 @@
     "test:qa": "npx tsx scripts/test-qa-complete.ts"
   },
   "dependencies": {
+    "@hookform/resolvers": "^5.2.2",
     "@ptomasroos/react-native-multi-slider": "^2.2.2",
     "@react-native-async-storage/async-storage": "^2.2.0",
     "@react-native-community/datetimepicker": "^8.4.4",
@@ -63,6 +64,7 @@
     "prop-types": "^15.8.1",
     "react": "19.1.0",
     "react-dom": "19.1.0",
+    "react-hook-form": "^7.72.1",
     "react-native": "0.81.5",
     "react-native-gesture-handler": "~2.28.0",
     "react-native-gifted-charts": "^1.4.70",
@@ -75,6 +77,7 @@
     "select-philippines-address": "^1.0.6",
     "tailwindcss": "^3.3.2",
     "tamagui": "^1.141.4",
+    "zod": "^4.3.6",
     "zustand": "^5.0.9"
   },
   "devDependencies": {

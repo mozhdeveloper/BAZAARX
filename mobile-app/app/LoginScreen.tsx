@@ -1,4 +1,7 @@
 import React, { useState } from 'react';
+import { useForm, Controller } from 'react-hook-form';
+import { zodResolver } from '@hookform/resolvers/zod';
+import { loginSchema, type LoginFormData } from '../src/lib/schemas';
 import {
   View,
   Text,
@@ -15,7 +18,19 @@ import {
   Dimensions,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { Mail, Lock, Eye, EyeOff, ArrowRight, Store, X, Beaker, User } from 'lucide-react-native';
+import {
+  Mail,
+  Lock,
+  Eye,
+  EyeOff,
+  ArrowRight,
+  Store,
+  X,
+  Beaker,
+  User,
+  ChevronDown,
+  ChevronUp
+} from 'lucide-react-native';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import * as WebBrowser from 'expo-web-browser';
 import * as AuthSession from 'expo-auth-session';
@@ -34,26 +49,30 @@ const TEST_ACCOUNTS = [
 ];
 
 export default function LoginScreen({ navigation }: Props) {
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [isGoogleLoading, setIsGoogleLoading] = useState(false);
   const [showTestModal, setShowTestModal] = useState(false);
+  const [showMoreOptions, setShowMoreOptions] = useState(false);
 
-  const validateEmail = (value: string) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value);
-  const trimmedEmail = email.trim();
+  const {
+    control,
+    handleSubmit,
+    setValue,
+    formState: { errors, isValid },
+    watch,
+  } = useForm<LoginFormData>({
+    resolver: zodResolver(loginSchema),
+    mode: 'onChange',
+    defaultValues: {
+      email: '',
+      password: '',
+    },
+  });
 
-  const handleLogin = async () => {
-    if (!email || !password) {
-      Alert.alert('Error', 'Please enter both email and password');
-      return;
-    }
-
-    if (!validateEmail(trimmedEmail)) {
-      Alert.alert('Error', 'Please enter a valid email address');
-      return;
-    }
+  const handleLogin = async (formData: LoginFormData) => {
+    const { email, password } = formData;
+    const trimmedEmail = email.trim();
 
     setIsLoading(true);
 
@@ -124,8 +143,8 @@ export default function LoginScreen({ navigation }: Props) {
   };
 
   const autofillCredentials = (selectedEmail: string, selectedPassword: string) => {
-    setEmail(selectedEmail);
-    setPassword(selectedPassword);
+    setValue('email', selectedEmail, { shouldValidate: true });
+    setValue('password', selectedPassword, { shouldValidate: true });
     setShowTestModal(false);
   };
 
@@ -227,84 +246,89 @@ export default function LoginScreen({ navigation }: Props) {
                 resizeMode="contain"
               />
             </View>
-            <Text style={[styles.welcomeText, { color: COLORS.textHeadline }]}>Welcome back!</Text>
-            <Text style={[styles.subtitle, { color: COLORS.textMuted }]}>Sign in to continue shopping</Text>
+            <Text style={styles.welcomeText}>Welcome back</Text>
+            <Text style={styles.subtitle}>Sign in to continue shopping</Text>
           </View>
-
-          {/* Developer Tool: Test Accounts Trigger */}
-          <Pressable
-            style={styles.demoTriggerButton}
-            onPress={() => setShowTestModal(true)}
-          >
-            <Beaker size={16} color="#6B7280" />
-            <Text style={styles.demoTriggerText}>Load Demo Credentials</Text>
-          </Pressable>
 
           {/* Login Form */}
           <View style={styles.form}>
-            <View style={styles.signInContainer}>
-              <View style={styles.inputContainer}>
-                <Text style={styles.label}>Email Address</Text>
-                <View style={styles.inputWrapper}>
-                  <Mail size={20} color="#D97706" style={styles.inputIcon} />
-                  <TextInput
-                    style={styles.input}
-                    placeholder="Enter your email"
-                    placeholderTextColor="#9CA3AF"
-                    value={email}
-                    onChangeText={setEmail}
-                    keyboardType="email-address"
-                    autoCapitalize="none"
-                    autoComplete="email"
-                  />
-                </View>
-              </View>
-
-              <View style={styles.inputContainer}>
-                <View style={styles.labelRow}>
-                  <Text style={styles.label}>Password</Text>
-                  <Pressable style={styles.forgotPassword} onPress={() => navigation.navigate('ForgotPassword')}>
-                    <Text style={styles.forgotPasswordText}>Forgot Password?</Text>
-                  </Pressable>
-                </View>
-                <View style={styles.inputWrapper}>
-                  <Lock size={20} color="#D97706" style={styles.inputIcon} />
-                  <TextInput
-                    style={styles.input}
-                    placeholder="Enter your password"
-                    placeholderTextColor="#9CA3AF"
-                    value={password}
-                    onChangeText={setPassword}
-                    secureTextEntry={!showPassword}
-                    autoCapitalize="none"
-                  />
-                  <Pressable
-                    onPress={() => setShowPassword(!showPassword)}
-                    style={styles.eyeIcon}
-                  >
-                    {showPassword ? (
-                      <EyeOff size={20} color="#9CA3AF" />
-                    ) : (
-                      <Eye size={20} color="#9CA3AF" />
-                    )}
-                  </Pressable>
-                </View>
-              </View>
-
-              <Pressable
-                style={[styles.loginButton, isLoading && styles.loginButtonDisabled]}
-                onPress={handleLogin}
-                disabled={isLoading}
-              >
-                {isLoading ? (
-                  <ActivityIndicator color="#FFFFFF" />
-                ) : (
-                  <>
-                    <Text style={styles.loginButtonText}>Sign In</Text>
-                  </>
+            <View style={styles.inputContainer}>
+              <Text style={styles.label}>Email Address</Text>
+              <Controller
+                control={control}
+                name="email"
+                render={({ field: { onChange, onBlur, value } }) => (
+                  <View style={[styles.inputWrapper, errors.email && styles.inputWrapperError]}>
+                    <Mail size={18} color={errors.email ? COLORS.error : COLORS.gray400} style={styles.inputIcon} />
+                    <TextInput
+                      style={styles.input}
+                      placeholder="Enter your email"
+                      placeholderTextColor={COLORS.gray400}
+                      value={value}
+                      onChangeText={onChange}
+                      onBlur={onBlur}
+                      keyboardType="email-address"
+                      autoCapitalize="none"
+                      autoComplete="email"
+                    />
+                  </View>
                 )}
-              </Pressable>
+              />
+              {errors.email && <Text style={styles.errorText}>{errors.email.message}</Text>}
             </View>
+
+            <View style={styles.inputContainer}>
+              <View style={styles.labelRow}>
+                <Text style={styles.label}>Password</Text>
+                <Pressable onPress={() => navigation.navigate('ForgotPassword')}>
+                  <Text style={styles.forgotPasswordText}>Forgot Password?</Text>
+                </Pressable>
+              </View>
+              <Controller
+                control={control}
+                name="password"
+                render={({ field: { onChange, onBlur, value } }) => (
+                  <View style={[styles.inputWrapper, errors.password && styles.inputWrapperError]}>
+                    <Lock size={18} color={errors.password ? COLORS.error : COLORS.gray400} style={styles.inputIcon} />
+                    <TextInput
+                      style={styles.input}
+                      placeholder="Enter your password"
+                      placeholderTextColor={COLORS.gray400}
+                      value={value}
+                      onChangeText={onChange}
+                      onBlur={onBlur}
+                      secureTextEntry={!showPassword}
+                      autoCapitalize="none"
+                    />
+                    <Pressable
+                      onPress={() => setShowPassword(!showPassword)}
+                      style={styles.eyeIcon}
+                    >
+                      {showPassword ? (
+                        <EyeOff size={18} color={COLORS.gray400} />
+                      ) : (
+                        <Eye size={18} color={COLORS.gray400} />
+                      )}
+                    </Pressable>
+                  </View>
+                )}
+              />
+              {errors.password && <Text style={styles.errorText}>{errors.password.message}</Text>}
+            </View>
+
+            <Pressable
+              style={[styles.loginButton, (isLoading || !isValid) && styles.loginButtonDisabled]}
+              onPress={handleSubmit(handleLogin)}
+              disabled={isLoading || !isValid}
+              accessibilityRole="button"
+              accessibilityLabel="Sign In"
+            >
+              {isLoading ? (
+                <ActivityIndicator color="#FFFFFF" />
+              ) : (
+                <Text style={styles.loginButtonText}>Sign In</Text>
+              )}
+            </Pressable>
           </View>
 
           <View style={styles.dividerContainer}>
@@ -317,9 +341,11 @@ export default function LoginScreen({ navigation }: Props) {
             style={styles.googleButton}
             onPress={handleGoogleSignIn}
             disabled={isGoogleLoading}
+            accessibilityRole="button"
+            accessibilityLabel="Sign in with Google"
           >
             {isGoogleLoading ? (
-              <ActivityIndicator color="#374151" />
+              <ActivityIndicator color={COLORS.gray500} />
             ) : (
               <>
                 <Image
@@ -331,26 +357,51 @@ export default function LoginScreen({ navigation }: Props) {
             )}
           </Pressable>
 
-          {/* Footer Actions */}
-          <Pressable
-            style={styles.guestButton}
-            onPress={() => {
-              useAuthStore.getState().loginAsGuest();
-              navigation.replace('MainTabs', { screen: 'Home' });
-            }}
-          >
-            <User size={20} color="#6B7280" strokeWidth={2.5} />
-            <Text style={styles.guestButtonText}>Continue as Guest</Text>
-          </Pressable>
+          {/* More Options Section */}
+          <View style={styles.moreOptionsSection}>
+            <Pressable
+              style={styles.moreOptionsTrigger}
+              onPress={() => setShowMoreOptions(!showMoreOptions)}
+            >
+              <Text style={styles.moreOptionsTriggerText}>More options</Text>
+              {showMoreOptions ? (
+                <ChevronUp size={16} color={COLORS.gray400} />
+              ) : (
+                <ChevronDown size={16} color={COLORS.gray400} />
+              )}
+            </Pressable>
 
-          <Pressable
-            style={styles.sellerPortalButton}
-            onPress={() => navigation.navigate('SellerAuthChoice')}
-          >
-            <Store size={20} color="#D97706" strokeWidth={2.5} />
-            <Text style={styles.sellerPortalText}>Start Selling</Text>
-            <ArrowRight size={18} color="#D97706" />
-          </Pressable>
+            {showMoreOptions && (
+              <View style={styles.moreOptionsContent}>
+                <Pressable
+                  style={styles.secondaryButton}
+                  onPress={() => {
+                    useAuthStore.getState().loginAsGuest();
+                    navigation.replace('MainTabs', { screen: 'Home' });
+                  }}
+                >
+                  <User size={18} color={COLORS.gray400} />
+                  <Text style={styles.secondaryButtonText}>Continue as Guest</Text>
+                </Pressable>
+
+                <Pressable
+                  style={styles.secondaryButton}
+                  onPress={() => navigation.navigate('SellerAuthChoice')}
+                >
+                  <Store size={18} color={COLORS.gray400} />
+                  <Text style={styles.secondaryButtonText}>Start Selling</Text>
+                </Pressable>
+
+                <Pressable
+                  style={styles.secondaryButton}
+                  onPress={() => setShowTestModal(true)}
+                >
+                  <Beaker size={18} color={COLORS.gray400} />
+                  <Text style={styles.secondaryButtonText}>Load Demo Credentials</Text>
+                </Pressable>
+              </View>
+            )}
+          </View>
 
           <View style={styles.registerSection}>
             <Text style={styles.registerText}>Don't have an account? </Text>
@@ -407,7 +458,7 @@ export default function LoginScreen({ navigation }: Props) {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: COLORS.background || '#F9FAFB',
+    backgroundColor: COLORS.background || '#FFFBF0',
   },
   keyboardView: {
     flex: 1,
@@ -418,54 +469,43 @@ const styles = StyleSheet.create({
   },
   logoSection: {
     alignItems: 'center',
-    marginTop: 20,
-    marginBottom: 20,
+    marginTop: 32,
+    marginBottom: 24,
   },
   logoContainer: {
-    width: 120,
-    height: 120,
-    marginBottom: 16,
+    width: 100,
+    height: 100,
+    marginBottom: 20,
     borderRadius: 24,
     overflow: 'hidden',
   },
   logo: {
     width: '100%',
     height: '100%',
-    borderRadius: 24,
-  },
-  brandName: {
-    fontSize: 32,
-    fontWeight: '800',
-    color: '#111827',
-    marginBottom: 8,
   },
   welcomeText: {
-    fontSize: 20,
-    fontWeight: '700',
-    color: '#111827',
-    marginBottom: 4,
+    fontSize: 28,
+    fontWeight: '800',
+    color: COLORS.textHeadline,
+    marginBottom: 6,
+    textAlign: 'center',
   },
   subtitle: {
-    fontSize: 14,
-    color: '#6B7280',
+    fontSize: 15,
+    color: COLORS.textMuted,
+    textAlign: 'center',
   },
   form: {
-    marginBottom: 24,
+    marginTop: 32,
+    gap: 20,
   },
-
-  signInContainer: {
-    flexDirection: 'column',
-    gap: 6,
-  },
-
   inputContainer: {
-    flexDirection: 'column',
-    gap: 6,
+    gap: 8,
   },
   label: {
-    fontSize: 14,
+    fontSize: 13,
     fontWeight: '600',
-    color: '#111827',
+    color: COLORS.gray500,
   },
   labelRow: {
     flexDirection: 'row',
@@ -477,44 +517,43 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     backgroundColor: '#FFFFFF',
     borderWidth: 1,
-    borderColor: '#E5E7EB',
+    borderColor: COLORS.gray200,
     borderRadius: 14,
-    paddingHorizontal: 20,
-    height: 48,
+    paddingHorizontal: 16,
+    height: 52,
   },
   inputIcon: {
-    marginRight: 10,
+    marginRight: 12,
   },
   input: {
     flex: 1,
     fontSize: 15,
-    color: '#111827',
+    color: COLORS.textHeadline,
   },
   eyeIcon: {
     padding: 4,
   },
-  forgotPassword: {
-    paddingVertical: 4,
-  },
   forgotPasswordText: {
-    fontSize: 14,
-    color: '#9CA3AF',
-    fontWeight: '700',
+    fontSize: 13,
+    color: COLORS.gray400,
+    fontWeight: '600',
+  },
+  errorText: {
+    fontSize: 12,
+    color: COLORS.error,
+    marginTop: 4,
+  },
+  inputWrapperError: {
+    borderColor: COLORS.error,
   },
   loginButton: {
-    marginTop: 12,
+    marginTop: 8,
     borderRadius: 14,
-    overflow: 'hidden',
-    backgroundColor: '#D97706',
-    shadowColor: '#D97706',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.2,
-    shadowRadius: 8,
-    elevation: 4,
+    backgroundColor: COLORS.primary,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    paddingVertical: 14,
+    paddingVertical: 16,
     gap: 8,
   },
   loginButtonDisabled: {
@@ -525,81 +564,102 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     color: '#FFFFFF',
   },
+  dividerContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginVertical: 24,
+  },
+  dividerLine: {
+    flex: 1,
+    height: 1,
+    backgroundColor: COLORS.gray200,
+  },
+  dividerText: {
+    marginHorizontal: 16,
+    fontSize: 12,
+    fontWeight: '700',
+    color: COLORS.gray400,
+    letterSpacing: 1.2,
+  },
+  googleButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#FFFFFF',
+    paddingVertical: 14,
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: COLORS.gray200,
+    gap: 12,
+  },
+  googleIcon: {
+    width: 20,
+    height: 20,
+  },
+  googleButtonText: {
+    fontSize: 15,
+    fontWeight: '600',
+    color: COLORS.textHeadline,
+  },
+  moreOptionsSection: {
+    marginTop: 24,
+  },
+  moreOptionsTrigger: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    paddingVertical: 12,
+  },
+  moreOptionsTriggerText: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: COLORS.gray400,
+  },
+  moreOptionsContent: {
+    marginTop: 8,
+    gap: 12,
+  },
+  secondaryButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 10,
+    paddingVertical: 14,
+    borderRadius: 14,
+    backgroundColor: COLORS.gray100,
+    borderWidth: 1,
+    borderColor: COLORS.gray200,
+  },
+  secondaryButtonText: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: COLORS.gray500,
+  },
   registerSection: {
     flexDirection: 'row',
     justifyContent: 'center',
     alignItems: 'center',
-    marginTop: 32,
-    marginBottom: 16,
+    marginTop: 24,
+    marginBottom: 32,
   },
   registerText: {
     fontSize: 14,
-    color: '#6B7280',
+    color: COLORS.textMuted,
   },
   registerLink: {
     fontSize: 14,
-    color: '#D97706',
+    color: COLORS.primary,
     fontWeight: '700',
   },
-  guestButton: {
-    marginTop: 16,
-    paddingVertical: 14,
-    borderRadius: 14,
-    borderWidth: 1,
-    borderColor: '#E5E7EB',
-    backgroundColor: '#FFFFFF',
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "center",
-    gap: 8,
-  },
-  guestButtonText: {
-    fontSize: 15,
-    fontWeight: '600',
-    color: '#6B7280',
-  },
-  sellerPortalButton: {
-    marginTop: 16,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 8,
-    backgroundColor: '#FEF3C7',
-    paddingVertical: 14,
-    paddingHorizontal: 24,
-    borderRadius: 14,
-    borderWidth: 1,
-    borderColor: '#D97706',
-  },
-  sellerPortalText: {
-    fontSize: 15,
-    fontWeight: '700',
-    color: '#D97706',
-  },
-
-  // ── Demo Trigger ──────────────────────────────────────────
-  demoTriggerButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 6,
-    padding: 10,
-  },
-  demoTriggerText: {
-    fontSize: 13,
-    color: '#6B7280',
-    fontWeight: '500',
-  },
-
-  // ── Modal Styles ──────────────────────────────────────────
   modalOverlay: {
     flex: 1,
-    backgroundColor: 'rgba(0,0,0,0.5)', // Per guidelines
+    backgroundColor: 'rgba(0,0,0,0.5)',
     justifyContent: 'flex-end',
   },
   modalContent: {
     backgroundColor: '#FFFFFF',
-    borderTopLeftRadius: 24, // Per guidelines
+    borderTopLeftRadius: 24,
     borderTopRightRadius: 24,
     padding: 24,
     paddingBottom: Platform.OS === 'ios' ? 40 : 24,
@@ -613,7 +673,7 @@ const styles = StyleSheet.create({
   modalTitle: {
     fontSize: 20,
     fontWeight: '700',
-    color: '#111827',
+    color: COLORS.textHeadline,
   },
   modalCloseButton: {
     padding: 4,
@@ -623,13 +683,13 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     paddingVertical: 16,
     borderBottomWidth: 1,
-    borderBottomColor: '#E5E7EB',
+    borderBottomColor: COLORS.gray100,
   },
   testAccountAvatar: {
     width: 44,
     height: 44,
     borderRadius: 22,
-    backgroundColor: '#FFF5F0',
+    backgroundColor: COLORS.primarySoft,
     alignItems: 'center',
     justifyContent: 'center',
     marginRight: 16,
@@ -643,64 +703,24 @@ const styles = StyleSheet.create({
   testAccountLabel: {
     fontSize: 16,
     fontWeight: '600',
-    color: '#111827',
+    color: COLORS.textHeadline,
     marginBottom: 2,
   },
   testAccountEmail: {
     fontSize: 14,
-    color: '#6B7280',
+    color: COLORS.textMuted,
   },
   testAccountBadge: {
-    backgroundColor: '#F9FAFB',
+    backgroundColor: '#FFFFFF',
     paddingHorizontal: 12,
     paddingVertical: 6,
     borderRadius: 16,
     borderWidth: 1,
-    borderColor: '#E5E7EB',
+    borderColor: COLORS.gray200,
   },
   testAccountBadgeText: {
     fontSize: 12,
     fontWeight: '600',
-    color: '#D97706',
-  },
-  dividerContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginBottom: 24,
-    paddingHorizontal: 10,
-  },
-  dividerLine: {
-    flex: 1,
-    height: 1,
-    backgroundColor: '#E5E7EB',
-  },
-  dividerText: {
-    marginHorizontal: 16,
-    fontSize: 12,
-    fontWeight: '700',
-    color: '#9CA3AF',
-    textTransform: 'uppercase',
-    letterSpacing: 1.2,
-  },
-  googleButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: '#FFFFFF',
-    paddingVertical: 14,
-    borderRadius: 14,
-    borderWidth: 1,
-    borderColor: '#E5E7EB',
-    gap: 10,
-    marginBottom: 0,
-  },
-  googleIcon: {
-    width: 20,
-    height: 20,
-  },
-  googleButtonText: {
-    fontSize: 15,
-    fontWeight: '600',
-    color: '#374151',
+    color: COLORS.primary,
   },
 });

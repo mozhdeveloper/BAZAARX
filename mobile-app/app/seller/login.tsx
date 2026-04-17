@@ -1,4 +1,12 @@
 import React, { useState } from 'react';
+import { useForm, Controller } from 'react-hook-form';
+import { zodResolver } from '@hookform/resolvers/zod';
+import { sellerLoginSchema, type LoginFormData } from '../../src/lib/schemas';
+import { COLORS } from '../../src/constants/theme';
+import { ChevronDown, ChevronUp, Mail, Lock, Eye, EyeOff, ArrowRight } from 'lucide-react-native';
+import { useNavigation } from '@react-navigation/native';
+import { supabase } from '../../src/lib/supabase';
+import { useAuthStore } from '../../src/stores/sellerStore';
 import {
   View,
   Text,
@@ -11,12 +19,10 @@ import {
   ActivityIndicator,
   Dimensions,
   Modal,
+  KeyboardAvoidingView,
+  Platform,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { Mail, Lock, Eye, EyeOff, ArrowRight, Zap, CheckCircle2, ChevronDown, X } from 'lucide-react-native';
-import { useNavigation } from '@react-navigation/native';
-import { supabase } from '../../src/lib/supabase';
-import { useAuthStore } from '../../src/stores/sellerStore';
 import { LinearGradient } from 'expo-linear-gradient';
 
 const { width } = Dimensions.get('window');
@@ -30,27 +36,32 @@ const TEST_SELLER_ACCOUNTS = [
 
 export default function SellerLoginScreen() {
   const navigation = useNavigation<any>();
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
-  const [showTestAccounts, setShowTestAccounts] = useState(false);
+  const [showMoreOptions, setShowMoreOptions] = useState(false);
 
-  const [emailFocused, setEmailFocused] = useState(false);
-  const [passwordFocused, setPasswordFocused] = useState(false);
+  const {
+    control,
+    handleSubmit,
+    setValue,
+    formState: { errors, isValid },
+  } = useForm<LoginFormData>({
+    resolver: zodResolver(sellerLoginSchema),
+    mode: 'onChange',
+    defaultValues: {
+      email: '',
+      password: '',
+    },
+  });
 
   const selectTestAccount = (account: typeof TEST_SELLER_ACCOUNTS[0]) => {
-    setEmail(account.email);
-    setPassword(account.password);
-    setShowTestAccounts(false);
+    setValue('email', account.email, { shouldValidate: true });
+    setValue('password', account.password, { shouldValidate: true });
+    setShowMoreOptions(false);
   };
 
-  const handleLogin = async () => {
-    if (!email || !password) {
-      Alert.alert('Error', 'Please enter your email and password.');
-      return;
-    }
-
+  const handleLogin = async (formData: LoginFormData) => {
+    const { email, password } = formData;
     setLoading(true);
 
     try {
@@ -147,376 +158,269 @@ export default function SellerLoginScreen() {
 
   const fillDemoCredentials = () => {
     // Use first test seller account credentials
-    setEmail('seller1@bazaarph.com');
-    setPassword('Test@123456');
+    setValue('email', 'seller1@bazaarph.com');
+    setValue('password', 'Test@123456');
   };
 
   return (
-    <SafeAreaView style={styles.container}>
-      <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
-
-        {/* Top Section with Logo */}
-        <View style={styles.topSection}>
-          <LinearGradient
-            colors={['#FFF', '#FFF9F1']}
-            style={styles.backgroundGradient}
-          />
-          <View style={styles.logoWrapper}>
-            <Image
-              source={require('../../assets/icon.png')}
-              style={styles.logo}
-            />
+    <SafeAreaView style={styles.container} edges={['top']}>
+      <KeyboardAvoidingView
+        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+        style={{ flex: 1 }}
+      >
+        <ScrollView
+          contentContainerStyle={styles.scrollContent}
+          showsVerticalScrollIndicator={false}
+          keyboardShouldPersistTaps="handled"
+        >
+          {/* Header Section */}
+          <View style={styles.header}>
+            <View style={styles.logoWrapper}>
+              <Image
+                source={require('../../assets/icon.png')}
+                style={styles.logo}
+              />
+            </View>
+            <Text style={[styles.title, { color: COLORS.textHeadline }]}>Welcome back</Text>
+            <Text style={[styles.subtitle, { color: COLORS.textMuted }]}>Sign in to manage your BazaarX Store</Text>
           </View>
-          <Text style={styles.title}>Welcome Back</Text>
-          <Text style={styles.subtitle}>Sign in to manage your BazaarX Store.</Text>
-        </View>
 
-        {/* Test Credentials Card */}
-        <View style={styles.testCredsContainer}>
-          <View style={styles.testCredsHeader}>
-            <Text style={styles.testCredsTitle}>🧪 TEST SELLER ACCOUNTS</Text>
-          </View>
-          {TEST_SELLER_ACCOUNTS.map((account, index) => (
+          {/* Form Section */}
+          <View style={styles.form}>
+            <View style={styles.inputContainer}>
+              <Text style={styles.label}>Email Address</Text>
+              <Controller
+                control={control}
+                name="email"
+                render={({ field: { onChange, onBlur, value } }) => (
+                  <View style={[styles.inputWrapper, errors.email && styles.inputWrapperError]}>
+                    <Mail size={18} color={errors.email ? COLORS.error : COLORS.gray400} style={styles.inputIcon} />
+                    <TextInput
+                      style={styles.input}
+                      placeholder="Enter your store email"
+                      placeholderTextColor={COLORS.gray400}
+                      value={value}
+                      onChangeText={onChange}
+                      onBlur={onBlur}
+                      keyboardType="email-address"
+                      autoCapitalize="none"
+                      autoComplete="email"
+                    />
+                  </View>
+                )}
+              />
+              {errors.email && <Text style={styles.errorText}>{errors.email.message}</Text>}
+            </View>
+
+            <View style={styles.inputContainer}>
+              <View style={styles.labelRow}>
+                <Text style={styles.label}>Password</Text>
+                <Pressable onPress={() => navigation.navigate('ForgotPassword')}>
+                  <Text style={styles.forgotText}>Forgot Password?</Text>
+                </Pressable>
+              </View>
+              <Controller
+                control={control}
+                name="password"
+                render={({ field: { onChange, onBlur, value } }) => (
+                  <View style={[styles.inputWrapper, errors.password && styles.inputWrapperError]}>
+                    <Lock size={18} color={errors.password ? COLORS.error : COLORS.gray400} style={styles.inputIcon} />
+                    <TextInput
+                      style={styles.input}
+                      placeholder="Enter your password"
+                      placeholderTextColor={COLORS.gray400}
+                      value={value}
+                      onChangeText={onChange}
+                      onBlur={onBlur}
+                      secureTextEntry={!showPassword}
+                      autoCapitalize="none"
+                    />
+                    <Pressable
+                      onPress={() => setShowPassword(!showPassword)}
+                      style={styles.eyeIcon}
+                    >
+                      {showPassword ? (
+                        <EyeOff size={18} color={COLORS.gray400} />
+                      ) : (
+                        <Eye size={18} color={COLORS.gray400} />
+                      )}
+                    </Pressable>
+                  </View>
+                )}
+              />
+              {errors.password && <Text style={styles.errorText}>{errors.password.message}</Text>}
+            </View>
+
             <Pressable
-              key={index}
-              style={styles.testCredButton}
-              onPress={() => selectTestAccount(account)}
-            >
-              <View style={styles.testCredAvatar}>
-                <Text style={styles.testCredAvatarText}>{account.name.split(' ').pop()}</Text>
-              </View>
-              <View style={styles.testCredLeft}>
-                <Text style={styles.testCredLabel}>{account.name.split(' ').slice(0, -1).join(' ')}</Text>
-                <Text style={styles.testCredEmail}>{account.email}</Text>
-              </View>
-              <View style={styles.testCredPwBadge}>
-                <Text style={styles.testCredPw}>Test@123456</Text>
-              </View>
-            </Pressable>
-          ))}
-        </View>
-
-        <View style={styles.form}>
-          {/* Email Input */}
-          <View style={styles.inputGroup}>
-            <Text style={styles.label}>Email Address</Text>
-            <View style={[styles.inputWrapper, emailFocused && styles.inputFocused]}>
-              <Mail size={20} color={emailFocused ? '#D97706' : '#9CA3AF'} />
-              <TextInput
-                style={styles.input}
-                placeholder="Enter your email"
-                value={email}
-                onChangeText={setEmail}
-                // onFocus={() => setEmailFocused(true)}
-                // onBlur={() => setEmailFocused(false)}
-                autoCapitalize="none"
-                keyboardType="email-address"
-              />
-            </View>
-          </View>
-
-          {/* Password Input */}
-          <View style={styles.inputGroup}>
-            <Text style={styles.label}>Password</Text>
-            <View style={[styles.inputWrapper, passwordFocused && styles.inputFocused]}>
-              <Lock size={20} color={passwordFocused ? '#D97706' : '#9CA3AF'} />
-              <TextInput
-                style={styles.input}
-                placeholder="••••••••••••"
-                value={password}
-                onChangeText={setPassword}
-                // onFocus={() => setPasswordFocused(true)}
-                // onBlur={() => setPasswordFocused(false)}
-                secureTextEntry={!showPassword}
-              />
-              <Pressable onPress={() => setShowPassword(!showPassword)}>
-                {showPassword ? <EyeOff size={20} color="#9CA3AF" /> : <Eye size={20} color="#9CA3AF" />}
-              </Pressable>
-            </View>
-          </View>
-
-          <View style={styles.optionsRow}>
-            <Pressable style={styles.checkboxContainer}>
-              <View style={styles.checkbox} />
-              <Text style={styles.checkboxLabel}>Remember me</Text>
-            </Pressable>
-            <Pressable>
-              <Text style={styles.forgotText}>Forgot Password?</Text>
-            </Pressable>
-          </View>
-
-          <Pressable
-            style={styles.loginButton}
-            onPress={handleLogin}
-            disabled={loading}
-          >
-            <LinearGradient
-              colors={['#D97706', '#B45309']}
-              style={styles.loginGradient}
+              style={[styles.loginButton, (loading || !isValid) && styles.loginButtonDisabled]}
+              onPress={handleSubmit(handleLogin)}
+              disabled={loading || !isValid}
+              accessibilityRole="button"
+              accessibilityLabel="Sign In"
             >
               {loading ? (
-                <ActivityIndicator color="#FFF" />
+                <ActivityIndicator color="#FFFFFF" />
               ) : (
-                <View style={styles.loginContent}>
-                  <Text style={styles.loginButtonText}>Sign In</Text>
-                  <ArrowRight size={20} color="#FFF" />
-                </View>
+                <>
+                  <Text style={styles.buttonText}>Sign In</Text>
+                  <ArrowRight size={18} color="#FFFFFF" />
+                </>
               )}
-            </LinearGradient>
-          </Pressable>
-        </View>
+            </Pressable>
+          </View>
 
-        <View style={styles.footer}>
-          <Text style={styles.footerText}>New to BazaarX? </Text>
-          <Pressable onPress={() => navigation.navigate('SellerSignup')}>
-            <Text style={styles.signupLink}>Create an account</Text>
-          </Pressable>
-        </View>
+          {/* More Options Section (Demo Accounts) */}
+          <View style={styles.moreOptionsContainer}>
+            <Pressable
+              style={styles.moreOptionsTrigger}
+              onPress={() => setShowMoreOptions(!showMoreOptions)}
+            >
+              <Text style={styles.moreOptionsTitle}>More options</Text>
+              {showMoreOptions ? (
+                <ChevronUp size={18} color={COLORS.gray400} />
+              ) : (
+                <ChevronDown size={18} color={COLORS.gray400} />
+              )}
+            </Pressable>
 
-        <View style={styles.backToHome}>
-          <Pressable onPress={() => navigation.navigate('SellerAuthChoice')}>
-            <Text style={styles.backLink}>← Back to BazaarPH</Text>
-          </Pressable>
-        </View>
-      </ScrollView>
+            {showMoreOptions && (
+              <View style={styles.moreOptionsContent}>
+                <Text style={styles.demoTitle}>TEST SELLER ACCOUNTS</Text>
+                {TEST_SELLER_ACCOUNTS.map((account, index) => (
+                  <Pressable
+                    key={index}
+                    style={styles.testAccountCard}
+                    onPress={() => selectTestAccount(account)}
+                  >
+                    <View style={styles.testAccountInfo}>
+                      <Text style={styles.testAccountName}>{account.name}</Text>
+                      <Text style={styles.testAccountEmail}>{account.email}</Text>
+                    </View>
+                    <View style={styles.testAccountBadge}>
+                      <Text style={styles.testAccountBadgeText}>Demo</Text>
+                    </View>
+                  </Pressable>
+                ))}
+              </View>
+            )}
+          </View>
 
+          {/* Footer */}
+          <View style={styles.footer}>
+            <Text style={styles.footerText}>New to BazaarX? </Text>
+            <Pressable onPress={() => navigation.navigate('SellerSignup')}>
+              <Text style={styles.signupLink}>Create an account</Text>
+            </Pressable>
+          </View>
+
+          <View style={styles.backToSection}>
+            <Pressable onPress={() => navigation.navigate('SellerAuthChoice')}>
+              <Text style={styles.backToText}>← Back to BazaarPH</Text>
+            </Pressable>
+          </View>
+        </ScrollView>
+      </KeyboardAvoidingView>
     </SafeAreaView>
   );
+
 }
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: '#FFFFFF',
-  },
-  scrollContent: {
-    paddingBottom: 40,
-  },
-  topSection: {
-    paddingTop: 40,
-    paddingBottom: 30,
-    alignItems: 'center',
-    paddingHorizontal: 25,
-  },
-  backgroundGradient: {
-    ...StyleSheet.absoluteFillObject,
-  },
+  container: { flex: 1, backgroundColor: COLORS.background || '#FFFFFF' },
+  scrollContent: { padding: 24, flexGrow: 1 },
+  header: { marginBottom: 32, marginTop: 16, alignItems: 'center' },
   logoWrapper: {
-    width: 80,
-    height: 80,
+    width: 64,
+    height: 64,
     backgroundColor: '#D97706',
-    borderRadius: 24,
+    borderRadius: 14,
     justifyContent: 'center',
     alignItems: 'center',
     shadowColor: '#D97706',
-    shadowOffset: { width: 0, height: 10 },
+    shadowOffset: { width: 0, height: 8 },
     shadowOpacity: 0.2,
-    shadowRadius: 15,
-    marginBottom: 25,
-  },
-  logo: {
-    width: 60,
-    height: 60,
-    borderRadius: 16,
-  },
-  title: {
-    fontSize: 32,
-    fontWeight: '800',
-    color: '#111827',
-    marginBottom: 8,
-  },
-  subtitle: {
-    fontSize: 16,
-    color: '#6B7280',
-    fontWeight: '500',
-    textAlign: 'center',
-  },
-  testCredsContainer: {
-    marginHorizontal: 25,
-    backgroundColor: '#FFFBEB',
-    borderRadius: 14,
-    padding: 14,
+    shadowRadius: 12,
+    elevation: 8,
     marginBottom: 24,
-    borderWidth: 1.5,
-    borderColor: '#FCD34D',
   },
-  testCredsHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginBottom: 10,
-  },
-  testCredsTitle: {
-    fontSize: 11,
-    fontWeight: '800',
-    color: '#92400E',
-    letterSpacing: 0.8,
-  },
-  testCredButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#FFFFFF',
-    borderRadius: 10,
-    padding: 10,
-    marginBottom: 8,
-    borderWidth: 1,
-    borderColor: '#FDE68A',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.06,
-    shadowRadius: 3,
-    elevation: 1,
-  },
-  testCredAvatar: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
-    backgroundColor: '#FEF3C7',
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginRight: 10,
-  },
-  testCredAvatarText: {
-    fontSize: 18,
-  },
-  testCredLeft: {
-    flex: 1,
-  },
-  testCredLabel: {
-    fontSize: 13,
-    fontWeight: '700',
-    color: '#1F2937',
-  },
-  testCredEmail: {
-    fontSize: 11,
-    color: '#6B7280',
-    marginTop: 1,
-  },
-  testCredPwBadge: {
-    backgroundColor: '#D1FAE5',
-    borderRadius: 6,
-    paddingHorizontal: 8,
-    paddingVertical: 3,
-    borderWidth: 1,
-    borderColor: '#6EE7B7',
-  },
-  testCredPw: {
-    fontSize: 10,
-    fontWeight: '700',
-    color: '#065F46',
-  },
-  form: {
-    paddingHorizontal: 25,
-  },
-  inputGroup: {
-    marginBottom: 20,
-  },
-  label: {
-    fontSize: 15,
-    fontWeight: '700',
-    color: '#374151',
-    marginBottom: 10,
-    marginLeft: 4,
-  },
+  logo: { width: 44, height: 44, borderRadius: 8 },
+  title: { fontSize: 28, fontWeight: '800', marginBottom: 8 },
+  subtitle: { fontSize: 16, textAlign: 'center' },
+  form: { marginBottom: 24 },
+  inputContainer: { flexDirection: 'column', marginBottom: 20 },
+  labelRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 },
+  label: { fontSize: 13, fontWeight: '600', color: COLORS.gray400 },
+  forgotText: { fontSize: 13, color: COLORS.gray400, fontWeight: '600' },
   inputWrapper: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#FFF4EC',
-    borderRadius: 16,
-    paddingHorizontal: 16,
-    height: 60,
-    borderWidth: 2,
-    borderColor: 'transparent',
-    gap: 12,
-  },
-  inputFocused: {
-    borderColor: '#D97706',
     backgroundColor: '#FFFFFF',
-    shadowColor: '#D97706',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.1,
-    shadowRadius: 8,
+    borderWidth: 1,
+    borderColor: '#E5E7EB',
+    borderRadius: 14,
+    paddingHorizontal: 16,
+    height: 52,
   },
-  input: {
-    flex: 1,
-    fontSize: 16,
-    color: '#111827',
-    fontWeight: '600',
-  },
-  optionsRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginTop: 5,
-    marginBottom: 25,
-  },
-  checkboxContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 10,
-  },
-  checkbox: {
-    width: 20,
-    height: 20,
-    borderRadius: 6,
-    borderWidth: 2,
-    borderColor: '#D1D5DB',
-  },
-  checkboxLabel: {
-    fontSize: 14,
-    color: '#6B7280',
-    fontWeight: '500',
-  },
-  forgotText: {
-    fontSize: 14,
-    color: '#D97706',
-    fontWeight: '700',
-  },
+  inputWrapperError: { borderColor: COLORS.error },
+  inputIcon: { marginRight: 12 },
+  input: { flex: 1, fontSize: 15, color: COLORS.textHeadline, fontWeight: '500' },
+  eyeIcon: { padding: 4 },
+  errorText: { fontSize: 12, color: COLORS.error, marginTop: 4 },
   loginButton: {
-    borderRadius: 16,
-    overflow: 'hidden',
-    elevation: 5,
+    marginTop: 8,
+    borderRadius: 14,
+    backgroundColor: '#D97706',
     shadowColor: '#D97706',
-    shadowOffset: { width: 0, height: 10 },
+    shadowOffset: { width: 0, height: 8 },
     shadowOpacity: 0.3,
     shadowRadius: 15,
-  },
-  loginGradient: {
-    height: 60,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  loginContent: {
+    elevation: 8,
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 10,
-  },
-  loginButtonText: {
-    fontSize: 18,
-    fontWeight: '800',
-    color: '#FFFFFF',
-  },
-  footer: {
-    flexDirection: 'row',
     justifyContent: 'center',
-    marginTop: 35,
+    paddingVertical: 14,
+    gap: 8,
   },
-  footerText: {
-    fontSize: 15,
-    color: '#6B7280',
-    fontWeight: '500',
-  },
-  signupLink: {
-    fontSize: 15,
-    color: '#D97706',
-    fontWeight: '700',
-  },
-  backToHome: {
+  loginButtonDisabled: { opacity: 0.6 },
+  buttonText: { color: '#FFFFFF', fontSize: 16, fontWeight: '700' },
+
+  moreOptionsContainer: { marginBottom: 24 },
+  moreOptionsTrigger: {
+    flexDirection: 'row',
     alignItems: 'center',
-    marginTop: 25,
+    justifyContent: 'center',
+    paddingVertical: 12,
+    gap: 8,
   },
-  backLink: {
-    fontSize: 14,
-    color: '#9CA3AF',
-    fontWeight: '700',
+  moreOptionsTitle: { fontSize: 14, color: COLORS.gray400, fontWeight: '600' },
+  moreOptionsContent: {
+    backgroundColor: '#F9FAFB',
+    borderRadius: 14,
+    padding: 16,
+    borderWidth: 1,
+    borderColor: '#F3F4F6',
+    marginTop: 8,
   },
+  demoTitle: { fontSize: 11, fontWeight: '800', color: COLORS.gray400, letterSpacing: 1, marginBottom: 12 },
+  testAccountCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#FFFFFF',
+    borderRadius: 12,
+    padding: 12,
+    marginBottom: 8,
+    borderWidth: 1,
+    borderColor: '#F3F4F6',
+  },
+  testAccountInfo: { flex: 1 },
+  testAccountName: { fontSize: 13, fontWeight: '700', color: COLORS.textHeadline },
+  testAccountEmail: { fontSize: 11, color: COLORS.textMuted, marginTop: 2 },
+  testAccountBadge: { backgroundColor: '#FEF3C7', paddingHorizontal: 8, paddingVertical: 4, borderRadius: 6 },
+  testAccountBadgeText: { fontSize: 10, fontWeight: '700', color: '#D97706' },
+
+  footer: { flexDirection: 'row', justifyContent: 'center', alignItems: 'center', marginBottom: 24 },
+  footerText: { fontSize: 14, color: COLORS.textMuted },
+  signupLink: { fontSize: 14, color: '#D97706', fontWeight: '700' },
+  backToSection: { alignItems: 'center', paddingBottom: 24 },
+  backToText: { fontSize: 14, color: COLORS.gray400, fontWeight: '600' },
 });

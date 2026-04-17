@@ -309,13 +309,13 @@ export default function App() {
     return () => subscription.unsubscribe();
   }, []);
 
-  // Handle logout navigation — when user becomes null, navigate to Splash
+  // Handle logout navigation — when user becomes null, navigate to Login
   React.useEffect(() => {
     if (!user && navigationRef.current) {
-      // User has logged out, reset navigation stack to Splash
+      // User has logged out, go directly to Login (not Splash, which re-checks session)
       navigationRef.current.reset({
         index: 0,
-        routes: [{ name: 'Splash' }],
+        routes: [{ name: 'Login' }],
       });
     }
   }, [user]);
