@@ -80,8 +80,28 @@ export type RootStackParamList = {
     registryLocation?: string;
     recipientId?: string;
   };
-  PaymentGateway: { paymentMethod: string; order: Order; isQuickCheckout?: boolean; earnedBazcoins?: number };
+  PaymentGateway: { 
+    paymentMethod: string; 
+    order?: Order; 
+    isQuickCheckout?: boolean; 
+    earnedBazcoins?: number;
+    checkoutPayload?: any;
+    bazcoinDiscount?: number;
+    appliedVoucher?: any;
+    isGift?: boolean;
+    isAnonymous?: boolean;
+    recipientId?: string;
+  };
   OrderConfirmation: { order: Order; earnedBazcoins?: number };
+  OrderResult: {
+    order: Order;
+    status: 'success' | 'failed' | 'processing' | 'pending_3ds' | 'insufficient_funds' | 'card_expired' | 'invalid_cvc' | 'fraudulent' | 'generic_decline' | 'processor_blocked';
+    earnedBazcoins?: number;
+    paymentMethod?: string;
+    transactionID?: string;
+    errorCode?: string;
+    errorMessage?: string;
+  };
   Orders: { initialTab?: 'all' | 'pending' | 'confirmed' | 'shipped' | 'delivered' | 'reviewed' | 'returned' | 'cancelled' };
   OrderDetail: { order: Order };
   SellerOrderDetail: { orderId: string };
@@ -440,6 +460,7 @@ export default function App() {
               <Stack.Screen name="PaymentGateway" getComponent={() => require('./app/PaymentGatewayScreen').default} options={{ headerShown: false }} />
               <Stack.Screen name="PaymentCallback" getComponent={() => require('./app/PaymentCallbackScreen').default} options={{ headerShown: false }} />
               <Stack.Screen name="OrderConfirmation" getComponent={() => require('./app/OrderConfirmation').default} />
+              <Stack.Screen name="OrderResult" getComponent={() => require('./app/OrderResultScreen').default} options={{ headerShown: false }} />
               <Stack.Screen name="Orders" getComponent={() => require('./app/OrdersScreen').default} options={{ headerShown: false }} />
               <Stack.Screen name="OrderDetail" getComponent={() => require('./app/OrderDetailScreen').default} />
               <Stack.Screen

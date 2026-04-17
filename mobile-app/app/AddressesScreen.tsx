@@ -1,8 +1,8 @@
 import React, { useEffect, useState, useRef } from 'react';
-import { View, Text, ScrollView, Pressable, StyleSheet, Modal, StatusBar, ActivityIndicator } from 'react-native';
+import { View, Text, ScrollView, Pressable, StyleSheet, Modal, StatusBar, ActivityIndicator, TextInput } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { ChevronLeft, Plus, Edit2, Trash2, Home, Briefcase, MapPinned } from 'lucide-react-native';
+import { ChevronLeft, Plus, Edit2, Trash2, Home, Briefcase, MapPinned, ChevronUp, ChevronDown, Search } from 'lucide-react-native';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import type { RootStackParamList } from '../App';
 import { COLORS } from '../src/constants/theme';
@@ -10,6 +10,7 @@ import { type Address } from '../src/services/addressService';
 import { useAddressStore } from '../src/stores/addressStore';
 import { useAuthStore } from '../src/stores/authStore';
 import AddressFormModal from '../src/components/AddressFormModal';
+import { regions, provinces, cities, barangays } from 'select-philippines-address';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'Addresses'>;
 
@@ -35,6 +36,15 @@ export default function AddressesScreen({ navigation }: Props) {
   const [selectedAddressId, setSelectedAddressId] = useState<string | null>(null);
   const [isAddressModalOpen, setIsAddressModalOpen] = useState(false);
   const [editingAddress, setEditingAddress] = useState<Address | null>(null);
+  
+  // Dropdown and location states
+  const [openDropdown, setOpenDropdown] = useState<'region' | 'province' | 'city' | 'barangay' | null>(null);
+  const [searchText, setSearchText] = useState('');
+  const [isLoadingLocation, setIsLoadingLocation] = useState(false);
+  const [regionList, setRegionList] = useState<any[]>([]);
+  const [provinceList, setProvinceList] = useState<any[]>([]);
+  const [cityList, setCityList] = useState<any[]>([]);
+  const [barangayList, setBarangayList] = useState<any[]>([]);
 
   const getAddressIcon = (type: string) => {
     switch (type.toLowerCase()) {
@@ -94,6 +104,7 @@ export default function AddressesScreen({ navigation }: Props) {
       deleteNow();
     }
   };
+
 
 
   return (
