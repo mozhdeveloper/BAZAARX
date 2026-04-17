@@ -20,7 +20,7 @@ import {
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
-import { ChevronLeft, MapPin, CreditCard, Shield, Tag, X, ChevronDown, Check, Plus, ShieldCheck, ChevronRight, Home, Briefcase, MapPinned, Building2, Move, Search, ChevronUp, Palmtree, Store, AlertCircle, Pencil } from 'lucide-react-native';
+import { ChevronLeft, MapPin, CreditCard, Shield, Tag, X, ChevronDown, Check, Plus, ShieldCheck, ChevronRight, Home, Briefcase, MapPinned, Building2, Move, Search, ChevronUp, Palmtree, Store } from 'lucide-react-native';
 import MapView, { Marker, Region, PROVIDER_GOOGLE, PROVIDER_DEFAULT } from 'react-native-maps';
 import { Svg, Path } from 'react-native-svg';
 import { regions, provinces, cities, barangays } from 'select-philippines-address';
@@ -28,13 +28,14 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { COLORS } from '../src/constants/theme';
 import { supabase } from '../src/lib/supabase';
 import { processCheckout, getCheckoutContext } from '@/services/checkoutService';
-import { addressService, type Address } from '@/services/addressService';
+import { addressService, type Address, validateCheckoutAddress, type AddressValidationResult } from '@/services/addressService';
 import { voucherService, calculateVoucherDiscount, getVoucherErrorMessage } from '@/services/voucherService';
-import { paymentMethodService, type SavedPaymentMethod } from '@/services/paymentMethodService';
+import { calculateShippingForSellers, type SellerShippingResult, type ShippingMethodOption } from '@/services/shippingService';
+import AddressFormModal from '@/components/AddressFormModal';
+import ShippingMethodPicker from '@/components/ShippingMethodPicker';
 import { useCartStore } from '../src/stores/cartStore';
 import { useAuthStore } from '../src/stores/authStore';
 import { useOrderStore } from '../src/stores/orderStore';
-import { usePaymentStore } from '../src/stores/paymentStore';
 import LocationModal from '../src/components/LocationModal';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import type { RootStackParamList } from '../App';
@@ -53,19 +54,12 @@ export default function CheckoutScreen({ navigation, route }: Props) {
   const { loadCheckoutContext, isCheckoutContextLoading } = useOrderStore();
   const insets = useSafeAreaInsets();
 
-  // Extract params safely and memoize to prevent recreation on every render
-  const memoizedParams = useMemo(() => {
-    const p = (route.params || {}) as any;
-    return {
-      isGift: p?.isGift || false,
-      recipientName: p?.recipientName || 'Registry Owner',
-      registryLocation: p?.registryLocation || 'Philippines',
-      recipientId: p?.recipientId || 'user_123',
-      selectedItems: p?.selectedItems || [],
-    };
-  }, [route.params?.isGift, route.params?.recipientName, route.params?.registryLocation, route.params?.recipientId, route.params?.selectedItems]);
-
-  const { isGift, recipientName, registryLocation, recipientId } = memoizedParams;
+  // Extract params safely
+  const params = (route.params || {}) as any;
+  const isGift = params?.isGift || false;
+  const recipientName = params?.recipientName || 'Registry Owner';
+  const registryLocation = params?.registryLocation || 'Philippines';
+  const recipientId = params?.recipientId || 'user_123'; // Mock recipient ID if not passed
 
   // Override address state if it's a gift
   React.useEffect(() => {
@@ -89,12 +83,10 @@ export default function CheckoutScreen({ navigation, route }: Props) {
       };
 
       // AUTO-SELECT this address so validation passes
-      if (isMountedRef.current) {
-        setSelectedAddress(registryAddress as Address & { id: string });
-        setTempSelectedAddress(registryAddress as Address & { id: string });
-      }
+      setSelectedAddress(registryAddress as Address & { id: string });
+      setTempSelectedAddress(registryAddress as Address & { id: string });
     }
-  }, [isGift, recipientName, registryLocation]);
+  }, [isGift, recipientName, registryLocation, user?.id]);
 
   const DEFAULT_REGION = {
     latitude: 14.5995,
@@ -114,6 +106,10 @@ export default function CheckoutScreen({ navigation, route }: Props) {
   const [isAddressModalOpen, setIsAddressModalOpen] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [isMapModalOpen, setIsMapModalOpen] = useState(false);
+
+  // Shared AddressFormModal state (Fix Address / Add New Address)
+  const [showAddressFormModal, setShowAddressFormModal] = useState(false);
+  const [editingAddressForForm, setEditingAddressForForm] = useState<Address | null>(null);
   const [mapRegion, setMapRegion] = useState<Region>(DEFAULT_REGION);
   const [isGeocoding, setIsGeocoding] = useState(false);
   const [isLoadingLocation, setIsLoadingLocation] = useState(false);
@@ -128,10 +124,6 @@ export default function CheckoutScreen({ navigation, route }: Props) {
 
   // LocationModal state for map-first address flow
   const [showLocationModal, setShowLocationModal] = useState(false);
-
-  // Edit mode state for address
-  const [selectedAddressForEdit, setSelectedAddressForEdit] = useState<Address | null>(null);
-  const [isEditMode, setIsEditMode] = useState(false);
 
   // Animation refs for Address Selection Modal
   const addressFadeAnim = useRef(new Animated.Value(0)).current;
@@ -200,13 +192,23 @@ export default function CheckoutScreen({ navigation, route }: Props) {
 
   const [newAddress, setNewAddress] = useState<Omit<Address, 'id'>>(initialAddressState);
 
-
+  // Debug logging for address state changes
+  useEffect(() => {
+    console.log('[CheckoutScreen] newAddress state updated:', {
+      firstName: newAddress.firstName,
+      lastName: newAddress.lastName,
+      phone: newAddress.phone,
+      street: newAddress.street,
+      city: newAddress.city,
+      region: newAddress.region,
+    });
+  }, [newAddress]);
 
   // Get selected items from navigation params (from CartScreen)
-  // Memoize to prevent array recreation on every render
+  // Memoize to prevent creating new array reference on every render
   const selectedItemsFromCart: CartItem[] = useMemo(() => {
-    return memoizedParams.selectedItems || [];
-  }, [memoizedParams.selectedItems]);
+    return params?.selectedItems || [];
+  }, [params?.selectedItems]);
 
   // Determine which items to checkout: quick order takes precedence, then selected items.
   // We do NOT default to 'items' (all cart items) to avoid accidental checkout of unselected items.
@@ -219,199 +221,132 @@ export default function CheckoutScreen({ navigation, route }: Props) {
   const [vacationSellers, setVacationSellers] = useState<string[]>([]);
   const hasVacationSeller = vacationSellers.length > 0;
 
+  // BX-09-001 — Seller metadata for shipping zone detection
+  const [sellerMetadata, setSellerMetadata] = useState<Record<string, {
+    id: string;
+    storeName: string;
+    coords: { latitude: number; longitude: number } | null;
+    province: string | null;
+    region: string | null;
+  }>>({});
+
+  // BX-09-001 — Async shipping calculation state
+  const [shippingResults, setShippingResults] = useState<SellerShippingResult[]>([]);
+  const [isCalculatingShipping, setIsCalculatingShipping] = useState(false);
+  const [selectedMethods, setSelectedMethods] = useState<Record<string, string>>({});
+  const shippingTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
   // Check for unavailable items (stock validation)
   const [unavailableItems, setUnavailableItems] = useState<Array<{ id: string; name: string; reason: string }>>([]);
   const [isValidatingStock, setIsValidatingStock] = useState(false);
-  const [stockCheckRetryCount, setStockCheckRetryCount] = useState(0);
-  const [skipStockValidation, setSkipStockValidation] = useState(false);
   const hasUnavailableItems = unavailableItems.length > 0;
-  
-  // Abort controller for stock validation queries
-  const stockValidationAbortRef = useRef<AbortController | null>(null);
-  const isMountedRef = useRef(true);
 
-  // ===== STATE DECLARATIONS MOVED TO TOP (before hooks) =====
-  // Payments and Vouchers
-  const [paymentMethod, setPaymentMethod] = useState<'cod' | 'gcash' | 'card' | 'paymongo' | null>('cod');
-  const [voucherCode, setVoucherCode] = useState('');
-  const [appliedVoucher, setAppliedVoucher] = useState<Voucher | null>(null);
-  const [isAnonymous, setIsAnonymous] = useState(false);
-
-  // PayMongo Card Details
-  const [paymongCardNumber, setPaymongoCardNumber] = useState('');
-  const [paymongoCardName, setPaymongoCardName] = useState('');
-  const [paymongoExpiryDate, setPaymongoExpiryDate] = useState('');
-  const [paymonogCvv, setPaymongoCvv] = useState('');
-  const [savedPaymongoCard, setSavedPaymongoCard] = useState<{ lastFour: string; expiry: string } | null>(null);
-  const [paymongoPaymentError, setPaymongoPaymentError] = useState<string | null>(null);
-  const [paymongoProcessing, setPaymongoProcessing] = useState(false);
-  const [savedPaymentMethods, setSavedPaymentMethods] = useState<SavedPaymentMethod[]>([]);
-  const [selectedPaymentMethodId, setSelectedPaymentMethodId] = useState<string | null>(null);
-  const [loadingPaymentMethods, setLoadingPaymentMethods] = useState(false);
-
-  // Processing State
-  const [isProcessing, setIsProcessing] = useState(false);
-
-  // Bazcoins
-  const [useBazcoins, setUseBazcoins] = useState(false);
-  const [availableBazcoins, setAvailableBazcoins] = useState(0);
-  // ===== END STATE DECLARATIONS =====
-
-  useEffect(() => {
-    if (checkoutItems.length === 0 || !isMountedRef.current) {
-      setVacationSellers([]);
-      return;
-    }
-
-    // Debounce by 300ms to prevent rapid re-runs from unstable dependencies
-    const timer = setTimeout(async () => {
-      if (!isMountedRef.current) return;
-
-      const checkVacationSellers = async () => {
-        const sellerIds = [...new Set(checkoutItems.map((item: any) => item.sellerId || item.seller_id).filter(Boolean))];
-        if (sellerIds.length === 0) {
-          if (isMountedRef.current) setVacationSellers([]);
-          return;
-        }
-
-        const { data } = await (supabase as any)
-          .from('sellers')
-          .select('id, store_name, is_vacation_mode')
-          .in('id', sellerIds)
-          .eq('is_vacation_mode', true);
-
-        const vacationSellerNames = (data || []).map((s: any) => s.store_name || 'Unknown Seller');
-        if (isMountedRef.current) setVacationSellers(vacationSellerNames);
-      };
-
-      checkVacationSellers();
-    }, 300);
-
-    return () => clearTimeout(timer);
+  // Fetch seller metadata (vacation check + shipping origin) on mount
+  // Extract and memoize seller IDs to prevent constant re-fetches
+  const sellerIds = useMemo(() => {
+    return [...new Set(checkoutItems.map((item: any) => item.sellerId || item.seller_id).filter(Boolean))];
   }, [checkoutItems]);
 
-  // Track component mount state to prevent state updates after unmount
   useEffect(() => {
-    isMountedRef.current = true;
-    return () => {
-      isMountedRef.current = false;
-    };
-  }, []);
-
-  // Validate stock for all checkout items on mount
-  // Skip validation if checkout is in progress (payment processing)
-  useEffect(() => {
-    const validateCheckoutItemsStock = async () => {
-      // Skip validation if checkout is in progress or if we should skip it
-      if (checkoutItems.length === 0 || isProcessing || skipStockValidation) {
+    const fetchSellerData = async () => {
+      if (sellerIds.length === 0) {
+        setVacationSellers([]);
+        setSellerMetadata({});
         return;
       }
 
-      if (!isMountedRef.current) return;
+      // Fetch seller info + business profile for province/region fallback
+      const { data } = await (supabase as any)
+        .from('sellers')
+        .select('id, store_name, is_vacation_mode, shipping_origin_lat, shipping_origin_lng, business_profile:seller_business_profiles(city, province)')
+        .in('id', sellerIds);
+
+      // Set vacation sellers (existing behavior)
+      const vacationSellerNames = (data || [])
+        .filter((s: any) => s.is_vacation_mode)
+        .map((s: any) => s.store_name || 'Unknown Seller');
+      setVacationSellers(vacationSellerNames);
+
+      // Set seller metadata for shipping (BX-09-001)
+      const meta: typeof sellerMetadata = {};
+      for (const s of data || []) {
+        const bp = Array.isArray(s.business_profile) ? s.business_profile[0] : s.business_profile;
+        meta[s.id] = {
+          id: s.id,
+          storeName: s.store_name || 'Unknown Seller',
+          coords: s.shipping_origin_lat && s.shipping_origin_lng
+            ? { latitude: s.shipping_origin_lat, longitude: s.shipping_origin_lng }
+            : null,
+          province: bp?.province || null,
+          region: null, // seller_business_profiles doesn't have region; text fallback uses province
+        };
+      }
+      setSellerMetadata(meta);
+    };
+
+    fetchSellerData();
+  }, [sellerIds]);
+
+  // Validate stock for all checkout items on mount
+  useEffect(() => {
+    const validateCheckoutItemsStock = async () => {
+      if (checkoutItems.length === 0) {
+        setUnavailableItems([]);
+        return;
+      }
+
       setIsValidatingStock(true);
       const unavailable: Array<{ id: string; name: string; reason: string }> = [];
-      
-      // Create new abort controller for this validation run
-      const abortController = new AbortController();
-      stockValidationAbortRef.current = abortController;
 
       try {
         for (const item of checkoutItems) {
-          // Check if validation was aborted or component unmounted
-          if (abortController.signal.aborted || !isMountedRef.current) {
-            return;
-          }
-
           const itemId = (item as any).id || (item as any).productId;
           if (!itemId) continue;
 
           let currentStock = 0;
-          let queryFailed = false;
 
           if ((item as any).selectedVariant?.variantId) {
-            const { data: variantData, error: variantError } = await (supabase as any)
+            const { data: variantData } = await (supabase as any)
               .from('product_variants')
               .select('stock')
               .eq('id', (item as any).selectedVariant.variantId)
               .single();
 
-            if (variantError) {
-              console.warn(`[Checkout] Variant query failed for ${itemId}:`, variantError.message);
-              queryFailed = true;
-            } else {
-              currentStock = variantData?.stock ?? 0;
-            }
+            currentStock = variantData?.stock ?? 0;
           } else {
-            const { data: variantsData, error: variantsError } = await (supabase as any)
+            const { data: variantsData } = await (supabase as any)
               .from('product_variants')
               .select('stock')
               .eq('product_id', itemId);
 
-            if (variantsError) {
-              console.warn(`[Checkout] Variants query failed for ${itemId}:`, variantsError.message);
-              queryFailed = true;
-            } else {
-              currentStock = (variantsData ?? []).reduce((sum: number, v: any) => sum + (v.stock ?? 0), 0);
-            }
+            currentStock = (variantsData ?? []).reduce((sum: number, v: any) => sum + (v.stock ?? 0), 0);
           }
 
-          // Only mark as unavailable if we successfully queried and stock is truly 0
-          // If query failed, assume item is available (backend will validate during checkout)
-          if (!queryFailed && currentStock === 0) {
+          if (currentStock < (item.quantity || 1)) {
             unavailable.push({
               id: itemId,
               name: item.name || 'Unknown Product',
-              reason: 'Out of stock'
-            });
-          } else if (!queryFailed && currentStock < (item.quantity || 1)) {
-            unavailable.push({
-              id: itemId,
-              name: item.name || 'Unknown Product',
-              reason: `Only ${currentStock} available (you selected ${item.quantity})`
+              reason: currentStock === 0
+                ? 'Out of stock'
+                : `Only ${currentStock} available (you selected ${item.quantity})`
             });
           }
         }
 
-        // Only update state if component is still mounted
-        if (isMountedRef.current) {
-          setUnavailableItems(unavailable);
-        }
-      } catch (error: any) {
-        // Ignore AbortError during normal operation (flow control)
-        if (error?.name !== 'AbortError') {
-          console.error('[Checkout] Stock validation error:', error);
-          // On error, assume items are available and let backend validate
-          if (isMountedRef.current) {
-            setUnavailableItems([]);
-          }
-        }
+        setUnavailableItems(unavailable);
+      } catch (error) {
+        console.error('[Checkout] Stock validation error:', error);
       } finally {
-        if (isMountedRef.current) {
-          setIsValidatingStock(false);
-        }
+        setIsValidatingStock(false);
       }
     };
 
     validateCheckoutItemsStock();
-    
-    // Cleanup: always abort pending validation queries to prevent state updates after unmount
-    return () => {
-      if (stockValidationAbortRef.current) {
-        try {
-          stockValidationAbortRef.current.abort();
-        } catch (err) {
-          // Ignore abort errors
-        }
-      }
-    };
-  }, [checkoutItems, stockCheckRetryCount, isProcessing]);
+  }, [checkoutItems]);
 
   // Pre-fetch addresses + seller metadata via Edge Function on mount.
   // The Edge Function uses Promise.all internally so both queries run concurrently.
   useEffect(() => {
-    // Guard against stale persisted loading state that can lock the screen.
-    useOrderStore.setState({ isCheckoutContextLoading: false });
-
     const productIds = checkoutItems
       .map((item) => (item as any).id ?? (item as any).productId)
       .filter((id): id is string => typeof id === 'string' && id.length > 0);
@@ -427,7 +362,7 @@ export default function CheckoutScreen({ navigation, route }: Props) {
         }
       });
     }
-  }, [checkoutItems]);
+  }, []);
 
   // Optimize subtotal calculation with useMemo
   const checkoutSubtotal = useMemo(() => {
@@ -439,81 +374,6 @@ export default function CheckoutScreen({ navigation, route }: Props) {
 
   const [selectedCardId, setSelectedCardId] = useState<string | null>(null);
   const [currentStep, setCurrentStep] = useState<CheckoutStep>('shipping');
-
-  // Validate PayMongo card details are completely filled in (Acceptance Criteria #3)
-  const isPaymongoCardValid = useCallback(() => {
-    if (paymentMethod !== 'paymongo') return true; // Not PayMongo, no validation needed
-    
-    // If a saved card is selected, no manual entry validation needed
-    if (selectedPaymentMethodId) return true;
-    
-    // All card fields must be filled and valid (accepts PayMongo test cards)
-    // Test cards: 4343434343434345, 5555444444444457, 4009930000001421, etc. - all 16 digits
-    const cardNumberClean = paymongCardNumber.replace(/\s/g, '');
-    const isCardNumberValid = cardNumberClean.length === 16 && /^\d+$/.test(cardNumberClean);
-    const isCardNameValid = paymongoCardName.trim().length > 2;
-    const isExpiryValid = paymongoExpiryDate.includes('/') && paymongoExpiryDate.length >= 5;
-    const isCvvValid = paymonogCvv.length >= 3 && /^\d+$/.test(paymonogCvv);
-    
-    return isCardNumberValid && isCardNameValid && isExpiryValid && isCvvValid;
-  }, [paymentMethod, selectedPaymentMethodId, paymongCardNumber, paymongoCardName, paymongoExpiryDate, paymonogCvv]);
-
-  // Validate payment method is available (Acceptance Criteria #4, #5: Validate availability and eligibility)
-  const isPaymentMethodAvailable = useCallback((method: string): boolean => {
-    if (!selectedAddress) return false; // No address = no delivery = no payment
-    
-    // COD eligibility: Check if it's a gift (Acceptance Criteria #5: block COD for gifts)
-    if (method === 'cod' && isGift) {
-      return false;
-    }
-    
-    // Online methods (PayMongo, GCash) are always available when address exists
-    if (method === 'paymongo' || method === 'gcash') {
-      return true;
-    }
-    
-    // Card method is available
-    if (method === 'card') {
-      return true;
-    }
-    
-    // COD is available when not a gift
-    if (method === 'cod') {
-      return true;
-    }
-    
-    return false;
-  }, [selectedAddress, isGift]);
-
-  // Format expiry date input as MM/YY automatically (hoisted before card validation)
-  const handleExpiryChange = useCallback((value: string) => {
-    // Remove all non-numeric characters
-    const cleanValue = value.replace(/\D/g, '');
-    
-    if (cleanValue.length === 0) {
-      setPaymongoExpiryDate('');
-      return;
-    }
-    
-    // Format as MM/YY
-    if (cleanValue.length <= 2) {
-      setPaymongoExpiryDate(cleanValue);
-    } else {
-      const mm = cleanValue.substring(0, 2);
-      const yy = cleanValue.substring(2, 4);
-      setPaymongoExpiryDate(`${mm}/${yy}`);
-    }
-  }, []);
-
-  // Clear card form to allow entering a different card
-  const clearCardForm = useCallback(() => {
-    setPaymongoCardNumber('');
-    setPaymongoCardName('');
-    setPaymongoExpiryDate('');
-    setPaymongoCvv('');
-    setSavedPaymongoCard(null);
-    setPaymongoPaymentError(null);
-  }, []);
 
   const createOrder = (items: CartItem[], addr: any, payment: string, options: any) => {
     return {
@@ -533,50 +393,16 @@ export default function CheckoutScreen({ navigation, route }: Props) {
     };
   };
 
-  // NOTE: Payment and card states moved to top of component (after stock validation states)
+  // Payments and Vouchers
+  const [paymentMethod, setPaymentMethod] = useState<'cod' | 'gcash' | 'card' | 'paymongo'>('cod');
+  const [voucherCode, setVoucherCode] = useState('');
+  const [appliedVoucher, setAppliedVoucher] = useState<Voucher | null>(null);
+  const [isAnonymous, setIsAnonymous] = useState(false);
 
-  // Load saved PayMongo card from AsyncStorage on mount
-  useEffect(() => {
-    const loadSavedCard = async () => {
-      try {
-        const saved = await AsyncStorage.getItem('savedPaymongoCard');
-        if (saved && isMountedRef.current) {
-          setSavedPaymongoCard(JSON.parse(saved));
-        }
-      } catch (err) {
-        console.error('[Checkout] Failed to load saved PayMongo card:', err);
-      }
-    };
-    loadSavedCard();
-  }, []);
-
-  // Load saved payment methods when user ID is available
-  useEffect(() => {
-    if (!user?.id) return;
-
-    const loadPaymentMethods = async () => {
-      setLoadingPaymentMethods(true);
-      try {
-        const methods = await paymentMethodService.getSavedPaymentMethods(user.id);
-        setSavedPaymentMethods(methods);
-
-        // Auto-select default card if available
-        const defaultCard = methods.find((m: SavedPaymentMethod) => m.isDefault);
-        if (defaultCard) {
-          setSelectedPaymentMethodId(defaultCard.id);
-        }
-      } catch (err) {
-        console.error('[Checkout] Failed to load payment methods:', err);
-      } finally {
-        setLoadingPaymentMethods(false);
-      }
-    };
-
-    loadPaymentMethods();
-  }, [user?.id]);
-
-  // Bazcoins Logic (state moved to top)
+  // Bazcoins Logic
   const earnedBazcoins = useMemo(() => Math.floor(checkoutSubtotal / 10), [checkoutSubtotal]);
+  const [useBazcoins, setUseBazcoins] = useState(false);
+  const [availableBazcoins, setAvailableBazcoins] = useState(0);
   const maxRedeemableBazcoins = useMemo(() =>
     Math.min(availableBazcoins, checkoutSubtotal),
     [availableBazcoins, checkoutSubtotal]
@@ -586,8 +412,7 @@ export default function CheckoutScreen({ navigation, route }: Props) {
     [useBazcoins, maxRedeemableBazcoins]
   );
 
-  // Payment Store for processing PayMongo payments (state moved to top)
-  const { createPayment } = usePaymentStore();
+  const [isProcessing, setIsProcessing] = useState(false);
 
   // Calculate campaign discount and original subtotal
   const { campaignDiscountTotal, originalSubtotal } = useMemo(() => {
@@ -607,37 +432,175 @@ export default function CheckoutScreen({ navigation, route }: Props) {
     };
   }, [checkoutItems]);
 
+  // BX-09-001 — Group by seller ID (not display name) for correct per-seller shipping
   const groupedCheckoutItems = useMemo(() => {
     return checkoutItems.reduce((groups, item) => {
-      const seller = item.seller || 'BazaarX Store';
-      if (!groups[seller]) groups[seller] = [];
-      groups[seller].push(item);
+      const sellerId = (item as any).sellerId || (item as any).seller_id || 'unknown';
+      if (!groups[sellerId]) groups[sellerId] = [];
+      groups[sellerId].push(item);
       return groups;
     }, {} as Record<string, typeof checkoutItems>);
   }, [checkoutItems]);
 
-  // Calculate per-store shipping fees
+  // Helper: resolve display name for a seller group
+  const getSellerDisplayName = useCallback((sellerId: string, items: typeof checkoutItems) => {
+    return sellerMetadata[sellerId]?.storeName || items[0]?.seller || 'BazaarX Store';
+  }, [sellerMetadata]);
+
+  // ---------------------------------------------------------------------------
+  // BX-09-004 — Address validation (pure, synchronous, no network)
+  // ---------------------------------------------------------------------------
+  const addressValidation = useMemo((): AddressValidationResult | null => {
+    if (!selectedAddress) return null;
+    return validateCheckoutAddress(selectedAddress);
+  }, [selectedAddress]);
+
+  // BX-09-001 — Debounced shipping recalculation.
+  // Fires when selectedAddress, items, or seller metadata change.
+  // Calls calculateShippingForSellers() from shippingService.ts
+  // which queries shipping_zones + shipping_config from Supabase.
+  useEffect(() => {
+    if (shippingTimerRef.current) clearTimeout(shippingTimerRef.current);
+
+    // Don't calculate if no address or address is invalid
+    if (!selectedAddress || !addressValidation?.valid) {
+      setShippingResults([]);
+      setIsCalculatingShipping(false);
+      return;
+    }
+
+    const sellerIds = Object.keys(groupedCheckoutItems);
+    if (sellerIds.length === 0) {
+      setShippingResults([]);
+      setIsCalculatingShipping(false);
+      return;
+    }
+
+    setIsCalculatingShipping(true);
+
+    // Debounce 300ms as specified in BX-09-001 AC
+    shippingTimerRef.current = setTimeout(async () => {
+      try {
+        const buyerCoords = selectedAddress.coordinates?.latitude
+          ? { latitude: selectedAddress.coordinates.latitude, longitude: selectedAddress.coordinates.longitude }
+          : null;
+
+        const sellerInputs = Object.entries(groupedCheckoutItems).map(([sellerId, items]) => {
+          const meta = sellerMetadata[sellerId];
+          return {
+            sellerId,
+            sellerName: meta?.storeName || items[0]?.seller || 'Unknown Seller',
+            sellerCoords: meta?.coords || null,
+            sellerProvince: meta?.province,
+            sellerRegion: meta?.region,
+            items,
+          };
+        });
+
+        const results = await calculateShippingForSellers(
+          sellerInputs,
+          buyerCoords,
+          selectedAddress.province,
+          selectedAddress.region
+        );
+
+        setShippingResults(results);
+
+        // Auto-select default method for sellers without a selection,
+        // and auto-clear stale selections whose method is no longer available.
+        setSelectedMethods(prev => {
+          const updated = { ...prev };
+          for (const r of results) {
+            if (!updated[r.sellerId] && r.defaultMethod) {
+              updated[r.sellerId] = r.defaultMethod.method;
+            } else if (updated[r.sellerId] && !r.methods.find(m => m.method === updated[r.sellerId])) {
+              // Stale selection — auto-fallback to default
+              updated[r.sellerId] = r.defaultMethod?.method ?? '';
+            }
+          }
+          return updated;
+        });
+      } catch (err) {
+        console.error('[Checkout] Shipping calculation failed:', err);
+      } finally {
+        setIsCalculatingShipping(false);
+      }
+    }, 300);
+
+    return () => { if (shippingTimerRef.current) clearTimeout(shippingTimerRef.current); };
+  }, [selectedAddress, groupedCheckoutItems, sellerMetadata, addressValidation?.valid]);
+
+  // BX-09-001 — Retry shipping calculation (used by ShippingMethodPicker error state)
+  const retryShipping = useCallback(() => {
+    // Clear results and force recalculation by toggling the calculating state
+    setShippingResults([]);
+    setIsCalculatingShipping(true);
+    // Clear the timer and set a short debounce to re-trigger the useEffect
+    if (shippingTimerRef.current) clearTimeout(shippingTimerRef.current);
+    shippingTimerRef.current = setTimeout(() => {
+      // The useEffect above will fire because shippingResults was cleared
+      // We manually invoke the same logic here for immediate retry
+      (async () => {
+        try {
+          if (!selectedAddress || !addressValidation?.valid) return;
+
+          const buyerCoords = selectedAddress.coordinates?.latitude
+            ? { latitude: selectedAddress.coordinates.latitude, longitude: selectedAddress.coordinates.longitude }
+            : null;
+
+          const sellerInputs = Object.entries(groupedCheckoutItems).map(([sellerId, items]) => {
+            const meta = sellerMetadata[sellerId];
+            return {
+              sellerId,
+              sellerName: meta?.storeName || items[0]?.seller || 'Unknown Seller',
+              sellerCoords: meta?.coords || null,
+              sellerProvince: meta?.province,
+              sellerRegion: meta?.region,
+              items,
+            };
+          });
+
+          const { calculateShippingForSellers } = require('@/services/shippingService');
+          const results = await calculateShippingForSellers(
+            sellerInputs,
+            buyerCoords,
+            selectedAddress.province,
+            selectedAddress.region
+          );
+
+          setShippingResults(results);
+          setSelectedMethods(prev => {
+            const updated = { ...prev };
+            for (const r of results) {
+              if (!updated[r.sellerId] && r.defaultMethod) {
+                updated[r.sellerId] = r.defaultMethod.method;
+              }
+            }
+            return updated;
+          });
+        } catch (err) {
+          console.error('[Checkout] Retry shipping failed:', err);
+        } finally {
+          setIsCalculatingShipping(false);
+        }
+      })();
+    }, 100);
+  }, [selectedAddress, groupedCheckoutItems, sellerMetadata, addressValidation?.valid]);
+
+  // BX-09-001 — Per-store shipping fees derived from shippingResults
   const perStoreShippingFees = useMemo(() => {
     const fees: Record<string, number> = {};
-    
-    Object.entries(groupedCheckoutItems).forEach(([seller, items]) => {
-      // Calculate subtotal for this store
-      const storeSubtotal = items.reduce((sum, item) => sum + (item.price || 0) * item.quantity, 0);
-      
-      // Determine shipping fee based on region
-      // NCR: ₱50, Non-NCR: ₱70
-      let baseFee = 50;
-      if (selectedAddress?.region) {
-        const isNCR = selectedAddress.region.toUpperCase() === 'NCR';
-        baseFee = isNCR ? 50 : 70;
-      }
-      
-      // Apply shipping rule: free if >= 500, otherwise apply base fee
-      fees[seller] = storeSubtotal >= 500 ? 0 : baseFee;
-    });
-    
+    for (const result of shippingResults) {
+      const selectedMethod = selectedMethods[result.sellerId];
+      const method = result.methods.find(m => m.method === selectedMethod) || result.defaultMethod;
+      fees[result.sellerId] = method?.fee ?? 0;
+    }
+    // Fallback: if shippingResults empty (still loading or no address), keep ₱0 per seller
+    for (const sellerId of Object.keys(groupedCheckoutItems)) {
+      if (!(sellerId in fees)) fees[sellerId] = 0;
+    }
     return fees;
-  }, [groupedCheckoutItems, selectedAddress?.region]);
+  }, [shippingResults, selectedMethods, groupedCheckoutItems]);
 
   // Optimize total calculation with useMemo
   const { subtotal, shippingFee, discount, total, totalSavings } = useMemo(() => {
@@ -823,13 +786,11 @@ export default function CheckoutScreen({ navigation, route }: Props) {
 
   // Open LocationModal (map-first flow like HomeScreen)
   const handleOpenAddressModalForAdd = useCallback(() => {
-    // Close the selection modal first to avoid modal stacking issues
+    // Close the selection sheet first
     handleCloseAddressModal();
-
-    // Open the LocationModal with map-first flow
-    setTimeout(() => {
-      setShowLocationModal(true);
-    }, 300);
+    // Open the shared AddressFormModal with a blank form
+    setEditingAddressForForm(null);
+    setTimeout(() => setShowAddressFormModal(true), 300);
   }, []);
 
   // Handle when location is selected from LocationModal
@@ -845,12 +806,6 @@ export default function CheckoutScreen({ navigation, route }: Props) {
       province?: string;
       region?: string;
       postalCode?: string;
-      firstName?: string;
-      lastName?: string;
-      phone?: string;
-      label?: string;
-      landmark?: string;
-      deliveryInstructions?: string;
     }
   ) => {
     if (!user) return;
@@ -865,10 +820,10 @@ export default function CheckoutScreen({ navigation, route }: Props) {
 
       // Prepare address data from location details
       const addressData = {
-        label: details?.label || selectedAddressForEdit?.label || 'Home',
-        firstName: details?.firstName || user.name?.split(' ')[0] || '',
-        lastName: details?.lastName || user.name?.split(' ').slice(1).join(' ') || '',
-        phone: details?.phone || user.phone || '',
+        label: 'Home',
+        firstName: user.name?.split(' ')[0] || '',
+        lastName: user.name?.split(' ').slice(1).join(' ') || '',
+        phone: user.phone || '',
         street: details?.street || address.split(',')[0] || '',
         barangay: details?.barangay || '',
         city: details?.city || '',
@@ -878,58 +833,65 @@ export default function CheckoutScreen({ navigation, route }: Props) {
         region: details?.region || '',
         // Ensure postal_code has a value (database NOT NULL constraint)
         zipCode: details?.postalCode || '0000',
-        landmark: details?.landmark ?? selectedAddressForEdit?.landmark ?? null,
-        deliveryInstructions: details?.deliveryInstructions ?? selectedAddressForEdit?.deliveryInstructions ?? null,
-        addressType: selectedAddressForEdit?.addressType || 'residential' as const,
-        isDefault: selectedAddressForEdit?.isDefault ?? addresses.length === 0,
+        landmark: null,
+        deliveryInstructions: null,
+        addressType: 'residential' as const,
+        isDefault: addresses.length === 0,
         coordinates: coords || null,
       };
 
-      // Save to database using addressService (update in edit mode, create otherwise)
-      const saved = (isEditMode && selectedAddressForEdit?.id)
-        ? await addressService.updateAddress(user.id, selectedAddressForEdit.id, addressData)
-        : await addressService.createAddress(user.id, addressData);
+      // Save to database using addressService
+      const created = await addressService.createAddress(user.id, addressData);
 
-      if (saved) {
+      if (created) {
         // Format the address for display
         const formattedAddress = [
-          saved.street,
-          saved.barangay,
-          saved.city,
-          saved.province || saved.region,
+          created.street,
+          created.barangay,
+          created.city,
+          created.province || created.region,
         ].filter(Boolean).join(', ');
 
         // Create Address object for state (with camelCase fields)
-        const savedAddr: Address = {
-          id: saved.id,
-          label: saved.label || 'Home',
-          firstName: saved.firstName || '',
-          lastName: saved.lastName || '',
-          phone: saved.phone || '',
-          street: saved.street || '',
-          barangay: saved.barangay || '',
-          city: saved.city || '',
-          province: saved.province || '',
-          region: saved.region || '',
-          zipCode: saved.zipCode || '',
-          isDefault: saved.isDefault || false,
+        const newAddr: Address = {
+          id: created.id,
+          label: created.label || 'Home',
+          firstName: created.firstName || '',
+          lastName: created.lastName || '',
+          phone: created.phone || '',
+          street: created.street || '',
+          barangay: created.barangay || '',
+          city: created.city || '',
+          province: created.province || '',
+          region: created.region || '',
+          zipCode: created.zipCode || '',
+          isDefault: created.isDefault || false,
           coordinates: coords || null,
-          deliveryInstructions: saved.deliveryInstructions || '',
-          landmark: saved.landmark || '',
-          addressType: saved.addressType || 'residential',
+          deliveryInstructions: created.deliveryInstructions || '',
+          landmark: created.landmark || '',
+          addressType: created.addressType || 'residential',
         };
+
+        console.log('[🔍 ADDRESS DEBUG 6] LocationModal address object created:', {
+          firstName: newAddr.firstName,
+          lastName: newAddr.lastName,
+          phone: newAddr.phone,
+          id: newAddr.id
+        });
 
         // Update local state
         setAddresses(prev => {
-          if (isEditMode && selectedAddressForEdit?.id) {
-            return prev.map(addr => addr.id === selectedAddressForEdit.id ? savedAddr : addr);
-          }
-          return [...prev, savedAddr];
+          if (prev.find(a => a.id === newAddr.id)) return prev;
+          return [...prev, newAddr];
         });
+        console.log('[🔍 ADDRESS DEBUG 7] Addresses state updated with new address');
 
-        setSelectedAddress(savedAddr);
-        setTempSelectedAddress(savedAddr);
-
+        setSelectedAddress(newAddr);
+        console.log('[🔍 ADDRESS DEBUG 8] Selected address set to:', {
+          firstName: newAddr.firstName,
+          lastName: newAddr.lastName,
+          phone: newAddr.phone
+        });
 
         // Save to AsyncStorage for HomeScreen sync
         await AsyncStorage.setItem('currentDeliveryAddress', formattedAddress);
@@ -953,26 +915,13 @@ export default function CheckoutScreen({ navigation, route }: Props) {
       Alert.alert('Error', 'Failed to save address. Please try again.');
     } finally {
       setIsSaving(false);
+      console.log('[🔍 ADDRESS DEBUG 9] LocationModal closing, isSaving set to false');
       setShowLocationModal(false);
-      setIsEditMode(false);
-      setSelectedAddressForEdit(null);
+      console.log('[🔍 ADDRESS DEBUG 10] showLocationModal set to false');
     }
-  }, [user, addresses.length, isEditMode, selectedAddressForEdit]);
+  }, [user, addresses.length]);
 
   // Legacy: Keep the old handleOpenAddressModalForAdd logic for manual form entry
-
-  // Handle editing an existing address
-  const handleEditAddress = useCallback((addr: Address) => {
-    setSelectedAddressForEdit(addr);
-    setIsEditMode(true);
-    // Close the selection modal first
-    handleCloseAddressModal();
-    // Open the LocationModal in edit mode
-    setTimeout(() => {
-      setShowLocationModal(true);
-    }, 300);
-  }, []);
-
   const handleOpenAddressFormDirect = async () => {
     // Close the selection modal first to avoid modal stacking issues
     handleCloseAddressModal();
@@ -1339,7 +1288,7 @@ export default function CheckoutScreen({ navigation, route }: Props) {
       setMapSearchResults([]);
       setShowMapSearchResults(false);
       setIsMapModalOpen(false);
-      
+
       // Ensure contact fields are filled with user data when form modal opens
       setNewAddress(prev => ({
         ...prev,
@@ -1347,7 +1296,7 @@ export default function CheckoutScreen({ navigation, route }: Props) {
         lastName: prev.lastName || user?.name?.split(' ').slice(1).join(' ') || '',
         phone: prev.phone || user?.phone || '',
       }));
-      
+
       setTimeout(() => setIsAddressModalOpen(true), 150);
     }
   };
@@ -1439,7 +1388,7 @@ export default function CheckoutScreen({ navigation, route }: Props) {
       if (!trimmedStreet) missingFields.push('Street/House Number');
       if (!trimmedCity) missingFields.push('City/Municipality');
       if (!trimmedRegion) missingFields.push('Region');
-      
+
       Alert.alert('Incomplete Form', `Please fill in all required fields: ${missingFields.join(', ')}`);
       setIsSaving(false);
       return;
@@ -1493,10 +1442,17 @@ export default function CheckoutScreen({ navigation, route }: Props) {
         city: created.city,
       });
 
-      setAddresses(prev => [created, ...prev]);
+      setAddresses(prev => {
+        if (prev.find(a => a.id === created.id)) return prev;
+        return [created, ...prev];
+      });
       setSelectedAddress(created);
       setTempSelectedAddress(created);
 
+      console.log('[🔍 ADDRESS DEBUG 4] Address created and selected:', {
+        created: { firstName: created.firstName, lastName: created.lastName, phone: created.phone, id: created.id },
+        timestamp: new Date().toISOString()
+      });
       const formattedAddress = `${created.firstName} ${created.lastName}, ${created.phone}`;
       await AsyncStorage.setItem('currentDeliveryAddress', formattedAddress);
       if (created.coordinates) {
@@ -1545,32 +1501,22 @@ export default function CheckoutScreen({ navigation, route }: Props) {
       return;
     }
 
+    // Mark as initialized immediately to prevent race conditions
+    initializedUserId.current = user.id;
+
     const fetchData = async () => {
       setIsLoadingAddresses(true);
-      
-      // CRITICAL: If this is a gift, DO NOT overwrite the selected address with defaults
-      // The other useEffect handles setting the registry address
-      if (isGift) {
-        initializedUserId.current = user.id;
-        setIsLoadingAddresses(false);
-        const coins = await addressService.getBazcoins(user.id);
-        setAvailableBazcoins(coins || 0);
-        return;
-      }
-      
-      // For regular checkout: If user already has a selectedAddress set (e.g., just created one),
-      // DO NOT override it with defaults or re-fetch from database
-      if (selectedAddress && selectedAddress.id) {
-        initializedUserId.current = user.id;
-        setIsLoadingAddresses(false);
-        const coins = await addressService.getBazcoins(user.id);
-        setAvailableBazcoins(coins || 0);
-        return;
-      }
-      
+
       try {
         // Fetch all saved addresses
         const serviceAddresses = await addressService.getAddresses(user.id);
+        console.log('[🔍 ADDRESS DEBUG 1] Fetched addresses from service:', serviceAddresses?.map(a => ({
+          id: a.id,
+          firstName: a.firstName,
+          lastName: a.lastName,
+          phone: a.phone,
+          isDefault: a.isDefault
+        })));
 
         const addressData: Address[] = (serviceAddresses || []).map(a => ({
           id: a.id,
@@ -1591,13 +1537,21 @@ export default function CheckoutScreen({ navigation, route }: Props) {
           landmark: a.landmark || '',
           addressType: a.addressType || 'residential',
         }));
-        setAddresses(addressData);
-        // DO NOT override it with defaults
-        if (selectedAddress) {
-          initializedUserId.current = user.id;
+        // Deduplicate by id — guards against race conditions with optimistic updates
+        const seen = new Set<string>();
+        const uniqueAddressData = addressData.filter((a: any) => {
+          if (seen.has(a.id)) return false;
+          seen.add(a.id);
+          return true;
+        });
+        setAddresses(uniqueAddressData);
+
+        console.log('[🔍 ADDRESS DEBUG 2] Addresses state updated, selectedAddress is:', selectedAddress);
+
+        // If this is a gift, DO NOT overwrite the selected address with defaults
+        // The other useEffect handles setting the registry address
+        if (isGift) {
           setIsLoadingAddresses(false);
-          const coins = await addressService.getBazcoins(user.id);
-          setAvailableBazcoins(coins || 0);
           return;
         }
 
@@ -1609,8 +1563,8 @@ export default function CheckoutScreen({ navigation, route }: Props) {
         // 5) First saved address (last resort)
         const defaultSavedAddr = addressData.find(a => a.isDefault);
 
-        let homeScreenAddress = route.params?.deliveryAddress;
-        let homeScreenCoords = route.params?.deliveryCoordinates;
+        let homeScreenAddress = params?.deliveryAddress;
+        let homeScreenCoords = params?.deliveryCoordinates;
 
         // If no route params, try to get from AsyncStorage or database
         if (!homeScreenAddress || homeScreenAddress === 'Select Location') {
@@ -1653,10 +1607,12 @@ export default function CheckoutScreen({ navigation, route }: Props) {
           // Silent fail
         }
 
+        // Determine which address to select (batch all decision logic here)
+        let selectedAddr: Address | null = null;
+
         if (defaultSavedAddr) {
-          // Use default address if user had set one explicitly
-          setSelectedAddress(defaultSavedAddr);
-          setTempSelectedAddress(defaultSavedAddr);
+          selectedAddr = defaultSavedAddr;
+          console.log('[🔍 ADDRESS DEBUG 5a] Setting default address:', { firstName: defaultSavedAddr.firstName, lastName: defaultSavedAddr.lastName, phone: defaultSavedAddr.phone });
         } else if (homeScreenAddress && homeScreenAddress !== 'Select Location') {
           // Check if this matches a saved address (including "Current Location" from DB)
           const matchingAddress = addressData.find(addr =>
@@ -1666,12 +1622,10 @@ export default function CheckoutScreen({ navigation, route }: Props) {
           );
 
           if (matchingAddress) {
-            // Use the matching saved address
-            setSelectedAddress(matchingAddress);
-            setTempSelectedAddress(matchingAddress);
+            selectedAddr = matchingAddress;
+            console.log('[🔍 ADDRESS DEBUG 5b] Setting matching HomeScreen address:', { firstName: matchingAddress.firstName, lastName: matchingAddress.lastName });
           } else {
             // Create a temporary address object from HomeScreen's location
-            // Use parsed details from map if available, otherwise parse the address string
             const tempAddr: Address = {
               id: 'temp-' + Date.now(),
               label: 'Current Location',
@@ -1690,20 +1644,23 @@ export default function CheckoutScreen({ navigation, route }: Props) {
               landmark: '',
               addressType: 'residential',
             };
-            setSelectedAddress(tempAddr);
-            setTempSelectedAddress(tempAddr);
+            selectedAddr = tempAddr;
+            console.log('[🔍 ADDRESS DEBUG 5c] Creating temp address from HomeScreen location:', { firstName: tempAddr.firstName, phone: tempAddr.phone });
           }
         } else {
           // Use first saved address
           const firstAddr = addressData[0];
           if (firstAddr) {
-            setSelectedAddress(firstAddr);
-            setTempSelectedAddress(firstAddr);
+            selectedAddr = firstAddr;
+            console.log('[🔍 ADDRESS DEBUG 5d] Setting first saved address:', { firstName: firstAddr.firstName, lastName: firstAddr.lastName, phone: firstAddr.phone });
           }
         }
 
-        // Mark user as initialized AFTER all selections are complete
-        initializedUserId.current = user.id;
+        // Batch state updates - only call setSelectedAddress and setTempSelectedAddress once
+        if (selectedAddr) {
+          setSelectedAddress(selectedAddr);
+          setTempSelectedAddress(selectedAddr);
+        }
 
         // Fetch Bazcoins balance
         const coins = await addressService.getBazcoins(user.id);
@@ -1715,7 +1672,7 @@ export default function CheckoutScreen({ navigation, route }: Props) {
       }
     };
 
-    fetchData();
+    fetchData().catch(err => console.error('[Checkout] fetchData error:', err));
 
     // Subscribe to real-time Bazcoins updates via service
     const subscription = addressService.subscribeToBazcoinChanges(user.id, (newBalance) => {
@@ -1735,12 +1692,6 @@ export default function CheckoutScreen({ navigation, route }: Props) {
   };
 
   const handlePlaceOrder = useCallback(async () => {
-    // Prevent multiple simultaneous checkout attempts
-    if (isProcessing) {
-      console.warn('[Checkout] Checkout already in progress');
-      return;
-    }
-
     // Check for unavailable items
     if (hasUnavailableItems) {
       const itemsList = unavailableItems.map(item => `• ${item.name}\n  ${item.reason}`).join('\n\n');
@@ -1748,7 +1699,7 @@ export default function CheckoutScreen({ navigation, route }: Props) {
         'Items Unavailable',
         `The following items are no longer available:\n\n${itemsList}\n\nPlease update your cart.`,
         [
-          { text: 'Cancel', onPress: () => {}, style: 'cancel' },
+          { text: 'Cancel', onPress: () => { }, style: 'cancel' },
           {
             text: 'Go Back to Cart',
             onPress: () => navigation.goBack(),
@@ -1768,17 +1719,78 @@ export default function CheckoutScreen({ navigation, route }: Props) {
       return;
     }
 
-    // Validate address
+    // Validate address — BX-09-004 strict validation
     if (!selectedAddress) {
-      Alert.alert('Error', 'Please select a delivery address');
-        return;
+      Alert.alert(
+        'No Address Selected',
+        'Please select a delivery address before placing your order.',
+        [{ text: 'Add Address', onPress: () => { setEditingAddressForForm(null); setShowAddressFormModal(true); }, style: 'default' }, { text: 'Cancel', style: 'cancel' }]
+      );
+      return;
     }
 
-    // Validate required address fields
-    if (!selectedAddress.city || !selectedAddress.province || !selectedAddress.region) {
-      Alert.alert('Incomplete Address', 'Your address is missing required fields (City, Province, or Region). Please update your address.');
-      setShowAddressModal(true);
+    const addrValidation = validateCheckoutAddress(selectedAddress);
+    if (!addrValidation.valid) {
+      const fieldErrors = addrValidation.errors
+        .filter(e => e.field !== 'general')
+        .map(e => `• ${e.message}`)
+        .join('\n');
+      Alert.alert(
+        'Address Incomplete',
+        `Please fix the following before continuing:\n\n${fieldErrors}`,
+        [{ text: 'Fix Address', onPress: () => { setEditingAddressForForm(selectedAddress); setShowAddressFormModal(true); }, style: 'default' }, { text: 'Cancel', style: 'cancel' }]
+      );
       return;
+    }
+    if (addrValidation.serviceable === false) {
+      Alert.alert(
+        'Area Not Serviceable',
+        'Delivery is not available to this address. Please select a different address or update your location on the map.',
+        [{ text: 'Change Address', onPress: () => setShowAddressModal(true), style: 'default' }, { text: 'Cancel', style: 'cancel' }]
+      );
+      return;
+    }
+
+    // BX-09-001 — Block if shipping is still calculating
+    if (isCalculatingShipping) {
+      Alert.alert('Please Wait', 'Shipping fees are still being calculated. Please wait a moment.');
+      return;
+    }
+
+    // BX-09-001 — Block if any seller has a shipping error
+    const shippingErrors = shippingResults.filter(r => r.error !== null);
+    if (shippingErrors.length > 0) {
+      Alert.alert(
+        'Shipping Unavailable',
+        `Shipping could not be calculated for: ${shippingErrors.map(e => e.sellerName).join(', ')}. Please try again or change your address.`,
+        [{ text: 'OK' }]
+      );
+      return;
+    }
+
+    // BX-09-001 — Block if any seller has no available shipping methods
+    const noMethodSellers = shippingResults.filter(r => r.methods.length === 0 && r.error === null);
+    if (noMethodSellers.length > 0) {
+      Alert.alert(
+        'No Shipping Available',
+        `No shipping options are available for: ${noMethodSellers.map(s => s.sellerName).join(', ')}. This may be due to the delivery route or item restrictions.`,
+        [{ text: 'OK' }]
+      );
+      return;
+    }
+
+    // BX-09-002 — Final method revalidation
+    // Catches stale selections (e.g., buyer selected same-day then changed address to non-NCR)
+    for (const result of shippingResults) {
+      const chosenMethod = selectedMethods[result.sellerId];
+      if (chosenMethod && !result.methods.find(m => m.method === chosenMethod)) {
+        Alert.alert(
+          'Shipping Method Changed',
+          `The selected shipping method for "${result.sellerName}" is no longer available. Please choose a different method.`,
+          [{ text: 'OK' }]
+        );
+        return;
+      }
     }
 
     // Check if cart is empty
@@ -1793,34 +1805,7 @@ export default function CheckoutScreen({ navigation, route }: Props) {
       return;
     }
 
-    // Acceptance Criteria #6: Validate payment method is selected
-    if (!paymentMethod) {
-      Alert.alert('Payment Method Required', 'Please select a payment method to proceed with checkout.');
-      return;
-    }
-
-    // Acceptance Criteria #4, #5: Validate payment method is available
-    if (!isPaymentMethodAvailable(paymentMethod)) {
-      Alert.alert('Payment Method Unavailable', 'The selected payment method is not available for this order. Please select another method.');
-      return;
-    }
-
-    // Acceptance Criteria #3: Validate PayMongo card details are filled in (must do this BEFORE Place Order)
-    if (!isPaymongoCardValid()) {
-      Alert.alert('Card Details Required', 'Please fill in all PayMongo card details (Card Number, Cardholder Name, Expiry Date, CVV) to proceed.');
-      return;
-    }
-
     setIsProcessing(true);
-    
-    // Abort any pending stock validation queries to free up network resources
-    if (stockValidationAbortRef.current) {
-      try {
-        stockValidationAbortRef.current.abort();
-      } catch (err) {
-        // Ignore abort errors
-      }
-    }
 
     try {
       // Prepare checkout payload
@@ -1830,13 +1815,13 @@ export default function CheckoutScreen({ navigation, route }: Props) {
         totalAmount: total,
         shippingAddress: {
           fullName: `${selectedAddress.firstName} ${selectedAddress.lastName}`,
-          street: selectedAddress.street || '',
-          barangay: selectedAddress.barangay || '',
-          city: selectedAddress.city || 'Manila',
-          province: selectedAddress.province || 'Metro Manila',
-          region: selectedAddress.region || 'NCR',
-          postalCode: selectedAddress.zipCode || '0000',
-          phone: selectedAddress.phone || '',
+          street: selectedAddress.street,
+          barangay: selectedAddress.barangay,
+          city: selectedAddress.city,
+          province: selectedAddress.province,
+          region: selectedAddress.region,
+          postalCode: selectedAddress.zipCode,
+          phone: selectedAddress.phone,
           country: 'Philippines'
         },
         paymentMethod,
@@ -1857,7 +1842,23 @@ export default function CheckoutScreen({ navigation, route }: Props) {
             discountAmount: ((item.originalPrice ?? item.price ?? 0) - (item.price ?? 0)) * item.quantity,
             productId: item.id,
             quantity: item.quantity
-          }))
+          })),
+        // BX-09-001 — Per-seller shipping breakdown
+        shippingBreakdown: shippingResults.map(r => {
+          const methodKey = selectedMethods[r.sellerId];
+          const method = r.methods.find(m => m.method === methodKey) || r.defaultMethod;
+          return {
+            sellerId: r.sellerId,
+            sellerName: r.sellerName,
+            method: method?.method ?? 'standard',
+            methodLabel: method?.label ?? 'Standard',
+            fee: method?.fee ?? 0,
+            breakdown: method?.breakdown ?? { baseRate: 0, weightSurcharge: 0, valuationFee: 0, odzFee: 0 },
+            estimatedDays: method?.estimatedDays ?? 'N/A',
+            originZone: r.originZone,
+            destinationZone: r.destinationZone,
+          };
+        }),
       };
 
       const result = await processCheckout(payload);
@@ -1879,11 +1880,9 @@ export default function CheckoutScreen({ navigation, route }: Props) {
       }
 
 
-      // Check if online payment (GCash, PayMongo, Card) - Acceptance Criteria #7: Save payment method before payment
-      const isOnlinePayment = ['paymongo', 'gcash', 'card'].includes(paymentMethod.toLowerCase());
+      // Check if online payment (GCash, PayMongo, PayMaya, Card)
 
-      // Acceptance Criteria #7: Save the selected payment method before payment initiation
-      await AsyncStorage.setItem('lastPaymentMethod', paymentMethod);
+      const isOnlinePayment = paymentMethod.toLowerCase() !== 'cod' && paymentMethod.toLowerCase() !== 'cash on delivery';
 
       const shippingAddressForOrder: ShippingAddress = {
         name: `${selectedAddress?.firstName || ''} ${selectedAddress?.lastName || ''}`.trim(),
@@ -1931,88 +1930,9 @@ export default function CheckoutScreen({ navigation, route }: Props) {
       // Check if online payment (GCash, PayMongo, PayMaya, Card)
 
       if (isOnlinePayment) {
-        // PayMongo: Process payment immediately with entered card details
-        if (paymentMethod === 'paymongo') {
-          setPaymongoProcessing(true);
-          try {
-            // Parse expiry date
-            const [mm, yy] = paymongoExpiryDate.split('/');
-            const expMonth = parseInt(mm, 10);
-            const expYear = 2000 + parseInt(yy, 10);
-
-            // Process PayMongo payment
-            const paymentResult = await createPayment({
-              orderId: order.orderId || order.id,
-              buyerId: order.buyerId || '',
-              sellerId: order.sellerId || '',
-              amount: order.total,
-              paymentType: 'card',
-              billing: { name: paymongoCardName, email: user.email },
-              cardDetails: {
-                cardNumber: paymongCardNumber.replace(/\s/g, ''),
-                expMonth,
-                expYear,
-                cvc: paymonogCvv,
-              },
-            });
-
-            if (paymentResult.status === 'paid') {
-              // Payment successful - save card details to AsyncStorage AND Supabase
-              const cardLastFour = paymongCardNumber.slice(-4);
-              const cardData = { lastFour: cardLastFour, expiry: paymongoExpiryDate };
-              
-              // Only save if a new card was used (not a saved card)
-              if (!selectedPaymentMethodId) {
-                try {
-                  // Save to paymentMethodService (includes both AsyncStorage and Supabase)
-                  await paymentMethodService.savePaymentMethod(
-                    user.id,
-                    {
-                      cardNumber: paymongCardNumber.replace(/\s/g, ''),
-                      cardName: paymongoCardName,
-                      expiryDate: paymongoExpiryDate,
-                      cvv: paymonogCvv,
-                    },
-                    savedPaymentMethods.length === 0 // First card becomes default
-                  );
-                  
-                  // Also maintain the old AsyncStorage format for backward compatibility
-                  await AsyncStorage.setItem('savedPaymongoCard', JSON.stringify(cardData));
-                  
-                  if (isMountedRef.current) {
-                    setSavedPaymongoCard(cardData);
-                    // Don't reload saved payment methods here - we're navigating away from this screen anyway
-                  }
-                } catch (storageErr) {
-                  console.error('[Checkout] Failed to save PayMongo card:', storageErr);
-                  // Payment is still successful, just show a warning
-                }
-              }
-              
-              // Show success alert
-              Alert.alert(
-                '💳 Payment Successful!',
-                `Your PayMongo payment of ₱${order.total.toLocaleString()} has been processed successfully!\n\nYou earned ${earnedBazcoins} Bazcoins!`,
-                [{ text: 'OK', onPress: () => {
-                  navigation.replace('OrderConfirmation', { order, earnedBazcoins });
-                }}]
-              );
-            } else if (paymentResult.checkoutUrl) {
-              // 3DS or other redirect required - navigate to gateway for completion
-              navigation.navigate('PaymentGateway', { paymentMethod, order, isQuickCheckout, earnedBazcoins });
-            } else {
-              throw new Error(paymentResult.error || 'Payment processing failed');
-            }
-          } catch (paymentError: any) {
-            setPaymongoPaymentError(paymentError.message || 'Payment failed');
-            Alert.alert('Payment Failed', paymentError.message || 'Your PayMongo payment could not be processed. Please try again.');
-          } finally {
-            setPaymongoProcessing(false);
-          }
-        } else {
-          // Other online methods (GCash, etc.) - navigate to payment gateway
-          navigation.navigate('PaymentGateway', { paymentMethod, order, isQuickCheckout, earnedBazcoins });
-        }
+        // Navigate to payment gateway simulation
+        // Pass isQuickCheckout flag so we know what to clear later
+        navigation.navigate('PaymentGateway', { paymentMethod, order, isQuickCheckout, earnedBazcoins });
       } else {
         // COD - Cart items already removed per processCheckout; just clear quick order if used
         if (isQuickCheckout) {
@@ -2023,49 +1943,20 @@ export default function CheckoutScreen({ navigation, route }: Props) {
 
     } catch (error: any) {
       console.error('Checkout error:', error);
-      
-      // Handle abort/timeout errors gracefully
-      const isAbortError = error?.name === 'AbortError' || 
-                          error?.message?.includes('Aborted') ||
-                          error?.code === 'ABORT_ERR' ||
-                          error?.message?.includes('timed out') ||
-                          error?.message?.includes('interrupted');
-      
-      if (isAbortError) {
-        // Check if order was already created (indicated by 'result' variable scope)
-        // If abort happened during stock validation or payment processing after order creation,
-        // we should still navigate to the order confirmation page
-        console.warn('[Checkout] ⚠️ AbortError caught after order creation - order may have succeeded');
-        
-        Alert.alert(
-          'Connection Interrupted',
-          'Your checkout was interrupted. Please check your internet connection and try again.',
-          [
-            {
-              text: 'Check Payment Status',
-              onPress: () => {
-                // Navigate to orders to check status
-                navigation.navigate('Orders', {});
-              }
-            },
-            {
-              text: 'OK',
-              onPress: () => {
-                // Go back to home - user can check order status in Orders tab
-                navigation.navigate('MainTabs', { screen: 'Shop', params: {} });
-              }
-            }
-          ]
-        );
-      } else {
-        Alert.alert('Checkout Failed', error.message || 'Please try again');
-      }
+      Alert.alert('Checkout Failed', error.message || 'Please try again');
     } finally {
-      if (isMountedRef.current) {
-        setIsProcessing(false);
-      }
+      setIsProcessing(false);
     }
-  }, [selectedAddress, checkoutItems, user, paymentMethod, navigation, initializeForCurrentUser, clearQuickOrder, isPaymentMethodAvailable]);
+  }, [hasUnavailableItems, unavailableItems, hasVacationSeller, vacationSellers, selectedAddress, checkoutItems, user, total, paymentMethod, bazcoinDiscount, earnedBazcoins, shippingFee, discount, availableBazcoins, isQuickCheckout, isGift, isAnonymous, recipientId, navigation, initializeForCurrentUser, clearQuickOrder, campaignDiscountTotal, appliedVoucher]);
+
+  if (isCheckoutContextLoading) {
+    return (
+      <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: '#FFFBF5' }}>
+        <ActivityIndicator size="large" color={COLORS.primary} />
+        <Text style={{ marginTop: 12, color: '#6B7280' }}>Preparing your checkout...</Text>
+      </View>
+    );
+  }
 
   return (
     <LinearGradient
@@ -2146,6 +2037,66 @@ export default function CheckoutScreen({ navigation, route }: Props) {
                       <ChevronRight size={18} color={COLORS.gray400} style={{ marginTop: 2, marginLeft: 8 }} />
                     </View>
                   </Pressable>
+
+                  {/* BX-09-004 — Inline validation banner: missing/invalid fields */}
+                  {addressValidation && !addressValidation.valid && (
+                    <View style={{ marginTop: 10, backgroundColor: '#FFF7ED', borderRadius: 10, padding: 12, borderWidth: 1, borderColor: '#FED7AA' }}>
+                      <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 6 }}>
+                        <Text style={{ fontSize: 13, color: '#92400E', fontWeight: '700' }}>⚠ Address needs attention</Text>
+                      </View>
+                      {addressValidation.errors
+                        .filter(e => e.field !== 'general')
+                        .map((e, i) => (
+                          <Text key={i} style={{ fontSize: 12, color: '#B45309', marginBottom: 2 }}>• {e.message}</Text>
+                        ))}
+                      <Pressable
+                        onPress={() => {
+                          setEditingAddressForForm(selectedAddress);
+                          setShowAddressFormModal(true);
+                        }}
+                        style={{ marginTop: 8, alignSelf: 'flex-start', backgroundColor: COLORS.primary, paddingHorizontal: 12, paddingVertical: 6, borderRadius: 6 }}
+                      >
+                        <Text style={{ fontSize: 12, color: '#FFF', fontWeight: '600' }}>Fix Address</Text>
+                      </Pressable>
+                    </View>
+                  )}
+
+                  {/* BX-09-004 — Not serviceable banner (separate from missing-field banner) */}
+                  {addressValidation && addressValidation.serviceable === false && (
+                    <View style={{ marginTop: 8, backgroundColor: '#FEF2F2', borderRadius: 10, padding: 12, borderWidth: 1, borderColor: '#FECACA' }}>
+                      <Text style={{ fontSize: 13, color: '#991B1B', fontWeight: '700', marginBottom: 4 }}>
+                        🚫 Delivery not available
+                      </Text>
+                      <Text style={{ fontSize: 12, color: '#B91C1C', marginBottom: 8 }}>
+                        This address appears to be outside the Philippines. Please choose a different address.
+                      </Text>
+                      <Pressable
+                        onPress={() => setShowAddressModal(true)}
+                        style={{ alignSelf: 'flex-start', backgroundColor: '#DC2626', paddingHorizontal: 12, paddingVertical: 6, borderRadius: 6 }}
+                      >
+                        <Text style={{ fontSize: 12, color: '#FFF', fontWeight: '600' }}>Change Address</Text>
+                      </Pressable>
+                    </View>
+                  )}
+
+                  {/* BX-09-004 — GPS pin nudge: address is valid but has no coordinates */}
+                  {addressValidation && addressValidation.valid && addressValidation.serviceable === null &&
+                    !selectedAddress?.coordinates?.latitude && (
+                    <View style={{ marginTop: 8, backgroundColor: '#EFF6FF', borderRadius: 10, padding: 10, borderWidth: 1, borderColor: '#BFDBFE', flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                      <MapPin size={14} color="#1D4ED8" />
+                      <Text style={{ flex: 1, fontSize: 11, color: '#1E40AF' }}>
+                        Add a pin location to your address for more accurate delivery coverage checking.
+                      </Text>
+                      <Pressable
+                        onPress={() => {
+                          setEditingAddressForForm(selectedAddress);
+                          setShowAddressFormModal(true);
+                        }}
+                      >
+                        <Text style={{ fontSize: 11, fontWeight: '700', color: '#1D4ED8' }}>Add Pin</Text>
+                      </Pressable>
+                    </View>
+                  )}
                 </View>
               ) : (
                 <Pressable
@@ -2177,11 +2128,16 @@ export default function CheckoutScreen({ navigation, route }: Props) {
                 <Text style={styles.sectionTitle}>Order ({checkoutItems.length})</Text>
               </View>
 
-              {Object.entries(groupedCheckoutItems).map(([sellerName, sellerItems], groupIdx) => (
-                <View key={`${groupIdx}-${sellerName}`} style={groupIdx > 0 && { marginTop: 16 }}>
+              {Object.entries(groupedCheckoutItems).map(([sellerId, sellerItems], groupIdx) => {
+                const sellerDisplayName = getSellerDisplayName(sellerId, sellerItems);
+                const sellerResult = shippingResults.find(r => r.sellerId === sellerId);
+                const selectedMethodKey = selectedMethods[sellerId];
+                const activeMethod = sellerResult?.methods.find(m => m.method === selectedMethodKey) || sellerResult?.defaultMethod;
+                return (
+                <View key={sellerId} style={groupIdx > 0 && { marginTop: 16 }}>
                   <View style={styles.sellerHeaderRow}>
                     <Store size={14} color={COLORS.gray500} />
-                    <Text style={styles.sellerNameHeader}>{sellerName}</Text>
+                    <Text style={styles.sellerNameHeader}>{sellerDisplayName}</Text>
                   </View>
                   {sellerItems.map((item) => (
                     <View key={item.id} style={styles.compactOrderItem}>
@@ -2214,12 +2170,19 @@ export default function CheckoutScreen({ navigation, route }: Props) {
                       </View>
                     </View>
                   ))}
-                  {/* Per-Store Shipping Fee - ABOVE Total */}
-                  <View style={[styles.sellerFooterRow, { marginTop: 8, paddingTop: 8, borderTopWidth: 1, borderTopColor: '#F3F4F6' }]}>
-                    <Text style={styles.sellerFooterText}>Shipping: </Text>
-                    <Text style={styles.sellerFooterAmount}>
-                      {perStoreShippingFees[sellerName] === 0 ? 'FREE' : `₱${perStoreShippingFees[sellerName]?.toLocaleString() || 0}`}
-                    </Text>
+                  {/* BX-09-002 — Shipping Method Picker (replaces static fee display) */}
+                  <View style={{ marginTop: 8, paddingTop: 8, borderTopWidth: 1, borderTopColor: '#F3F4F6' }}>
+                    <ShippingMethodPicker
+                      methods={sellerResult?.methods ?? []}
+                      selectedMethod={(selectedMethods[sellerId] as any) ?? null}
+                      onSelectMethod={(method) => {
+                        setSelectedMethods(prev => ({ ...prev, [sellerId]: method }));
+                      }}
+                      isLoading={isCalculatingShipping}
+                      error={sellerResult?.error ?? null}
+                      warning={sellerResult?.warning ?? null}
+                      onRetry={retryShipping}
+                    />
                   </View>
                   {/* Per-Store Subtotal Including Shipping */}
                   <View style={styles.sellerFooterRow}>
@@ -2230,11 +2193,12 @@ export default function CheckoutScreen({ navigation, route }: Props) {
                       );
                     })()}
                     <Text style={[styles.sellerFooterAmount, { fontWeight: '600', color: COLORS.primary }]}>
-                      ₱{(sellerItems.reduce((acc, i) => acc + (i.price || 0) * i.quantity, 0) + (perStoreShippingFees[sellerName] || 0)).toLocaleString()}
+                      ₱{(sellerItems.reduce((acc, i) => acc + (i.price || 0) * i.quantity, 0) + (perStoreShippingFees[sellerId] || 0)).toLocaleString()}
                     </Text>
                   </View>
                 </View>
-              ))}
+              );
+              })}
             </View>
 
             <View style={styles.sectionCard}>
@@ -2262,194 +2226,23 @@ export default function CheckoutScreen({ navigation, route }: Props) {
               </Pressable>
 
               <Pressable
-                onPress={() => setPaymentMethod('paymongo')}
-                style={[
-                  styles.paymentOption,
-                  paymentMethod === 'paymongo' && styles.paymentOptionActive,
-                ]}
+                onPress={() => { }}
+                style={[styles.paymentOption, { opacity: 0.5, backgroundColor: '#F3F4F6' }]}
               >
                 <View style={styles.radio}>
                   {paymentMethod === 'paymongo' && <View style={styles.radioInner} />}
                 </View>
                 <View style={{ flex: 1 }}>
-                  <Text style={styles.paymentText}>PayMongo</Text>
-                  <Text style={styles.paymentSubtext}>Credit/Debit Card — Visa, MasterCard, more</Text>
+                  <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                    <Text style={[styles.paymentText, { color: '#9CA3AF' }]}>PayMongo</Text>
+                    <View style={{ backgroundColor: '#E5E7EB', paddingHorizontal: 6, paddingVertical: 2, borderRadius: 4, marginLeft: 8 }}>
+                      <Text style={{ fontSize: 10, fontWeight: '700', color: '#6B7280' }}>COMING SOON</Text>
+                    </View>
+                  </View>
+                  <Text style={styles.paymentSubtext}>Instantly paid online</Text>
                 </View>
-                <Shield size={16} color={paymentMethod === 'paymongo' ? COLORS.primary : COLORS.gray400} />
+                <Shield size={16} color="#9CA3AF" />
               </Pressable>
-
-              {/* PayMongo Card Form - Appears when PayMongo is selected */}
-              {paymentMethod === 'paymongo' && (
-                <View style={styles.cardFormContainer}>
-                  <Text style={styles.cardFormTitle}>💳 Payment Method</Text>
-
-                  {/* Loading State */}
-                  {loadingPaymentMethods && (
-                    <View style={styles.loadingContainer}>
-                      <ActivityIndicator size="small" color={COLORS.primary} />
-                      <Text style={styles.loadingText}>Loading saved cards...</Text>
-                    </View>
-                  )}
-
-                  {/* Saved Cards Section */}
-                  {!loadingPaymentMethods && savedPaymentMethods.length > 0 && (
-                    <View style={styles.savedCardsSection}>
-                      <Text style={styles.savedCardsTitle}>Your Saved Cards</Text>
-                      {savedPaymentMethods.map((method) => (
-                        <Pressable
-                          key={method.id}
-                          onPress={() => {
-                            setSelectedPaymentMethodId(method.id);
-                            clearCardForm();
-                          }}
-                          style={[
-                            styles.savedCardOption,
-                            selectedPaymentMethodId === method.id && styles.savedCardOptionSelected
-                          ]}
-                        >
-                          <View style={styles.cardRadio}>
-                            {selectedPaymentMethodId === method.id && (
-                              <View style={styles.cardRadioInner} />
-                            )}
-                          </View>
-                          <View style={styles.savedCardInfo}>
-                            <Text style={styles.savedCardName}>{method.cardholderName}</Text>
-                            {method.isDefault && (
-                              <View style={styles.defaultBadgeSmall}>
-                                <Text style={styles.defaultBadgeText}>Default</Text>
-                              </View>
-                            )}
-                          </View>
-                          <ChevronRight size={16} color={COLORS.textMuted} />
-                        </Pressable>
-                      ))}
-                      
-                      {/* Use Different Card Button */}
-                      {selectedPaymentMethodId && (
-                        <Pressable
-                          onPress={() => setSelectedPaymentMethodId(null)}
-                          style={styles.useDifferentCardButton}
-                        >
-                          <Text style={styles.useDifferentCardText}>Use Different Card</Text>
-                        </Pressable>
-                      )}
-                    </View>
-                  )}
-
-                  {/* Manual Card Entry - Show if no saved cards selected */}
-                  {!selectedPaymentMethodId && (
-                    <>
-                      {savedPaymentMethods.length > 0 && (
-                        <Text style={styles.orDivider}>or enter new card</Text>
-                      )}
-                      
-                      <Text style={[styles.cardFormTitle, { marginTop: 16, fontSize: 14 }]}>
-                        Enter Your Card Details
-                      </Text>
-
-                      {/* Required Fields Notice */}
-                      <View style={styles.requiredFieldsBox}>
-                        <AlertCircle size={14} color="#D97706" strokeWidth={2} />
-                        <Text style={styles.requiredFieldsText}>
-                          All fields are required to complete checkout
-                        </Text>
-                      </View>
-                  
-                      {/* Card Number */}
-                      <View style={styles.paymongoInputGroup}>
-                        <Text style={styles.paymongoInputLabel}>Card Number</Text>
-                        <TextInput
-                          style={[styles.cardInput, paymongoPaymentError?.includes('card number') && styles.inputError]}
-                          placeholder="1234 5678 9012 3456"
-                          placeholderTextColor="#999"
-                          value={paymongCardNumber}
-                          onChangeText={setPaymongoCardNumber}
-                          keyboardType="numeric"
-                          maxLength={19}
-                          editable={!paymongoProcessing}
-                        />
-                      </View>
-
-                      {/* Cardholder Name */}
-                  <View style={styles.paymongoInputGroup}>
-                    <Text style={styles.paymongoInputLabel}>Cardholder Name</Text>
-                    <TextInput
-                      style={[styles.cardInput, paymongoPaymentError?.includes('name') && styles.inputError]}
-                      placeholder="JUAN DELA CRUZ"
-                      placeholderTextColor="#999"
-                      value={paymongoCardName}
-                      onChangeText={setPaymongoCardName}
-                      editable={!paymongoProcessing}
-                    />
-                  </View>
-
-                  {/* Expiry & CVV Row */}
-                  <View style={styles.paymongoRowInputs}>
-                    <View style={[styles.paymongoInputGroup, { flex: 1 }]}>
-                      <Text style={styles.paymongoInputLabel}>Expiry Date</Text>
-                      <TextInput
-                        style={[styles.cardInput, paymongoPaymentError?.includes('expiry') && styles.inputError]}
-                        placeholder="MM/YY"
-                        placeholderTextColor="#999"
-                        value={paymongoExpiryDate}
-                        onChangeText={handleExpiryChange}
-                        keyboardType="numeric"
-                        maxLength={5}
-                        editable={!paymongoProcessing}
-                      />
-                    </View>
-                    <View style={[styles.paymongoInputGroup, { flex: 1, marginLeft: 12 }]}>
-                      <Text style={styles.paymongoInputLabel}>CVV</Text>
-                      <TextInput
-                        style={[styles.cardInput, paymongoPaymentError?.includes('cvv') && styles.inputError]}
-                        placeholder="123"
-                        placeholderTextColor="#999"
-                        value={paymonogCvv}
-                        onChangeText={setPaymongoCvv}
-                        keyboardType="numeric"
-                        maxLength={4}
-                        secureTextEntry
-                        editable={!paymongoProcessing}
-                      />
-                    </View>
-                  </View>
-
-                      {/* Success Message - Show saved card details */}
-                      {savedPaymongoCard && (
-                        <View style={styles.savedCardContainer}>
-                          <View style={styles.savedCardBadge}>
-                            <Check size={16} color="#10B981" />
-                            <Text style={styles.savedCardText}>
-                              Card ending in {savedPaymongoCard.lastFour} • Expires {savedPaymongoCard.expiry}
-                            </Text>
-                          </View>
-                          <Pressable
-                            style={styles.changeCardButton}
-                            onPress={clearCardForm}
-                            disabled={paymongoProcessing}
-                          >
-                            <Text style={styles.changeCardButtonText}>Use Different Card</Text>
-                          </Pressable>
-                        </View>
-                      )}
-
-                      {/* Error Message */}
-                      {paymongoPaymentError && (
-                        <View style={styles.errorBadge}>
-                          <Text style={styles.errorText}>{paymongoPaymentError}</Text>
-                        </View>
-                      )}
-                    </>
-                  )}
-
-                  {/* Error Message - Show outside card form */}
-                  {paymongoPaymentError && selectedPaymentMethodId && (
-                    <View style={styles.errorBadge}>
-                      <Text style={styles.errorText}>{paymongoPaymentError}</Text>
-                    </View>
-                  )}
-                </View>
-              )}
 
               <View>
                 <Pressable
@@ -2733,29 +2526,12 @@ export default function CheckoutScreen({ navigation, route }: Props) {
                     • {item.name}
                   </Text>
                 ))}
-                <View style={{ flexDirection: 'row', gap: 8, marginTop: 12 }}>
-                  <Pressable
-                    onPress={() => setStockCheckRetryCount(prev => prev + 1)} // Trigger re-check
-                    disabled={isValidatingStock}
-                    style={({ pressed }) => [
-                      { flex: 1, paddingHorizontal: 12, paddingVertical: 8, backgroundColor: '#FCA5A5', borderRadius: 6 },
-                      pressed && { opacity: 0.7 }
-                    ]}
-                  >
-                    <Text style={{ color: '#FFF', fontSize: 12, fontWeight: '600', textAlign: 'center' }}>
-                      {isValidatingStock ? 'Checking...' : 'Retry Check'}
-                    </Text>
-                  </Pressable>
-                  <Pressable
-                    onPress={() => navigation.goBack()}
-                    style={({ pressed }) => [
-                      { flex: 1, paddingHorizontal: 12, paddingVertical: 8, backgroundColor: '#DC2626', borderRadius: 6 },
-                      pressed && { opacity: 0.7 }
-                    ]}
-                  >
-                    <Text style={{ color: '#FFF', fontSize: 12, fontWeight: '600', textAlign: 'center' }}>Update Cart</Text>
-                  </Pressable>
-                </View>
+                <Pressable
+                  onPress={() => navigation.goBack()}
+                  style={{ marginTop: 12, paddingHorizontal: 12, paddingVertical: 8, backgroundColor: '#DC2626', borderRadius: 6 }}
+                >
+                  <Text style={{ color: '#FFF', fontSize: 12, fontWeight: '600', textAlign: 'center' }}>Update Cart</Text>
+                </Pressable>
               </View>
             </View>
           </View>
@@ -2766,17 +2542,11 @@ export default function CheckoutScreen({ navigation, route }: Props) {
       {/* --- LOCATION MODAL (Map-First Address Flow) --- */}
       <LocationModal
         visible={showLocationModal}
-        onClose={() => {
-          setShowLocationModal(false);
-          setIsEditMode(false);
-          setSelectedAddressForEdit(null);
-        }}
+        onClose={() => setShowLocationModal(false)}
         onSelectLocation={handleLocationModalSelect}
         currentAddress={selectedAddress ? `${selectedAddress.street}, ${selectedAddress.city}` : undefined}
         initialCoordinates={selectedAddress?.coordinates || null}
         statusBarTranslucent={true}
-        editingAddress={selectedAddressForEdit}
-        isEditMode={isEditMode}
       />
 
       {/* Address Selection Modal */}
@@ -2838,41 +2608,22 @@ export default function CheckoutScreen({ navigation, route }: Props) {
                   onPress={() => setTempSelectedAddress(addr)}
                 >
                   <View style={{ flex: 1 }}>
-                    {/* Row 1: Name with Edit Button */}
-                    <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
+                    <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 4 }}>
                       <Text style={{ fontSize: 16, fontWeight: '700', color: '#111827' }}>
                         {addr.firstName} {addr.lastName}
                       </Text>
-                      <Pressable
-                        style={{
-                          width: 22,
-                          height: 22,
-                          borderRadius: 11,
-                          backgroundColor: '#FFF7ED',
-                          borderWidth: 1,
-                          borderColor: '#FED7AA',
-                          alignItems: 'center',
-                          justifyContent: 'center'
-                        }}
-                        onPress={() => handleEditAddress(addr)}
-                        hitSlop={8}
-                      >
-                        <Pencil size={12} color={COLORS.primary} />
-                      </Pressable>
+                      {addr.isDefault && (
+                        <View style={{ backgroundColor: COLORS.primary, paddingHorizontal: 6, paddingVertical: 2, borderRadius: 4, marginLeft: 8 }}>
+                          <Text style={{ color: 'white', fontSize: 10, fontWeight: 'bold' }}>Default</Text>
+                        </View>
+                      )}
                     </View>
-
-                    {/* Row 2: Label • Phone */}
-                    <Text style={{ fontSize: 13, color: '#6B7280', marginBottom: 4 }}>
-                      {addr.label} • {addr.phone}
-                    </Text>
-
-                    {/* Row 3: Full Address */}
-                    <Text style={{ fontSize: 13, color: '#6B7280' }}>
-                      {addr.street}, {addr.barangay}, {addr.city}, {addr.province}
+                    <Text style={{ fontSize: 14, color: '#6B7280', marginBottom: 2 }}>{addr.label}</Text>
+                    <Text style={{ fontSize: 13, color: '#6B7280' }}>{addr.phone}</Text>
+                    <Text style={{ fontSize: 13, color: '#6B7280', marginTop: 4 }}>
+                      {addr.street}, {addr.barangay}, {addr.city}, {addr.province}, {addr.zipCode}
                     </Text>
                   </View>
-
-                  {/* Radio Button on the right */}
                   <View style={[
                     styles.radioCircle,
                     tempSelectedAddress?.id === addr.id && styles.radioCircleSelected
@@ -2978,30 +2729,30 @@ export default function CheckoutScreen({ navigation, route }: Props) {
             <View style={{ flexDirection: 'row', gap: 12 }}>
               <View style={{ flex: 1 }}>
                 <Text style={checkoutStyles.inputLabel}>First Name</Text>
-                <TextInput 
-                  value={newAddress.firstName} 
-                  onChangeText={(t) => setNewAddress(prev => ({ ...prev, firstName: t }))} 
-                  style={checkoutStyles.formInput} 
-                  placeholder="John" 
+                <TextInput
+                  value={newAddress.firstName}
+                  onChangeText={(t) => setNewAddress(prev => ({ ...prev, firstName: t }))}
+                  style={checkoutStyles.formInput}
+                  placeholder="John"
                 />
               </View>
               <View style={{ flex: 1 }}>
                 <Text style={checkoutStyles.inputLabel}>Last Name</Text>
-                <TextInput 
-                  value={newAddress.lastName} 
-                  onChangeText={(t) => setNewAddress(prev => ({ ...prev, lastName: t }))} 
-                  style={checkoutStyles.formInput} 
-                  placeholder="Doe" 
+                <TextInput
+                  value={newAddress.lastName}
+                  onChangeText={(t) => setNewAddress(prev => ({ ...prev, lastName: t }))}
+                  style={checkoutStyles.formInput}
+                  placeholder="Doe"
                 />
               </View>
             </View>
             <Text style={checkoutStyles.inputLabel}>Phone Number</Text>
-            <TextInput 
-              value={newAddress.phone} 
-              onChangeText={(t) => setNewAddress(prev => ({ ...prev, phone: t }))} 
-              style={checkoutStyles.formInput} 
-              placeholder="+63" 
-              keyboardType="phone-pad" 
+            <TextInput
+              value={newAddress.phone}
+              onChangeText={(t) => setNewAddress(prev => ({ ...prev, phone: t }))}
+              style={checkoutStyles.formInput}
+              placeholder="+63"
+              keyboardType="phone-pad"
             />
 
             <Text style={[checkoutStyles.sectionHeader, { marginTop: 12 }]}>Location Details</Text>
@@ -3181,6 +2932,27 @@ export default function CheckoutScreen({ navigation, route }: Props) {
           </View>
         </View>
       </Modal>
+      {/* --- SHARED ADDRESS FORM MODAL (Add New / Fix Address) --- */}
+      <AddressFormModal
+        visible={showAddressFormModal}
+        onClose={() => setShowAddressFormModal(false)}
+        initialData={editingAddressForForm}
+        userId={user?.id ?? ''}
+        existingCount={addresses.length}
+        context="buyer"
+        onSaved={(saved) => {
+          // Update local address list
+          setAddresses(prev => {
+            const exists = prev.find(a => a.id === saved.id);
+            if (exists) return prev.map(a => a.id === saved.id ? saved : a);
+            return [saved, ...prev];
+          });
+          // Auto-select the saved address at checkout
+          setSelectedAddress(saved);
+          setTempSelectedAddress(saved);
+          setShowAddressFormModal(false);
+        }}
+      />
     </LinearGradient>
   );
 
@@ -4053,10 +3825,17 @@ const styles = StyleSheet.create({
     borderRadius: 5,
     backgroundColor: COLORS.primary,
   },
+  savedCardInfo: {
+    flex: 1,
+  },
   savedCardBrand: {
     fontSize: 14,
     fontWeight: '600',
     color: '#1F2937',
+  },
+  savedCardExpiry: {
+    fontSize: 12,
+    color: '#6B7280',
   },
   addNewCardButton: {
     flexDirection: 'row',
@@ -4155,215 +3934,4 @@ const styles = StyleSheet.create({
     borderRadius: 8,
     backgroundColor: COLORS.primary,
   },
-  // PayMongo Card Form Styles
-  cardFormContainer: {
-    backgroundColor: '#F9FAFB',
-    borderWidth: 1,
-    borderColor: '#E5E7EB',
-    borderRadius: 12,
-    padding: 16,
-    marginTop: 12,
-    marginBottom: 12,
-  },
-  cardFormTitle: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: COLORS.textHeadline,
-    marginBottom: 16,
-  },
-  paymongoInputGroup: {
-    marginBottom: 12,
-  },
-  paymongoInputLabel: {
-    fontSize: 13,
-    fontWeight: '600',
-    color: '#4B5563',
-    marginBottom: 6,
-  },
-  cardInput: {
-    backgroundColor: '#FFFFFF',
-    borderWidth: 1,
-    borderColor: '#D1D5DB',
-    borderRadius: 8,
-    paddingHorizontal: 12,
-    paddingVertical: 10,
-    fontSize: 14,
-    color: COLORS.textHeadline,
-  },
-  inputError: {
-    borderColor: '#EF4444',
-  },
-  paymongoRowInputs: {
-    flexDirection: 'row',
-    marginBottom: 12,
-  },
-  savedCardBadge: {
-    backgroundColor: '#ECFDF5',
-    borderWidth: 1,
-    borderColor: '#D1FAE5',
-    borderRadius: 8,
-    paddingHorizontal: 12,
-    paddingVertical: 10,
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-    marginTop: 12,
-  },
-  savedCardText: {
-    fontSize: 13,
-    fontWeight: '500',
-    color: '#059669',
-  },
-  savedCardContainer: {
-    marginTop: 12,
-    gap: 8,
-  },
-  changeCardButton: {
-    backgroundColor: '#F3F4F6',
-    borderWidth: 1,
-    borderColor: '#D1D5DB',
-    borderRadius: 8,
-    paddingHorizontal: 12,
-    paddingVertical: 10,
-    alignItems: 'center',
-  },
-  changeCardButtonText: {
-    fontSize: 13,
-    fontWeight: '600',
-    color: '#6B7280',
-  },
-  errorBadge: {
-    backgroundColor: '#FEE2E2',
-    borderWidth: 1,
-    borderColor: '#FECACA',
-    borderRadius: 8,
-    paddingHorizontal: 12,
-    paddingVertical: 10,
-    marginTop: 12,
-  },
-  errorText: {
-    fontSize: 13,
-    fontWeight: '500',
-    color: '#DC2626',
-  },
-  // Saved Cards Styles
-  loadingContainer: {
-    alignItems: 'center',
-    paddingVertical: 12,
-    gap: 8,
-  },
-  loadingText: {
-    fontSize: 13,
-    color: '#6B7280',
-  },
-  savedCardsSection: {
-    marginBottom: 16,
-    paddingBottom: 12,
-    borderBottomWidth: 1,
-    borderBottomColor: '#E5E7EB',
-  },
-  savedCardsTitle: {
-    fontSize: 13,
-    fontWeight: '700',
-    color: COLORS.textHeadline,
-    marginBottom: 10,
-    textTransform: 'uppercase',
-    letterSpacing: 0.5,
-  },
-  savedCardOption: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#FFFFFF',
-    borderWidth: 1,
-    borderColor: '#E5E7EB',
-    borderRadius: 8,
-    paddingHorizontal: 12,
-    paddingVertical: 12,
-    marginBottom: 8,
-    gap: 10,
-  },
-  savedCardOptionSelected: {
-    borderColor: COLORS.primary,
-    backgroundColor: 'rgba(217, 119, 6, 0.03)',
-  },
-  cardRadio: {
-    width: 18,
-    height: 18,
-    borderRadius: 12,
-    borderWidth: 2,
-    borderColor: '#D1D5DB',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  cardRadioInner: {
-    width: 8,
-    height: 8,
-    borderRadius: 6,
-    backgroundColor: COLORS.primary,
-  },
-  savedCardInfo: {
-    flex: 1,
-  },
-  savedCardName: {
-    fontSize: 12,
-    fontWeight: '600',
-    color: COLORS.textHeadline,
-    marginBottom: 2,
-  },
-  savedCardNumber: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: COLORS.textHeadline,
-  },
-  savedCardExpiry: {
-    fontSize: 12,
-    color: '#6B7280',
-    marginTop: 2,
-  },
-  defaultBadgeSmall: {
-    backgroundColor: '#D1FAE5',
-    paddingHorizontal: 8,
-    paddingVertical: 2,
-    borderRadius: 4,
-    marginTop: 4,
-    alignSelf: 'flex-start',
-  },
-  defaultBadgeText: {
-    fontSize: 10,
-    fontWeight: '700',
-    color: '#059669',
-  },
-  useDifferentCardButton: {
-    backgroundColor: '#F3F4F6',
-    borderWidth: 1,
-    borderColor: '#D1D5DB',
-    borderRadius: 8,
-    paddingHorizontal: 12,
-    paddingVertical: 10,
-    alignItems: 'center',
-    marginTop: 8,
-  },
-  useDifferentCardText: {
-    fontSize: 13,
-    fontWeight: '600',
-    color: COLORS.primary,
-  },
-  orDivider: {
-    fontSize: 12,
-    fontWeight: '500',
-    color: '#6B7280',
-    textAlign: 'center',
-    marginVertical: 12,
-  },
-  requiredFieldsBox: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-    backgroundColor: '#FEF3C7',
-    borderRadius: 8,
-    paddingHorizontal: 12,
-    paddingVertical: 10,
-    marginBottom: 12,
-  },
-  requiredFieldsText: { fontSize: 12, color: '#92400E', fontWeight: '500', flex: 1 },
 });

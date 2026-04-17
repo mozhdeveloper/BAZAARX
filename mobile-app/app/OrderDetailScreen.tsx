@@ -89,6 +89,17 @@ export default function OrderDetailScreen({ route, navigation }: Props) {
   const fetchTrackingByOrderId = useDeliveryStore((s) => s.fetchTrackingByOrderId);
   const deliveryStoreTracking = useDeliveryStore((s) => s.tracking);
 
+  // BX-09-003 — Shipment details (method, fee, ETA) from order_shipments table
+  const [shipmentInfo, setShipmentInfo] = useState<{
+    shipping_method_label: string;
+    calculated_fee: number;
+    estimated_days_text: string;
+    origin_zone: string;
+    destination_zone: string;
+    tracking_number: string | null;
+    status: string;
+  } | null>(null);
+
   // Fetch payment transaction and delivery tracking for this order
   useEffect(() => {
     const realOrderId = (order as any).orderId || order.id;
@@ -111,6 +122,20 @@ export default function OrderDetailScreen({ route, navigation }: Props) {
       .catch(() => {
         setIsTrackingError(true);
       });
+
+    // BX-09-003 — Fetch shipment record
+    (async () => {
+      try {
+        const { data } = await supabase
+          .from('order_shipments')
+          .select('shipping_method_label, calculated_fee, estimated_days_text, origin_zone, destination_zone, tracking_number, status')
+          .eq('order_id', realOrderId)
+          .maybeSingle();
+        if (data) setShipmentInfo(data as any);
+      } catch (err) {
+        // Silently ignore shipment fetch errors
+      }
+    })();
   }, [(order as any).orderId, order.id]);
 
   useEffect(() => {
@@ -661,6 +686,31 @@ export default function OrderDetailScreen({ route, navigation }: Props) {
               <Text style={styles.secondaryInfo}>
                 {order.shippingAddress.address}, {order.shippingAddress.city}, {order.shippingAddress.region}
               </Text>
+            </View>
+          )}
+
+          {/* BX-09-003 — Shipping Method & ETA from order_shipments */}
+          {shipmentInfo && (
+            <View style={{ borderTopWidth: 1, borderTopColor: '#E5E7EB', paddingTop: 16, marginBottom: deliveryTracking?.booking ? 0 : 0 }}>
+              <Text style={styles.metaLabel}>Shipping Method</Text>
+              <Text style={styles.primaryInfo}>{shipmentInfo.shipping_method_label}</Text>
+              <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginTop: 8 }}>
+                <View>
+                  <Text style={styles.metaLabel}>Estimated Delivery</Text>
+                  <Text style={[styles.primaryInfo, { color: COLORS.primary }]}>{shipmentInfo.estimated_days_text}</Text>
+                </View>
+                <View style={{ alignItems: 'flex-end' }}>
+                  <Text style={styles.metaLabel}>Shipping Fee</Text>
+                  <Text style={styles.primaryInfo}>
+                    {shipmentInfo.calculated_fee === 0 ? 'FREE' : `\u20b1${shipmentInfo.calculated_fee.toLocaleString()}`}
+                  </Text>
+                </View>
+              </View>
+              <View style={{ flexDirection: 'row', alignItems: 'center', marginTop: 8, gap: 4 }}>
+                <Text style={{ fontSize: 11, color: '#9CA3AF' }}>
+                  {shipmentInfo.origin_zone} \u2192 {shipmentInfo.destination_zone}
+                </Text>
+              </View>
             </View>
           )}
 

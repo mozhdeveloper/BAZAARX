@@ -151,9 +151,7 @@ export default function OrdersScreen({ navigation, route }: Props) {
   const loadOrders = async () => {
     if (!user?.id) return;
     try {
-      const { data, error } = await supabase
-        .from('orders')
-        .select(`
+      const orderSelectWithShipments = `
           *,
           address:shipping_addresses!address_id (
             id,
@@ -203,10 +201,84 @@ export default function OrdersScreen({ navigation, route }: Props) {
           ),
           shipments:order_shipments(*),
           history:order_status_history(status, created_at)
-        `)
-        .eq('buyer_id', user.id)
-        .order('created_at', { ascending: false })
-        .limit(30);
+        `;
+
+      const orderSelectWithoutShipments = `
+          *,
+          address:shipping_addresses!address_id (
+            id,
+            label,
+            address_line_1,
+            address_line_2,
+            city,
+            province,
+            region,
+            postal_code
+          ),
+          items:order_items (
+            *,
+            product:products (
+              id,
+              name,
+              description,
+              price,
+              brand,
+              is_free_shipping,
+              seller_id,
+              seller:sellers!products_seller_id_fkey (
+                id,
+                store_name,
+                store_description,
+                avatar_url
+              ),
+              images:product_images (
+                image_url,
+                is_primary,
+                sort_order
+              )
+            )
+          ),
+          reviews (
+            *
+          ),
+          cancellations:order_cancellations (
+            id, reason, cancelled_at, cancelled_by, created_at
+          ),
+          vouchers:order_vouchers (
+            *,
+            voucher:vouchers (code, title, voucher_type)
+          ),
+          return_requests:refund_return_periods (
+            id, status, is_returnable, refund_date
+          ),
+          history:order_status_history(status, created_at)
+        `;
+
+      const runQuery = (selectClause: string) => {
+        return supabase
+          .from('orders')
+          .select(selectClause)
+          .eq('buyer_id', user.id)
+          .order('created_at', { ascending: false })
+          .limit(30);
+      };
+
+      let { data, error } = await runQuery(orderSelectWithShipments);
+
+      const isMissingOrderShipmentsRelation =
+        error?.code === 'PGRST200' &&
+        `${error?.message || ''} ${error?.details || ''}`.includes('order_shipments');
+
+      if (isMissingOrderShipmentsRelation) {
+        console.warn('[OrdersScreen] order_shipments relation missing. Retrying without embedded shipments.');
+        const fallback = await runQuery(orderSelectWithoutShipments);
+        data = fallback.data as any;
+        error = fallback.error;
+
+        if (!error) {
+          data = (data || []).map((row: any) => ({ ...row, shipments: [] }));
+        }
+      }
 
       if (error) {
         console.error('[OrdersScreen] Error loading orders:', error);
