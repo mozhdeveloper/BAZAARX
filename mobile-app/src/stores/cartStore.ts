@@ -450,7 +450,7 @@ export const useCartStore = create<CartStore>()(
             }
           }, 500);
         };
-        run();
+        return run();
       },
 
       updateItemVariant: async (cartItemId, variantId, options) => {
@@ -486,7 +486,7 @@ export const useCartStore = create<CartStore>()(
             set({ error: 'Failed to update item variant' });
           }
         };
-        run();
+        return run();
       },
 
       clearCart: () => {

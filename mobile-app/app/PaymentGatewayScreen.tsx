@@ -486,18 +486,49 @@ export default function PaymentGatewayScreen({ navigation, route }: Props) {
           contentContainerStyle={{ paddingBottom: 140 }}
           showsVerticalScrollIndicator={false}
         >
-          {/* Merchant & Amount Summary */}
+          {/* Payment Details Summary */}
           <View style={styles.billContainer}>
-            <View style={styles.billLeft}>
-              <Text style={styles.billLabel}>Total Amount</Text>
-              <Text style={styles.billAmount}>₱ {(order?.total || checkoutPayload?.totalAmount || 0).toLocaleString()}</Text>
+            <View style={styles.billDetailsHeader}>
+              <Text style={styles.billDetailsTitle}>Payment Details</Text>
             </View>
-            <View style={styles.providerLogoContainer}>
-              <Image
-                source={{ uri: getProviderLogo() }}
-                style={styles.providerLogo}
-                resizeMode="contain"
-              />
+
+            {/* Subtotal */}
+            <View style={styles.billDetailRow}>
+              <Text style={styles.billDetailLabel}>Subtotal</Text>
+              <Text style={styles.billDetailValue}>₱ {((order?.total || checkoutPayload?.totalAmount || 0) - (order?.shippingFee || checkoutPayload?.shippingFee || 0) + (order?.discount || checkoutPayload?.discount || 0)).toLocaleString()}</Text>
+            </View>
+
+            {/* Shipping Fee */}
+            {(order?.shippingFee || checkoutPayload?.shippingFee) ? (
+              <View style={styles.billDetailRow}>
+                <Text style={styles.billDetailLabel}>Shipping</Text>
+                <Text style={styles.billDetailValue}>₱ {(order?.shippingFee || checkoutPayload?.shippingFee || 0).toLocaleString()}</Text>
+              </View>
+            ) : null}
+
+            {/* Discount / Voucher */}
+            {(order?.discount || checkoutPayload?.discount) ? (
+              <View style={styles.billDetailRow}>
+                <Text style={[styles.billDetailLabel, { color: COLORS.success }]}>Discount</Text>
+                <Text style={[styles.billDetailValue, { color: COLORS.success }]}>-₱ {(order?.discount || checkoutPayload?.discount || 0).toLocaleString()}</Text>
+              </View>
+            ) : null}
+
+            {/* Bazcoin Discount */}
+            {bazcoinDiscount > 0 ? (
+              <View style={styles.billDetailRow}>
+                <Text style={[styles.billDetailLabel, { color: COLORS.success }]}>Bazcoin Discount</Text>
+                <Text style={[styles.billDetailValue, { color: COLORS.success }]}>-₱ {bazcoinDiscount.toLocaleString()}</Text>
+              </View>
+            ) : null}
+
+            {/* Divider */}
+            <View style={styles.billDetailDivider} />
+
+            {/* Total Amount */}
+            <View style={styles.billDetailRowTotal}>
+              <Text style={styles.billDetailLabelTotal}>Total Amount</Text>
+              <Text style={styles.billAmountTotal}>₱ {(order?.total || checkoutPayload?.totalAmount || 0).toLocaleString()}</Text>
             </View>
           </View>
 
@@ -801,15 +832,68 @@ const styles = StyleSheet.create({
 
   // Bill Summary Container
   billContainer: {
-    backgroundColor: '#F9F9F9',
-    borderRadius: 12,
+    backgroundColor: '#FFFFFF',
+    borderRadius: 16,
     marginHorizontal: 24,
     marginTop: 16,
     marginBottom: 24,
     padding: 20,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.08,
+    shadowRadius: 8,
+    elevation: 3,
+  },
+  billDetailsHeader: {
     flexDirection: 'row',
     alignItems: 'center',
+    justifyContent: 'flex-start',
+    marginBottom: 16,
+  },
+  billDetailsTitle: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: COLORS.textHeadline,
+    flex: 1,
+  },
+  billDetailRow: {
+    flexDirection: 'row',
     justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 12,
+    paddingVertical: 8,
+  },
+  billDetailLabel: {
+    fontSize: 13,
+    color: COLORS.textPrimary,
+    fontWeight: '500',
+  },
+  billDetailValue: {
+    fontSize: 13,
+    color: COLORS.textHeadline,
+    fontWeight: '600',
+  },
+  billDetailDivider: {
+    height: 1,
+    backgroundColor: '#E5E7EB',
+    marginVertical: 12,
+  },
+  billDetailRowTotal: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingVertical: 8,
+  },
+  billDetailLabelTotal: {
+    fontSize: 14,
+    color: COLORS.textHeadline,
+    fontWeight: '700',
+  },
+  billAmountTotal: {
+    fontSize: 24,
+    fontWeight: '800',
+    color: '#C53030',
+    letterSpacing: 0.5,
   },
   billLeft: {
     flex: 1,
