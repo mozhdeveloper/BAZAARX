@@ -129,6 +129,7 @@ export const OrderCard: React.FC<OrderCardProps> = React.memo(({
           </Text>
         </View>
         <View style={styles.metadataRow}>
+          <Text style={styles.dateText}>{formatDate(order.createdAt)}</Text>
           <Pressable style={styles.orderIdContainer} onPress={handleCopyOrderId}>
             <Text style={styles.orderIdText}>ID: {order.transactionId}</Text>
             <Copy size={12} color="#6B7280" style={{ marginLeft: 4 }} />
@@ -158,9 +159,12 @@ export const OrderCard: React.FC<OrderCardProps> = React.memo(({
                   cachePolicy="memory-disk"
                   transition={200}
                 />
-                <View style={styles.moreItemsOverlay}>
-                  <Text style={styles.moreItemsText}>+{itemCount - 1}</Text>
-                </View>
+              </View>
+            )}
+            {/* More Items Overlay */}
+            {itemCount > 1 && (
+              <View style={styles.moreItemsOverlay}>
+                <Text style={styles.moreItemsText}>+{itemCount - 1}</Text>
               </View>
             )}
           </View>
@@ -429,8 +433,9 @@ const styles = StyleSheet.create({
     position: 'absolute',
     top: 0,
     left: 0,
-    right: 0,
-    bottom: 0,
+    width: 70,
+    height: 70,
+    zIndex: 3,
     backgroundColor: 'rgba(0,0,0,0.3)',
     justifyContent: 'center',
     alignItems: 'center',

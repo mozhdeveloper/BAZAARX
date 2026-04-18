@@ -19,7 +19,7 @@ import * as FileSystem from 'expo-file-system/legacy';
 import { decode } from 'base64-arraybuffer';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
-import { ArrowLeft, Package, MapPin, CreditCard, Receipt, CheckCircle, MessageCircle, Send, X, Truck, Clock, CheckCircle2, RotateCcw, Tag, ArrowRight } from 'lucide-react-native';
+import { ArrowLeft, Package, MapPin, CreditCard, Receipt, CheckCircle, MessageCircle, Send, X, Truck, Clock, CheckCircle2, RotateCcw, Tag, ArrowRight, Store } from 'lucide-react-native';
 import { COLORS } from '../src/constants/theme';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import type { RootStackParamList } from '../App';
@@ -742,6 +742,11 @@ export default function OrderDetailScreen({ route, navigation }: Props) {
         <View style={styles.consolidatedCard}>
           <Text style={styles.cardSectionHeader}>Items & Payment</Text>
           
+          <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 12, gap: 8 }}>
+            <Store size={20} color={COLORS.primary} />
+            <Text style={[styles.primaryInfo, { fontSize: 14 }]}>{(order as any).sellerInfo?.store_name || order.items[0]?.seller || 'Shop'}</Text>
+          </View>
+          
           {isPaymentError ? (
             <View style={{ marginVertical: 16 }}>
               <Text style={[styles.secondaryInfo, { color: '#DC2626', marginBottom: 12 }]}>
@@ -769,14 +774,27 @@ export default function OrderDetailScreen({ route, navigation }: Props) {
             <>
               <View style={{ gap: 16, marginBottom: 20 }}>
                 {order.items.filter(item => item && item.name).map((item, index) => (
-                  <View key={item.id || index} style={styles.compactItemRow}>
+                  <Pressable 
+                    key={item.id || index} 
+                    style={styles.compactItemRow}
+                    onPress={() => navigation.navigate('ProductDetail', { product: item as any })}
+                  >
                     <Image source={{ uri: safeImageUri(item.image) }} style={styles.compactItemImage} />
                     <View style={{ flex: 1 }}>
                       <Text style={styles.compactItemName} numberOfLines={1}>{item.name}</Text>
+                      {(item as any).selectedVariant && ((item as any).selectedVariant.option1Value || (item as any).selectedVariant.option2Value || (item as any).selectedVariant.size || (item as any).selectedVariant.color) && (
+                        <Text style={[styles.metaLabel, { marginBottom: 4 }]}>
+                          {(item as any).selectedVariant.option1Value ? `${(item as any).selectedVariant.option1Label || 'Option'}: ${(item as any).selectedVariant.option1Value}` : ''}
+                          {(item as any).selectedVariant.option1Value && (item as any).selectedVariant.option2Value ? ' • ' : ''}
+                          {(item as any).selectedVariant.option2Value ? `${(item as any).selectedVariant.option2Label || 'Option'}: ${(item as any).selectedVariant.option2Value}` : ''}
+                          {!((item as any).selectedVariant.option1Value || (item as any).selectedVariant.option2Value) && (item as any).selectedVariant.size ? (item as any).selectedVariant.size : ''}
+                          {!((item as any).selectedVariant.option1Value || (item as any).selectedVariant.option2Value) && !((item as any).selectedVariant.size) && (item as any).selectedVariant.color ? (item as any).selectedVariant.color : ''}
+                        </Text>
+                      )}
                       <Text style={styles.metaLabel}>{item.quantity} x ₱{item.price?.toLocaleString()}</Text>
                     </View>
                     <Text style={styles.compactItemPrice}>₱{((item.price || 0) * item.quantity).toLocaleString()}</Text>
-                  </View>
+                  </Pressable>
                 ))}
               </View>
 
