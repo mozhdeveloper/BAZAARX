@@ -127,7 +127,6 @@ export const CartItemRow: React.FC<CartItemRowProps> = React.memo(({
             <Text style={styles.qtyCount}>{item.quantity}</Text>
             <Pressable
               onPress={onIncrement}
-              disabled={stock !== null && item.quantity >= stock}
               style={({ pressed }) => [styles.qtyBtn, { opacity: (stock !== null && item.quantity >= stock) ? 0.35 : pressed ? 0.6 : 1 }]}
             >
               <Text style={styles.qtyBtnText}>+</Text>
