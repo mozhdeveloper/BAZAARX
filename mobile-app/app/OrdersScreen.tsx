@@ -44,7 +44,7 @@ type Props = NativeStackScreenProps<RootStackParamList, 'Orders'>;
 
 const { width } = Dimensions.get('window');
 
-type OrdersTab = 'all' | 'pending' | 'confirmed' | 'shipped' | 'delivered' | 'received' | 'returned' | 'cancelled' | 'reviewed';
+type OrdersTab = 'all' | 'pending' | 'confirmed' | 'shipped' | 'reviewed' | 'returned' | 'cancelled';
 
 const normalizeInitialTab = (tab?: string): OrdersTab => {
   const normalized = (tab || 'pending').toLowerCase();
@@ -52,20 +52,17 @@ const normalizeInitialTab = (tab?: string): OrdersTab => {
   if (normalized === 'topay') return 'pending';
   if (normalized === 'toship') return 'confirmed';
   if (normalized === 'toreceive') return 'shipped';
-  if (normalized === 'toreview') return 'delivered';
+  if (normalized === 'toreview') return 'reviewed';
   if (normalized === 'completed') return 'reviewed';
-  if (normalized === 'returns') return 'returned';
+  if (normalized === 'returns') return 'cancelled';
 
   if (
     normalized === 'all' ||
     normalized === 'pending' ||
     normalized === 'confirmed' ||
     normalized === 'shipped' ||
-    normalized === 'delivered' ||
-    normalized === 'received' ||
-    normalized === 'returned' ||
-    normalized === 'cancelled' ||
-    normalized === 'reviewed'
+    normalized === 'reviewed' ||
+    normalized === 'cancelled'
   ) {
     return normalized as OrdersTab;
   }
@@ -549,14 +546,18 @@ export default function OrdersScreen({ navigation, route }: Props) {
   const filteredOrders = useMemo(() => {
     // Use indexed lookup instead of filtering all orders per tab
     const baseOrders = activeTab === 'all' 
-      ? dbOrders 
+      ? [...dbOrders].sort((a, b) => {
+          const dateA = new Date(a.createdAt || a.updatedAt || 0).getTime();
+          const dateB = new Date(b.createdAt || b.updatedAt || 0).getTime();
+          return (dateB || 0) - (dateA || 0);
+        })
       : (ordersByUiStatus.get(activeTab) || []);
 
     // Early exit — no secondary filters
     if (selectedStatus === 'all' && !searchQuery.trim()) {
       return [...baseOrders].sort((a, b) => {
-        const dateA = new Date(a.updatedAt || a.createdAt).getTime();
-        const dateB = new Date(b.updatedAt || b.createdAt).getTime();
+        const dateA = new Date(a.createdAt || 0).getTime();
+        const dateB = new Date(b.createdAt || 0).getTime();
         if (dateA !== dateB) {
           return sortOrder === 'latest' ? dateB - dateA : dateA - dateB;
         }
@@ -581,8 +582,8 @@ export default function OrdersScreen({ navigation, route }: Props) {
     }
 
     return [...result].sort((a, b) => {
-      const dateA = new Date(a.updatedAt || a.createdAt).getTime();
-      const dateB = new Date(b.updatedAt || b.createdAt).getTime();
+      const dateA = new Date(a.createdAt || 0).getTime();
+      const dateB = new Date(b.createdAt || 0).getTime();
       if (dateA !== dateB) {
         return sortOrder === 'latest' ? dateB - dateA : dateA - dateB;
       }
@@ -1031,14 +1032,12 @@ export default function OrdersScreen({ navigation, route }: Props) {
           showsHorizontalScrollIndicator={false}
           contentContainerStyle={styles.tabsContentContainer}
         >
-          {(['all', 'pending', 'confirmed', 'shipped', 'delivered', 'received', 'returned', 'cancelled', 'reviewed'] as const).map((tab) => {
+          {(['all', 'pending', 'confirmed', 'shipped', 'reviewed', 'returned', 'cancelled'] as const).map((tab) => {
             const labelMap: Record<string, string> = {
-              all: 'All Orders',
+              all: 'All',
               pending: 'To Pay',
               confirmed: 'To Ship',
               shipped: 'To Receive',
-              delivered: 'Delivered',
-              received: 'Received',
               reviewed: 'Completed',
               returned: 'Return/Refund',
               cancelled: 'Cancelled'
