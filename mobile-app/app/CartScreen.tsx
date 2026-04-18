@@ -67,15 +67,10 @@ export default function CartScreen({ navigation, route }: any) {
   // Handle error state and display alert
   useEffect(() => {
     if (error) {
+      useCartStore.setState({ error: null });
       Alert.alert(
         'Update Failed',
-        error,
-        [
-          {
-            text: 'OK',
-            onPress: () => useCartStore.setState({ error: null }),
-          },
-        ]
+        error
       );
     }
   }, [error]);
@@ -198,40 +193,6 @@ export default function CartScreen({ navigation, route }: any) {
     setDeleteTarget(null);
   };
 
-  const groupedItems = useMemo(() => {
-    return items.reduce((groups, item) => {
-      const seller = item.seller || 'Verified Seller';
-      if (!groups[seller]) groups[seller] = [];
-      groups[seller].push(item);
-      return groups;
-    }, {} as Record<string, typeof items>);
-  }, [items]);
-
-  // Memoize cart calculations — avoids recalculating on every render
-  const { selectedItems, subtotal, totalSavings } = useMemo(() => {
-    const selectedSet = new Set(selectedIds);
-    const selected = items.filter(item => selectedSet.has(item.cartItemId));
-    let sub = 0;
-    let savings = 0;
-
-    selected.forEach(item => {
-      const price = item.price || 0;
-      const qty = item.quantity;
-      sub += price * qty;
-
-      if (item.originalPrice && item.originalPrice > price) {
-        savings += (item.originalPrice - price) * qty;
-      }
-    });
-
-    return { selectedItems: selected, subtotal: sub, totalSavings: savings };
-  }, [items, selectedIds]);
-  const shippingFee = (subtotal > 500 || subtotal === 0) ? 0 : 50;
-  const total = subtotal;
-
-  // O(1) membership lookup — replaces O(n) Array.includes() calls in render
-  const selectedSet = useMemo(() => new Set(selectedIds), [selectedIds]);
-
   // Helper: resolve effective stock for a cart item
   const getItemStock = useCallback((item: CartItem): number | null => {
     if (item.selectedVariant?.variantId) {
@@ -252,25 +213,60 @@ export default function CartScreen({ navigation, route }: any) {
     return isOutOfStock || isSellerInactive;
   }, [getItemStock]);
 
+  const groupedItems = useMemo(() => {
+    return items.reduce((groups, item) => {
+      const seller = item.seller || 'Verified Seller';
+      if (!groups[seller]) groups[seller] = [];
+      groups[seller].push(item);
+      return groups;
+    }, {} as Record<string, typeof items>);
+  }, [items]);
+
+  // Memoize cart calculations — avoids recalculating on every render
+  const { selectedItems, subtotal, totalSavings } = useMemo(() => {
+    const selectedSet = new Set(selectedIds);
+    const selected = items.filter(item => selectedSet.has(item.cartItemId));
+    let sub = 0;
+    let savings = 0;
+
+    selected.forEach(item => {
+      // Only add to subtotal if item is purchasable (not restricted, not out of stock)
+      if (!item.isVacationMode && item.isSellerActive !== false && item.stock !== 0 && item.stock !== null) {
+        const price = item.price || 0;
+        const qty = item.quantity;
+        sub += price * qty;
+
+        if (item.originalPrice && item.originalPrice > price) {
+          savings += (item.originalPrice - price) * qty;
+        }
+      }
+    });
+
+    return { selectedItems: selected, subtotal: sub, totalSavings: savings };
+  }, [items, selectedIds]);
+  const shippingFee = (subtotal > 500 || subtotal === 0) ? 0 : 50;
+  const total = subtotal;
+
+  // O(1) membership lookup — replaces O(n) Array.includes() calls in render
+  const selectedSet = useMemo(() => new Set(selectedIds), [selectedIds]);
+
   const selectableItems = useMemo(() => items.filter(i => !isItemUnavailable(i) && !i.isVacationMode), [items, isItemUnavailable]);
   const isAllSelected = selectableItems.length > 0 && selectableItems.every(i => selectedSet.has(i.cartItemId));
   const hasOutOfStockSelected = useMemo(() => selectedItems.some(i => isItemUnavailable(i)), [selectedItems, isItemUnavailable]);
-  const hasRestrictedItemsSelected = useMemo(() => selectedItems.some(i => i.isVacationMode === true), [selectedItems]);
+  const hasRestrictedItemsSelected = useMemo(() => selectedItems.some(i => i.isVacationMode === true || i.isSellerActive === false), [selectedItems]);
 
   const toggleSelectItem = useCallback((id: string) => {
-    const item = items.find(i => i.cartItemId === id);
-    if (item && (isItemUnavailable(item) || item.isVacationMode)) return;
     setSelectedIds(prev =>
       selectedSet.has(id) ? prev.filter(itemId => itemId !== id) : [...prev, id]
     );
-  }, [selectedSet, items, isItemUnavailable]);
+  }, [selectedSet]);
 
   const sellerHasVacationMode = useCallback((sellerProducts: typeof items) => {
     return sellerProducts.some(item => item.isVacationMode === true);
   }, []);
 
   const toggleSellerGroup = useCallback((sellerProducts: typeof items) => {
-    const sellerItemIds = sellerProducts.filter(item => !isItemUnavailable(item) && !item.isVacationMode).map(item => item.cartItemId);
+    const sellerItemIds = sellerProducts.map(item => item.cartItemId);
     const isSellerFullySelected = sellerItemIds.length > 0 && sellerItemIds.every(id => selectedSet.has(id));
 
     if (isSellerFullySelected) {
@@ -283,7 +279,7 @@ export default function CartScreen({ navigation, route }: any) {
         return [...prev, ...newIds];
       });
     }
-  }, [selectedSet, isItemUnavailable]);
+  }, [selectedSet]);
 
   const handleCheckout = async () => {
     if (selectedIds.length === 0) return;
@@ -364,26 +360,20 @@ export default function CartScreen({ navigation, route }: any) {
           const sellerIsActive = sellerProducts[0]?.isSellerActive !== false;
           const sellerRestrictionReason = sellerProducts[0]?.sellerRestrictionReason || null;
           const isSellerUnavailable = sellerProducts.some(item => item.is_vacation_mode === true);
-          const isSellerSelected = sellerProducts.filter(item => !item.is_vacation_mode).every(item => selectedSet.has(item.cartItemId));
+          const isSellerSelected = sellerProducts.length > 0 && sellerProducts.every(item => selectedSet.has(item.cartItemId));
 
           return (
             <View key={sellerName} style={[styles.sellerCard, isSellerUnavailable && { opacity: 0.6 }, idx === Object.entries(groupedItems).map(() => 0).length - 1 && { marginBottom: 0 }]}>
               {/* STORE HEADER */}
               <View style={styles.sellerHeader}>
-                {sellerIsActive && !isSellerUnavailable ? (
-                  <Pressable onPress={() => toggleSellerGroup(sellerProducts)} style={styles.headerCheckbox}>
-                    <View style={[
-                      styles.checkboxBase,
-                      isSellerSelected && { backgroundColor: COLORS.accent, borderColor: COLORS.accent }
-                    ]}>
-                      {isSellerSelected && <Check size={12} color="#FFF" strokeWidth={2.5} />}
-                    </View>
-                  </Pressable>
-                ) : (
-                  <View style={[styles.headerCheckbox, styles.restrictionBadge]}>
-                    <Text style={styles.restrictionBadgeText}>{isSellerUnavailable ? 'Store Unavailable' : sellerRestrictionReason}</Text>
+                <Pressable onPress={() => toggleSellerGroup(sellerProducts)} style={styles.headerCheckbox}>
+                  <View style={[
+                    styles.checkboxBase,
+                    isSellerSelected && { backgroundColor: COLORS.accent, borderColor: COLORS.accent }
+                  ]}>
+                    {isSellerSelected && <Check size={12} color="#FFF" strokeWidth={2.5} />}
                   </View>
-                )}
+                </Pressable>
                 <Pressable
                   style={[styles.storeInfo, isSellerUnavailable && { opacity: 0.7 }]}
                   onPress={() => {
@@ -397,6 +387,11 @@ export default function CartScreen({ navigation, route }: any) {
                   <Text style={[styles.sellerName, isSellerUnavailable && { color: '#9CA3AF' }]}>{sellerName}</Text>
                   {!isSellerUnavailable && <ChevronRight size={16} color="#9CA3AF" />}
                 </Pressable>
+                {(!sellerIsActive || isSellerUnavailable) && (
+                  <View style={[styles.restrictionBadge, { marginLeft: 'auto' }]}>
+                    <Text style={styles.restrictionBadgeText}>{isSellerUnavailable ? 'Store Unavailable' : sellerRestrictionReason}</Text>
+                  </View>
+                )}
               </View>
 
               <View style={styles.cardDivider} />
@@ -405,19 +400,25 @@ export default function CartScreen({ navigation, route }: any) {
               {sellerProducts.map((item, index) => (
                 <View key={item.cartItemId}>
                   <View style={styles.itemRow}>
-                    <Pressable style={styles.itemCheckbox} onPress={() => toggleSelectItem(item.cartItemId)} disabled={isItemUnavailable(item) || item.isVacationMode}>
-                      <View style={[
-                        styles.checkboxBase,
-                        (isItemUnavailable(item) || item.isVacationMode) && { backgroundColor: '#F3F4F6', borderColor: '#E5E7EB', opacity: 0.5 },
-                        !isItemUnavailable(item) && !item.isVacationMode && selectedSet.has(item.cartItemId) && { backgroundColor: COLORS.accent, borderColor: COLORS.accent }
-                      ]}>
-                        {!isItemUnavailable(item) && !item.isVacationMode && selectedSet.has(item.cartItemId) && <Check size={12} color="#FFF" strokeWidth={2.5} />}
-                      </View>
-                    </Pressable>
+                  <Pressable style={styles.itemCheckbox} onPress={() => toggleSelectItem(item.cartItemId)}>
+                    <View style={[
+                      styles.checkboxBase,
+                      selectedSet.has(item.cartItemId) ? { backgroundColor: COLORS.accent, borderColor: COLORS.accent } : (isItemUnavailable(item) || item.isVacationMode) && { backgroundColor: '#F3F4F6', borderColor: '#E5E7EB', opacity: 0.5 }
+                    ]}>
+                      {selectedSet.has(item.cartItemId) && <Check size={12} color="#FFF" strokeWidth={2.5} />}
+                    </View>
+                  </Pressable>
                     <View style={[{ flex: 1 }, (!sellerIsActive || item.isVacationMode) && { opacity: 0.5 }]}>
                       <CartItemRow
                         item={item}
-                        onIncrement={() => updateQuantity(item.cartItemId, item.quantity + 1)}
+                        onIncrement={() => {
+                          const s = getItemStock(item);
+                          if (s !== null && item.quantity >= s) {
+                            Alert.alert('Maximum Stock Reached', `Only ${s} items available.`);
+                            return;
+                          }
+                          updateQuantity(item.cartItemId, item.quantity + 1);
+                        }}
                         onDecrement={() => updateQuantity(item.cartItemId, item.quantity - 1)}
                         onChange={() => {}}
                         onRemove={() => handleRemoveSingle(item)}
