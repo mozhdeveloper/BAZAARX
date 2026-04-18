@@ -70,167 +70,158 @@ The following files are local AI standards and are **never committed**:
 
 ## Session Log — April 18, 2026
 
-### PaymentGatewayScreen UI Refinement & Payment Details Display
+### Mobile Cart Item Combining Fix - Variant Change Merge Logic
 
 **Status:** ✅ COMPLETE
 
-**Changes & Prompts:**
+**Problem:**
+When user changed a cart item's variant to match another item with the same product and variant, the items were combining but the quantities were not adding up correctly. Example:
+- Image 1: Meow Big Gray (qty 2) + Meow Big Brown (qty 1) = 2 separate items
+- User changes Big Gray to Big Brown variant
+- Expected: Meow Big Brown (qty 3)
+- Actual: Meow Big Brown (qty 1) — the quantity wasn't combining
 
-#### 1. **Enhanced Payment Details Box with Comprehensive Breakdown**
-**Prompt:** "Check the Image thoroughly, I want you to fix the design of the red outlined box. This is in the PaymentGatewayScreen. Check all the codes and file that are related to it, don't change anything with the code I just want to change it and show there the Payment Details in the Checkout Screen."
+**Root Causes Identified & Fixed:**
 
-**Problem Identified:**
-- Payment Details box only showed "Total Amount" with empty space
-- Provider logo circle occupied space without adding value
-- Missing breakdown of cost components (Subtotal, Shipping, Discount, etc.)
-- Inconsistent visual hierarchy
+#### 1. **Missing Variant Combining Logic in cartService.ts (Lines 424-510)**
+**Problem:** The `updateCartItemVariant()` function only updated the variant_id without checking if another item with the same product and new variant already existed.
 
 **Solution Implemented:**
-
-**Part 1: Enhanced Payment Details Display (PaymentGatewayScreen.tsx, Lines 487-545)**
-- Replaced simple total display with comprehensive payment breakdown
-- Added "Payment Details" title header
-- Implemented conditional rendering for optional components:
-  - **Subtotal:** Always shown (calculated from total - shipping + discount)
-  - **Shipping Fee:** Shows only if `shippingFee > 0`
-  - **Discount/Voucher:** Shows in green only if applicable
-  - **Bazcoin Discount:** Shows in green only if `bazcoinDiscount > 0`
-  - **Divider Line:** Visual separator before total
-  - **Total Amount:** Emphasized at bottom
-
-**Part 2: Enhanced Styling (PaymentGatewayScreen.tsx, Styles Section)**
-- Updated `billContainer` with red border and improved spacing
-- Added new style definitions:
-  - `billDetailsHeader` — Header row with title and logo
-  - `billDetailsTitle` — "Payment Details" text styling
-  - `billDetailRow` — Individual line item styling
-  - `billDetailLabel` — Label text (left-aligned)
-  - `billDetailValue` — Amount text (right-aligned)
-  - `billDetailDivider` — Horizontal line separator
-  - `billDetailRowTotal` — Total row styling
-  - `billDetailLabelTotal` — "Total Amount" label
-  - `billAmountTotal` — Large red total amount display
-
-**Data Flow:**
-```
-Before:
-  Total Amount
-  ₱ 1,600
-  [Empty space with circle]
-
-After:
-  Payment Details
-  Subtotal         ₱ 1,500
-  Shipping         ₱ 100
-  [Discount        -₱ 50]  (if applicable)
-  [Bazcoin Discount -₱ 20]  (if applicable)
-  ─────────────────────────
-  Total Amount     ₱ 1,600
-```
+- Step 1: Fetch current cart item to get product_id and cart_id
+- Step 2: Query for existing items with same product_id and new variant_id (excluding current item)
+- Step 3: If duplicate found:
+  - Extract quantities from both items
+  - Convert to explicit numbers to prevent string concatenation
+  - Calculate combined quantity: `duplicateQty + currentQty`
+  - Validate combined quantity against available stock
+  - Update the duplicate item with:
+    - Combined quantity
+    - New variant_id
+    - New personalized_options
+  - Delete the original item
+- Step 4: If no duplicate, proceed with normal variant update
 
 **Files Modified:**
-- `mobile-app/app/PaymentGatewayScreen.tsx` (Lines 487-545 + Styles)
+- `mobile-app/src/services/cartService.ts` (Lines 424-510)
 
-**Result:** ✅ Complete payment breakdown now visible with improved visual organization
-
----
-
-#### 2. **Removed Decorative Logo Circle**
-**Prompt:** "Check the image thoroughly, remove the circle the one that is inside the red outlined box."
-
-**Problem Identified:**
-- Provider logo circle (60x60px container) occupied unnecessary space
-- Didn't add functional value to payment details view
-- Interfered with clean layout design
-
-**Solution Implemented:**
-- Removed `providerLogoContainer` JSX from `billDetailsHeader`
-- Removed Image import usage in payment details section
-- Changed `billDetailsHeader` flex layout from `space-between` to `flex-start`
-- Removed margin-right calculations
-
-**Impact:**
-- Cleaner visual hierarchy
-- More space for payment details text
-- Improved readability on smaller screens
-
-**Files Modified:**
-- `mobile-app/app/PaymentGatewayScreen.tsx` (Lines 491-495)
-
-**Result:** ✅ Circle removed, cleaner layout
-
----
-
-#### 3. **Simplified Payment Details Box Styling**
-**Prompt:** "Remove the red outline of the Payment Details box, leave it white and simple."
-
-**Problem Identified:**
-- Red border (`borderWidth: 2`, `borderColor: '#C53030'`) made the box too prominent
-- Competed visually with other important elements
-- Didn't match the overall soft, parchment theme
-
-**Solution Implemented:**
-- Removed `borderWidth: 2` from `billContainer`
-- Removed `borderColor: '#C53030'` from `billContainer`
-- Kept white background for clarity
-- Maintained subtle shadow for depth (`elevation: 3`, `shadowOpacity: 0.08`)
-- Preserved rounded corners (16px) for modern appearance
-
-**Updated billContainer Styling:**
+**Key Implementation Detail:**
 ```typescript
-billContainer: {
-  backgroundColor: '#FFFFFF',
-  borderRadius: 16,
-  marginHorizontal: 24,
-  marginTop: 16,
-  marginBottom: 24,
-  padding: 20,
-  shadowColor: '#000',
-  shadowOffset: { width: 0, height: 2 },
-  shadowOpacity: 0.08,
-  shadowRadius: 8,
-  elevation: 3,
-  // Removed: borderWidth, borderColor
-}
+const currentQty = Number(currentQuantity || 0);
+const duplicateQty = Number(duplicateItem.quantity || 0);
+const newQuantity = duplicateQty + currentQty;
 ```
-
-**Impact:**
-- Clean, minimalist design
-- Better visual balance with form elements
-- Maintains hierarchy through spacing and typography
-- Aligns with app's warm parchment theme
-
-**Files Modified:**
-- `mobile-app/app/PaymentGatewayScreen.tsx` (Styles Section)
-
-**Result:** ✅ Simple white design with subtle shadow, no red border
+Explicit number conversion ensures proper numeric addition (not string concatenation).
 
 ---
 
-### Summary of April 18 Session
+#### 2. **Async Promise Not Returned in cartStore.ts (Line 490)**
+**Problem:** The `updateItemVariant()` function in the cart store called `run()` but didn't return the promise, so `await updateItemVariant()` in CartScreen completed immediately without waiting for the database merge to finish.
 
-| Task | Type | Status | Impact |
-|------|------|--------|--------|
-| Enhanced payment breakdown display | Feature | ✅ Complete | Users see itemized costs (subtotal, shipping, discounts) |
-| Removed decorative logo circle | UI/UX | ✅ Complete | Cleaner layout, more readable |
-| Simplified box styling | Design | ✅ Complete | White background, removed red border, subtle shadow |
+**Solution Implemented:**
+Changed from: `run();` 
+To: `return run();`
 
-**Key Outcomes:**
-- ✅ Payment Details box now displays comprehensive breakdown
-- ✅ Conditional rendering for optional cost components
-- ✅ Cleaner, more professional appearance
-- ✅ Better visual hierarchy
-- ✅ Improved mobile responsiveness
-- ✅ Maintains theme consistency (soft parchment design)
+This ensures the async chain properly waits for:
+- Service to detect and combine duplicate items
+- Database update with merged quantity
+- Cart to refresh from database
+- CartScreen to continue after complete operation
 
-**User Experience Improvements:**
-- Users now see exactly what they're paying for before confirming
-- Cost breakdown is immediately clear and organized
-- Green highlighting for discounts shows savings positively
-- Red highlighting for total amount draws attention appropriately
+**Files Modified:**
+- `mobile-app/src/stores/cartStore.ts` (Line 490)
 
-**Files Modified (1):**
-- `mobile-app/app/PaymentGatewayScreen.tsx` — Payment details display, styling, layout refinements
+---
+
+#### 3. **updateQuantity Promise Not Returned in cartStore.ts (Line 414)**
+**Problem:** Similar issue - `updateQuantity()` called `run()` without returning, causing race conditions.
+
+**Solution Implemented:**
+Changed from: `run();`
+To: `return run();`
+
+**Files Modified:**
+- `mobile-app/src/stores/cartStore.ts` (Line 414)
+
+---
+
+#### 4. **updateQuantity Overwriting Merged Quantity in CartScreen.tsx (Lines 140-170)**
+**Problem:** After `updateItemVariant()` correctly merged quantities in the database, the code was calling `updateQuantity()` with the old item's quantity, which overwrote the correctly merged quantity.
+
+**Example Flow:**
+1. Items merge in database: qty 1 + qty 2 = **3** ✓
+2. But then `updateQuantity(editingItem.id, 1)` was called ✗  
+3. This overwrote merged qty 3 back to **1**
+
+**Solution Implemented:**
+Removed the `updateQuantity()` call entirely after `updateItemVariant()`, since the variant update operation already handles all merging logic and sets the correct combined quantity.
+
+**Code Change:**
+```typescript
+// BEFORE: This was overwriting the merged quantity
+await updateItemVariant(editingItem.cartItemId, variantData.variantId, newOptions);
+if (newQuantity !== editingItem.quantity) {
+  updateQuantity(editingItem.id, newQuantity);  // ❌ REMOVED
+}
+
+// AFTER: Only do variant update, which handles merging
+await updateItemVariant(editingItem.cartItemId, variantData.variantId, newOptions);
+// Do NOT call updateQuantity - the variant update with merge already handles
+// setting the correct combined quantity in the database
+```
+
+**Files Modified:**
+- `mobile-app/app/CartScreen.tsx` (Lines 140-170)
+
+---
+
+### Summary of April 18 Cart Combining Fix
+
+| Issue | Root Cause | Fix | File | Status |
+|-------|-----------|-----|------|--------|
+| Items not combining | No duplicate detection logic | Implemented full merge logic with stock validation | `cartService.ts` | ✅ |
+| Quantity not adding | String concatenation instead of numeric addition | Explicit `Number()` conversion | `cartService.ts` | ✅ |
+| Merge not being awaited | Promise not returned from store function | Changed `run()` to `return run()` | `cartStore.ts` | ✅ |
+| updateQuantity race | Promise not returned | Changed `run()` to `return run()` | `cartStore.ts` | ✅ |
+| Merged qty overwritten | updateQuantity called after merge | Removed updateQuantity call | `CartScreen.tsx` | ✅ |
+
+---
+
+### How It Works Now (Complete Flow)
+
+1. **User Action:** Changes Meow Big Gray (qty 2) variant to Big Brown
+2. **Modal Closes:** Calls `updateItemVariant(cartItemId, newVariantId, options)` from CartScreen
+3. **Cart Store:** Returns promise from `updateItemVariant` → properly awaitable
+4. **Cart Service:** 
+   - Fetches current item (qty 2)
+   - Queries for duplicates with new variant (finds qty 1)
+   - Converts quantities to numbers: 1 + 2 = 3
+   - Updates duplicate item with qty 3
+   - Deletes old item
+5. **Cart Store:** Calls `initializeForCurrentUser()` to refresh from database
+6. **CartScreen:** Await completes, cart displays correctly with Meow Big Brown (qty 3)
+
+---
+
+### User Experience Result
+
+**Before:**
+- User changes variant
+- Items combine but with wrong quantity
+- User sees "Meow Big Brown (qty 1)" instead of "(qty 3)"
+- Cart total is wrong
+
+**After:**
+- User changes variant
+- Items properly combine with correct combined quantity
+- User sees "Meow Big Brown (qty 3)" ✅
+- Cart total is accurate ✅
+
+---
+
+**Files Modified (3):**
+- `mobile-app/src/services/cartService.ts` — Full variant combining logic with stock validation
+- `mobile-app/src/stores/cartStore.ts` — Fixed promise returns for updateItemVariant and updateQuantity
+- `mobile-app/app/CartScreen.tsx` — Removed updateQuantity call that was overwriting merged quantity
 
 **Branch:** `update/payment-gateway-screen-ui`
 
