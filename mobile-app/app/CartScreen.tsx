@@ -160,12 +160,10 @@ export default function CartScreen({ navigation, route }: any) {
     if (variantData.option1Value) newOptions.size = variantData.option1Value;
     if (variantData.option2Value) newOptions.color = variantData.option2Value;
 
+    // Update variant - this includes merging logic that combines quantities properly
     await updateItemVariant(editingItem.cartItemId, variantData.variantId, newOptions);
-
-    // Also update quantity if changed
-    if (newQuantity !== editingItem.quantity) {
-      updateQuantity(editingItem.id, newQuantity);
-    }
+    // Do NOT call updateQuantity here - the variant update with merge already handles
+    // setting the correct combined quantity in the database
 
     setEditingItem(null);
   };
