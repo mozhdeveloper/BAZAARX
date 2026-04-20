@@ -199,6 +199,7 @@ export default function OrdersScreen({ navigation, route }: Props) {
             id, status, is_returnable, refund_date
           ),
           shipments:order_shipments(*),
+          payments:order_payments(payment_method, status, created_at),
           history:order_status_history(status, created_at)
         `;
 
@@ -250,6 +251,7 @@ export default function OrdersScreen({ navigation, route }: Props) {
           return_requests:refund_return_periods (
             id, status, is_returnable, refund_date
           ),
+          payments:order_payments(payment_method, status, created_at),
           history:order_status_history(status, created_at)
         `;
 
@@ -432,11 +434,17 @@ export default function OrdersScreen({ navigation, route }: Props) {
         // Original items total (before campaign discount)
         const itemsSubtotal = items.reduce((sum: number, i: any) => sum + ((i.price || 0) * i.quantity), 0);
         
-        // subtotal = original price - campaign discount
+        // Calculate total shipping from all sellers
+        const totalShipping = (order.shipments || []).reduce((sum: number, shipment: any) => {
+          const fee = typeof shipment.calculated_fee === 'number' ? shipment.calculated_fee : parseFloat(shipment.calculated_fee || '0') || 0;
+          return sum + fee;
+        }, 0);
+        
+        // subtotal = original items total
         const subtotal = itemsSubtotal;
         
-        // total = subtotal + shipping - voucher
-        const total = subtotal + shippingFee - (voucherInfo?.discountAmount || 0);
+        // total = subtotal + all seller shipping - voucher discount
+        const total = subtotal + totalShipping - (voucherInfo?.discountAmount || 0);
 
         return {
           id: order.order_number || order.id,
@@ -446,7 +454,7 @@ export default function OrdersScreen({ navigation, route }: Props) {
           sellerInfo: productSeller,
           total,
           subtotal,
-          shippingFee,
+          shippingFee: totalShipping,
           discount: campaignDiscount + (voucherInfo?.discountAmount || 0),
           voucherInfo,
           campaignDiscounts: campaignDiscount > 0 ? [{
@@ -467,17 +475,21 @@ export default function OrdersScreen({ navigation, route }: Props) {
             region: linkedAddress.province || linkedAddress.region || '',
             postalCode: linkedAddress.postal_code || '',
           },
-          paymentMethod: typeof order.payment_method === 'string'
-            ? order.payment_method
-            : ((order.payment_method as any)?.type === 'cod'
-              ? 'Cash on Delivery'
-              : (order.payment_method as any)?.type === 'gcash'
-                ? 'GCash'
-                : (order.payment_method as any)?.type === 'card'
-                  ? 'Card'
-                  : (order.payment_method as any)?.type === 'paymongo'
-                    ? 'PayMongo'
-                    : (order.payment_method as any)?.type || 'Cash on Delivery'),
+          paymentMethod: (() => {
+            const paymentData = (order.payments && order.payments.length > 0) ? order.payments[0]?.payment_method : null;
+            if (typeof paymentData === 'string') {
+              return paymentData;
+            }
+            if (typeof paymentData === 'object' && paymentData) {
+              const type = (paymentData as any)?.type;
+              if (type === 'cod') return 'Cash on Delivery';
+              if (type === 'gcash') return 'GCash';
+              if (type === 'card') return 'Card';
+              if (type === 'paymongo') return 'PayMongo';
+              return type || 'Cash on Delivery';
+            }
+            return 'Cash on Delivery';
+          })(),
           createdAt: order.created_at,
           confirmedAt: (order.history || []).find((h: any) => h.status === 'processing' || h.status === 'confirmed')?.created_at || order.paid_at || null,
           shippedAt: (order.history || []).find((h: any) => h.status === 'shipped')?.created_at || (order.shipments || []).find((s: any) => s.shipped_at)?.shipped_at || null,

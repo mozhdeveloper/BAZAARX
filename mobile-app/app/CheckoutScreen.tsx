@@ -1888,9 +1888,9 @@ export default function CheckoutScreen({ navigation, route }: Props) {
       return;
     }
 
-    // For PayMongo with saved card: Proceed to payment gateway
+    // For PayMongo with saved card: Include card ID in payload
     if (paymentMethod === 'paymongo' && selectedPaymentMethodId) {
-      // User selected a saved card - proceed with payment
+      // User selected a saved card - will be used instead of card form
     } else if (paymentMethod === 'paymongo' && !selectedPaymentMethodId) {
       // User has no saved cards selected
       Alert.alert('Payment Method', 'Please select a saved card or click "Use Different Card" to enter a new card.');
@@ -1951,6 +1951,8 @@ export default function CheckoutScreen({ navigation, route }: Props) {
             destinationZone: r.destinationZone,
           };
         }),
+        // Include saved PayMongo card ID if user selected one
+        ...(paymentMethod === 'paymongo' && selectedPaymentMethodId ? { savedPaymentMethodId: selectedPaymentMethodId } : {}),
       };
 
       const result = await processCheckout(payload);
@@ -1969,6 +1971,57 @@ export default function CheckoutScreen({ navigation, route }: Props) {
       // Clear quick order if applicable
       if (isQuickCheckout) {
         clearQuickOrder();
+      }
+
+      // ✅ FIX: Special handling for PayMongo saved cards - skip payment gateway
+      if (paymentMethod === 'paymongo' && selectedPaymentMethodId) {
+        // Saved PayMongo card - proceed directly to confirmation
+        const shippingAddressForOrder: ShippingAddress = {
+          name: `${selectedAddress?.firstName || ''} ${selectedAddress?.lastName || ''}`.trim(),
+          email: user.email,
+          phone: selectedAddress?.phone || '',
+          address: `${selectedAddress?.street || ''}${selectedAddress?.barangay ? `, ${selectedAddress.barangay}` : ''}`,
+          city: selectedAddress?.city || '',
+          region: selectedAddress?.province || selectedAddress?.region || '',
+          postalCode: selectedAddress?.zipCode || '',
+        };
+
+        const order: Order = {
+          id: result.orderIds?.[0] || 'ORD-' + Date.now(),
+          orderId: result.orderUuids?.[0],
+          buyerId: user.id,
+          sellerId: checkoutItems[0]?.seller_id || checkoutItems[0]?.sellerId || '',
+          transactionId: 'TXN' + Math.random().toString(36).slice(2, 10).toUpperCase(),
+          items: checkoutItems,
+          total,
+          shippingFee,
+          discount: discount > 0 ? discount : undefined,
+          voucherInfo: appliedVoucher ? {
+            code: appliedVoucher.code,
+            type: appliedVoucher.type,
+            discountAmount: discount
+          } : undefined,
+          campaignDiscounts: campaignDiscountTotal > 0 ? checkoutItems
+            .filter(item => item.campaignDiscount)
+            .map(item => ({
+              campaignId: item.campaignDiscount?.campaignId || '',
+              campaignName: item.campaignDiscount?.campaignName || 'Discount',
+              discountAmount: ((item.originalPrice ?? item.price ?? 0) - (item.price ?? 0)) * item.quantity
+            })) : undefined,
+          status: 'pending',
+          isPaid: false,
+          scheduledDate: new Date(Date.now() + 3 * 24 * 60 * 60 * 1000).toLocaleDateString('en-US'),
+          shippingAddress: shippingAddressForOrder,
+          paymentMethod,
+          createdAt: new Date().toISOString(),
+          isGift,
+          isAnonymous,
+          recipientId: isGift ? recipientId : undefined
+        };
+
+        console.log('[Checkout] PayMongo saved card selected - skipping payment gateway');
+        navigation.navigate('OrderConfirmation', { order, earnedBazcoins });
+        return;
       }
 
       // Check if online payment (GCash, PayMongo, PayMaya, Card)
@@ -2108,7 +2161,7 @@ export default function CheckoutScreen({ navigation, route }: Props) {
     } finally {
       setIsProcessing(false);
     }
-  }, [hasUnavailableItems, unavailableItems, hasVacationSeller, vacationSellers, selectedAddress, checkoutItems, user, total, paymentMethod, bazcoinDiscount, earnedBazcoins, shippingFee, discount, availableBazcoins, isQuickCheckout, isGift, isAnonymous, recipientId, navigation, initializeForCurrentUser, clearQuickOrder, campaignDiscountTotal, appliedVoucher]);
+  }, [hasUnavailableItems, unavailableItems, hasVacationSeller, vacationSellers, selectedAddress, checkoutItems, user, total, paymentMethod, bazcoinDiscount, earnedBazcoins, shippingFee, discount, availableBazcoins, isQuickCheckout, isGift, isAnonymous, recipientId, navigation, initializeForCurrentUser, clearQuickOrder, campaignDiscountTotal, appliedVoucher, selectedPaymentMethodId, shippingResults, selectedMethods]);
 
   if (isCheckoutContextLoading) {
     return (
