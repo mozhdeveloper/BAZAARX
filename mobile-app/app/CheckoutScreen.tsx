@@ -2075,7 +2075,23 @@ export default function CheckoutScreen({ navigation, route }: Props) {
       if (isOnlinePayment) {
         // Navigate to payment gateway simulation
         // Pass isQuickCheckout flag so we know what to clear later
-        navigation.navigate('PaymentGateway', { paymentMethod, order, isQuickCheckout, earnedBazcoins });
+        console.log('[Checkout] Navigating to PaymentGateway with shipping:', {
+          orderShippingFee: order?.shippingFee,
+          payloadShippingFee: payload?.shippingFee,
+          shippingBreakdownCount: payload?.shippingBreakdown?.length,
+          earnedBazcoins
+        });
+        navigation.navigate('PaymentGateway', { 
+          paymentMethod, 
+          order, 
+          checkoutPayload: payload, 
+          isQuickCheckout, 
+          earnedBazcoins,
+          bazcoinDiscount,
+          appliedVoucher,
+          isGift,
+          recipientId
+        });
 
       } else {
         // For saved PayMongo cards or COD: create order immediately then navigate
@@ -2556,7 +2572,23 @@ export default function CheckoutScreen({ navigation, route }: Props) {
                                   discountAmount: ((item.originalPrice ?? item.price ?? 0) - (item.price ?? 0)) * item.quantity,
                                   productId: item.id,
                                   quantity: item.quantity
-                                }))
+                                })),
+                              // BX-09-001 — Per-seller shipping breakdown (REQUIRED for shipment records)
+                              shippingBreakdown: shippingResults.map(r => {
+                                const methodKey = selectedMethods[r.sellerId];
+                                const method = r.methods.find(m => m.method === methodKey) || r.defaultMethod;
+                                return {
+                                  sellerId: r.sellerId,
+                                  sellerName: r.sellerName,
+                                  method: method?.method ?? 'standard',
+                                  methodLabel: method?.label ?? 'Standard',
+                                  fee: method?.fee ?? 0,
+                                  breakdown: method?.breakdown ?? { baseRate: 0, weightSurcharge: 0, valuationFee: 0, odzFee: 0 },
+                                  estimatedDays: method?.estimatedDays ?? 'N/A',
+                                  originZone: r.originZone,
+                                  destinationZone: r.destinationZone,
+                                };
+                              })
                             };
                             
                             // Navigate to payment gateway with checkout data (not pre-created order)

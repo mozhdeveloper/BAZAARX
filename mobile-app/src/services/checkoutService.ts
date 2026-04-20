@@ -394,7 +394,13 @@ export const processCheckout = async (payload: CheckoutPayload): Promise<Checkou
             if (payload.shippingBreakdown && payload.shippingBreakdown.length > 0) {
                 const sellerBreakdown = payload.shippingBreakdown.find((sb: any) => sb.sellerId === sellerId);
                 if (sellerBreakdown) {
-                    supabase
+                    console.log(`[Checkout] Creating shipment for seller ${sellerId}:`, {
+                        method: sellerBreakdown.method,
+                        label: sellerBreakdown.methodLabel,
+                        fee: sellerBreakdown.fee,
+                        estimatedDays: sellerBreakdown.estimatedDays
+                    });
+                    const { error: shipErr } = await supabase
                         .from('order_shipments')
                         .insert({
                             order_id: orderData.id,
@@ -409,15 +415,18 @@ export const processCheckout = async (payload: CheckoutPayload): Promise<Checkou
                             chargeable_weight_kg: 0,
                             tracking_number: null,
                             status: 'pending',
-                        })
-                        .then(({ error: shipErr }) => {
-                            if (shipErr) {
-                                console.warn(`[Checkout] ⚠️ Failed to insert order_shipment for seller ${sellerId}:`, shipErr.message);
-                            } else {
-                                console.log(`[Checkout] ✅ Shipment record created for order ${orderData!.order_number}, seller ${sellerId}`);
-                            }
                         });
+                    
+                    if (shipErr) {
+                        console.warn(`[Checkout] ⚠️ Failed to insert order_shipment for seller ${sellerId}:`, shipErr.message);
+                    } else {
+                        console.log(`[Checkout] ✅ Shipment record created for order ${orderData!.order_number}, seller ${sellerId} with fee ₱${sellerBreakdown.fee}`);
+                    }
+                } else {
+                    console.warn(`[Checkout] ⚠️ No shipping breakdown found for seller ${sellerId}. Available sellers:`, payload.shippingBreakdown.map((sb: any) => sb.sellerId));
                 }
+            } else {
+                console.warn(`[Checkout] ⚠️ No shippingBreakdown in payload for order ${orderData.order_number}`);
             }
 
             // � Send bell notification to buyer about order placed (only this one, no duplicate 'pending')

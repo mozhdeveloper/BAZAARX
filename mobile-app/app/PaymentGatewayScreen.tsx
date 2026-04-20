@@ -230,6 +230,13 @@ export default function PaymentGatewayScreen({ navigation, route }: Props) {
           postalCode: checkoutPayload.shippingAddress?.postalCode || '',
         };
 
+        console.log('[PaymentGateway] Creating temp order from checkoutPayload with shipping:', {
+          payloadShippingFee: checkoutPayload.shippingFee,
+          shippingBreakdownCount: checkoutPayload.shippingBreakdown?.length,
+          appliedVoucher: appliedVoucher?.code,
+          discount: checkoutPayload.discount
+        });
+        
         currentOrder = {
           id: createdOrderUuids[0] || 'ORD-' + Date.now(),
           orderId: createdOrderUuids[0],
@@ -666,7 +673,6 @@ export default function PaymentGatewayScreen({ navigation, route }: Props) {
                     placeholderTextColor="#9CA3AF"
                     value={cardName}
                     onChangeText={setCardName}
-                    autoCapitalize="characters"
                     editable={status !== 'processing'}
                     accessibilityLabel="Cardholder Name Input"
                   />

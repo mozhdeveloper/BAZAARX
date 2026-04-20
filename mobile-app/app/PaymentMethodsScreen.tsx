@@ -504,7 +504,7 @@ export default function PaymentMethodsScreen({ navigation }: Props) {
                   placeholderTextColor="#D1D5DB"
                   value={newCard.cardName}
                   onChangeText={(text) => {
-                    setNewCard({ ...newCard, cardName: text.toUpperCase() });
+                    setNewCard({ ...newCard, cardName: text });
                     setError(null);
                   }}
                   editable={!saving}
