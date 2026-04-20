@@ -429,6 +429,19 @@ export default function ProductDetailScreen({ route, navigation }: Props) {
     return typeof s === 'string' ? s : 'Store';
   }, [product.seller]);
 
+  // Check if seller is restricted (vacation mode, blacklisted, suspended, or rejected)
+  const isSellerRestricted = useMemo(() => {
+    if ((product as any).isSellerActive === false) return true;
+    if ((product as any).is_vacation_mode) return true;
+    const seller = (product as any).seller;
+    if (typeof seller === 'object' && seller !== null) {
+      if (seller.is_permanently_blacklisted) return true;
+      if (seller.suspended_at) return true;
+      if (seller.approval_status === 'rejected' || seller.approval_status === 'suspended') return true;
+    }
+    return false;
+  }, [product]);
+
   // Reviews State
   const [reviews, setReviews] = useState<ReviewFeedItem[]>([]);
   const [reviewsTotal, setReviewsTotal] = useState(0);
@@ -827,9 +840,10 @@ export default function ProductDetailScreen({ route, navigation }: Props) {
       return;
     }
 
-    // Check if seller is on vacation mode
-    if ((product as any).is_vacation_mode) {
-      Alert.alert('Store Unavailable', 'This store is temporarily unavailable. You cannot add this item to cart.');
+    // Check if seller is restricted
+    if (isSellerRestricted) {
+      triggerOutOfStockPulse();
+      Alert.alert('Store Unavailable', 'This store is temporarily unavailable.');
       return;
     }
 
@@ -838,6 +852,7 @@ export default function ProductDetailScreen({ route, navigation }: Props) {
 
     // Validate quantity against product stock (no variants case)
     if (quantity > (product.stock || 0)) {
+      triggerOutOfStockPulse();
       Alert.alert('Insufficient Stock', `Only ${product.stock} items available.`);
       return;
     }
@@ -871,7 +886,7 @@ export default function ProductDetailScreen({ route, navigation }: Props) {
     } catch {
       Alert.alert('Unable to add to cart', useCartStore.getState().error || 'This item is no longer available.');
     }
-  }, [hasVariants, isGuest, product, quantity, activeCampaignDiscount, productImages, addItem]);
+  }, [hasVariants, isGuest, product, quantity, activeCampaignDiscount, productImages, addItem, isSellerRestricted]);
 
   const handleBuyNow = useCallback(() => {
     // Bypass variant modal if variants are already selected
@@ -886,9 +901,10 @@ export default function ProductDetailScreen({ route, navigation }: Props) {
       return;
     }
 
-    // Check if seller is on vacation mode
-    if ((product as any).is_vacation_mode) {
-      Alert.alert('Store Unavailable', 'This store is temporarily unavailable. You cannot purchase this product.');
+    // Check if seller is restricted
+    if (isSellerRestricted) {
+      triggerOutOfStockPulse();
+      Alert.alert('Store Unavailable', 'This store is temporarily unavailable.');
       return;
     }
 
@@ -906,7 +922,7 @@ export default function ProductDetailScreen({ route, navigation }: Props) {
       selectedVariant
     } as any, quantity);
     navigation.navigate('Checkout', {});
-  }, [hasVariants, isGuest, product, quantity, activeCampaignDiscount, selectedColor, selectedSize, navigation, setQuickOrder]);
+  }, [hasVariants, isGuest, product, quantity, activeCampaignDiscount, selectedColor, selectedSize, navigation, setQuickOrder, isSellerRestricted]);
 
   const handleShare = async () => {
     await Share.share({ message: `Check out ${product.name} on BazaarX! ₱${product.price}` });
@@ -1600,24 +1616,24 @@ export default function ProductDetailScreen({ route, navigation }: Props) {
 
         <View style={styles.actionButtonsContainer}>
           <Pressable
-            style={[styles.addToCartBtn, ((Number(selectedVariantInfo.stock ?? 0) <= 0) || (product as any).is_vacation_mode) && styles.disabledBtn]}
-            onPress={((Number(selectedVariantInfo.stock ?? 0) <= 0) || (product as any).is_vacation_mode) ? triggerOutOfStockPulse : handleAddToCart}
+            style={[styles.addToCartBtn, ((Number(selectedVariantInfo.stock ?? 0) <= 0) || isSellerRestricted) && styles.disabledBtn]}
+            onPress={handleAddToCart}
             disabled={false}
           >
-            <ShoppingCart size={20} color={((Number(selectedVariantInfo.stock ?? 0) > 0) && !(product as any).is_vacation_mode) ? COLORS.primary : COLORS.gray400} />
+            <ShoppingCart size={20} color={((Number(selectedVariantInfo.stock ?? 0) > 0) && !isSellerRestricted) ? COLORS.primary : COLORS.gray400} />
           </Pressable>
 
           <Pressable
-            style={[styles.buyNowBtn, ((Number(selectedVariantInfo.stock ?? 0) <= 0) || (product as any).is_vacation_mode) && styles.disabledBtn]}
-            onPress={((Number(selectedVariantInfo.stock ?? 0) <= 0) || (product as any).is_vacation_mode) ? triggerOutOfStockPulse : handleBuyNow}
+            style={[styles.buyNowBtn, ((Number(selectedVariantInfo.stock ?? 0) <= 0) || isSellerRestricted) && styles.disabledBtn]}
+            onPress={handleBuyNow}
             disabled={false}
           >
             <AnimatedText style={{
               ...styles.buyNowText,
-              ...((Number(selectedVariantInfo.stock ?? 0) <= 0 || (product as any).is_vacation_mode) ? { color: COLORS.gray400 } : {}),
+              ...((Number(selectedVariantInfo.stock ?? 0) <= 0 || isSellerRestricted) ? { color: COLORS.gray400 } : {}),
               ...(Number(selectedVariantInfo.stock ?? 0) <= 0 ? { transform: [{ scale: outOfStockPulse }] } : {}),
             }}>
-              {((product as any).is_vacation_mode ? 'Store Unavailable' : (Number(selectedVariantInfo.stock ?? 0) > 0 ? 'Buy Now' : 'Out of Stock'))}
+              {(isSellerRestricted ? 'Store Unavailable' : (Number(selectedVariantInfo.stock ?? 0) > 0 ? 'Buy Now' : 'Out of Stock'))}
             </AnimatedText>
           </Pressable>
         </View>
