@@ -6,10 +6,12 @@ import {
   Pressable,
   Image,
   ScrollView,
+  BackHandler,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { useFocusEffect } from '@react-navigation/native';
 import { LinearGradient } from 'expo-linear-gradient';
-import { CheckCircle, HelpCircle, Package, ChevronRight, Home, Flame, Tag, CreditCard } from 'lucide-react-native';
+import { CheckCircle, HelpCircle, Package, ChevronRight, Home, Flame, Tag, CreditCard, ArrowLeft } from 'lucide-react-native';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import type { RootStackParamList } from '../App';
 import type { Order } from '../src/types';
@@ -21,7 +23,7 @@ import type { PaymentTransaction } from '../src/types/payment.types';
 type Props = NativeStackScreenProps<RootStackParamList, 'OrderConfirmation'>;
 
 export default function OrderConfirmation({ navigation, route }: Props) {
-  const { order, earnedBazcoins = 0 } = route.params as { order: Order; earnedBazcoins?: number };
+  const { order, earnedBazcoins = 0, isQuickCheckout } = route.params as { order: Order; earnedBazcoins?: number; isQuickCheckout?: boolean };
   const [paymentTx, setPaymentTx] = useState<PaymentTransaction | null>(null);
   const getTransactionByOrderId = usePaymentStore((s) => s.getTransactionByOrderId);
 
@@ -33,7 +35,43 @@ export default function OrderConfirmation({ navigation, route }: Props) {
       .then((tx) => setPaymentTx(tx))
       .catch(() => {});
   }, [order.id]);
+
+  // Handle Android hardware back button
+  useFocusEffect(
+    React.useCallback(() => {
+      const onBackPress = () => {
+        handleBack();
+        return true; // Prevent default back behavior
+      };
+
+      const subscription = BackHandler.addEventListener('hardwareBackPress', onBackPress);
+
+      return () => {
+        subscription.remove();
+      };
+    }, [isQuickCheckout, navigation])
+  );
   
+  const handleBack = () => {
+    // Navigate back to appropriate screen based on checkout type
+    if (isQuickCheckout) {
+      // From ProductDetail (Buy Now) - go to Shop tab
+      navigation.replace('MainTabs', {
+        screen: 'Shop',
+        params: {
+          category: undefined,
+          searchQuery: undefined,
+          view: undefined,
+        },
+      });
+    } else {
+      // From Cart - go back to Cart tab
+      navigation.replace('MainTabs', {
+        screen: 'Cart',
+        params: undefined,
+      });
+    }
+  };
   
   const handleViewPurchases = () => {
     navigation.navigate('Orders', {});
@@ -51,6 +89,15 @@ export default function OrderConfirmation({ navigation, route }: Props) {
       style={{ flex: 1 }}
     >
       <SafeAreaView style={styles.container} edges={['top']}>
+        {/* Back Button Header */}
+        <View style={styles.headerContainer}>
+          <Pressable style={styles.backButton} onPress={handleBack}>
+            <ArrowLeft size={24} color={COLORS.textHeadline} strokeWidth={2.5} />
+          </Pressable>
+          <Text style={styles.headerTitle}>Order Confirmation</Text>
+          <View style={{ width: 40 }} />
+        </View>
+
         <ScrollView
           contentContainerStyle={styles.scrollContent}
           showsVerticalScrollIndicator={false}
@@ -249,6 +296,28 @@ const styles = StyleSheet.create({
   scrollContent: {
     padding: 20,
     paddingBottom: 60,
+  },
+  headerContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 20,
+    paddingVertical: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: '#F3F4F6',
+  },
+  backButton: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: 'rgba(255, 255, 255, 0.5)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  headerTitle: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: COLORS.textHeadline,
   },
   successIconContainer: {
     alignItems: 'center',

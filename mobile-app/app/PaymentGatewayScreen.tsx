@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useCallback } from 'react';
 import {
   View,
   Text,
@@ -11,22 +11,24 @@ import {
   Image,
   ScrollView,
   Alert,
+  BackHandler,
 } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useFocusEffect } from '@react-navigation/native';
 import { ArrowLeft, Lock, CheckCircle, Shield, CreditCard, Zap } from 'lucide-react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import type { RootStackParamList } from '../App';
 import type { Order } from '../src/types';
 import { COLORS } from '../src/constants/theme';
-import { BASIC_TEST_CARDS, SCENARIO_TEST_CARDS } from '../src/constants/testCards';
+import { BASIC_TEST_CARDS, SCENARIO_TEST_CARDS, getTestCardByNumber } from '../src/constants/testCards';
+import { AlertCircle } from 'lucide-react-native';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'PaymentGateway'>;
 
 import { useCartStore } from '../src/stores/cartStore';
 import { usePaymentStore } from '../src/stores/paymentStore';
 import type { GatewayPaymentType } from '../src/types/database.types';
-import { processCheckout } from '../src/services/checkoutService';
 
 export default function PaymentGatewayScreen({ navigation, route }: Props) {
   type RouteParams = { 
@@ -46,6 +48,16 @@ export default function PaymentGatewayScreen({ navigation, route }: Props) {
   const { paymentMethod: rawPaymentMethod, order, checkoutPayload, isQuickCheckout, earnedBazcoins = 0, bazcoinDiscount = 0, appliedVoucher, isGift = false, isAnonymous = false, recipientId } = params;
   const paymentMethod = rawPaymentMethod || 'card';
   
+  console.log('[PaymentGateway] Route params received:', {
+    hasOrder: !!order,
+    orderId: order?.orderId,
+    orderTotal: order?.total,
+    orderSellerId: order?.sellerId,
+    orderBuyerId: order?.buyerId,
+    hasCheckoutPayload: !!checkoutPayload,
+    paymentMethod
+  });
+  
   const { clearCart, clearQuickOrder, removeItems } = useCartStore();
   const { createPayment, confirmPayment, openEWalletCheckout, isSandbox } = usePaymentStore();
   const [status, setStatus] = useState<'idle' | 'processing' | 'approved' | 'failed'>('idle');
@@ -60,11 +72,34 @@ export default function PaymentGatewayScreen({ navigation, route }: Props) {
   const [expiryDate, setExpiryDate] = useState('');
   const [cvv, setCvv] = useState('');
   const [cardName, setCardName] = useState('');
+  const [cardNumberError, setCardNumberError] = useState<string | null>(null);
   
   // Order tracking for new card flow
   const [createdOrder, setCreatedOrder] = useState<Order | null>(null);
 
   const insets = useSafeAreaInsets();
+
+  // Prevent back navigation while payment is processing
+  useFocusEffect(
+    useCallback(() => {
+      const backAction = () => {
+        if (status === 'processing') {
+          Alert.alert(
+            'Payment in Progress',
+            'Your payment is being processed. Please wait for it to complete before going back.',
+            [{ text: 'OK', onPress: () => {} }],
+            { cancelable: false }
+          );
+          return true; // Prevent back navigation
+        }
+        return false; // Allow back navigation
+      };
+
+      const subscription = BackHandler.addEventListener('hardwareBackPress', backAction);
+
+      return () => subscription.remove();
+    }, [status])
+  );
 
   // Map UI payment method slug to GatewayPaymentType
   const methodSlug = paymentMethod.toLowerCase();
@@ -115,7 +150,7 @@ export default function PaymentGatewayScreen({ navigation, route }: Props) {
 
   const isFormValid = () => {
     if (showCardForm) {
-      return cardNumber.length >= 16 && expiryDate.length >= 5 && cvv.length >= 3 && cardName.length > 3;
+      return !cardNumberError && cardNumber.length >= 16 && expiryDate.length >= 5 && cvv.length >= 3 && cardName.length > 3;
     }
     // GCash/Maya validation
     return mobileNumber.length >= 10 && mpin.length >= 4;
@@ -148,123 +183,9 @@ export default function PaymentGatewayScreen({ navigation, route }: Props) {
       let paymentSellerId: string;
       let paymentTotal: number;
 
-      // NEW CARD FLOW: Create order first if it doesn't exist
-      // This creates the order record in DB so FK constraint is satisfied
-      // BUT we DON'T clear the cart yet - that happens after payment succeeds
-      if (!currentOrder && checkoutPayload && !createdOrder) {
-        console.log('[PaymentGateway] Creating order before payment for FK constraint...');
-        
-        // Import at the top level
-        const { supabase } = await import('../src/lib/supabase');
-        
-        const generateOrderNumber = (): string => {
-          const year = new Date().getFullYear();
-          const seq = Math.floor(Date.now() / 1000).toString(36).toUpperCase();
-          const randomPart = Math.random().toString(36).substring(2, 6).toUpperCase();
-          return `ORD-${year}${seq}${randomPart}`;
-        };
-
-        // Create address first (required for order)
-        const addressParts = [
-          checkoutPayload.shippingAddress?.fullName || '',
-          checkoutPayload.shippingAddress?.phone || '',
-          checkoutPayload.shippingAddress?.street || ''
-        ].filter(Boolean);
-        const addressLine1 = addressParts.length > 0 ? addressParts.join(', ') : 'Checkout Address';
-
-        const { data: addressData, error: addressError } = await supabase
-          .from('shipping_addresses')
-          .insert({
-            user_id: checkoutPayload.userId,
-            label: 'Checkout Address',
-            address_line_1: addressLine1,
-            city: checkoutPayload.shippingAddress?.city || 'Manila',
-            province: checkoutPayload.shippingAddress?.province || 'Metro Manila',
-            region: checkoutPayload.shippingAddress?.region || 'NCR',
-            postal_code: checkoutPayload.shippingAddress?.postalCode || '0000'
-          })
-          .select('id')
-          .single();
-
-        if (addressError) throw addressError;
-
-        const createdOrderIds: string[] = [];
-        const createdOrderUuids: string[] = [];
-
-        // Create one order
-        const orderNumber = generateOrderNumber();
-        const { data: orderData, error: orderError } = await supabase
-          .from('orders')
-          .insert({
-            order_number: orderNumber,
-            buyer_id: checkoutPayload.userId,
-            order_type: 'ONLINE',
-            address_id: addressData?.id,
-            payment_status: 'pending_payment',
-            shipment_status: 'waiting_for_seller',
-            notes: `Payment pending - ${paymentMethod}`,
-            created_at: new Date().toISOString(),
-            updated_at: new Date().toISOString()
-          })
-          .select('id, order_number, buyer_id')
-          .single();
-
-        if (orderError) throw orderError;
-        if (!orderData) throw new Error('Failed to create order');
-
-        createdOrderIds.push(orderData.order_number);
-        createdOrderUuids.push(orderData.id);
-
-        console.log('[PaymentGateway] ✅ Order created for FK:', orderData.order_number);
-
-        // Build order object for UI purposes
-        const sellerId = checkoutPayload.items?.[0]?.seller_id || checkoutPayload.items?.[0]?.sellerId;
-        
-        const shippingAddressForOrder = {
-          name: checkoutPayload.shippingAddress?.fullName || '',
-          email: checkoutPayload.email || '',
-          phone: checkoutPayload.shippingAddress?.phone || '',
-          address: `${checkoutPayload.shippingAddress?.street || ''}${checkoutPayload.shippingAddress?.barangay ? `, ${checkoutPayload.shippingAddress.barangay}` : ''}`,
-          city: checkoutPayload.shippingAddress?.city || '',
-          region: checkoutPayload.shippingAddress?.province || checkoutPayload.shippingAddress?.region || '',
-          postalCode: checkoutPayload.shippingAddress?.postalCode || '',
-        };
-
-        console.log('[PaymentGateway] Creating temp order from checkoutPayload with shipping:', {
-          payloadShippingFee: checkoutPayload.shippingFee,
-          shippingBreakdownCount: checkoutPayload.shippingBreakdown?.length,
-          appliedVoucher: appliedVoucher?.code,
-          discount: checkoutPayload.discount
-        });
-        
-        currentOrder = {
-          id: createdOrderUuids[0] || 'ORD-' + Date.now(),
-          orderId: createdOrderUuids[0],
-          buyerId: checkoutPayload.userId,
-          sellerId: sellerId,
-          transactionId: 'TXN' + Math.random().toString(36).slice(2, 10).toUpperCase(),
-          items: checkoutPayload.items,
-          total: checkoutPayload.totalAmount,
-          shippingFee: checkoutPayload.shippingFee,
-          discount: checkoutPayload.discount > 0 ? checkoutPayload.discount : undefined,
-          voucherInfo: appliedVoucher ? {
-            code: appliedVoucher.code,
-            type: appliedVoucher.type,
-            discountAmount: checkoutPayload.discountAmount
-          } : undefined,
-          status: 'pending',
-          isPaid: false,
-          createdAt: new Date().toISOString(),
-          scheduledDate: new Date(Date.now() + 3 * 24 * 60 * 60 * 1000).toLocaleDateString('en-US'),
-          shippingAddress: shippingAddressForOrder,
-          paymentMethod: paymentMethod,
-          isGift: isGift,
-          isAnonymous: isAnonymous,
-          recipientId: isGift ? recipientId : undefined
-        };
-
-        setCreatedOrder(currentOrder);
-      }
+      // ✅ FIX: Don't create orders here - CheckoutScreen already creates complete orders with items via processCheckout
+      // Only use the order that was passed from CheckoutScreen
+      // This prevents duplicate empty orders from appearing in the Orders screen
 
       // Now we have a valid order, use its IDs for payment
       if (!currentOrder) {
@@ -379,19 +300,10 @@ export default function PaymentGatewayScreen({ navigation, route }: Props) {
         throw new Error('Order object is missing from payment flow');
       }
 
-      // For new card flow: Now that payment succeeded, complete the checkout
-      // This clears cart, deducts stock, and finalizes the order
-      if (checkoutPayload && !order) {
-        console.log('[PaymentGateway] Payment succeeded - completing checkout process...');
-        const checkoutResult = await processCheckout(checkoutPayload);
-        
-        if (!checkoutResult.success) {
-          console.warn('[PaymentGateway] Checkout completion had issues:', checkoutResult.error);
-          // Don't fail - order exists and payment was successful
-          // Just log the warning
-        }
-      }
-
+      // ✅ FIX: Don't call processCheckout here - it was already called in CheckoutScreen
+      // ProcessCheckout in CheckoutScreen created all the database orders and items
+      // We just need to mark the order as paid
+      
       finalOrder.isPaid = true;
 
       setTimeout(() => {
@@ -417,7 +329,7 @@ export default function PaymentGatewayScreen({ navigation, route }: Props) {
         
         // Go to OrderConfirmation to show order confirmation
         if (finalOrder) {
-          navigation.replace('OrderConfirmation', { order: finalOrder, earnedBazcoins });
+          navigation.replace('OrderConfirmation', { order: finalOrder, earnedBazcoins, isQuickCheckout });
         } else {
           throw new Error('Order object is missing');
         }
@@ -566,6 +478,7 @@ export default function PaymentGatewayScreen({ navigation, route }: Props) {
                             setCardName('TEST CARD');
                             setExpiryDate(card.expiry);
                             setCvv(card.cvc);
+                            setCardNumberError(null);
                           }}
                         >
                           <Text style={styles.testCardBrand}>✓ {card.brand}</Text>
@@ -585,6 +498,7 @@ export default function PaymentGatewayScreen({ navigation, route }: Props) {
                             setCardName('TEST CARD');
                             setExpiryDate(card.expiry);
                             setCvv(card.cvc);
+                            setCardNumberError(null);
                           }}
                         >
                           <Text style={styles.testCardBrand}>✗ {card.errorCode}</Text>
@@ -606,12 +520,25 @@ export default function PaymentGatewayScreen({ navigation, route }: Props) {
                     </View>
                     <TextInput
                       style={styles.input}
-                      placeholder="0000 0000 0000 0000"
+                      placeholder="1234 5678 9012 3456"
                       placeholderTextColor="#9CA3AF"
                       value={formatCardNumber(cardNumber)}
                       onChangeText={(text) => {
                         const cleaned = text.replace(/\D/g, '').substring(0, 16);
                         setCardNumber(cleaned);
+                        
+                        // Real-time validation: validate as soon as card number is complete (16 digits)
+                        if (cleaned.length === 16) {
+                          const testCard = getTestCardByNumber(cleaned);
+                          if (!testCard) {
+                            setCardNumberError('Card number does not match card type. Please use a valid PayMongo test card.');
+                          } else {
+                            setCardNumberError(null);
+                          }
+                        } else {
+                          // Clear error if card number is incomplete
+                          setCardNumberError(null);
+                        }
                       }}
                       keyboardType="number-pad"
                       maxLength={19}
@@ -620,6 +547,12 @@ export default function PaymentGatewayScreen({ navigation, route }: Props) {
                     />
                   </View>
                 </View>
+                {cardNumberError && (
+                  <View style={styles.inputErrorContainer}>
+                    <AlertCircle size={14} color="#EF4444" strokeWidth={2} />
+                    <Text style={styles.inputErrorText}>{cardNumberError}</Text>
+                  </View>
+                )}
 
                 <View style={{ flexDirection: 'row', gap: 12 }}>
                   {/* Expiry Date */}
@@ -1220,6 +1153,19 @@ const styles = StyleSheet.create({
   testCardScenario: {
     fontSize: 9,
     color: '#6B7280',
+    fontWeight: '500',
+  },
+  inputErrorContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    marginTop: 6,
+    marginBottom: 12,
+    paddingHorizontal: 4,
+  },
+  inputErrorText: {
+    fontSize: 12,
+    color: '#EF4444',
     fontWeight: '500',
   },
 });

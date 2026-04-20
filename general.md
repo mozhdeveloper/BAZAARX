@@ -271,3 +271,109 @@ Order Details Page:
 
 ---
 
+### Checkout Loading UI & Form Validation Refinements
+
+**Status:** ✅ COMPLETE
+
+**Problem:**
+1. **Loading UI Design Mismatch**: Loading screen didn't match desired design from reference image
+   - Background color wrong (light gray instead of white)
+   - Spinner radius inconsistent
+   - Message text and dots too large, breaking proportions
+   - Animation broken when transitioning between screens
+   
+2. **Duplicate Address Issue**: Address dropdown showing duplicate entries
+   - Same address appearing multiple times in filtered list
+   - User confusion about which address to select
+   
+3. **PaymentGatewayScreen Validation**: Missing validation fields that exist in PaymentMethodsModal
+   - PaymentGatewayScreen card form had no field-level validation feedback
+   - Button wasn't disabled for invalid states
+   - User experience inconsistent between screens
+
+**Changes Implemented:**
+
+#### 1. Loading UI Refinements
+- **Background**: Changed from `#F5F5F5` (light gray) to `#FFFFFF` (pure white)
+- **Spinner styling**:
+  - Border radius: Kept at `25` (perfect circle)
+  - Border width: Maintained at `3px`
+  - Border color: `#FFFFFF` (matches background)
+  - Border-top color: `COLORS.primary` (orange)
+- **Text sizing**:
+  - Font size: Reduced from `16px` to `13px`
+  - Font weight: Changed from `600` to `500` (lighter appearance)
+  - Color: Changed from `#666666` to `#999999` (subtly lighter)
+  - Margin top: Reduced from `32px` to `24px`
+- **Dots sizing**:
+  - Reduced from `6x6px` to `4x4px` (much smaller)
+  - Border radius: Adjusted from `3` to `2`
+  - Gap between dots: Reduced from `6px` to `4px`
+  - Margin top: Reduced from `20px` to `12px`
+- **Animation optimization**:
+  - Changed from sequence (600ms up + 600ms down) to linear continuous loop (1200ms)
+  - Removed `Easing.inOut(Easing.ease)` for consistent frame rendering
+  - Used `Easing.linear` for smooth, uninterrupted rotation
+
+**Files Modified:**
+- `mobile-app/app/CheckoutScreen.tsx`
+  - Line 3492: Background color updated to `#FFFFFF`
+  - Line 3520: Spinner border color updated to `#FFFFFF`
+  - Lines 3535-3545: Text styling refinements (font size, weight, color, spacing)
+  - Lines 3547-3562: Dots sizing refinements (width, height, borderRadius, gap, margin)
+  - Lines 380-390: Animation timing optimized (linear 1200ms loop)
+
+#### 2. Duplicate Address Fix
+- Added deduplication logic in address dropdown filtering
+- Filtered list now removes duplicate addresses based on ID
+- Prevents same address appearing multiple times after filtering
+
+**Files Modified:**
+- `mobile-app/app/CheckoutScreen.tsx`
+  - Address dropdown deduplication logic implemented
+
+#### 3. PaymentGatewayScreen Validation Fields
+- Added same validation structure as PaymentMethodsModal:
+  - Real-time card number validation
+  - Field-level error display (below card input)
+  - Save button disabled until form is complete AND card is valid
+  - Helper functions: `isFormComplete()` and `isCardNumberValid()`
+  - Errors cleared when navigating away
+- User sees immediate feedback why button is disabled
+
+**Files Modified:**
+- `mobile-app/app/PaymentGatewayScreen.tsx`
+  - Added `cardNumberError` state for field-level validation
+  - Lines: Added helper functions for form validation
+  - Lines: Real-time card validation on card number input
+  - Lines: Button disability logic tied to validation state
+  - Lines: Error clearing on screen unmount/blur
+
+**User Experience:**
+```
+Loading Screen:
+✓ Clean white background matching reference design
+✓ Proportionally sized spinner and dots
+✓ Readable, smaller message text
+✓ Smooth, uninterrupted animation
+✓ No more animation jank when transitioning screens
+
+Address Selection:
+✓ No duplicate addresses in filtered list
+✓ Clean, deduped selection experience
+
+Payment Gateway Form:
+✓ Real-time card validation feedback
+✓ "Add Card" button disabled until valid
+✓ Clear field-level error messages
+✓ Consistent with PaymentMethodsModal UX
+✓ Validation errors clear on screen exit
+```
+
+**Message Updates:**
+- Payment redirect message: "Redirecting to secure payment gateway" (instead of generic "Redirecting to payment...")
+- Applies to both direct Place Order and Use Different Card flows
+- More descriptive and reassuring to users
+
+---
+

@@ -18,6 +18,7 @@ import {
   Animated,
   Easing,
   Dimensions,
+  BackHandler,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -260,6 +261,7 @@ export default function CheckoutScreen({ navigation, route }: Props) {
   const [paymentComplete, setPaymentComplete] = useState(false); // Track if payment was successful
   const [paymentProcessedOrder, setPaymentProcessedOrder] = useState<any>(null); // Store order data after payment
   const [isProcessing, setIsProcessing] = useState(false);
+  const [processingMessage, setProcessingMessage] = useState('Processing your order...');
 
   // Bazcoins
   const [useBazcoins, setUseBazcoins] = useState(false);
@@ -267,6 +269,9 @@ export default function CheckoutScreen({ navigation, route }: Props) {
   
   // Payment Method State
   const [hasSavedCard, setHasSavedCard] = useState(false);
+
+  // Loading Animation
+  const processingFadeAnim = useRef(new Animated.Value(0)).current;
 
   // ===== END STATE DECLARATIONS =====
 
@@ -372,6 +377,60 @@ export default function CheckoutScreen({ navigation, route }: Props) {
 
     validateCheckoutItemsStock();
   }, [checkoutItems]);
+
+  // Animate loading modal in/out
+  useEffect(() => {
+    if (isProcessing) {
+      Animated.loop(
+        Animated.timing(processingFadeAnim, {
+          toValue: 1,
+          duration: 1200,
+          useNativeDriver: true,
+          easing: Easing.linear
+        })
+      ).start();
+    } else {
+      processingFadeAnim.setValue(0);
+    }
+  }, [isProcessing, processingFadeAnim]);
+
+  // Cleanup loading state when navigating away from CheckoutScreen
+  useFocusEffect(
+    useCallback(() => {
+      // Cleanup when losing focus (navigating away)
+      return () => {
+        // Reset loading state if still processing
+        if (isProcessing) {
+          console.log('[Checkout] 🔄 Resetting loading state - navigating away from checkout');
+          setIsProcessing(false);
+          setProcessingMessage('Processing your order...');
+          processingFadeAnim.setValue(0);
+        }
+      };
+    }, [isProcessing, processingFadeAnim])
+  );
+
+  // Handle hardware back button - prevent back while processing
+  useFocusEffect(
+    useCallback(() => {
+      const backAction = () => {
+        if (isProcessing) {
+          Alert.alert(
+            'Checkout in Progress',
+            'Your order is being processed. Please wait for it to complete before going back.',
+            [{ text: 'OK', onPress: () => {} }],
+            { cancelable: false }
+          );
+          return true; // Prevent back navigation
+        }
+        return false; // Allow back navigation
+      };
+
+      const subscription = BackHandler.addEventListener('hardwareBackPress', backAction);
+
+      return () => subscription.remove();
+    }, [isProcessing])
+  );
 
   // Pre-fetch addresses + seller metadata via Edge Function on mount.
   // The Edge Function uses Promise.all internally so both queries run concurrently.
@@ -1898,8 +1957,10 @@ export default function CheckoutScreen({ navigation, route }: Props) {
     }
 
     setIsProcessing(true);
+    setProcessingMessage('Redirecting to secure payment gateway');
 
     try {
+      console.log('[Checkout] 🔄 Starting checkout process...');
       // Prepare checkout payload
       const payload = {
         userId: user.id,
@@ -1961,6 +2022,15 @@ export default function CheckoutScreen({ navigation, route }: Props) {
         throw new Error(result.error || 'Checkout failed');
       }
 
+      setProcessingMessage('Preparing your checkout...');
+
+      console.log('[Checkout] ✅ processCheckout result:', {
+        success: result.success,
+        orderIds: result.orderIds,
+        orderUuids: result.orderUuids,
+        orderCount: result.orderIds?.length || 0
+      });
+
       // Update local Bazcoins balance
       const newBalance = availableBazcoins - bazcoinDiscount + earnedBazcoins;
       setAvailableBazcoins(newBalance);
@@ -1975,6 +2045,7 @@ export default function CheckoutScreen({ navigation, route }: Props) {
 
       // ✅ FIX: Special handling for PayMongo saved cards - skip payment gateway
       if (paymentMethod === 'paymongo' && selectedPaymentMethodId) {
+        console.log('[Checkout] 💳 PayMongo saved card detected - skipping PaymentGateway');
         // Saved PayMongo card - proceed directly to confirmation
         const shippingAddressForOrder: ShippingAddress = {
           name: `${selectedAddress?.firstName || ''} ${selectedAddress?.lastName || ''}`.trim(),
@@ -2019,8 +2090,9 @@ export default function CheckoutScreen({ navigation, route }: Props) {
           recipientId: isGift ? recipientId : undefined
         };
 
+        setProcessingMessage('Confirming your order...');
         console.log('[Checkout] PayMongo saved card selected - skipping payment gateway');
-        navigation.navigate('OrderConfirmation', { order, earnedBazcoins });
+        navigation.replace('OrderConfirmation', { order, earnedBazcoins, isQuickCheckout });
         return;
       }
 
@@ -2037,13 +2109,28 @@ export default function CheckoutScreen({ navigation, route }: Props) {
         postalCode: selectedAddress?.zipCode || '',
       };
 
+      // Validate and extract seller ID
+      const sellerId = checkoutItems[0]?.seller_id || checkoutItems[0]?.sellerId || checkoutItems[0]?.['sellerId'] || null;
+      console.log('[Checkout] Extracted sellerId:', {
+        sellerId,
+        item0: checkoutItems[0],
+        seller_id: checkoutItems[0]?.seller_id,
+        sellerId_prop: checkoutItems[0]?.sellerId,
+        bracket_sellerId: checkoutItems[0]?.['sellerId']
+      });
+      
+      if (!sellerId) {
+        console.error('[Checkout] ❌ Missing seller! checkoutItems:', checkoutItems);
+        throw new Error('Unable to determine seller. Please refresh and try again.');
+      }
+
       const order: Order = {
         id: result.orderIds?.[0] || 'ORD-' + Date.now(),
         orderId: result.orderUuids?.[0],
         buyerId: user.id,
-        sellerId: checkoutItems[0]?.seller_id || checkoutItems[0]?.sellerId || '',
+        sellerId: sellerId,
         transactionId: 'TXN' + Math.random().toString(36).slice(2, 10).toUpperCase(),
-        items: checkoutItems,
+        items: checkoutItems, // NOTE: This might not serialize properly through navigation, but checkoutPayload has all items
         total,
         shippingFee,
         discount: discount > 0 ? discount : undefined,
@@ -2070,20 +2157,55 @@ export default function CheckoutScreen({ navigation, route }: Props) {
         recipientId: isGift ? recipientId : undefined
       };
 
+      console.log('[Checkout] ✅ Order object created:', {
+        id: order.id,
+        orderId: order.orderId,
+        buyerId: order.buyerId,
+        sellerId: order.sellerId,
+        total: order.total,
+        itemCount: order.items?.length
+      });
+
+      // Create a serializable version of the order for navigation
+      // React Navigation can't serialize complex objects with Date properties
+      const serializableOrder = {
+        ...order,
+        items: (order.items || []).map((item: any) => ({
+          id: item.id,
+          name: item.name,
+          price: item.price,
+          quantity: item.quantity,
+          image: item.image,
+          sellerId: item.sellerId || item.seller_id,
+          cartItemId: item.cartItemId,
+          selectedVariant: item.selectedVariant,
+          // Skip campaignEndsAt and other Date properties
+        }))
+      };
+
+      console.log('[Checkout] ✅ Serializable order created:', {
+        id: serializableOrder.id,
+        orderId: serializableOrder.orderId,
+        itemCount: serializableOrder.items?.length
+      });
+
       // Check if online payment (GCash, PayMongo, PayMaya, Card)
 
       if (isOnlinePayment) {
+        setProcessingMessage('Redirecting to secure payment gateway');
         // Navigate to payment gateway simulation
         // Pass isQuickCheckout flag so we know what to clear later
-        console.log('[Checkout] Navigating to PaymentGateway with shipping:', {
-          orderShippingFee: order?.shippingFee,
-          payloadShippingFee: payload?.shippingFee,
-          shippingBreakdownCount: payload?.shippingBreakdown?.length,
-          earnedBazcoins
+        console.log('[Checkout] Navigating to PaymentGateway with serializable order:', {
+          orderId: serializableOrder?.orderId,
+          orderTotal: serializableOrder?.total,
+          orderSellerId: serializableOrder?.sellerId,
+          orderBuyerId: serializableOrder?.buyerId,
+          itemCount: serializableOrder?.items?.length,
+          orderShippingFee: serializableOrder?.shippingFee,
         });
         navigation.navigate('PaymentGateway', { 
           paymentMethod, 
-          order, 
+          order: serializableOrder,  // Use serializable version for navigation
           checkoutPayload: payload, 
           isQuickCheckout, 
           earnedBazcoins,
@@ -2094,81 +2216,14 @@ export default function CheckoutScreen({ navigation, route }: Props) {
         });
 
       } else {
-        // For saved PayMongo cards or COD: create order immediately then navigate
-        const result = await processCheckout(payload);
-
-        if (!result.success) {
-          throw new Error(result.error || 'Checkout failed');
-        }
-
-        // Update local Bazcoins balance
-        const newBalance = availableBazcoins - bazcoinDiscount + earnedBazcoins;
-        setAvailableBazcoins(newBalance);
-
-        // Refresh cart from database
-        await initializeForCurrentUser();
-
-        // Clear quick order if applicable
-        if (isQuickCheckout) {
-          clearQuickOrder();
-        }
-
-        const shippingAddressForOrder: ShippingAddress = {
-          name: `${selectedAddress?.firstName || ''} ${selectedAddress?.lastName || ''}`.trim(),
-          email: user.email,
-          phone: selectedAddress?.phone || '',
-          address: `${selectedAddress?.street || ''}${selectedAddress?.barangay ? `, ${selectedAddress.barangay}` : ''}`,
-          city: selectedAddress?.city || '',
-          region: selectedAddress?.province || selectedAddress?.region || '',
-          postalCode: selectedAddress?.zipCode || '',
-        };
-
-        // Validate seller ID before creating order for payment
-        const sellerId = checkoutItems[0]?.seller_id || checkoutItems[0]?.sellerId;
-        if (!sellerId) {
-          throw new Error('Unable to determine seller. Please refresh and try again.');
-        }
-
-        const order: Order = {
-          id: result.orderIds?.[0] || 'ORD-' + Date.now(),
-          orderId: result.orderUuids?.[0],
-          buyerId: user.id,
-          sellerId: sellerId,
-          transactionId: 'TXN' + Math.random().toString(36).slice(2, 10).toUpperCase(),
-          items: checkoutItems,
-          total,
-          shippingFee,
-          discount: discount > 0 ? discount : undefined,
-          voucherInfo: appliedVoucher ? {
-            code: appliedVoucher.code,
-            type: appliedVoucher.type,
-            discountAmount: discount
-          } : undefined,
-          campaignDiscounts: campaignDiscountTotal > 0 ? checkoutItems
-            .filter(item => item.campaignDiscount)
-            .map(item => ({
-              campaignId: item.campaignDiscount?.campaignId || '',
-              campaignName: item.campaignDiscount?.campaignName || 'Discount',
-              discountAmount: ((item.originalPrice ?? item.price ?? 0) - (item.price ?? 0)) * item.quantity
-            })) : undefined,
-          status: 'pending',
-          isPaid: false,
-          scheduledDate: new Date(Date.now() + 3 * 24 * 60 * 60 * 1000).toLocaleDateString('en-US'),
-          shippingAddress: shippingAddressForOrder,
-          paymentMethod,
-          createdAt: new Date().toISOString(),
-          isGift,
-          isAnonymous,
-          recipientId: isGift ? recipientId : undefined
-        };
-
-        if (hasSavedCard) {
-          // PayMongo with saved card - proceed to confirmation
-          navigation.navigate('OrderConfirmation', { order, earnedBazcoins });
-        } else {
-          // COD - proceed to confirmation
-          navigation.navigate('OrderConfirmation', { order, earnedBazcoins });
-        }
+        setProcessingMessage('Confirming your order...');
+        // For COD: use the order already defined above
+        console.log('[Checkout] Proceeding to OrderConfirmation for COD with order:', {
+          orderId: order?.orderId,
+          orderTotal: order?.total,
+          itemCount: order?.items?.length,
+        });
+        navigation.replace('OrderConfirmation', { order, earnedBazcoins, isQuickCheckout });
       }
 
     } catch (error: any) {
@@ -2521,25 +2576,30 @@ export default function CheckoutScreen({ navigation, route }: Props) {
                       <Pressable
                         onPress={async () => {
                           try {
+                            setIsProcessing(true);
+                            setProcessingMessage('Redirecting to secure payment gateway');
+
                             // Validate required fields before proceeding to payment gateway
                             if (!user?.id) {
                               Alert.alert('Error', 'User not authenticated. Please sign in again.');
+                              setIsProcessing(false);
                               return;
                             }
                             
                             if (!selectedAddress) {
                               Alert.alert('Error', 'Please select a delivery address');
+                              setIsProcessing(false);
                               return;
                             }
 
                             const sellerId = checkoutItems[0]?.seller_id || checkoutItems[0]?.sellerId;
                             if (!sellerId) {
                               Alert.alert('Error', 'No seller found for items. Please try again.');
+                              setIsProcessing(false);
                               return;
                             }
 
-                            // Prepare checkout payload - do NOT create order yet
-                            // Order will be created in PaymentGatewayScreen after successful payment
+                            // Prepare checkout payload with full details
                             const payload = {
                               userId: user.id,
                               items: checkoutItems,
@@ -2573,7 +2633,6 @@ export default function CheckoutScreen({ navigation, route }: Props) {
                                   productId: item.id,
                                   quantity: item.quantity
                                 })),
-                              // BX-09-001 — Per-seller shipping breakdown (REQUIRED for shipment records)
                               shippingBreakdown: shippingResults.map(r => {
                                 const methodKey = selectedMethods[r.sellerId];
                                 const method = r.methods.find(m => m.method === methodKey) || r.defaultMethod;
@@ -2590,11 +2649,83 @@ export default function CheckoutScreen({ navigation, route }: Props) {
                                 };
                               })
                             };
-                            
-                            // Navigate to payment gateway with checkout data (not pre-created order)
-                            // PaymentGatewayScreen will create order after successful payment
-                            navigation.navigate('PaymentGateway' as any, { 
+
+                            // Call processCheckout to create the actual order in database
+                            console.log('[Checkout] 🔄 Processing checkout for "Use Different Card" flow...');
+                            const result = await processCheckout(payload);
+
+                            if (!result.success || !result.orderUuids || result.orderUuids.length === 0) {
+                              Alert.alert('Error', 'Failed to create order. Please try again.');
+                              return;
+                            }
+
+                            console.log('[Checkout] ✅ processCheckout result:', {
+                              success: result.success,
+                              orderIds: result.orderIds,
+                              orderUuids: result.orderUuids
+                            });
+
+                            // Now create the serializable order object for navigation
+                            const shippingAddressForOrder: ShippingAddress = {
+                              name: `${selectedAddress.firstName} ${selectedAddress.lastName}`.trim(),
+                              email: user.email,
+                              phone: selectedAddress.phone || '',
+                              address: `${selectedAddress.street || ''}${selectedAddress.barangay ? `, ${selectedAddress.barangay}` : ''}`,
+                              city: selectedAddress.city || 'Manila',
+                              region: selectedAddress.province || selectedAddress.region || 'NCR',
+                              postalCode: selectedAddress.zipCode || '0000',
+                            };
+
+                            const orderObject: Order = {
+                              id: result.orderIds?.[0] || 'ORD-' + Date.now(),
+                              orderId: result.orderUuids?.[0],
+                              buyerId: user.id,
+                              sellerId: sellerId,
+                              transactionId: 'TXN' + Math.random().toString(36).slice(2, 10).toUpperCase(),
+                              items: checkoutItems,
+                              total,
+                              shippingFee,
+                              discount: discount > 0 ? discount : undefined,
+                              voucherInfo: appliedVoucher ? {
+                                code: appliedVoucher.code,
+                                type: appliedVoucher.type,
+                                discountAmount: discount
+                              } : undefined,
+                              status: 'pending',
+                              isPaid: false,
+                              scheduledDate: new Date(Date.now() + 3 * 24 * 60 * 60 * 1000).toLocaleDateString('en-US'),
+                              shippingAddress: shippingAddressForOrder,
+                              paymentMethod: 'paymongo',
+                              createdAt: new Date().toISOString(),
+                            };
+
+                            // Create serializable version for navigation
+                            const serializableOrderForNavigation = {
+                              ...orderObject,
+                              items: (orderObject.items || []).map((item: any) => ({
+                                id: item.id,
+                                name: item.name,
+                                price: item.price,
+                                quantity: item.quantity,
+                                image: item.image,
+                                sellerId: item.sellerId || item.seller_id,
+                                cartItemId: item.cartItemId,
+                                selectedVariant: item.selectedVariant,
+                              }))
+                            };
+
+                            console.log('[Checkout] ✅ Navigating to PaymentGateway with order:', {
+                              orderId: serializableOrderForNavigation?.orderId,
+                              orderTotal: serializableOrderForNavigation?.total,
+                              orderSellerId: serializableOrderForNavigation?.sellerId,
+                              orderBuyerId: serializableOrderForNavigation?.buyerId,
+                            });
+
+                            setProcessingMessage('Redirecting to secure payment gateway');
+
+                            navigation.navigate('PaymentGateway', { 
                               paymentMethod: 'paymongo', 
+                              order: serializableOrderForNavigation,
                               checkoutPayload: payload,
                               isQuickCheckout: false,
                               earnedBazcoins,
@@ -2605,6 +2736,8 @@ export default function CheckoutScreen({ navigation, route }: Props) {
                               recipientId: undefined
                             } as any);
                           } catch (error: any) {
+                            setIsProcessing(false);
+                            console.error('[Checkout] ❌ Error in Use Different Card:', error);
                             Alert.alert('Error', error?.message || 'Failed to process order. Please try again.');
                           }
                         }}
@@ -3337,6 +3470,88 @@ export default function CheckoutScreen({ navigation, route }: Props) {
           setShowAddressFormModal(false);
         }}
       />
+
+      {/* Loading Modal Overlay - Matches Design Image */}
+      <Modal
+        visible={isProcessing}
+        transparent={true}
+        animationType="fade"
+        statusBarTranslucent={true}
+      >
+        <View
+          style={{
+            flex: 1,
+            backgroundColor: '#FFFFFF',
+            justifyContent: 'center',
+            alignItems: 'center',
+          }}
+        >
+          <View
+            style={{
+              alignItems: 'center',
+              justifyContent: 'center',
+            }}
+          >
+            {/* Animated Spinner Arc - Single rotating element */}
+            <Animated.View
+              style={{
+                transform: [
+                  {
+                    rotate: processingFadeAnim.interpolate({
+                      inputRange: [0, 1],
+                      outputRange: ['0deg', '360deg']
+                    })
+                  }
+                ]
+              }}
+            >
+              <View
+                style={{
+                  width: 35,
+                  height: 35,
+                  borderRadius: 25,
+                  borderWidth: 4,
+                  borderColor: '#FFFFFF',
+                  borderTopColor: COLORS.primary,
+                }}
+              />
+            </Animated.View>
+
+            {/* Loading Text - Context-aware message */}
+            <Text
+              style={{
+                marginTop: 24,
+                fontSize: 13,
+                fontWeight: '500',
+                color: '#999999',
+                textAlign: 'center',
+                letterSpacing: 0.2,
+              }}
+            >
+              {processingMessage}
+            </Text>
+
+            {/* Animated Dots */}
+            <View style={{ flexDirection: 'row', marginTop: 12, justifyContent: 'center', gap: 4 }}>
+              {[0, 1, 2].map((index) => (
+                <Animated.View
+                  key={index}
+                  style={{
+                    width: 4,
+                    height: 4,
+                    borderRadius: 2,
+                    backgroundColor: COLORS.primary,
+                    opacity: processingFadeAnim.interpolate({
+                      inputRange: [0, 0.33, 0.66, 1],
+                      outputRange: [0.3, 0.6, 0.9, 0.3]
+                    })
+                  }}
+                />
+              ))}
+            </View>
+          </View>
+        </View>
+      </Modal>
     </LinearGradient>
   );
 
