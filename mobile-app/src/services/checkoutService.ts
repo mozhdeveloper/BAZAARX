@@ -213,6 +213,31 @@ export const processCheckout = async (payload: CheckoutPayload): Promise<Checkou
         const sharedBaseNumber = generateOrderNumber();
         let sellerIndex = 1;
 
+        // 3a. Create order_recipients record (once per checkout, used by all orders from all sellers)
+        const nameParts = (shippingAddress.fullName || '').trim().split(' ');
+        const recipientFirstName = nameParts[0] || '';
+        const recipientLastName = nameParts.slice(1).join(' ') || '';
+
+        const { data: recipientData, error: recipientError } = await supabase
+            .from('order_recipients')
+            .insert({
+                first_name: recipientFirstName,
+                last_name: recipientLastName,
+                phone: shippingAddress.phone || '',
+                email: email || '',
+            })
+            .select('id')
+            .single();
+
+        if (recipientError) throw recipientError;
+
+        const recipientId = recipientData?.id;
+        if (!recipientId) {
+            throw new Error('Failed to create order recipient record');
+        }
+
+        console.log(`[Checkout] ✅ Created order_recipients record:`, recipientId);
+
         // 3. Process orders per seller
         for (const [sellerId, sellerItems] of Object.entries(itemsBySeller)) {
             const orderNumber = `${sharedBaseNumber}#${sellerIndex++}`;
@@ -294,6 +319,7 @@ export const processCheckout = async (payload: CheckoutPayload): Promise<Checkou
                     p_buyer_id: userId,
                     p_order_type: 'ONLINE',
                     p_address_id: addressData.id,
+                    p_recipient_id: recipientId,
                     p_payment_status: 'pending_payment',
                     p_shipment_status: 'waiting_for_seller',
                     p_notes: `Order from ${shippingAddress.fullName}`
@@ -321,6 +347,7 @@ export const processCheckout = async (payload: CheckoutPayload): Promise<Checkou
                         buyer_id: userId,
                         order_type: 'ONLINE',
                         address_id: addressData.id,
+                        recipient_id: recipientId,
                         payment_status: 'pending_payment',
                         shipment_status: 'waiting_for_seller',
                         notes: `Order from ${shippingAddress.fullName}`,
