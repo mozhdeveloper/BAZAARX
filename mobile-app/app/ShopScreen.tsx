@@ -210,7 +210,6 @@ export default function ShopScreen({ navigation, route }: Props) {
   const [selectedCategory, setSelectedCategory] = useState<string>(initialCategory || 'all');
   const [selectedSort, setSelectedSort] = useState(route.params?.view === 'featured' ? 'default' : 'default');
   const [isFeaturedView, setIsFeaturedView] = useState(route.params?.view === 'featured');
-  const [isProductsLoading, setIsProductsLoading] = useState(false);
   const shuffledIdsRef = useRef<string[]>([]);
   const flashListRef = useRef<any>(null);
 
@@ -581,16 +580,6 @@ export default function ShopScreen({ navigation, route }: Props) {
     return filtered;
   }, [dbProducts, searchQuery, selectedCategory, selectedSort, isFeaturedView, minPrice, maxPrice, categoryChips, featuredProducts, boostedProducts]);
 
-  useEffect(() => {
-    setIsProductsLoading(true);
-    const timer = setTimeout(() => {
-      setIsProductsLoading(false);
-      flashListRef.current?.scrollToOffset({ animated: false, offset: 0 });
-    }, 300);
-    return () => clearTimeout(timer);
-  }, [selectedCategory, selectedSort, isFeaturedView, minPrice, maxPrice, searchQuery]);
-
-
   const handleProductPress = useCallback((product: Product) => {
     navigation.navigate('ProductDetail', { product });
   }, [navigation]);
@@ -837,26 +826,6 @@ export default function ShopScreen({ navigation, route }: Props) {
       </View>
 
       {/* Featured Sort Indicator — replaced by filter chips above */}
-
-      {/* Skeleton overlay for filter/sort changes and pull-to-refresh */}
-      {(isProductsLoading || isRefreshing) && (
-        <View style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, zIndex: 10, backgroundColor: COLORS.background, paddingHorizontal: 20, paddingTop: insets.top + 110 }}>
-          {[...Array(3)].map((_, row) => (
-            <View key={`skel-row-${row}`} style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 12 }}>
-              {[0, 1].map((col) => (
-                <View key={`skel-${row}-${col}`} style={{ width: (width - 40 - 12) / 2, backgroundColor: '#FFF', borderRadius: 16, overflow: 'hidden', borderWidth: 1, borderColor: '#F3F4F6' }}>
-                  <View style={{ aspectRatio: 1, backgroundColor: '#E5E7EB' }} />
-                  <View style={{ padding: 12, gap: 8 }}>
-                    <View style={{ height: 14, backgroundColor: '#E5E7EB', borderRadius: 6, width: '85%' }} />
-                    <View style={{ height: 12, backgroundColor: '#E5E7EB', borderRadius: 6, width: '60%' }} />
-                    <View style={{ height: 16, backgroundColor: '#E5E7EB', borderRadius: 6, width: '40%' }} />
-                  </View>
-                </View>
-              ))}
-            </View>
-          ))}
-        </View>
-      )}
 
       {/* Product list as root scroll — enables virtualization */}
       <FlashList
