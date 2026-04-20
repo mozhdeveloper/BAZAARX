@@ -484,7 +484,6 @@ export default function OrderDetailScreen({ route, navigation }: Props) {
   const getStatusColor = () => {
     switch (uiStatus) {
       case 'pending': return '#F59E0B';
-      case 'confirmed':
       case 'processing': return COLORS.primary;
       case 'shipped': return '#8B5CF6';
       case 'delivered': return '#22C55E';
@@ -499,7 +498,6 @@ export default function OrderDetailScreen({ route, navigation }: Props) {
   const getStatusText = () => {
     switch (uiStatus) {
       case 'pending': return 'Order Pending';
-      case 'confirmed':
       case 'processing': return 'Being Prepared';
       case 'shipped': return 'In Transit';
       case 'delivered': return 'Delivered';
@@ -514,7 +512,6 @@ export default function OrderDetailScreen({ route, navigation }: Props) {
   const getStatusIcon = () => {
     switch (uiStatus) {
       case 'pending': return Clock;
-      case 'confirmed':
       case 'processing': return Package;
       case 'shipped': return Truck;
       case 'delivered': return CheckCircle2;
@@ -603,7 +600,7 @@ export default function OrderDetailScreen({ route, navigation }: Props) {
           
           let progress = 0;
           if (uiStatus === 'pending') progress = 0.1;
-          else if (['confirmed', 'processing'].includes(uiStatus)) progress = 0.3;
+          else if (uiStatus === 'processing') progress = 0.3;
           else if (uiStatus === 'shipped') progress = 0.6;
           else if (['delivered', 'received', 'reviewed'].includes(uiStatus)) progress = 1;
 
@@ -647,7 +644,7 @@ export default function OrderDetailScreen({ route, navigation }: Props) {
 
                 <View style={styles.trackingFooter}>
                   <Text style={styles.trackingStatusDetail}>
-                    {(!deliveryTracking?.events || deliveryTracking.events.length === 0) && (uiStatus === 'confirmed' || uiStatus === 'processing') ? 'Preparing shipment' : latestEvent?.description || getStatusText()}
+                    {(!deliveryTracking?.events || deliveryTracking.events.length === 0) && uiStatus === 'processing' ? 'Preparing shipment' : latestEvent?.description || getStatusText()}
                   </Text>
                   <Text style={styles.trackingTimestamp}>
                     {formatEventTime(latestEvent?.eventAt || order.createdAt)}
@@ -747,10 +744,13 @@ export default function OrderDetailScreen({ route, navigation }: Props) {
         <View style={styles.consolidatedCard}>
           <Text style={styles.cardSectionHeader}>Items & Payment</Text>
           
-          <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 12, gap: 8 }}>
+          <Pressable 
+            style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 16, gap: 8 }}
+            onPress={() => navigation.navigate('StoreDetail', { store: { id: (order as any).sellerInfo?.id || order.items[0]?.sellerId, name: (order as any).sellerInfo?.store_name || order.items[0]?.seller, rating: 4.8, verified: false, image: 'https://via.placeholder.com/150' } })}
+          >
             <Store size={20} color={COLORS.primary} />
             <Text style={[styles.primaryInfo, { fontSize: 14 }]}>{(order as any).sellerInfo?.store_name || order.items[0]?.seller || 'Shop'}</Text>
-          </View>
+          </Pressable>
           
           {isPaymentError ? (
             <View style={{ marginVertical: 16 }}>
@@ -788,7 +788,12 @@ export default function OrderDetailScreen({ route, navigation }: Props) {
                     <View style={{ flex: 1 }}>
                       <Text style={styles.compactItemName} numberOfLines={1}>{item.name}</Text>
                       {(item as any).selectedVariant && ((item as any).selectedVariant.option1Value || (item as any).selectedVariant.option2Value || (item as any).selectedVariant.size || (item as any).selectedVariant.color) && (
-                        <Text style={[styles.metaLabel, { marginBottom: 4 }]}>
+                        <Text style={{ fontSize: 12, color: '#6B7280', marginTop: 2 }}>
+                          {(item as any).selectedVariant.option1Value || (item as any).selectedVariant.size || (item as any).selectedVariant.color || 'Standard'}
+                        </Text>
+                      )}
+                      {(item as any).selectedVariant && (
+                        <Text style={[styles.metaLabel, { marginBottom: 4, marginTop: 4 }]}>
                           {(item as any).selectedVariant.option1Value ? `${(item as any).selectedVariant.option1Label || 'Option'}: ${(item as any).selectedVariant.option1Value}` : ''}
                           {(item as any).selectedVariant.option1Value && (item as any).selectedVariant.option2Value ? ' • ' : ''}
                           {(item as any).selectedVariant.option2Value ? `${(item as any).selectedVariant.option2Label || 'Option'}: ${(item as any).selectedVariant.option2Value}` : ''}
@@ -894,27 +899,8 @@ export default function OrderDetailScreen({ route, navigation }: Props) {
 
       {/* Bottom Action Bar - Follows PH e-commerce standards (Shopee/Lazada) */}
       <View style={styles.bottomBar}>
-        {/* PENDING: Cancel + Chat (buyer hasn't paid or order awaiting confirmation) */}
+        {/* PENDING: Chat only (buyer hasn't paid or order awaiting confirmation) */}
         {(order.buyerUiStatus || order.status) === 'pending' && (
-          <>
-            <Pressable
-              onPress={() => setShowChatModal(true)}
-              style={[styles.outlineButton, { flex: 1 }]}
-            >
-              <MessageCircle size={20} color={COLORS.primary} />
-              <Text style={styles.outlineButtonText}>Chat</Text>
-            </Pressable>
-            <Pressable
-              onPress={handleCancelOrder}
-              style={[styles.solidButton, { flex: 1, backgroundColor: COLORS.primary }]}
-            >
-              <Text style={styles.solidButtonText}>Cancel Order</Text>
-            </Pressable>
-          </>
-        )}
-
-        {/* PROCESSING / TO SHIP: Chat only (seller is preparing the order) */}
-        {(order.buyerUiStatus === 'confirmed' || order.status === 'processing') && (
           <Pressable
             onPress={() => setShowChatModal(true)}
             style={[styles.solidButton, { flex: 1, backgroundColor: COLORS.primary }]}
@@ -922,6 +908,25 @@ export default function OrderDetailScreen({ route, navigation }: Props) {
             <MessageCircle size={20} color="#FFFFFF" />
             <Text style={styles.solidButtonText}>Chat with Seller</Text>
           </Pressable>
+        )}
+
+        {/* PROCESSING / TO SHIP: Cancel + Chat (seller is preparing the order) */}
+        {(order.buyerUiStatus === 'processing' || order.status === 'processing') && (
+          <>
+            <Pressable
+              onPress={handleCancelOrder}
+              style={[styles.outlineButton, { flex: 1 }]}
+            >
+              <Text style={styles.outlineButtonText}>Cancel Order</Text>
+            </Pressable>
+            <Pressable
+              onPress={() => setShowChatModal(true)}
+              style={[styles.solidButton, { flex: 1, backgroundColor: COLORS.primary }]}
+            >
+              <MessageCircle size={20} color="#FFFFFF" />
+              <Text style={styles.solidButtonText}>Chat with Seller</Text>
+            </Pressable>
+          </>
         )}
 
         {/* SHIPPED / TO RECEIVE: Chat only — item is in transit, buyer cannot confirm yet */}
