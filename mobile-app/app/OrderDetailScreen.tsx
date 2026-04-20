@@ -792,13 +792,15 @@ export default function OrderDetailScreen({ route, navigation }: Props) {
                           {(item as any).selectedVariant.option1Value || (item as any).selectedVariant.size || (item as any).selectedVariant.color || 'Standard'}
                         </Text>
                       )}
-                      <Text style={[styles.metaLabel, { marginBottom: 4, marginTop: (item as any).selectedVariant ? 4 : 0 }]}>
+                      {(item as any).selectedVariant && (
+                        <Text style={[styles.metaLabel, { marginBottom: 4, marginTop: 4 }]}>
                           {(item as any).selectedVariant.option1Value ? `${(item as any).selectedVariant.option1Label || 'Option'}: ${(item as any).selectedVariant.option1Value}` : ''}
                           {(item as any).selectedVariant.option1Value && (item as any).selectedVariant.option2Value ? ' • ' : ''}
                           {(item as any).selectedVariant.option2Value ? `${(item as any).selectedVariant.option2Label || 'Option'}: ${(item as any).selectedVariant.option2Value}` : ''}
                           {!((item as any).selectedVariant.option1Value || (item as any).selectedVariant.option2Value) && (item as any).selectedVariant.size ? (item as any).selectedVariant.size : ''}
                           {!((item as any).selectedVariant.option1Value || (item as any).selectedVariant.option2Value) && !((item as any).selectedVariant.size) && (item as any).selectedVariant.color ? (item as any).selectedVariant.color : ''}
                         </Text>
+                      )}
                       <Text style={styles.metaLabel}>{item.quantity} x ₱{item.price?.toLocaleString()}</Text>
                     </View>
                     <Text style={styles.compactItemPrice}>₱{((item.price || 0) * item.quantity).toLocaleString()}</Text>
