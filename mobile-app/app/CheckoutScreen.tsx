@@ -2644,19 +2644,6 @@ export default function CheckoutScreen({ navigation, route }: Props) {
                   <Text style={{ marginTop: 8, fontSize: 14, color: '#9CA3AF', textAlign: 'center' }}>
                     Add a delivery address to continue with checkout
                   </Text>
-                  <Pressable
-                    style={{
-                      marginTop: 20,
-                      backgroundColor: COLORS.primary,
-                      paddingHorizontal: 24,
-                      paddingVertical: 12,
-                      borderRadius: 12
-                    }}
-                    onPress={handleOpenAddressModalForAdd}
-                  >
-                    <Plus size={20} color="white" style={{ marginRight: 8 }} />
-                    <Text style={{ color: 'white', fontWeight: '600' }}>Add Address</Text>
-                  </Pressable>
                 </View>
               )}
             </ScrollView>

@@ -872,7 +872,7 @@ const s = StyleSheet.create({
 
     footer: { padding: 16, borderTopWidth: 1, borderTopColor: '#F3F4F6', backgroundColor: '#FFF' },
     saveBtn: { backgroundColor: COLORS.primary, borderRadius: 12, paddingVertical: 14, alignItems: 'center' },
-    saveBtnText: { fontSize: 16, fontWeight: '700', color: '#FFF' },
+    saveBtnText: { fontSize: 16, fontWeight: '700', color: '#FFF', padding: -3, paddingLeft: 8, paddingRight: 8},
 
     // Phone validation
     inputError: { borderColor: '#EF4444' },
