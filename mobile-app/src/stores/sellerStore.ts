@@ -241,6 +241,7 @@ interface ProductStore {
     isActive?: boolean;
     approvalStatus?: string;
   }) => () => void;
+  reset: () => void;
 }
 
 interface OrderStore {
@@ -259,6 +260,7 @@ interface OrderStore {
   addOrderRating: (id: string, rating: number, comment?: string, images?: string[]) => void;
   // POS-Lite functionality
   addOfflineOrder: (cartItems: { productId: string; productName: string; quantity: number; price: number; image: string; selectedColor?: string; selectedSize?: string }[], total: number, note?: string) => Promise<string>;
+  reset: () => void;
 }
 
 // Validation helpers for database readiness
@@ -913,7 +915,10 @@ export const useAuthStore = create<AuthStore>()(
         }
       },
       logout: () => {
-        set({ seller: null, isAuthenticated: false });
+        set({ seller: null, isAuthenticated: false, user: null });
+      },
+      reset: () => {
+        set({ seller: null, isAuthenticated: false, user: null });
       },
       updateProfile: async (updates) => {
         const { seller, user } = get();
@@ -2002,6 +2007,16 @@ export const useProductStore = create<ProductStore>()(
 
       // Get low stock threshold
       getLowStockThreshold: () => 10, // Can be made configurable later
+      
+      reset: () => {
+        set({
+          products: [],
+          inventoryLedger: [],
+          lowStockAlerts: [],
+          loading: false,
+          error: null,
+        });
+      },
     }),
     {
       name: 'seller-products-storage',
@@ -2030,9 +2045,16 @@ const useLegacyOrderStore = create<OrderStore>()(
   persist(
     (set, get) => ({
       orders: dummyOrders,
-      sellerId: null,
       loading: false,
       error: null,
+      reset: () => {
+        set({
+          orders: dummyOrders,
+          sellerId: null,
+          loading: false,
+          error: null,
+        });
+      },
 
       fetchOrders: async (sellerId: string, startDate?: Date | null, endDate?: Date | null) => {
           if (!sellerId) {
@@ -2419,6 +2441,21 @@ export const useStatsStore = create<StatsStore>()((set) => ({
     revenueData: [],
     categorySales: []
   },
+  reset: () => {
+    set({
+      stats: {
+        totalRevenue: 0,
+        totalOrders: 0,
+        totalProducts: 0,
+        avgRating: 0,
+        monthlyRevenue: [],
+        topProducts: [],
+        recentActivity: [],
+        revenueData: [],
+        categorySales: []
+      }
+    });
+  },
   refreshStats: () => {
     const orderStore = useLegacyOrderStore.getState();
     const productStore = useProductStore.getState();
@@ -2647,4 +2684,16 @@ export const useSellerStore = () => {
     markOrderAsShipped: orderStore.markOrderAsShipped,
     markOrderAsDelivered: orderStore.markOrderAsDelivered,
   };
+};
+
+/**
+ * Purges all seller-related local data.
+ * Should be called upon logout to prevent stale data leakage between accounts.
+ */
+export const purgeSellerData = () => {
+  useAuthStore.getState().reset();
+  useProductStore.getState().reset();
+  useLegacyOrderStore.getState().reset();
+  useStatsStore.getState().reset();
+  console.log('✅ All seller store data has been purged.');
 };

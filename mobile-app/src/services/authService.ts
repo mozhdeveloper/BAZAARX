@@ -973,6 +973,70 @@ export class AuthService {
       throw new Error('Failed to save interests. Please try again.');
     }
   }
+
+  /**
+   * Send OTP (One-Time Password) to user's email
+   * @param email - User's email address
+   * @returns Promise<boolean> - Returns true if OTP was sent successfully
+   */
+  async sendOTP(email: string): Promise<boolean> {
+    if (!isSupabaseConfigured()) {
+      console.warn('Supabase not configured - cannot send OTP');
+      return false;
+    }
+
+    try {
+      const { error } = await supabase.auth.signInWithOtp({
+        email: email.trim().toLowerCase(),
+        options: {
+          emailRedirectTo: 'bazaarx://auth/callback',
+        },
+      });
+
+      if (error) throw error;
+      return true;
+    } catch (error: any) {
+      console.error('Error sending OTP:', error);
+      throw new Error(error.message || 'Failed to send OTP. Please try again.');
+    }
+  }
+
+  /**
+   * Verify OTP code entered by user
+   * @param email - User's email address
+   * @param token - The OTP code (6 digits)
+   * @returns Promise<AuthResult> - Returns user and session on success
+   */
+  async verifyOTP(email: string, token: string): Promise<AuthResult> {
+    if (!isSupabaseConfigured()) {
+      console.warn('Supabase not configured - cannot verify OTP');
+      return { user: { id: generateUUID(), email } };
+    }
+
+    try {
+      const { data, error } = await supabase.auth.verifyOtp({
+        email: email.trim().toLowerCase(),
+        token: token,
+        type: 'email',
+      });
+
+      if (error) throw error;
+
+      if (data.user) {
+        // Update last login timestamp
+        await supabase
+          .from('profiles')
+          .update({ last_login_at: new Date().toISOString() })
+          .eq('id', data.user.id)
+          .catch(err => console.error('Error updating last login:', err));
+      }
+
+      return { user: data.user, session: data.session };
+    } catch (error: any) {
+      console.error('Error verifying OTP:', error);
+      throw new Error(error.message || 'Invalid or expired code. Please try again.');
+    }
+  }
 }
 
 // Export singleton instance

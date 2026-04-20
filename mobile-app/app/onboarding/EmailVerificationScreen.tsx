@@ -100,7 +100,7 @@ export default function EmailVerificationScreen({ navigation, route }: Props) {
         const signupData = useAuthStore.getState().pendingSignupData;
 
         // User is now authenticated - navigate to Terms
-        navigation.replace('Terms', { signupData });
+        navigation.replace('CategoryPreference', { signupData });
       } else if (isManual) {
         Alert.alert(
           'Not Verified Yet',

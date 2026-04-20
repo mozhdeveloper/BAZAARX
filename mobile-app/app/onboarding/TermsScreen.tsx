@@ -26,7 +26,7 @@ export default function TermsScreen({ navigation, route }: Props) {
       // Prioritize navigation params, fallback to persistent store
       const signupData = route.params?.signupData || useAuthStore.getState().pendingSignupData;
       
-      navigation.navigate('CategoryPreference', { signupData });
+      navigation.replace('EmailVerification', { email: signupData.email });
     }
   };
 

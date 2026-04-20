@@ -31,6 +31,13 @@ export default function SellerSignupScreen() {
     const [storeStatus, setStoreStatus] = useState<'idle' | 'checking' | 'available' | 'taken'>('idle');
     const [emailMessage, setEmailMessage] = useState('');
 
+    // OTP/Email Verification States
+    const [otpCode, setOtpCode] = useState('');
+    const [otpLoading, setOtpLoading] = useState(false);
+    const [otpSent, setOtpSent] = useState(false);
+    const [otpError, setOtpError] = useState('');
+    const [pendingEmail, setPendingEmail] = useState('');
+
     const {
         control,
         handleSubmit,
@@ -157,7 +164,69 @@ export default function SellerSignupScreen() {
     const handleNextStep = async () => {
         const isValidStep1 = await trigger(['email', 'password', 'confirmPassword']);
         if (isValidStep1 && emailStatus !== 'taken') {
-            setStep(2);
+            // Send OTP to email
+            await sendOTPEmail();
+        }
+    };
+
+    const sendOTPEmail = async () => {
+        setOtpLoading(true);
+        setOtpError('');
+        try {
+            const normalizedEmail = watch('email').trim().toLowerCase();
+            setPendingEmail(normalizedEmail);
+
+            const sent = await authService.sendOTP(normalizedEmail);
+            if (sent) {
+                setOtpSent(true);
+                setStep(2);
+                Alert.alert('OTP Sent', `A verification code has been sent to ${normalizedEmail}`);
+            } else {
+                setOtpError('Failed to send OTP. Please try again.');
+            }
+        } catch (err: any) {
+            setOtpError(err.message || 'Failed to send OTP. Please try again.');
+        } finally {
+            setOtpLoading(false);
+        }
+    };
+
+    const verifyOTPCode = async () => {
+        if (!otpCode.trim()) {
+            setOtpError('Please enter the verification code');
+            return;
+        }
+
+        setOtpLoading(true);
+        setOtpError('');
+        try {
+            const result = await authService.verifyOTP(pendingEmail, otpCode);
+            if (result) {
+                setOtpCode('');
+                setStep(3);
+            }
+        } catch (err: any) {
+            setOtpError(err.message || 'Invalid or expired code. Please try again.');
+        } finally {
+            setOtpLoading(false);
+        }
+    };
+
+    const resendOTP = async () => {
+        setOtpLoading(true);
+        setOtpError('');
+        try {
+            const sent = await authService.sendOTP(pendingEmail);
+            if (sent) {
+                setOtpCode('');
+                Alert.alert('OTP Resent', `A new verification code has been sent to ${pendingEmail}`);
+            } else {
+                setOtpError('Failed to resend OTP. Please try again.');
+            }
+        } catch (err: any) {
+            setOtpError(err.message || 'Failed to resend OTP. Please try again.');
+        } finally {
+            setOtpLoading(false);
         }
     };
 
@@ -265,18 +334,22 @@ export default function SellerSignupScreen() {
                     {/* Progress Indicator */}
                     <View style={styles.progressContainer}>
                         <View style={styles.progressLineBase} />
-                        <View style={[styles.progressLineActive, { width: step === 1 ? '0%' : '100%' }]} />
+                        <View style={[styles.progressLineActive, { width: step === 1 ? '0%' : step === 2 ? '50%' : '100%' }]} />
                         <View style={styles.stepsRow}>
                             <View style={[styles.stepDot, step >= 1 && styles.activeDot]}>
                                 {step > 1 ? <Check size={14} color="#FFF" /> : <Text style={styles.stepNum}>1</Text>}
                             </View>
                             <View style={[styles.stepDot, step >= 2 && styles.activeDot]}>
-                                <Text style={[styles.stepNum, step < 2 && styles.inactiveNum]}>2</Text>
+                                {step > 2 ? <Check size={14} color="#FFF" /> : <Text style={[styles.stepNum, step < 2 && styles.inactiveNum]}>2</Text>}
+                            </View>
+                            <View style={[styles.stepDot, step >= 3 && styles.activeDot]}>
+                                <Text style={[styles.stepNum, step < 3 && styles.inactiveNum]}>3</Text>
                             </View>
                         </View>
                         <View style={styles.stepLabels}>
                             <Text style={[styles.stepLabel, step >= 1 && styles.activeLabel]}>Account</Text>
-                            <Text style={[styles.stepLabel, step >= 2 && styles.activeLabel]}>Store Details</Text>
+                            <Text style={[styles.stepLabel, step >= 2 && styles.activeLabel]}>Email</Text>
+                            <Text style={[styles.stepLabel, step >= 3 && styles.activeLabel]}>Store</Text>
                         </View>
                     </View>
 
@@ -368,17 +441,82 @@ export default function SellerSignupScreen() {
                                 </View>
 
                                 <Pressable
-                                    style={[styles.primaryButton, (loading || emailStatus === 'checking' || emailStatus === 'taken') && styles.buttonDisabled]}
+                                    style={[styles.primaryButton, (loading || emailStatus === 'checking' || emailStatus === 'taken' || otpLoading) && styles.buttonDisabled]}
                                     onPress={handleNextStep}
-                                    disabled={loading || emailStatus === 'checking' || emailStatus === 'taken'}
+                                    disabled={loading || emailStatus === 'checking' || emailStatus === 'taken' || otpLoading}
                                 >
-                                    <Text style={styles.buttonText}>Next: Store Info</Text>
-                                    <ArrowRight size={20} color="#FFF" />
+                                    {otpLoading ? <ActivityIndicator color="#FFF" /> : (
+                                        <>
+                                            <Text style={styles.buttonText}>Next: Verify Email</Text>
+                                            <ArrowRight size={20} color="#FFF" />
+                                        </>
+                                    )}
                                 </Pressable>
                             </View>
                         </View>
 
+                        {/* Step 2: Email Verification */}
                         <View style={{ display: step === 2 ? 'flex' : 'none' }}>
+                            <View style={styles.stepContent}>
+                                <View style={styles.emailVerifyContainer}>
+                                    <Mail size={48} color="#D97706" />
+                                    <Text style={[styles.verifyTitle, { color: COLORS.textHeadline }]}>Verify Your Email</Text>
+                                    <Text style={[styles.verifySubtitle, { color: COLORS.textMuted }]}>
+                                        We've sent a verification code to {pendingEmail}
+                                    </Text>
+                                </View>
+
+                                <View style={styles.inputContainer}>
+                                    <Text style={styles.label}>Verification Code</Text>
+                                    <View style={[styles.inputWrapper, otpError && styles.inputWrapperError]}>
+                                        <TextInput
+                                            style={[styles.input, { marginLeft: 0 }]}
+                                            placeholder="Enter 6-digit code"
+                                            placeholderTextColor={COLORS.gray400}
+                                            keyboardType="number-pad"
+                                            maxLength={6}
+                                            value={otpCode}
+                                            onChangeText={setOtpCode}
+                                        />
+                                    </View>
+                                    {otpError && <Text style={styles.errorText}>{otpError}</Text>}
+                                </View>
+
+                                <Pressable
+                                    style={[styles.primaryButton, (otpLoading) && styles.buttonDisabled]}
+                                    onPress={verifyOTPCode}
+                                    disabled={otpLoading || !otpCode.trim()}
+                                >
+                                    {otpLoading ? <ActivityIndicator color="#FFF" /> : (
+                                        <>
+                                            <Text style={styles.buttonText}>Verify Email</Text>
+                                            <CheckCircle2 size={20} color="#FFF" />
+                                        </>
+                                    )}
+                                </Pressable>
+
+                                <View style={styles.resendContainer}>
+                                    <Text style={[styles.resendText, { color: COLORS.textMuted }]}>Didn't receive the code? </Text>
+                                    <Pressable onPress={resendOTP} disabled={otpLoading}>
+                                        <Text style={[styles.resendLink, otpLoading && styles.resendDisabled]}>Resend</Text>
+                                    </Pressable>
+                                </View>
+
+                                <Pressable
+                                    style={styles.backBtn}
+                                    onPress={() => {
+                                        setStep(1);
+                                        setOtpCode('');
+                                        setOtpError('');
+                                        setOtpSent(false);
+                                    }}
+                                >
+                                    <Text style={styles.backBtnText}>← Back to Account</Text>
+                                </Pressable>
+                            </View>
+                        </View>
+
+                        <View style={{ display: step === 3 ? 'flex' : 'none' }}>
                             <View style={styles.stepContent}>
                                 <View style={styles.inputContainer}>
                                     <Text style={styles.label}>Store Name</Text>
@@ -471,7 +609,7 @@ export default function SellerSignupScreen() {
                                 </View>
 
                                 <View style={styles.buttonRow}>
-                                    <Pressable style={styles.backBtn} onPress={() => setStep(1)}>
+                                    <Pressable style={styles.backBtn} onPress={() => setStep(2)}>
                                         <Text style={styles.backBtnText}>Back</Text>
                                     </Pressable>
                                     <Pressable
@@ -593,4 +731,14 @@ const styles = StyleSheet.create({
     loginLink: { fontSize: 14, color: '#D97706', fontWeight: '700' },
     backToHome: { alignItems: 'center', marginBottom: 40 },
     backLink: { fontSize: 14, color: COLORS.gray400, fontWeight: '600' },
+
+    // Email Verification Styles
+    emailVerifyContainer: { alignItems: 'center', marginBottom: 40 },
+    verifyTitle: { fontSize: 24, fontWeight: '800', marginBottom: 12, marginTop: 20 },
+    verifySubtitle: { fontSize: 14, textAlign: 'center', lineHeight: 20 },
+    resendContainer: { flexDirection: 'row', justifyContent: 'center', alignItems: 'center', marginTop: 20, marginBottom: 24 },
+    resendText: { fontSize: 13, fontWeight: '500' },
+    resendLink: { fontSize: 13, color: '#D97706', fontWeight: '700', textDecorationLine: 'underline' },
+    resendDisabled: { opacity: 0.6 },
 });
+

@@ -11,6 +11,9 @@ import { authService, type AuthResult } from '@/services/authService';
 import { paymentMethodService } from '@/services/paymentMethodService';
 import type { Profile } from '@/types/database.types';
 import { useWishlistStore } from './wishlistStore';
+import { useCartStore } from './cartStore';
+import { useOrderStore } from './orderStore';
+import { purgeSellerData } from './sellerStore';
 
 export interface PaymentMethod {
   id: string;
@@ -204,6 +207,9 @@ export const useAuthStore = create<AuthState>()(
         try {
           await authService.signOut();
           useWishlistStore.getState().reset();
+          useCartStore.getState().reset();
+          useOrderStore.getState().reset();
+          purgeSellerData();
           set({
             user: null,
             profile: null,
@@ -293,6 +299,9 @@ export const useAuthStore = create<AuthState>()(
 
       logout: () => {
         useWishlistStore.getState().reset();
+        useCartStore.getState().reset();
+        useOrderStore.getState().reset();
+        purgeSellerData();
         set({
           user: null,
           profile: null,

@@ -16,6 +16,7 @@ import {
   Image,
   Modal,
   Dimensions,
+  Linking,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import {
@@ -151,36 +152,36 @@ export default function LoginScreen({ navigation }: Props) {
   const handleGoogleSignIn = async () => {
     setIsGoogleLoading(true);
     try {
-      // Create dynamic redirect URL for Expo Go vs Production
-      const redirectUrl = AuthSession.makeRedirectUri({ path: 'auth/callback' });
-      console.log('👉 Add THIS exactly to Custom Redirect URIs in Supabase:', redirectUrl);
+      console.log('[LoginScreen] Starting Google Sign-In with Supabase default redirect...');
 
-      // Step 1: Get OAuth URL from Supabase
+      // Use Supabase's default callback URL (no custom redirect needed)
       const { data, error } = await supabase.auth.signInWithOAuth({
         provider: 'google',
         options: {
-          redirectTo: redirectUrl,
           skipBrowserRedirect: false,
         },
       });
 
       if (error) {
+        console.error('[LoginScreen] OAuth URL generation error:', error);
         Alert.alert('Google Sign-In Error', error.message);
         setIsGoogleLoading(false);
         return;
       }
 
       if (!data?.url) {
-        Alert.alert('Error', 'Failed to initialize Google Sign-In');
+        console.error('[LoginScreen] No OAuth URL returned from Supabase');
+        Alert.alert('Error', 'Failed to initialize Google Sign-In. Check console logs.');
         setIsGoogleLoading(false);
         return;
       }
 
-      // Step 2: Open browser for user to authenticate with Google
-      // When user confirms, Supabase redirects to bazaarx://auth/callback
-      // The OS will route this back to the app, and deep linking + onAuthStateChange
-      // will automatically handle session setup and checkSession() call
+      console.log('[LoginScreen] OAuth URL obtained, opening browser...');
+
+      // Open browser for user to authenticate with Google
+      // Supabase handles the redirect to https://ijdpbfrcvdflzwytxncj.supabase.co/auth/v1/callback
       const result = await WebBrowser.openBrowserAsync(data.url);
+      console.log('[LoginScreen] Browser result:', result.type);
 
       if (result.type === 'cancel' || result.type === 'dismiss') {
         console.log('[LoginScreen] Google Sign-In canceled by user');
@@ -188,30 +189,62 @@ export default function LoginScreen({ navigation }: Props) {
         return;
       }
 
-      // Step 3: Browser closed (either by redirect or user dismissal)
-      // The deep link handler will have processed the OAuth redirect
-      // and onAuthStateChange will have triggered checkSession()
-      // Wait a moment for session to settle, then check if authenticated
+      // Browser closed - wait for auth state change event (token arrived via deep link)
+      console.log('[LoginScreen] Browser closed. Waiting for auth state change event...');
 
-      await new Promise(resolve => setTimeout(resolve, 800));
+      // Create a promise that resolves when auth state changes to SIGNED_IN
+      const authStatePromise = new Promise<void>((resolve, reject) => {
+        let timeout: ReturnType<typeof setTimeout>;
+        let unsubscribe: (() => void) | null = null;
 
-      const { data: sessionData } = await supabase.auth.getSession();
-      if (sessionData.session?.user) {
-        console.log('[LoginScreen] Google Sign-In successful, session established');
+        timeout = setTimeout(() => {
+          if (unsubscribe) unsubscribe();
+          console.error('[LoginScreen] ⏱️ Auth state timeout: 15 seconds passed without SIGNED_IN event');
+          reject(new Error('Auth state change timeout'));
+        }, 15000);
 
-        // Session is established and auth store should be synced via onAuthStateChange
-        // Now navigate to main app
-        // Use replace to prevent going back to login
+        const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
+          console.log(`[LoginScreen] onAuthStateChange event: ${event}`);
+          console.log(`[LoginScreen]   Session user: ${session?.user?.email || 'none'}`);
+
+          if (event === 'SIGNED_IN' && session?.user) {
+            console.log('[LoginScreen] ✅ SIGNED_IN event received!');
+            console.log('[LoginScreen] User:', session.user.email);
+            clearTimeout(timeout);
+            if (unsubscribe) unsubscribe();
+            resolve();
+          }
+        });
+
+        // Store the unsubscribe function
+        unsubscribe = () => subscription.unsubscribe();
+      });
+
+      try {
+        await authStatePromise;
+        console.log('[LoginScreen] Navigating to MainTabs...');
         navigation.replace('MainTabs', { screen: 'Home' });
-      } else {
+      } catch (authError) {
+        console.error('[LoginScreen] ❌ Auth state error:', authError);
+
+        // Double-check if session exists despite error
+        const { data: finalCheck } = await supabase.auth.getSession();
+        if (finalCheck.session?.user) {
+          console.log('[LoginScreen] ⚠️ Session EXISTS but event timeout. Navigating anyway...');
+          navigation.replace('MainTabs', { screen: 'Home' });
+          return;
+        }
+
         Alert.alert(
-          'Error',
-          'Google Sign-In completed but session was not established. Please try again.'
+          'Sign-In Incomplete',
+          'Your Google account was created, but we\'re having trouble establishing your session.\n\n' +
+          'The token arrived, but wasn\'t processed in time.\n\n' +
+          'Please try signing in again.'
         );
         setIsGoogleLoading(false);
       }
     } catch (error) {
-      console.error('[LoginScreen] Google Sign-In error:', error);
+      console.error('[LoginScreen] Google Sign-In exception:', error);
       Alert.alert(
         'Google Sign-In Error',
         error instanceof Error ? error.message : 'An unexpected error occurred. Please try again.'
@@ -219,6 +252,32 @@ export default function LoginScreen({ navigation }: Props) {
       setIsGoogleLoading(false);
     }
   };
+
+  // Listen for deep links (OAuth redirects) on this screen
+  React.useEffect(() => {
+    console.log('[LoginScreen] Setting up deep link listener...');
+    const unsubscribe = Linking.addEventListener('url', ({ url }) => {
+      console.log('[LoginScreen] 🔗 Deep link received on LoginScreen:', url);
+
+      if (url.includes('auth/callback') || url.includes('--/auth/callback')) {
+        console.log('[LoginScreen] ✅ OAuth callback URL detected!');
+
+        // Parse the URL to check for error or code
+        const hasCode = url.includes('code=');
+        const hasError = url.includes('error=');
+
+        console.log('[LoginScreen] Has code:', hasCode, '| Has error:', hasError);
+
+        if (hasError) {
+          const errorMatch = url.match(/error=([^&]*)/);
+          const errorDesc = url.match(/error_description=([^&]*)/);
+          console.error('[LoginScreen] OAuth error:', errorMatch?.[1], errorDesc?.[1]);
+        }
+      }
+    });
+
+    return () => unsubscribe.remove();
+  }, []);
 
   React.useEffect(() => {
     navigation.setOptions({

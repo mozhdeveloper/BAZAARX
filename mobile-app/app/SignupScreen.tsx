@@ -136,8 +136,17 @@ export default function SignupScreen({ navigation }: Props) {
                     user_type: 'buyer'
                 });
 
-                // Navigate to Email verification
-                navigation.replace('EmailVerification', { email: email.trim() });
+                // Navigate to Terms first
+                navigation.replace('Terms', { 
+                    signupData: {
+                        firstName,
+                        lastName,
+                        email: email.trim(),
+                        phone,
+                        password,
+                        user_type: 'buyer'
+                    }
+                });
             }
         } catch (error: any) {
             console.error('Signup Error:', error);

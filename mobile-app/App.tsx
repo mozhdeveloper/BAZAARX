@@ -80,10 +80,10 @@ export type RootStackParamList = {
     registryLocation?: string;
     recipientId?: string;
   };
-  PaymentGateway: { 
-    paymentMethod: string; 
-    order?: Order; 
-    isQuickCheckout?: boolean; 
+  PaymentGateway: {
+    paymentMethod: string;
+    order?: Order;
+    isQuickCheckout?: boolean;
     earnedBazcoins?: number;
     checkoutPayload?: any;
     bazcoinDiscount?: number;
@@ -152,7 +152,7 @@ const Tab = createBottomTabNavigator<TabParamList>();
 
 // Deep link configuration for payment callbacks and OAuth
 const linking: LinkingOptions<RootStackParamList> = {
-  prefixes: ['bazaarx://'],
+  prefixes: ['bazaarx://', 'exp://'],
   config: {
     screens: {
       ResetPassword: 'reset-password',
@@ -165,10 +165,25 @@ const linking: LinkingOptions<RootStackParamList> = {
         },
       },
       // OAuth callback deep link for Google Sign-In redirect
-      // When Supabase redirects after Google auth, it will call: bazaarx://auth/callback?...
-      // This matches the redirectTo in LoginScreen's signInWithOAuth call
-      // Note: Navigation happens via linking, but we handle OAuth in LoginScreen/SplashScreen
+      // Matches:
+      // - exp://192.168.x.x:8081/--/auth/callback (Expo Go)
+      // - bazaarx://auth/callback (native)
+      // When Supabase redirects after Google auth, this route captures it
+      Login: {
+        path: '**',  // Match any path - Supabase handles OAuth, we just need to capture the redirect
+        parse: {}, // No params to parse; Supabase handles auth code in URL
+      },
     },
+  },
+  async getInitialURL() {
+    // Handle notification-opened app cold start
+    const url = await Linking.getInitialURL();
+    if (url != null) {
+      console.log('[App] Initial URL from cold start:', url);
+      return url;
+    }
+    // Handle app launched from deep link
+    return undefined;
   },
 };
 
@@ -316,17 +331,32 @@ export default function App() {
       'Use a development build instead of Expo Go',
     ]);
 
+    // Deep link listener for debugging OAuth redirects
+    const unsubscribeDeepLink = Linking.addEventListener('url', ({ url }) => {
+      console.log('[App] Deep link received:', url);
+
+      if (url.includes('auth/callback') || url.includes('--/auth/callback')) {
+        console.log('[App] ✅ OAuth callback captured!');
+      }
+    });
+
     // Listen for auth state changes
     const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
+      console.log('[App] Auth state change:', event, session?.user?.email);
+
       if (event === 'SIGNED_OUT') {
         useAuthStore.getState().logout();
       } else if (event === 'SIGNED_IN' && session) {
         // Session restored/signed in — sync auth store
+        console.log('[App] 🔐 SIGNED_IN event fired, calling checkSession...');
         useAuthStore.getState().checkSession?.();
       }
     });
 
-    return () => subscription.unsubscribe();
+    return () => {
+      subscription.unsubscribe();
+      unsubscribeDeepLink.remove();
+    };
   }, []);
 
   // Handle logout navigation — when user becomes null, navigate to Login
