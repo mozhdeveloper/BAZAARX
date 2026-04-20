@@ -22,6 +22,7 @@ import { COLORS } from '../src/constants/theme';
 import { BuyerBottomNav } from '../src/components/BuyerBottomNav';
 import { paymentMethodService, type SavedPaymentMethod } from '../src/services/paymentMethodService';
 import { useAuthStore } from '../src/stores/authStore';
+import { getTestCardByNumber } from '../src/constants/testCards';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'PaymentMethods'>;
 
@@ -49,6 +50,7 @@ export default function PaymentMethodsScreen({ navigation }: Props) {
     cardCVV: '',
   });
   const [error, setError] = useState<string | null>(null);
+  const [cardNumberError, setCardNumberError] = useState<string | null>(null);
 
   const loadPaymentMethods = useCallback(async () => {
     if (!user?.id) return;
@@ -75,10 +77,19 @@ export default function PaymentMethodsScreen({ navigation }: Props) {
   );
 
   const validateCardForm = (): boolean => {
+    // First check card number
     if (!newCard.cardNumber || newCard.cardNumber.length !== 16) {
       setError('Card number must be 16 digits');
       return false;
     }
+
+    // Validate card number is a valid PayMongo test card
+    const testCard = getTestCardByNumber(newCard.cardNumber);
+    if (!testCard) {
+      setCardNumberError('Card number does not match card type. Please use a valid PayMongo test card.');
+      return false;
+    }
+
     if (!newCard.cardExpiry || !/^\d{2}\/\d{2}$/.test(newCard.cardExpiry)) {
       setError('Expiry must be MM/YY format');
       return false;
@@ -106,11 +117,32 @@ export default function PaymentMethodsScreen({ navigation }: Props) {
     return true;
   };
 
+  // Check if all form fields are filled (format validation only)
+  const isFormComplete = (): boolean => {
+    return (
+      newCard.cardNumber.length === 16 &&
+      newCard.cardName.trim().length > 0 &&
+      /^\d{2}\/\d{2}$/.test(newCard.cardExpiry) &&
+      newCard.cardCVV.length === 3
+    );
+  };
+
+  // Validate card number is a valid PayMongo test card (only called when form is complete)
+  const isCardNumberValid = (): boolean => {
+    if (!newCard.cardNumber || newCard.cardNumber.length !== 16) {
+      return false;
+    }
+
+    const testCard = getTestCardByNumber(newCard.cardNumber);
+    return !!testCard;
+  };
+
   const handleAddCard = async () => {
     if (!user?.id || !validateCardForm()) return;
 
     setSaving(true);
     setError(null);
+    setCardNumberError(null);
 
     try {
       const isDefault = paymentMethods.length === 0; // First card is default
@@ -129,6 +161,8 @@ export default function PaymentMethodsScreen({ navigation }: Props) {
       await loadPaymentMethods();
       setShowAddModal(false);
       setNewCard({ cardNumber: '', cardName: '', cardExpiry: '', cardCVV: '' });
+      setError(null);
+      setCardNumberError(null);
       Alert.alert('Success', 'Card added successfully!');
     } catch (err) {
       console.error('Error adding card:', err);
@@ -204,9 +238,7 @@ export default function PaymentMethodsScreen({ navigation }: Props) {
             <ArrowLeft size={24} color={COLORS.textHeadline} strokeWidth={2.5} />
           </Pressable>
           <Text style={styles.headerTitle}>Payment Methods</Text>
-          <Pressable onPress={() => setShowAddModal(true)} style={styles.headerIconButton}>
-            <Plus size={24} color={COLORS.primary} strokeWidth={2.5} />
-          </Pressable>
+          <View style={styles.headerIconButton} />
         </View>
       </LinearGradient>
 
@@ -384,9 +416,19 @@ export default function PaymentMethodsScreen({ navigation }: Props) {
         visible={showAddModal}
         animationType="slide"
         transparent={true}
-        onRequestClose={() => setShowAddModal(false)}
+        onRequestClose={() => {
+          setShowAddModal(false);
+          setError(null);
+          setCardNumberError(null);
+          setNewCard({ cardNumber: '', cardName: '', cardExpiry: '', cardCVV: '' });
+        }}
       >
-        <Pressable style={styles.modalOverlay} onPress={() => setShowAddModal(false)}>
+        <Pressable style={styles.modalOverlay} onPress={() => {
+          setShowAddModal(false);
+          setError(null);
+          setCardNumberError(null);
+          setNewCard({ cardNumber: '', cardName: '', cardExpiry: '', cardCVV: '' });
+        }}>
           <Pressable onPress={(e) => e.stopPropagation()} style={[styles.modalContent, { paddingTop: insets.top }]}>
             {/* Modal Header */}
             <View style={styles.modalHeader}>
@@ -426,13 +468,31 @@ export default function PaymentMethodsScreen({ navigation }: Props) {
                     onChangeText={(text) => {
                       const formatted = formatCardNumber(text);
                       setNewCard({ ...newCard, cardNumber: formatted });
-                      setError(null);
+                      
+                      // Real-time validation: validate as soon as card number is complete (16 digits)
+                      if (formatted.length === 16) {
+                        const testCard = getTestCardByNumber(formatted);
+                        if (!testCard) {
+                          setCardNumberError('Card number does not match card type. Please use a valid PayMongo test card.');
+                        } else {
+                          setCardNumberError(null);
+                        }
+                      } else {
+                        // Clear error if card number is incomplete
+                        setCardNumberError(null);
+                      }
                     }}
                     keyboardType="numeric"
                     maxLength={19}
                     editable={!saving}
                   />
                 </View>
+                {cardNumberError && (
+                  <View style={styles.inputErrorContainer}>
+                    <AlertCircle size={14} color="#EF4444" strokeWidth={2} />
+                    <Text style={styles.inputErrorText}>{cardNumberError}</Text>
+                  </View>
+                )}
               </View>
 
               {/* Card Name */}
@@ -504,16 +564,25 @@ export default function PaymentMethodsScreen({ navigation }: Props) {
             <View style={styles.modalActions}>
               <Pressable
                 style={[styles.modalButton, styles.cancelButton]}
-                onPress={() => setShowAddModal(false)}
+                onPress={() => {
+                  setShowAddModal(false);
+                  setError(null);
+                  setCardNumberError(null);
+                  setNewCard({ cardNumber: '', cardName: '', cardExpiry: '', cardCVV: '' });
+                }}
                 disabled={saving}
               >
                 <Text style={styles.cancelButtonText}>Cancel</Text>
               </Pressable>
 
               <Pressable
-                style={[styles.modalButton, styles.addButton, saving && styles.buttonDisabled]}
+                style={[
+                  styles.modalButton,
+                  styles.addButton,
+                  (saving || !isFormComplete() || !isCardNumberValid()) && styles.buttonDisabled,
+                ]}
                 onPress={handleAddCard}
-                disabled={saving}
+                disabled={saving || !isFormComplete() || !isCardNumberValid()}
               >
                 {saving ? (
                   <ActivityIndicator size="small" color="#FFFFFF" />
@@ -529,7 +598,7 @@ export default function PaymentMethodsScreen({ navigation }: Props) {
         </Pressable>
       </Modal>
 
-      {paymentMethods.length > 0 && <BuyerBottomNav />}
+
     </View>
   );
 }
@@ -811,5 +880,13 @@ const styles = StyleSheet.create({
   cancelButtonText: { fontSize: 15, fontWeight: '700', color: COLORS.textHeadline },
   addButton: { backgroundColor: COLORS.primary },
   addButtonText: { fontSize: 15, fontWeight: '700', color: '#FFFFFF' },
+  inputErrorContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    marginTop: 6,
+    paddingHorizontal: 4,
+  },
+  inputErrorText: { fontSize: 12, color: '#EF4444', fontWeight: '500' },
   buttonDisabled: { opacity: 0.6 },
 });
