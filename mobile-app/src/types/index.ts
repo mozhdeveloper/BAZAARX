@@ -184,6 +184,7 @@ export interface Order {
   isPaid: boolean;
   scheduledDate: string;
   deliveryDate?: string;
+  estimatedDelivery?: Date | string;
   shippingAddress: ShippingAddress;
   paymentMethod: string;
   createdAt: string;
@@ -207,6 +208,11 @@ export interface Order {
     is_verified?: boolean;
     business_address?: string;
   };
+  payments?: Array<{
+    payment_method: string | { type: string };
+    status?: string;
+    created_at?: string;
+  }>;
 }
 
 export interface ShippingAddress {
