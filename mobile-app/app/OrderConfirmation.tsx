@@ -19,13 +19,74 @@ import { safeImageUri } from '../src/utils/imageUtils';
 import { COLORS } from '../src/constants/theme';
 import { usePaymentStore } from '../src/stores/paymentStore';
 import type { PaymentTransaction } from '../src/types/payment.types';
+import { supabase } from '../src/lib/supabase';
+
+// Helper function to format date reliably across platforms
+const formatDatePH = (dateString: string | Date | null | undefined): string | null => {
+  if (!dateString) return null;
+  try {
+    const date = typeof dateString === 'string' ? new Date(dateString) : dateString;
+    if (isNaN(date.getTime())) return null;
+    
+    const months = ['January', 'February', 'March', 'April', 'May', 'June',
+                    'July', 'August', 'September', 'October', 'November', 'December'];
+    const month = months[date.getMonth()];
+    const day = date.getDate();
+    const year = date.getFullYear();
+    return `${month} ${day}, ${year}`;
+  } catch (error) {
+    console.warn('[DateFormat] Error formatting date:', dateString, error);
+    return null;
+  }
+};
 
 type Props = NativeStackScreenProps<RootStackParamList, 'OrderConfirmation'>;
 
 export default function OrderConfirmation({ navigation, route }: Props) {
   const { order, earnedBazcoins = 0, isQuickCheckout } = route.params as { order: Order; earnedBazcoins?: number; isQuickCheckout?: boolean };
   const [paymentTx, setPaymentTx] = useState<PaymentTransaction | null>(null);
+  const [estimatedDeliveryDate, setEstimatedDeliveryDate] = useState<Date | null>(null);
   const getTransactionByOrderId = usePaymentStore((s) => s.getTransactionByOrderId);
+
+  // Helper function to map payment method to display text
+  const getPaymentMethodDisplay = (): string => {
+    if (typeof order.paymentMethod === 'string') {
+      const method = order.paymentMethod.toLowerCase();
+      if (method === 'cod') return 'Cash on Delivery';
+      if (method === 'gcash') return 'GCash';
+      if (method === 'card') return 'Card';
+      if (method === 'paymongo') return 'PayMongo';
+      return order.paymentMethod;
+    }
+    const type = (order.paymentMethod as any)?.type?.toLowerCase();
+    if (type === 'cod') return 'Cash on Delivery';
+    if (type === 'gcash') return 'GCash';
+    if (type === 'card') return 'Card';
+    if (type === 'paymongo') return 'PayMongo';
+    return 'Unknown';
+  };
+
+  // Helper function to determine order status and styling
+  const getOrderStatus = (): { status: string; backgroundColor: string; textColor: string } => {
+    const paymentMethod = order.paymentMethod;
+    const isCOD = typeof paymentMethod === 'string'
+      ? paymentMethod.toLowerCase() === 'cod'
+      : (paymentMethod as any)?.type?.toLowerCase() === 'cod';
+
+    if (isCOD) {
+      return {
+        status: 'Pending',
+        backgroundColor: '#FEF3C7',
+        textColor: '#92400E',
+      };
+    }
+
+    return {
+      status: 'Confirmed',
+      backgroundColor: '#E5E7EB',
+      textColor: '#374151',
+    };
+  };
 
   useEffect(() => {
     const realOrderId = (order as any).orderId || order.id;
@@ -34,7 +95,35 @@ export default function OrderConfirmation({ navigation, route }: Props) {
     getTransactionByOrderId(realOrderId)
       .then((tx) => setPaymentTx(tx))
       .catch(() => {});
-  }, [order.id]);
+    
+    // First, try to use estimatedDelivery from order object
+    if (order.estimatedDelivery) {
+      const deliveryDate = typeof order.estimatedDelivery === 'string' 
+        ? new Date(order.estimatedDelivery)
+        : order.estimatedDelivery;
+      if (!isNaN(deliveryDate.getTime())) {
+        setEstimatedDeliveryDate(deliveryDate);
+        return;
+      }
+    }
+    
+    // If not in order, fetch estimated delivery from delivery_bookings for COD deadline
+    (async () => {
+      try {
+        const { data } = await supabase
+          .from('delivery_bookings')
+          .select('estimated_delivery')
+          .eq('order_id', realOrderId)
+          .single();
+        if (data?.estimated_delivery) {
+          setEstimatedDeliveryDate(new Date(data.estimated_delivery));
+        }
+      } catch (err) {
+        // Silently ignore if no delivery booking exists
+        console.warn('[OrderConfirmation] Could not fetch estimated delivery:', err);
+      }
+    })();
+  }, [order.id, order.estimatedDelivery]);
 
   // Handle Android hardware back button
   useFocusEffect(
@@ -115,7 +204,7 @@ export default function OrderConfirmation({ navigation, route }: Props) {
           {/* Success Message */}
           <Text style={styles.title}>Order Placed Successfully!</Text>
           <Text style={styles.subtitle}>
-            Your order has been confirmed. Payment method: {order.paymentMethod}
+            Your order has been confirmed. Payment method: {getPaymentMethodDisplay()}
           </Text>
 
 
@@ -147,19 +236,19 @@ export default function OrderConfirmation({ navigation, route }: Props) {
             <View style={styles.card}>
               <View style={{ flexDirection: 'row', justifyContent: 'space-between', paddingVertical: 8 }}>
                 <Text style={{ fontSize: 14, color: '#6B7280' }}>Method</Text>
-                <Text style={{ fontSize: 14, fontWeight: '600', color: '#1F2937' }}>{order.paymentMethod}</Text>
+                <Text style={{ fontSize: 14, fontWeight: '600', color: '#1F2937' }}>{getPaymentMethodDisplay()}</Text>
               </View>
               <View style={{ flexDirection: 'row', justifyContent: 'space-between', paddingVertical: 8, borderTopWidth: 1, borderTopColor: '#FDF2E9' }}>
                 <Text style={{ fontSize: 14, color: '#6B7280' }}>Status</Text>
                 <View style={{
                   paddingHorizontal: 10, paddingVertical: 3, borderRadius: 8,
-                  backgroundColor: '#E5E7EB',
+                  backgroundColor: getOrderStatus().backgroundColor,
                 }}>
                   <Text style={{
                     fontSize: 12, fontWeight: '700',
-                    color: '#374151',
+                    color: getOrderStatus().textColor,
                   }}>
-                    Confirmed
+                    {getOrderStatus().status}
                   </Text>
                 </View>
               </View>
@@ -247,6 +336,34 @@ export default function OrderConfirmation({ navigation, route }: Props) {
               </View>
             </View>
           </View>
+
+          {/* COD Payment Instruction Section */}
+          {(() => {
+            const paymentMethod = order.paymentMethod;
+            const isCOD = typeof paymentMethod === 'string'
+              ? paymentMethod.toLowerCase() === 'cod'
+              : (paymentMethod as any)?.type?.toLowerCase() === 'cod';
+            
+            if (!isCOD) return null;
+            
+            const formattedDeadline = formatDatePH(estimatedDeliveryDate);
+            
+            return (
+              <View style={styles.section}>
+                <View style={styles.codInstructionBox}>
+                  <Text style={styles.codTitle}>💳 Payment on Delivery</Text>
+                  <Text style={styles.codText}>
+                    You'll pay the full amount to the delivery driver when they arrive. Please have the exact amount ready.
+                  </Text>
+                  {formattedDeadline && (
+                    <Text style={styles.codDeadline}>
+                      Payment Due: {formattedDeadline}
+                    </Text>
+                  )}
+                </View>
+              </View>
+            );
+          })()}
 
           {/* Action Buttons */}
           <View style={styles.buttonsContainer}>
@@ -455,6 +572,30 @@ const styles = StyleSheet.create({
     fontSize: 22,
     fontWeight: '900',
     color: COLORS.primary,
+  },
+  codInstructionBox: {
+    backgroundColor: '#FFFBF0',
+    borderLeftWidth: 4,
+    borderLeftColor: '#F59E0B',
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    borderRadius: 8,
+    gap: 6,
+  },
+  codTitle: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: '#92400E',
+  },
+  codText: {
+    fontSize: 12,
+    color: '#7C2D12',
+    lineHeight: 16,
+  },
+  codDeadline: {
+    fontSize: 12,
+    color: '#92400E',
+    fontWeight: '600',
   },
   buttonsContainer: {
     gap: 16,

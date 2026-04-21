@@ -30,6 +30,7 @@ interface CartStore {
   setQuickOrder: (product: Product, quantity?: number) => void;
   clearQuickOrder: () => void;
   getQuickOrderTotal: () => number;
+  reset: () => void;
 }
 
 /**
@@ -560,6 +561,7 @@ export const useCartStore = create<CartStore>()(
       },
       clearQuickOrder: () => set({ quickOrder: null }),
       getQuickOrderTotal: () => get().quickOrder ? ((get().quickOrder!.price ?? 0) * get().quickOrder!.quantity) : 0,
+      reset: () => set({ items: [], cartId: null, isLoading: false, error: null, quickOrder: null }),
     }),
     {
       name: 'cart-storage',

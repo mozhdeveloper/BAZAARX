@@ -33,7 +33,7 @@ export const useAdminSellers = create<SellersState>()(
                 verified_at, created_at, updated_at, store_contact_number,
                 blacklisted_at, suspended_at, suspension_reason,
                 profiles:profiles!sellers_id_fkey(id, first_name, last_name, email),
-                business_profile:seller_business_profiles(seller_id, business_type, city, province),
+                business_profile:seller_business_profiles(seller_id, business_type, address_line_1, city, province, postal_code),
                 payout_account:seller_payout_accounts(seller_id, account_name, bank_name, account_number),
                 verification_documents:seller_verification_documents(seller_id, business_permit_url, valid_id_url, proof_of_address_url, dti_registration_url, tax_id_url),
                 tier:seller_tiers(tier_level, bypasses_assessment)
@@ -1184,17 +1184,31 @@ export const useAdminSellers = create<SellersState>()(
       clearError: () => set({ error: null }),
 
       hasCompleteRequirements: (seller: Seller) => {
-        // Check if seller has all required documents
-        const requiredDocTypes = ['business_permit', 'valid_id', 'proof_of_address', 'dti_registration', 'tax_id'];
+        const requiredDocTypes = ['valid_id', 'proof_of_address', 'tax_id'];
+        
+        // Add business-specific requirements
+        if (seller.businessType === 'corporation' || seller.businessType === 'partnership') {
+          requiredDocTypes.push('business_permit', 'dti_registration');
+        } else {
+          // For sole proprietors, require at least one of these
+          const hasDtiOrPermit = seller.documents.some(doc => 
+            doc.type === 'business_permit' || doc.type === 'dti_registration'
+          );
+          if (!hasDtiOrPermit) {
+            requiredDocTypes.push('dti_registration'); // Mark as missing if neither is present
+          }
+        }
+
         const sellerDocTypes = seller.documents.map(doc => doc.type);
-
-        // Check if all required documents exist
-        const hasAllDocs = requiredDocTypes.every(type => sellerDocTypes.includes(type));
-
-        // Also check if business address exists
-        const hasBusinessAddress = seller.businessAddress && seller.businessAddress !== 'Not provided';
-
-        return hasAllDocs && hasBusinessAddress;
+        const missingDocs = requiredDocTypes.filter(type => !sellerDocTypes.includes(type));
+        
+        const hasBusinessAddress = !!(seller.businessAddress && seller.businessAddress !== 'Not provided');
+        
+        return {
+          isValid: missingDocs.length === 0 && hasBusinessAddress,
+          missingDocs,
+          hasBusinessAddress
+        };
       },
 
       updateSellerTier: async (sellerId: string, tierLevel: 'standard' | 'premium_outlet') => {

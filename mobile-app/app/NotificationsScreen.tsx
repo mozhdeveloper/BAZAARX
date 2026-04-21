@@ -15,6 +15,7 @@ import { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { RootStackParamList } from '../App';
 import { notificationService, Notification } from '../src/services/notificationService';
 import { orderService } from '../src/services/orderService';
+import { pushNotificationService } from '../src/services/pushNotificationService';
 import { useAuthStore } from '../src/stores/authStore';
 import { COLORS } from '../src/constants/theme';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -299,6 +300,30 @@ export default function NotificationsScreen({ navigation }: Props) {
             />
           }
         >
+          {/* ── DEV: Push Notification Test Panel (Expo Go friendly) ─── */}
+          {__DEV__ && (
+            <View style={styles.devPanel}>
+              <Text style={styles.devPanelTitle}>🔔 Push Test (Dev)</Text>
+              <Text style={styles.devPanelHint}>Local notifications — work in Expo Go, test tap routing</Text>
+              {[
+                { label: 'Order update', type: 'order', body: 'Your order has been shipped!' },
+                { label: 'Seller order', type: 'seller_order', body: 'You have a new order!', extra: { orderId: 'test-order-id' } },
+                { label: 'Chat message', type: 'chat', body: 'You have a new message from a buyer.' },
+                { label: 'Return request', type: 'return', body: 'Your return has been approved.' },
+              ].map(({ label, type, body, extra }) => (
+                <Pressable
+                  key={type}
+                  style={({ pressed }) => [styles.devButton, pressed && { opacity: 0.7 }]}
+                  onPress={() =>
+                    pushNotificationService.testLocalNotification(type, `[TEST] ${label}`, body, extra || {})
+                  }
+                >
+                  <Text style={styles.devButtonText}>{label}</Text>
+                </Pressable>
+              ))}
+            </View>
+          )}
+
           {notifications.length === 0 ? (
             <View style={styles.emptyState}>
               <View style={styles.emptyIconBg}>
@@ -417,6 +442,27 @@ const styles = StyleSheet.create({
   },
   markReadAction: { paddingVertical: 4 },
   markReadActionText: { color: '#EA580C', fontSize: 14, fontWeight: '600' },
+
+  // Dev test panel
+  devPanel: {
+    margin: 16,
+    padding: 14,
+    backgroundColor: '#FFF7ED',
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: '#FED7AA',
+    borderStyle: 'dashed',
+  },
+  devPanelTitle: { fontSize: 14, fontWeight: '700', color: '#9A3412', marginBottom: 4 },
+  devPanelHint: { fontSize: 11, color: '#9A3412', marginBottom: 10, opacity: 0.8 },
+  devButton: {
+    backgroundColor: '#EA580C',
+    borderRadius: 8,
+    paddingVertical: 8,
+    paddingHorizontal: 14,
+    marginBottom: 6,
+  },
+  devButtonText: { color: '#fff', fontSize: 13, fontWeight: '600' },
 
   // Content
   scrollView: { flex: 1, backgroundColor: '#FFFFFF' },

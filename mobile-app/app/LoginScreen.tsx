@@ -16,6 +16,7 @@ import {
   Image,
   Modal,
   Dimensions,
+  Linking,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import {
@@ -39,6 +40,8 @@ import { useAuthStore } from '../src/stores/authStore';
 import { authService } from '../src/services/authService';
 import { supabase } from '../src/lib/supabase';
 import { COLORS } from '../src/constants/theme';
+import { useLockoutStore } from '../src/stores/lockoutStore';
+import { useEffect } from 'react';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'Login'>;
 
@@ -54,6 +57,9 @@ export default function LoginScreen({ navigation }: Props) {
   const [isGoogleLoading, setIsGoogleLoading] = useState(false);
   const [showTestModal, setShowTestModal] = useState(false);
   const [showMoreOptions, setShowMoreOptions] = useState(false);
+  const [lockoutTimer, setLockoutTimer] = useState(0);
+
+  const lockoutStore = useLockoutStore();
 
   const {
     control,
@@ -70,9 +76,45 @@ export default function LoginScreen({ navigation }: Props) {
     },
   });
 
+  const watchedEmail = watch('email');
+
+  // Handle lockout countdown
+  useEffect(() => {
+    const remaining = lockoutStore.getRemainingLockoutTime(watchedEmail);
+    if (remaining > 0) {
+      setLockoutTimer(remaining);
+    }
+  }, [watchedEmail]);
+
+  useEffect(() => {
+    let interval: any;
+    if (lockoutTimer > 0) {
+      interval = setInterval(() => {
+        setLockoutTimer((prev) => {
+          if (prev <= 1) {
+            clearInterval(interval);
+            return 0;
+          }
+          return prev - 1;
+        });
+      }, 1000);
+    }
+    return () => clearInterval(interval);
+  }, [lockoutTimer]);
+
   const handleLogin = async (formData: LoginFormData) => {
     const { email, password } = formData;
     const trimmedEmail = email.trim();
+
+    const remaining = lockoutStore.getRemainingLockoutTime(trimmedEmail);
+    if (remaining > 0) {
+      setLockoutTimer(remaining);
+      Alert.alert(
+        'Too Many Attempts',
+        `Please wait ${remaining} seconds before trying again.`
+      );
+      return;
+    }
 
     setIsLoading(true);
 
@@ -83,12 +125,25 @@ export default function LoginScreen({ navigation }: Props) {
       });
 
       if (error) {
-        Alert.alert('Login Error', error.message);
+        // Record failure for lockout
+        lockoutStore.recordFailure(trimmedEmail);
+        const newRemaining = lockoutStore.getRemainingLockoutTime(trimmedEmail);
+        
+        if (newRemaining > 0) {
+          setLockoutTimer(newRemaining);
+          Alert.alert('Login Error', `${error.message}\n\nYou are locked out for ${newRemaining} seconds.`);
+        } else {
+          Alert.alert('Login Error', error.message);
+        }
+        
         setIsLoading(false);
         return;
       }
 
       if (data.user) {
+        // Record success to reset attempts
+        lockoutStore.recordSuccess(trimmedEmail);
+        
         const { data: buyerData, error: buyerError } = await supabase
           .from('buyers')
           .select('id, bazcoins, avatar_url')
@@ -151,36 +206,36 @@ export default function LoginScreen({ navigation }: Props) {
   const handleGoogleSignIn = async () => {
     setIsGoogleLoading(true);
     try {
-      // Create dynamic redirect URL for Expo Go vs Production
-      const redirectUrl = AuthSession.makeRedirectUri({ path: 'auth/callback' });
-      console.log('👉 Add THIS exactly to Custom Redirect URIs in Supabase:', redirectUrl);
+      console.log('[LoginScreen] Starting Google Sign-In with Supabase default redirect...');
 
-      // Step 1: Get OAuth URL from Supabase
+      // Use Supabase's default callback URL (no custom redirect needed)
       const { data, error } = await supabase.auth.signInWithOAuth({
         provider: 'google',
         options: {
-          redirectTo: redirectUrl,
           skipBrowserRedirect: false,
         },
       });
 
       if (error) {
+        console.error('[LoginScreen] OAuth URL generation error:', error);
         Alert.alert('Google Sign-In Error', error.message);
         setIsGoogleLoading(false);
         return;
       }
 
       if (!data?.url) {
-        Alert.alert('Error', 'Failed to initialize Google Sign-In');
+        console.error('[LoginScreen] No OAuth URL returned from Supabase');
+        Alert.alert('Error', 'Failed to initialize Google Sign-In. Check console logs.');
         setIsGoogleLoading(false);
         return;
       }
 
-      // Step 2: Open browser for user to authenticate with Google
-      // When user confirms, Supabase redirects to bazaarx://auth/callback
-      // The OS will route this back to the app, and deep linking + onAuthStateChange
-      // will automatically handle session setup and checkSession() call
+      console.log('[LoginScreen] OAuth URL obtained, opening browser...');
+
+      // Open browser for user to authenticate with Google
+      // Supabase handles the redirect to https://ijdpbfrcvdflzwytxncj.supabase.co/auth/v1/callback
       const result = await WebBrowser.openBrowserAsync(data.url);
+      console.log('[LoginScreen] Browser result:', result.type);
 
       if (result.type === 'cancel' || result.type === 'dismiss') {
         console.log('[LoginScreen] Google Sign-In canceled by user');
@@ -188,30 +243,148 @@ export default function LoginScreen({ navigation }: Props) {
         return;
       }
 
-      // Step 3: Browser closed (either by redirect or user dismissal)
-      // The deep link handler will have processed the OAuth redirect
-      // and onAuthStateChange will have triggered checkSession()
-      // Wait a moment for session to settle, then check if authenticated
+      // Browser closed - wait for auth state change event (token arrived via deep link)
+      console.log('[LoginScreen] Browser closed. Waiting for session...');
 
-      await new Promise(resolve => setTimeout(resolve, 800));
+      // Create a promise that resolves when auth state changes to SIGNED_IN
+      const authStatePromise = new Promise<void>((resolve, reject) => {
+        let timeout: ReturnType<typeof setTimeout>;
+        let unsubscribe: (() => void) | null = null;
 
-      const { data: sessionData } = await supabase.auth.getSession();
-      if (sessionData.session?.user) {
-        console.log('[LoginScreen] Google Sign-In successful, session established');
+        timeout = setTimeout(() => {
+          if (unsubscribe) unsubscribe();
+          console.error('[LoginScreen] ⏱️ Auth state timeout: 30 seconds passed without SIGNED_IN event');
+          reject(new Error('Auth state change timeout'));
+        }, 30000);
 
-        // Session is established and auth store should be synced via onAuthStateChange
-        // Now navigate to main app
-        // Use replace to prevent going back to login
-        navigation.replace('MainTabs', { screen: 'Home' });
-      } else {
+        const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
+          console.log(`[LoginScreen] onAuthStateChange event: ${event}`);
+          console.log(`[LoginScreen]   Session user: ${session?.user?.email || 'none'}`);
+
+          if (event === 'SIGNED_IN' && session?.user) {
+            console.log('[LoginScreen] ✅ SIGNED_IN event received!');
+            console.log('[LoginScreen] User:', session.user.email);
+            clearTimeout(timeout);
+            if (unsubscribe) unsubscribe();
+            resolve();
+          }
+        });
+
+        // Store the unsubscribe function
+        unsubscribe = () => subscription.unsubscribe();
+      });
+
+      try {
+        await authStatePromise;
+        console.log('[LoginScreen] Auth success, checking onboarding status...');
+        
+        // Get the verified user ID from the newly established session
+        const { data: sessionData } = await supabase.auth.getSession();
+        const userId = sessionData.session?.user?.id;
+
+        if (userId) {
+          // POLICY ENFORCEMENT: Check for unauthorized Google linking
+          const { data: identityData } = await supabase.auth.getUserIdentities();
+          const identities = identityData?.identities || [];
+          const emailIdentity = identities.find(id => id.provider === 'email');
+          const googleIdentity = identities.find(id => id.provider === 'google');
+
+          if (emailIdentity && googleIdentity) {
+            const isExplicitlyLinked = !!sessionData.session?.user.user_metadata?.google_explicitly_linked;
+            const linkAgeMs = Date.now() - new Date(googleIdentity.created_at || Date.now()).getTime();
+            if (!isExplicitlyLinked && linkAgeMs < 300000) {
+              console.log('[LoginScreen] 🛡️ Google Link Policy Blocked');
+              await supabase.auth.unlinkIdentity(googleIdentity);
+              await useAuthStore.getState().signOut();
+              Alert.alert('Security Notice', 'This Google account is not yet linked to your BazaarX account. Please use your email and password instead, then link Google from your profile settings.');
+              setIsGoogleLoading(false);
+              return;
+            }
+          }
+
+          const isComplete = await authService.isOnboardingComplete(userId);
+          
+          if (isComplete) {
+            console.log('[LoginScreen] Onboarding complete. Navigating to Home.');
+            navigation.replace('MainTabs', { screen: 'Home' });
+          } else {
+            console.log('[LoginScreen] Onboarding incomplete. Redirecting to Terms.');
+            const signupData = { 
+              email: sessionData.session?.user?.email || '',
+              firstName: sessionData.session?.user?.user_metadata?.first_name || 
+                        sessionData.session?.user?.user_metadata?.full_name?.split(' ')[0] || '',
+              lastName: sessionData.session?.user?.user_metadata?.last_name || 
+                       sessionData.session?.user?.user_metadata?.full_name?.split(' ').slice(1).join(' ') || '',
+              phone: sessionData.session?.user?.phone || '',
+              user_type: 'buyer' as const
+            };
+
+            // Persist to store so CategoryPreference screen can find it
+            useAuthStore.getState().setPendingSignup(signupData);
+
+            navigation.replace('Terms', { signupData });
+          }
+        } else {
+          // Fallback if session is somehow missing after SIGNED_IN event
+          navigation.replace('MainTabs', { screen: 'Home' });
+        }
+      } catch (authError) {
+        console.error('[LoginScreen] ❌ Auth state error:', authError);
+
+        // Double-check if session exists despite error
+        const { data: finalCheck } = await supabase.auth.getSession();
+        if (finalCheck.session?.user) {
+          console.log('[LoginScreen] ⚠️ Session EXISTS but event timeout. Navigating anyway...');
+          const user = finalCheck.session.user;
+          const userId = user.id;
+
+          // POLICY ENFORCEMENT: Check for unauthorized Google linking
+          const { data: identityData } = await supabase.auth.getUserIdentities();
+          const identities = identityData?.identities || [];
+          const emailIdentity = identities.find(id => id.provider === 'email');
+          const googleIdentity = identities.find(id => id.provider === 'google');
+
+          if (emailIdentity && googleIdentity) {
+            const isExplicitlyLinked = !!user.user_metadata?.google_explicitly_linked;
+            const linkAgeMs = Date.now() - new Date(googleIdentity.created_at || Date.now()).getTime();
+            if (!isExplicitlyLinked && linkAgeMs < 300000) {
+              console.log('[LoginScreen] 🛡️ Google Link Policy Blocked (Recovery)');
+              await supabase.auth.unlinkIdentity(googleIdentity);
+              await useAuthStore.getState().signOut();
+              Alert.alert('Security Notice', 'This Google account is not yet linked. Please use email/password.');
+              setIsGoogleLoading(false);
+              return;
+            }
+          }
+
+          const isComplete = await authService.isOnboardingComplete(userId);
+          
+          if (isComplete) {
+            navigation.replace('MainTabs', { screen: 'Home' });
+          } else {
+            const signupData = { 
+              email: finalCheck.session.user.email || '',
+              firstName: finalCheck.session.user.user_metadata?.first_name || 
+                        finalCheck.session.user.user_metadata?.full_name?.split(' ')[0] || '',
+              lastName: finalCheck.session.user.user_metadata?.last_name || 
+                       finalCheck.session.user.user_metadata?.full_name?.split(' ').slice(1).join(' ') || '',
+              phone: finalCheck.session.user.phone || '',
+              user_type: 'buyer' as const
+            };
+            useAuthStore.getState().setPendingSignup(signupData);
+            navigation.replace('Terms', { signupData });
+          }
+          return;
+        }
+
         Alert.alert(
-          'Error',
-          'Google Sign-In completed but session was not established. Please try again.'
+          'Sign-In Incomplete',
+          'We were unable to complete the sign-in process. Please try again.'
         );
         setIsGoogleLoading(false);
       }
     } catch (error) {
-      console.error('[LoginScreen] Google Sign-In error:', error);
+      console.error('[LoginScreen] Google Sign-In exception:', error);
       Alert.alert(
         'Google Sign-In Error',
         error instanceof Error ? error.message : 'An unexpected error occurred. Please try again.'
@@ -316,10 +489,21 @@ export default function LoginScreen({ navigation }: Props) {
               {errors.password && <Text style={styles.errorText}>{errors.password.message}</Text>}
             </View>
 
+            {lockoutTimer > 0 && (
+              <View style={styles.lockoutContainer}>
+                <Text style={styles.lockoutText}>
+                  Temporarily locked due to too many failed attempts.
+                </Text>
+                <Text style={styles.lockoutTimer}>
+                  Retry in {lockoutTimer}s
+                </Text>
+              </View>
+            )}
+
             <Pressable
-              style={[styles.loginButton, (isLoading || !isValid) && styles.loginButtonDisabled]}
+              style={[styles.loginButton, (isLoading || !isValid || lockoutTimer > 0) && styles.loginButtonDisabled]}
               onPress={handleSubmit(handleLogin)}
-              disabled={isLoading || !isValid}
+              disabled={isLoading || !isValid || lockoutTimer > 0}
               accessibilityRole="button"
               accessibilityLabel="Sign In"
             >
@@ -720,7 +904,28 @@ const styles = StyleSheet.create({
   },
   testAccountBadgeText: {
     fontSize: 12,
-    fontWeight: '600',
+    fontWeight: '700',
     color: COLORS.primary,
+  },
+  lockoutContainer: {
+    backgroundColor: '#FEF2F2',
+    padding: 12,
+    borderRadius: 12,
+    marginBottom: 8,
+    borderWidth: 1,
+    borderColor: '#FEE2E2',
+    alignItems: 'center',
+  },
+  lockoutText: {
+    color: COLORS.error,
+    fontSize: 13,
+    textAlign: 'center',
+    fontWeight: '500',
+  },
+  lockoutTimer: {
+    color: COLORS.error,
+    fontSize: 15,
+    fontWeight: '700',
+    marginTop: 4,
   },
 });

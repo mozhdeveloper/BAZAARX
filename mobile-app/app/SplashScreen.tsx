@@ -50,7 +50,12 @@ export default function SplashScreen({ navigation }: Props) {
         const { isAuthenticated: isAuth, hasCompletedOnboarding: hasOnboarding } = useAuthStore.getState();
 
         if (isAuth) {
-          navigation.replace('MainTabs', { screen: 'Home' });
+          const role = useAuthStore.getState().activeRole;
+          if (role === 'seller') {
+            navigation.replace('SellerStack');
+          } else {
+            navigation.replace('MainTabs', { screen: 'Home' });
+          }
         } else if (hasOnboarding) {
           navigation.replace('Login');
         } else {
@@ -62,7 +67,12 @@ export default function SplashScreen({ navigation }: Props) {
         // On timeout or any failure: navigate based on locally cached auth state
         const { isAuthenticated: isAuth, hasCompletedOnboarding: hasOnboarding } = useAuthStore.getState();
         if (isAuth) {
-          navigation.replace('MainTabs', { screen: 'Home' });
+          const role = useAuthStore.getState().activeRole;
+          if (role === 'seller') {
+            navigation.replace('SellerStack');
+          } else {
+            navigation.replace('MainTabs', { screen: 'Home' });
+          }
         } else if (hasOnboarding) {
           navigation.replace('Login');
         } else {

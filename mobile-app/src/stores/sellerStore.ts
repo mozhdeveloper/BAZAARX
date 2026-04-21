@@ -196,6 +196,12 @@ interface AuthStore {
   setUser: (user: any) => void;
   setVacationMode: (reason?: string) => Promise<boolean>;
   disableVacationMode: () => Promise<boolean>;
+  checkSession: () => Promise<void>;
+  // Load (or refresh) the seller profile for the given userId without requiring
+  // a password. Used by seller screens that need to recover from a null seller
+  // (e.g. when the user signed in via the global authStore and switched roles).
+  loadSellerProfile: (userId: string) => Promise<boolean>;
+  reset: () => void;
 }
 
 interface ProductStore {
@@ -241,6 +247,7 @@ interface ProductStore {
     isActive?: boolean;
     approvalStatus?: string;
   }) => () => void;
+  reset: () => void;
 }
 
 interface OrderStore {
@@ -259,6 +266,7 @@ interface OrderStore {
   addOrderRating: (id: string, rating: number, comment?: string, images?: string[]) => void;
   // POS-Lite functionality
   addOfflineOrder: (cartItems: { productId: string; productName: string; quantity: number; price: number; image: string; selectedColor?: string; selectedSize?: string }[], total: number, note?: string) => Promise<string>;
+  reset: () => void;
 }
 
 // Validation helpers for database readiness
@@ -290,6 +298,7 @@ const sanitizeOrder = (order: Omit<SellerOrder, 'id'>): Omit<SellerOrder, 'id'> 
 interface StatsStore {
   stats: SellerStats;
   refreshStats: () => void;
+  reset: () => void;
 }
 
 type ProductInsert = Database['public']['Tables']['products']['Insert'];
@@ -913,7 +922,10 @@ export const useAuthStore = create<AuthStore>()(
         }
       },
       logout: () => {
-        set({ seller: null, isAuthenticated: false });
+        set({ seller: null, isAuthenticated: false, user: null });
+      },
+      reset: () => {
+        set({ seller: null, isAuthenticated: false, user: null });
       },
       updateProfile: async (updates) => {
         const { seller, user } = get();
@@ -1096,6 +1108,46 @@ export const useAuthStore = create<AuthStore>()(
           set({ seller: { ...seller, is_vacation_mode: false, vacation_reason: null } });
         }
         return result.success;
+      },
+      checkSession: async () => {
+        if (!isSupabaseConfigured()) return;
+        try {
+          const { data: { session }, error } = await supabase.auth.getSession();
+          if (error) throw error;
+          if (session?.user) {
+            set({ user: session.user, isAuthenticated: !!session.user.email_confirmed_at });
+            // If we have a session but no seller profile loaded yet, try to load it.
+            // This recovers users who signed in via the global authStore and then
+            // navigated into the seller area without going through seller login.
+            if (!get().seller) {
+              await get().loadSellerProfile(session.user.id);
+            }
+          }
+        } catch (error) {
+          console.error('Error checking seller session:', error);
+        }
+      },
+
+      loadSellerProfile: async (userId: string) => {
+        if (!isSupabaseConfigured() || !userId) return false;
+        try {
+          const sellerProfile = await authService.getSellerProfile(userId);
+          if (!sellerProfile) {
+            // No seller record — leave seller null so the UI can show an
+            // appropriate empty/become-seller state instead of spinning forever.
+            return false;
+          }
+          const userEmail = await authService.getEmailFromProfile(userId);
+          const mappedSeller = mapDbSellerToSeller(sellerProfile);
+          if (userEmail) {
+            mappedSeller.email = userEmail;
+          }
+          set({ seller: mappedSeller, isAuthenticated: true });
+          return true;
+        } catch (error) {
+          console.error('Error loading seller profile:', error);
+          return false;
+        }
       },
     }),
     {
@@ -2002,6 +2054,16 @@ export const useProductStore = create<ProductStore>()(
 
       // Get low stock threshold
       getLowStockThreshold: () => 10, // Can be made configurable later
+      
+      reset: () => {
+        set({
+          products: [],
+          inventoryLedger: [],
+          lowStockAlerts: [],
+          loading: false,
+          error: null,
+        });
+      },
     }),
     {
       name: 'seller-products-storage',
@@ -2033,6 +2095,14 @@ const useLegacyOrderStore = create<OrderStore>()(
       sellerId: null,
       loading: false,
       error: null,
+      reset: () => {
+        set({
+          orders: dummyOrders,
+          sellerId: null,
+          loading: false,
+          error: null,
+        });
+      },
 
       fetchOrders: async (sellerId: string, startDate?: Date | null, endDate?: Date | null) => {
           if (!sellerId) {
@@ -2419,6 +2489,21 @@ export const useStatsStore = create<StatsStore>()((set) => ({
     revenueData: [],
     categorySales: []
   },
+  reset: () => {
+    set({
+      stats: {
+        totalRevenue: 0,
+        totalOrders: 0,
+        totalProducts: 0,
+        avgRating: 0,
+        monthlyRevenue: [],
+        topProducts: [],
+        recentActivity: [],
+        revenueData: [],
+        categorySales: []
+      }
+    });
+  },
   refreshStats: () => {
     const orderStore = useLegacyOrderStore.getState();
     const productStore = useProductStore.getState();
@@ -2604,6 +2689,8 @@ export const useSellerStore = () => {
     user: auth.user,
     setVacationMode: auth.setVacationMode,
     disableVacationMode: auth.disableVacationMode,
+    loadSellerProfile: auth.loadSellerProfile,
+    checkSession: auth.checkSession,
 
     // Product store (with fallback to empty array)
     products: products.products || [],
@@ -2647,4 +2734,16 @@ export const useSellerStore = () => {
     markOrderAsShipped: orderStore.markOrderAsShipped,
     markOrderAsDelivered: orderStore.markOrderAsDelivered,
   };
+};
+
+/**
+ * Purges all seller-related local data.
+ * Should be called upon logout to prevent stale data leakage between accounts.
+ */
+export const purgeSellerData = () => {
+  useAuthStore.getState().reset();
+  useProductStore.getState().reset();
+  useLegacyOrderStore.getState().reset();
+  useStatsStore.getState().reset();
+  console.log('✅ All seller store data has been purged.');
 };

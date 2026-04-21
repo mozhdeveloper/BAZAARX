@@ -97,10 +97,12 @@ export default function EmailVerificationScreen({ navigation, route }: Props) {
         await useAuthStore.getState().checkSession();
 
         // Retrieve persistent signup data
-        const signupData = useAuthStore.getState().pendingSignupData;
+        // Retrieve signup data from params or persistent store
+        const signupData = route.params?.signupData || useAuthStore.getState().pendingSignupData;
+        console.log('[EmailVerification] Navigating to Preference with signupData:', signupData ? 'Exists' : 'MISSING');
 
-        // User is now authenticated - navigate to Terms
-        navigation.replace('Terms', { signupData });
+        // User is now authenticated - navigate to CategoryPreference
+        navigation.replace('CategoryPreference', { signupData });
       } else if (isManual) {
         Alert.alert(
           'Not Verified Yet',

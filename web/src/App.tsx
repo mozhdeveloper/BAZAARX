@@ -13,6 +13,7 @@ import { usePresence } from './hooks/usePresence'; import { ErrorBoundary } from
 import { OrderErrorFallback } from "./components/OrderErrorFallback";
 import { AppErrorFallback } from "./components/AppErrorFallback";
 import { supabase } from "./lib/supabase";
+import { webPushService } from "./services/webPushService";
 
 // for google auth
 import { authService } from "./services/authService";
@@ -283,7 +284,12 @@ function App() {
           void useBuyerStore.getState().initializeCart();
 
           // Redirect already handled above for OAuth flows.
-          
+
+          // Register web push (works for buyer/seller/admin — they all share auth.users.id).
+          // Safe to call repeatedly; re-uses the existing PushSubscription.
+          void webPushService.register(user.id).catch((err) => {
+            console.warn('[WebPush] register failed:', err);
+          });
         } catch (err) {
           console.error("Error during Google Auth sync:", err);
         }
@@ -291,6 +297,10 @@ function App() {
 
       if (event === 'SIGNED_OUT') {
         debug('signed out event cleanup', { userId: session?.user?.id || null });
+        const previousUserId = session?.user?.id;
+        if (previousUserId) {
+          void webPushService.unregister(previousUserId).catch(() => {});
+        }
         localStorage.removeItem('seller-auth-storage');
         localStorage.removeItem('admin-auth');
         localStorage.removeItem('buyer-store');

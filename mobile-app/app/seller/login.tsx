@@ -7,6 +7,9 @@ import { ChevronDown, ChevronUp, Mail, Lock, Eye, EyeOff, ArrowRight } from 'luc
 import { useNavigation } from '@react-navigation/native';
 import { supabase } from '../../src/lib/supabase';
 import { useAuthStore } from '../../src/stores/sellerStore';
+import { useAuthStore as useGlobalAuthStore } from '../../src/stores/authStore';
+import { useLockoutStore } from '../../src/stores/lockoutStore';
+import { useEffect } from 'react';
 import {
   View,
   Text,
@@ -39,12 +42,16 @@ export default function SellerLoginScreen() {
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
   const [showMoreOptions, setShowMoreOptions] = useState(false);
+  const [lockoutTimer, setLockoutTimer] = useState(0);
+
+  const lockoutStore = useLockoutStore();
 
   const {
     control,
     handleSubmit,
     setValue,
     formState: { errors, isValid },
+    watch,
   } = useForm<LoginFormData>({
     resolver: zodResolver(sellerLoginSchema),
     mode: 'onChange',
@@ -54,6 +61,35 @@ export default function SellerLoginScreen() {
     },
   });
 
+  const watchedEmail = watch('email');
+  const watchedPassword = watch('password');
+
+  // Handle lockout countdown
+  useEffect(() => {
+    const remaining = lockoutStore.getRemainingLockoutTime(watchedEmail);
+    if (remaining > 0) {
+      setLockoutTimer(remaining);
+    }
+  }, [watchedEmail]);
+
+  useEffect(() => {
+    let interval: any;
+    if (lockoutTimer > 0) {
+      interval = setInterval(() => {
+        setLockoutTimer((prev) => {
+          if (prev <= 1) {
+            clearInterval(interval);
+            return 0;
+          }
+          return prev - 1;
+        });
+      }, 1000);
+    }
+    return () => clearInterval(interval);
+  }, [lockoutTimer]);
+
+  const isButtonDisabled = loading || !watchedEmail || !watchedPassword || !isValid || lockoutTimer > 0;
+
   const selectTestAccount = (account: typeof TEST_SELLER_ACCOUNTS[0]) => {
     setValue('email', account.email, { shouldValidate: true });
     setValue('password', account.password, { shouldValidate: true });
@@ -62,6 +98,17 @@ export default function SellerLoginScreen() {
 
   const handleLogin = async (formData: LoginFormData) => {
     const { email, password } = formData;
+
+    const remaining = lockoutStore.getRemainingLockoutTime(email);
+    if (remaining > 0) {
+      setLockoutTimer(remaining);
+      Alert.alert(
+        'Too Many Attempts',
+        `Please wait ${remaining} seconds before trying again.`
+      );
+      return;
+    }
+
     setLoading(true);
 
     try {
@@ -70,9 +117,21 @@ export default function SellerLoginScreen() {
         password: password,
       });
 
-      if (authError) throw authError;
+      if (authError) {
+        // Record failure for lockout
+        lockoutStore.recordFailure(email);
+        const newRemaining = lockoutStore.getRemainingLockoutTime(email);
+        if (newRemaining > 0) {
+          setLockoutTimer(newRemaining);
+          throw new Error(`${authError.message}\n\nToo many failed attempts. You are locked out for ${newRemaining} seconds.`);
+        }
+        throw authError;
+      }
 
       if (authData.user) {
+        // Record success to reset attempts
+        lockoutStore.recordSuccess(email);
+
         // Verify seller exists in sellers table
         const { data: sellerData, error: sellerError } = await supabase
           .from('sellers')
@@ -138,6 +197,10 @@ export default function SellerLoginScreen() {
         // Set roles and switch to seller role
         useAuthStore.getState().addRole('seller');
         useAuthStore.getState().switchRole('seller');
+        
+        // Sync with Global Auth Store to ensure root navigation respects the role
+        useGlobalAuthStore.getState().addRole('seller');
+        useGlobalAuthStore.getState().switchRole('seller');
 
         // Fetch seller orders from database (not buyer orders)
         const { useOrderStore } = await import('../../src/stores/orderStore');
@@ -251,10 +314,21 @@ export default function SellerLoginScreen() {
               {errors.password && <Text style={styles.errorText}>{errors.password.message}</Text>}
             </View>
 
+            {lockoutTimer > 0 && (
+              <View style={styles.lockoutContainer}>
+                <Text style={styles.lockoutText}>
+                  Temporarily locked due to too many failed attempts.
+                </Text>
+                <Text style={styles.lockoutTimer}>
+                  Retry in {lockoutTimer}s
+                </Text>
+              </View>
+            )}
+
             <Pressable
-              style={[styles.loginButton, (loading || !isValid) && styles.loginButtonDisabled]}
+              style={[styles.loginButton, isButtonDisabled && styles.loginButtonDisabled]}
               onPress={handleSubmit(handleLogin)}
-              disabled={loading || !isValid}
+              disabled={isButtonDisabled}
               accessibilityRole="button"
               accessibilityLabel="Sign In"
             >
@@ -423,4 +497,25 @@ const styles = StyleSheet.create({
   signupLink: { fontSize: 14, color: '#D97706', fontWeight: '700' },
   backToSection: { alignItems: 'center', paddingBottom: 24 },
   backToText: { fontSize: 14, color: COLORS.gray400, fontWeight: '600' },
+  lockoutContainer: {
+    backgroundColor: '#FEF2F2',
+    padding: 12,
+    borderRadius: 12,
+    marginBottom: 16,
+    borderWidth: 1,
+    borderColor: '#FEE2E2',
+    alignItems: 'center',
+  },
+  lockoutText: {
+    color: COLORS.error,
+    fontSize: 13,
+    textAlign: 'center',
+    fontWeight: '500',
+  },
+  lockoutTimer: {
+    color: COLORS.error,
+    fontSize: 15,
+    fontWeight: '700',
+    marginTop: 4,
+  },
 });

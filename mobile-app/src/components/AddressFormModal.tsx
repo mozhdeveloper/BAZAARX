@@ -18,12 +18,12 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react';
 import {
     View, Text, Modal, ScrollView, TextInput, Pressable,
-    ActivityIndicator, KeyboardAvoidingView, Platform, StyleSheet, Alert,
+    ActivityIndicator, KeyboardAvoidingView, Platform, StyleSheet, Alert, Keyboard,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import MapView, { Marker, Region, PROVIDER_GOOGLE, PROVIDER_DEFAULT } from 'react-native-maps';
 import {
-    X, ChevronLeft, ChevronDown, ChevronUp, Search,
+    X, ChevronLeft, ChevronDown, ChevronUp,
     Home, Building2, Move, MapPin, Navigation,
 } from 'lucide-react-native';
 import * as Location from 'expo-location';
@@ -112,7 +112,6 @@ export default function AddressFormModal({
     const [cityList, setCityList] = useState<any[]>([]);
     const [barangayList, setBarangayList] = useState<any[]>([]);
     const [openDropdown, setOpenDropdown] = useState<'region' | 'province' | 'city' | 'barangay' | null>(null);
-    const [searchText, setSearchText] = useState('');
     const [isLoadingLocation, setIsLoadingLocation] = useState(false);
 
     // Map state
@@ -184,7 +183,6 @@ export default function AddressFormModal({
             setMapRegion(DEFAULT_REGION);
         }
         setOpenDropdown(null);
-        setSearchText('');
     }, [visible, initialData]);
 
     // ---------------------------------------------------------------------------
@@ -352,8 +350,34 @@ export default function AddressFormModal({
 
     const toggleDropdown = (name: typeof openDropdown) => {
         if (openDropdown === name) { setOpenDropdown(null); }
-        else { setSearchText(''); setOpenDropdown(name); }
+        else { setOpenDropdown(name); }
     };
+
+    const handleDropdownFieldChange = useCallback((type: NonNullable<typeof openDropdown>, text: string) => {
+        if (type === 'region') {
+            setForm(prev => ({ ...prev, region: text, province: '', city: '', barangay: '', coordinates: null }));
+            setGeoCodes(prev => ({ ...prev, regionCode: undefined, provinceCode: undefined, cityCode: undefined, barangayCode: undefined }));
+            setCityList([]);
+            setBarangayList([]);
+            return;
+        }
+
+        if (type === 'province') {
+            setForm(prev => ({ ...prev, province: text, city: '', barangay: '', coordinates: null }));
+            setGeoCodes(prev => ({ ...prev, provinceCode: undefined, cityCode: undefined, barangayCode: undefined }));
+            setBarangayList([]);
+            return;
+        }
+
+        if (type === 'city') {
+            setForm(prev => ({ ...prev, city: text, barangay: '', coordinates: null }));
+            setGeoCodes(prev => ({ ...prev, cityCode: undefined, barangayCode: undefined }));
+            return;
+        }
+
+        setForm(prev => ({ ...prev, barangay: text }));
+        setGeoCodes(prev => ({ ...prev, barangayCode: undefined }));
+    }, []);
 
     const onRegionChange = async (code: string) => {
         const name = regionList.find((r: any) => r.region_code === code)?.region_name || '';
@@ -501,45 +525,50 @@ export default function AddressFormModal({
     // Dropdown sub-component
     // ---------------------------------------------------------------------------
 
-    const Dropdown = ({ label, type, value, list, disabled = false }: {
-        label: string; type: typeof openDropdown; value: string; list: any[]; disabled?: boolean;
+    const renderDropdown = ({ label, type, value, list, disabled = false }: {
+        label: string; type: NonNullable<typeof openDropdown>; value: string; list: any[]; disabled?: boolean;
     }) => {
         const isOpen = openDropdown === type;
+        const normalizedQuery = (value || '').trim().toLowerCase();
         const filtered = list.filter((item: any) => {
             const name = item.region_name || item.province_name || item.city_name || item.brgy_name || '';
-            return name.toLowerCase().includes(searchText.toLowerCase());
+            return name.toLowerCase().includes(normalizedQuery);
         });
 
         return (
             <View style={{ marginBottom: 12, zIndex: isOpen ? 100 : 1 }}>
                 <Text style={s.inputLabel}>{label}</Text>
-                <Pressable
-                    onPress={() => toggleDropdown(type)}
-                    disabled={disabled}
-                    style={[s.dropdownTrigger, disabled && s.dropdownDisabled, isOpen && s.dropdownActive]}
-                >
-                    <Text style={[s.dropdownText, !value && s.placeholderText, disabled && { color: '#9CA3AF' }]} numberOfLines={1}>
-                        {value || 'Select...'}
-                    </Text>
-                    {isLoadingLocation && isOpen
-                        ? <ActivityIndicator size="small" color={COLORS.primary} />
-                        : isOpen
-                            ? <ChevronUp size={20} color={disabled ? '#9CA3AF' : '#4B5563'} />
-                            : <ChevronDown size={20} color={disabled ? '#9CA3AF' : '#4B5563'} />
-                    }
-                </Pressable>
+                <View style={[s.dropdownTrigger, disabled && s.dropdownDisabled, isOpen && s.dropdownActive]}>
+                    <TextInput
+                        style={[s.dropdownTextInput, disabled && { color: '#9CA3AF' }]}
+                        placeholder="Select..."
+                        placeholderTextColor="#9CA3AF"
+                        value={value}
+                        editable={!disabled}
+                        onFocus={() => !disabled && setOpenDropdown(type)}
+                        onChangeText={(text) => {
+                            if (!disabled) {
+                                if (openDropdown !== type) setOpenDropdown(type);
+                                handleDropdownFieldChange(type, text);
+                            }
+                        }}
+                    />
+                    <Pressable
+                        onPress={() => !disabled && toggleDropdown(type)}
+                        disabled={disabled}
+                        hitSlop={8}
+                        style={{ paddingVertical: 4, paddingLeft: 8 }}
+                    >
+                        {isLoadingLocation && isOpen
+                            ? <ActivityIndicator size="small" color={COLORS.primary} />
+                            : isOpen
+                                ? <ChevronUp size={20} color={disabled ? '#9CA3AF' : '#4B5563'} />
+                                : <ChevronDown size={20} color={disabled ? '#9CA3AF' : '#4B5563'} />
+                        }
+                    </Pressable>
+                </View>
                 {isOpen && (
                     <View style={s.dropdownList}>
-                        <View style={s.searchRow}>
-                            <Search size={16} color="#9CA3AF" />
-                            <TextInput
-                                style={s.searchInput}
-                                placeholder="Search..."
-                                value={searchText}
-                                onChangeText={setSearchText}
-                                autoFocus
-                            />
-                        </View>
                         <ScrollView style={{ maxHeight: 200 }} nestedScrollEnabled keyboardShouldPersistTaps="handled">
                             {filtered.map((item: any, i: number) => {
                                 const name = item.region_name || item.province_name || item.city_name || item.brgy_name || '';
@@ -548,6 +577,7 @@ export default function AddressFormModal({
                                         key={`${type}-${i}`}
                                         style={({ pressed }) => [s.selectItem, pressed && { backgroundColor: '#FFF7ED' }]}
                                         onPress={() => {
+                                            Keyboard.dismiss();
                                             if (type === 'region') onRegionChange(item.region_code);
                                             else if (type === 'province') onProvinceChange(item.province_code);
                                             else if (type === 'city') onCityChange(item.city_code);
@@ -708,10 +738,16 @@ export default function AddressFormModal({
                         <Text style={[s.inputLabel, { marginTop: 12 }]}>Label</Text>
                         <TextInput value={form.label} onChangeText={t => setForm(prev => ({ ...prev, label: t }))} style={s.input} placeholder="Home, Office..." />
 
-                        <Dropdown label="Region" type="region" value={form.region} list={regionList} />
-                        <Dropdown label="Province" type="province" value={form.province} list={provinceList} disabled={!form.region} />
-                        <Dropdown label="City / Municipality" type="city" value={form.city} list={cityList} disabled={!form.province && !form.region?.toLowerCase().includes('ncr') && !form.region?.toLowerCase().includes('metro manila')} />
-                        <Dropdown label="Barangay" type="barangay" value={form.barangay} list={barangayList} disabled={!form.city} />
+                        {renderDropdown({ label: 'Region', type: 'region', value: form.region, list: regionList })}
+                        {renderDropdown({ label: 'Province', type: 'province', value: form.province, list: provinceList, disabled: !form.region })}
+                        {renderDropdown({
+                            label: 'City / Municipality',
+                            type: 'city',
+                            value: form.city,
+                            list: cityList,
+                            disabled: !form.province && !form.region?.toLowerCase().includes('ncr') && !form.region?.toLowerCase().includes('metro manila'),
+                        })}
+                        {renderDropdown({ label: 'Barangay', type: 'barangay', value: form.barangay, list: barangayList, disabled: !form.city })}
 
                         <Text style={s.inputLabel}>Street / House No.</Text>
                         <TextInput
@@ -843,11 +879,8 @@ const s = StyleSheet.create({
     dropdownTrigger: { height: 44, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', borderWidth: 1, borderColor: '#E5E7EB', borderRadius: 12, paddingHorizontal: 12, backgroundColor: '#FFF' },
     dropdownActive: { borderColor: COLORS.primary },
     dropdownDisabled: { backgroundColor: '#F9FAFB', borderColor: '#F3F4F6' },
-    dropdownText: { fontSize: 14, color: '#1F2937', flex: 1, marginRight: 8 },
-    placeholderText: { color: '#9CA3AF' },
+    dropdownTextInput: { fontSize: 14, color: '#1F2937', flex: 1, marginRight: 8, paddingVertical: 0 },
     dropdownList: { borderWidth: 1, borderColor: '#E5E7EB', borderTopWidth: 0, borderBottomLeftRadius: 12, borderBottomRightRadius: 12, marginTop: -8, marginBottom: 16, backgroundColor: '#FFF', overflow: 'hidden' },
-    searchRow: { flexDirection: 'row', alignItems: 'center', padding: 8, borderBottomWidth: 1, borderBottomColor: '#F3F4F6', gap: 8 },
-    searchInput: { flex: 1, height: 36, fontSize: 14, color: '#1F2937' },
     selectItem: { paddingVertical: 12, paddingHorizontal: 12, borderBottomWidth: 1, borderBottomColor: '#F3F4F6' },
     selectItemText: { fontSize: 14, color: '#111827' },
 
@@ -872,7 +905,7 @@ const s = StyleSheet.create({
 
     footer: { padding: 16, borderTopWidth: 1, borderTopColor: '#F3F4F6', backgroundColor: '#FFF' },
     saveBtn: { backgroundColor: COLORS.primary, borderRadius: 12, paddingVertical: 14, alignItems: 'center' },
-    saveBtnText: { fontSize: 16, fontWeight: '700', color: '#FFF' },
+    saveBtnText: { fontSize: 16, fontWeight: '700', color: '#FFF', padding: -3, paddingLeft: 8, paddingRight: 8},
 
     // Phone validation
     inputError: { borderColor: '#EF4444' },

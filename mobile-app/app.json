@@ -17,7 +17,10 @@
     ],
     "ios": {
       "supportsTablet": true,
-      "bundleIdentifier": "com.bazaarx.mobile"
+      "bundleIdentifier": "com.bazaarx.mobile",
+      "infoPlist": {
+        "UIBackgroundModes": ["remote-notification"]
+      }
     },
     "android": {
       "adaptiveIcon": {
@@ -64,7 +67,16 @@
       ],
       "expo-av",
       "@react-native-community/datetimepicker",
-      "expo-web-browser"
+      "expo-web-browser",
+      [
+        "expo-notifications",
+        {
+          "icon": "./assets/icon.png",
+          "color": "#FF6A00",
+          "defaultChannel": "default",
+          "sounds": []
+        }
+      ]
     ]
   }
 }
