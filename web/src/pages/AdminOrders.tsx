@@ -5,6 +5,8 @@ import { Navigate } from 'react-router-dom';
 import { useAdminAuth } from '../stores/adminStore';
 import { supabase, isSupabaseConfigured } from '@/lib/supabase';
 import AdminSidebar from '../components/AdminSidebar';
+import { useAdminRealtime } from '@/hooks/useAdminRealtime';
+import { toast } from '@/hooks/use-toast';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -180,6 +182,10 @@ const AdminOrders: React.FC = () => {
     loadOrders();
   }, [loadOrders]);
 
+  // Live updates: refresh when orders or order_items change
+  useAdminRealtime('orders', loadOrders, { channelName: 'admin-orders-orders' });
+  useAdminRealtime('order_items', loadOrders, { channelName: 'admin-orders-items' });
+
   // Redirect if not authenticated
   if (!isAuthenticated) {
     return <Navigate to="/admin/login" replace />;
@@ -328,20 +334,42 @@ const AdminOrders: React.FC = () => {
           changed_by_role: 'admin',
         });
 
-        // Fire cancellation email to buyer (non-blocking)
+        // Fire cancellation email to buyer (non-blocking, but surface failures)
         const buyerEmail = selectedOrder.buyer?.email;
         const buyerName = selectedOrder.buyer?.name || 'Valued Customer';
         const buyerId = selectedOrder.buyer_id;
         if (buyerEmail && buyerId) {
-          import('@/services/transactionalEmails').then((emails) => {
-            emails.sendOrderCancelledEmail({
-              buyerEmail,
-              buyerId,
-              orderNumber: selectedOrder.orderNumber,
-              buyerName,
-              cancelReason: reason,
-            }).catch((err: unknown) => console.warn('[AdminOrders] Cancel email error:', err));
-          }).catch((err: unknown) => console.warn('[AdminOrders] Failed to import transactionalEmails:', err));
+          const sendCancelEmail = () =>
+            import('@/services/transactionalEmails').then((emails) =>
+              emails.sendOrderCancelledEmail({
+                buyerEmail,
+                buyerId,
+                orderNumber: selectedOrder.orderNumber,
+                buyerName,
+                cancelReason: reason,
+              })
+            );
+          sendCancelEmail().catch((err: unknown) => {
+            console.warn('[AdminOrders] Cancel email error:', err);
+            toast({
+              title: 'Cancellation email failed',
+              description: `Could not notify ${buyerEmail}. Order was cancelled successfully.`,
+              variant: 'destructive',
+              action: (
+                <button
+                  onClick={() => sendCancelEmail()
+                    .then(() => toast({ title: 'Email sent', description: `Cancellation email re-sent to ${buyerEmail}.` }))
+                    .catch((retryErr) => {
+                      console.warn('[AdminOrders] Retry cancel email failed:', retryErr);
+                      toast({ title: 'Retry failed', description: 'Email could not be re-sent.', variant: 'destructive' });
+                    })}
+                  className="text-xs font-semibold underline"
+                >
+                  Retry
+                </button>
+              ),
+            });
+          });
         }
       }
       await loadOrders();
@@ -409,24 +437,46 @@ const AdminOrders: React.FC = () => {
           changed_by_role: 'admin',
         });
 
-        // Fire buyer email notification using data already in selectedOrder (non-blocking)
+        // Fire buyer email notification using data already in selectedOrder
         const buyerEmail = selectedOrder.buyer?.email;
         const buyerName = selectedOrder.buyer?.name || 'Valued Customer';
         const buyerId = selectedOrder.buyer_id;
         const dbStatus = updates.shipment_status || newStatus;
         if (buyerEmail && buyerId) {
-          import('@/services/transactionalEmails').then((emails) => {
-            const BASE_URL = typeof window !== 'undefined' ? window.location.origin : 'https://bazaar.ph';
-            const trackUrl = `${BASE_URL}/orders/${selectedOrder.id}`;
-            const base = { buyerEmail, buyerId, orderNumber: selectedOrder.orderNumber, buyerName };
-            (
-              dbStatus === 'processing' ? emails.sendOrderConfirmedEmail({ ...base, estimatedDelivery: '3–7 business days' }) :
-              dbStatus === 'shipped' ? emails.sendOrderShippedEmail({ ...base, trackingNumber: selectedOrder.trackingNumber || 'N/A', courierName: 'courier', trackingUrl: trackUrl }) :
-              dbStatus === 'delivered' ? emails.sendOrderDeliveredEmail(base) :
-              dbStatus === 'returned' ? emails.sendOrderCancelledEmail({ ...base, cancelReason: 'Order cancelled' }) :
-              Promise.resolve()
-            ).catch((err: unknown) => console.warn('[AdminOrders] Email error:', err));
-          }).catch((err: unknown) => console.warn('[AdminOrders] Failed to import transactionalEmails:', err));
+          const sendStatusEmail = () =>
+            import('@/services/transactionalEmails').then((emails) => {
+              const BASE_URL = typeof window !== 'undefined' ? window.location.origin : 'https://bazaar.ph';
+              const trackUrl = `${BASE_URL}/orders/${selectedOrder.id}`;
+              const base = { buyerEmail, buyerId, orderNumber: selectedOrder.orderNumber, buyerName };
+              return (
+                dbStatus === 'processing' ? emails.sendOrderConfirmedEmail({ ...base, estimatedDelivery: '3–7 business days' }) :
+                dbStatus === 'shipped' ? emails.sendOrderShippedEmail({ ...base, trackingNumber: selectedOrder.trackingNumber || 'N/A', courierName: 'courier', trackingUrl: trackUrl }) :
+                dbStatus === 'delivered' ? emails.sendOrderDeliveredEmail(base) :
+                dbStatus === 'returned' ? emails.sendOrderCancelledEmail({ ...base, cancelReason: 'Order cancelled' }) :
+                Promise.resolve()
+              );
+            });
+          sendStatusEmail().catch((err: unknown) => {
+            console.warn('[AdminOrders] Email error:', err);
+            toast({
+              title: 'Status email failed',
+              description: `Could not notify ${buyerEmail}. Status was updated successfully.`,
+              variant: 'destructive',
+              action: (
+                <button
+                  onClick={() => sendStatusEmail()
+                    .then(() => toast({ title: 'Email sent', description: `Status email re-sent to ${buyerEmail}.` }))
+                    .catch((retryErr) => {
+                      console.warn('[AdminOrders] Retry status email failed:', retryErr);
+                      toast({ title: 'Retry failed', description: 'Email could not be re-sent.', variant: 'destructive' });
+                    })}
+                  className="text-xs font-semibold underline"
+                >
+                  Retry
+                </button>
+              ),
+            });
+          });
         }
       }
       await loadOrders();
