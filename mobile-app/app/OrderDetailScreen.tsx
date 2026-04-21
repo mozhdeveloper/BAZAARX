@@ -21,6 +21,25 @@ import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context'
 import { LinearGradient } from 'expo-linear-gradient';
 import { ArrowLeft, Package, MapPin, CreditCard, Receipt, CheckCircle, MessageCircle, Send, X, Truck, Clock, CheckCircle2, RotateCcw, Tag, ArrowRight, Store } from 'lucide-react-native';
 import { COLORS } from '../src/constants/theme';
+
+// Helper function to format date reliably across platforms
+const formatDatePH = (dateString: string | Date | null | undefined): string | null => {
+  if (!dateString) return null;
+  try {
+    const date = typeof dateString === 'string' ? new Date(dateString) : dateString;
+    if (isNaN(date.getTime())) return null;
+    
+    const months = ['January', 'February', 'March', 'April', 'May', 'June',
+                    'July', 'August', 'September', 'October', 'November', 'December'];
+    const month = months[date.getMonth()];
+    const day = date.getDate();
+    const year = date.getFullYear();
+    return `${month} ${day}, ${year}`;
+  } catch (error) {
+    console.warn('[DateFormat] Error formatting date:', dateString, error);
+    return null;
+  }
+};
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import type { RootStackParamList } from '../App';
 import { useOrderStore } from '../src/stores/orderStore';
@@ -45,6 +64,12 @@ type Props = NativeStackScreenProps<RootStackParamList, 'OrderDetail'>;
 
 export default function OrderDetailScreen({ route, navigation }: Props) {
   const { order } = route.params;
+  
+  // Comprehensive logging of order object
+  console.log('[OrderDetail] Full order object keys:', Object.keys(order || {}).join(', '));
+  console.log('[OrderDetail] order.paymentMethod:', order?.paymentMethod);
+  console.log('[OrderDetail] order.payments:', order?.payments);
+  console.log('[OrderDetail] Full order:', JSON.stringify(order, null, 2));
   
   // Guard clause for invalid order
   if (!order) {
@@ -811,18 +836,33 @@ export default function OrderDetailScreen({ route, navigation }: Props) {
               <View style={{ borderTopWidth: 1, borderTopColor: '#E5E7EB', paddingTop: 16, gap: 12 }}>
                  {/* Payment Method - with proper extraction and label mapping */}
                  {(() => {
+                   const rawPaymentMethod = order.paymentMethod;
+                   console.log('[OrderDetail] Raw paymentMethod:', rawPaymentMethod, 'Type:', typeof rawPaymentMethod);
+                   
                    const getPaymentMethod = (): string => {
-                     if (typeof order.paymentMethod === 'string') return order.paymentMethod;
-                     const type = (order.paymentMethod as any)?.type;
+                     if (!rawPaymentMethod) return 'Unknown';
+                     
+                     if (typeof rawPaymentMethod === 'string') {
+                       const pm = rawPaymentMethod.toLowerCase().trim();
+                       if (pm === 'cod' || pm === 'cash on delivery') return 'Cash on Delivery';
+                       if (pm === 'gcash') return 'GCash';
+                       if (pm === 'card') return 'Card';
+                       if (pm === 'paymongo') return 'PayMongo';
+                       return rawPaymentMethod;
+                     }
+                     const type = (rawPaymentMethod as any)?.type?.toLowerCase();
                      if (type === 'cod') return 'Cash on Delivery';
                      if (type === 'gcash') return 'GCash';
                      if (type === 'card') return 'Card';
                      if (type === 'paymongo') return 'PayMongo';
-                     return type || 'Cash on Delivery';
+                     return type || 'Unknown';
                    };
                    
                    const paymentMethod = getPaymentMethod();
-                   const isCOD = paymentMethod === 'Cash on Delivery';
+                   const isCOD = paymentMethod === 'Cash on Delivery' || 
+                                 (typeof rawPaymentMethod === 'string' && (rawPaymentMethod.toLowerCase().trim() === 'cod' || rawPaymentMethod.toLowerCase().trim() === 'cash on delivery'));
+                   
+                   console.log('[OrderDetail] Payment Method Result:', paymentMethod, 'isCOD:', isCOD);
                    
                    return (
                      <>
@@ -832,14 +872,31 @@ export default function OrderDetailScreen({ route, navigation }: Props) {
                        </View>
                        
                        {/* COD Payment Instruction Message */}
-                       {isCOD && (
-                         <View style={{ backgroundColor: '#FFFBF0', borderLeftWidth: 4, borderLeftColor: '#F59E0B', paddingHorizontal: 12, paddingVertical: 10, borderRadius: 8, gap: 6 }}>
-                           <Text style={{ fontSize: 12, fontWeight: '700', color: '#92400E' }}>💳 Payment on Delivery</Text>
-                           <Text style={{ fontSize: 12, color: '#7C2D12', lineHeight: 16 }}>
-                             You'll pay the full amount to the delivery driver when they arrive. Please have the exact amount ready.
-                           </Text>
-                         </View>
-                       )}
+                       {isCOD && (() => {
+                         const estimatedDelivery = deliveryTracking?.booking?.estimatedDelivery || order.estimatedDelivery;
+                         const formattedDeadline = formatDatePH(estimatedDelivery);
+                         
+                         console.log('[OrderDetail COD] Payment Method:', paymentMethod, 'isCOD:', isCOD, 'estimatedDelivery:', estimatedDelivery, 'formatted:', formattedDeadline);
+                         
+                         return (
+                           <View style={{ backgroundColor: '#FFFBF0', borderLeftWidth: 4, borderLeftColor: '#F59E0B', paddingHorizontal: 12, paddingVertical: 10, borderRadius: 8, gap: 6, marginTop: 8 }}>
+                             <Text style={{ fontSize: 12, fontWeight: '700', color: '#92400E' }}>💳 Payment on Delivery</Text>
+                             <Text style={{ fontSize: 12, color: '#7C2D12', lineHeight: 16 }}>
+                               You'll pay the full amount to the delivery driver when they arrive. Please have the exact amount ready.
+                             </Text>
+                             {formattedDeadline && (
+                               <Text style={{ fontSize: 12, color: '#92400E', fontWeight: '600' }}>
+                                 Payment Due: {formattedDeadline}
+                               </Text>
+                             )}
+                             {!formattedDeadline && (
+                               <Text style={{ fontSize: 11, color: '#D97706', fontStyle: 'italic' }}>
+                                 Delivery date will be updated when J&T booking is confirmed
+                               </Text>
+                             )}
+                           </View>
+                         );
+                       })()}
                      </>
                    );
                  })()}

@@ -1367,6 +1367,30 @@ export default function OrderDetailPage() {
                     </div>
                   </div>
 
+                  {/* COD Payment Instruction Section */}
+                  {order.paymentMethod.type === 'cod' && (() => {
+                    const estimatedDelivery = order.estimatedDelivery;
+                    const formattedDeadline = estimatedDelivery
+                      ? new Date(estimatedDelivery).toLocaleDateString('en-PH', { year: 'numeric', month: 'long', day: 'numeric' })
+                      : null;
+                    
+                    return (
+                      <div className="mt-4 pt-4 border-t border-dashed border-[var(--btn-border)]">
+                        <div className="bg-orange-50 border-l-4 border-orange-400 p-4 rounded-lg gap-3 flex flex-col">
+                          <h4 className="font-bold text-orange-900 text-sm">💳 Payment on Delivery</h4>
+                          <p className="text-sm text-orange-800">
+                            You'll pay the full amount to the delivery driver when they arrive. Please have the exact amount ready.
+                          </p>
+                          {formattedDeadline && (
+                            <p className="text-sm font-semibold text-orange-900">
+                              Payment Due: {formattedDeadline}
+                            </p>
+                          )}
+                        </div>
+                      </div>
+                    );
+                  })()}
+
                   {/* Action Buttons */}
                   {order.status === 'received' ? (() => {
                     // Return/Refund is only available within 7 days of delivery

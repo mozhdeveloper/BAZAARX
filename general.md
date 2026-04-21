@@ -214,10 +214,141 @@ The following files are local AI standards and are **never committed**:
 5. ✅ No compilation errors across all changes
 6. ✅ Consistent implementation patterns across OrderConfirmation and OrderDetailScreen
 
-**Verification:**
-✅ All changes implemented successfully
-✅ No compilation errors
-✅ Ready for testing on mobile app
+---
+
+### Add COD Payment Deadline Display to Mobile Order Details
+
+**Status:** ✅ COMPLETE
+
+**Objective:** Display COD (Cash on Delivery) payment deadline based on J&T estimated delivery date in the Items & Payment section of mobile OrderDetailScreen.
+
+**Root Causes Identified & Fixed:**
+
+#### 1. Payment Method Detection Failing in OrderDetailScreen.tsx
+**Severity:** HIGH - Feature completely non-functional
+
+**Location:** `mobile-app/app/OrderDetailScreen.tsx` (Lines 830-880)
+
+**Root Cause:**
+- Code was checking for `.type` property on `order.paymentMethod` (treating it as object)
+- Mobile Order interface defines `paymentMethod: string` (not object with `.type`)
+- This type mismatch caused COD detection to always fail silently
+- Resulted in COD instruction box never rendering
+
+**Fix Implemented:**
+- Enhanced payment method detection to handle both string and object formats:
+  - String format: `"cod"` → directly compare with `.toLowerCase().trim()`
+  - Object format: `{ type: "cod" }` → check `.type` property
+- Added comprehensive logging for debugging payment method flow
+- Added robust null/empty string checks
+- Fallback messages when delivery date not yet available
+
+**Result:** COD orders now properly detected and instruction box renders ✅
+
+---
+
+#### 2. HistoryScreen.tsx Hardcoding Payment Method as "Paid"
+**Severity:** HIGH - Payment method always incorrect in History tab
+
+**Location:** `mobile-app/app/HistoryScreen.tsx` (Lines 71-113)
+
+**Root Cause:**
+- HistoryScreen was hardcoding `paymentMethod: 'Paid'` for ALL orders
+- When users viewed COD orders from History, it showed "Paid" instead of "Cash on Delivery"
+- Prevented COD detection logic from working in OrderDetailScreen
+- Supabase query wasn't fetching payments data
+
+**Fix Implemented:**
+1. Updated Supabase query to include payments data (Line 63):
+   ```jsx
+   payments:order_payments(payment_method, status, created_at)
+   ```
+
+2. Implemented proper payment method extraction (Lines 78-90):
+   ```jsx
+   const getPaymentMethod = (): string => {
+     const paymentData = (order.payments && order.payments.length > 0) ? order.payments[0]?.payment_method : null;
+     if (typeof paymentData === 'string') {
+       return paymentData;
+     }
+     if (typeof paymentData === 'object' && paymentData) {
+       const type = (paymentData as any)?.type;
+       if (type === 'cod') return 'Cash on Delivery';
+       if (type === 'gcash') return 'GCash';
+       if (type === 'card') return 'Card';
+       if (type === 'paymongo') return 'PayMongo';
+       return type || 'Cash on Delivery';
+     }
+     return 'Paid';
+   };
+   ```
+
+3. Updated mapping to use function result (Line 112):
+   ```jsx
+   paymentMethod: getPaymentMethod(),
+   ```
+
+**Result:** History tab now correctly displays payment methods ✅
+
+---
+
+#### 3. Order Interface Missing Payments Property
+**Severity:** MEDIUM - TypeScript compilation error
+
+**Location:** `mobile-app/src/types/index.ts` (Line 209-214)
+
+**Problem:**
+- Order interface didn't include optional `payments` property
+- Caused TypeScript error when accessing `order.payments` in OrderDetailScreen and HistoryScreen
+
+**Fix Implemented:**
+- Added payments property to Order interface:
+  ```typescript
+  payments?: Array<{
+    payment_method: string | { type: string };
+    status?: string;
+    created_at?: string;
+  }>;
+  ```
+
+**Result:** TypeScript compilation errors resolved ✅
+
+---
+
+#### 4. Enhanced Date Formatting for COD Deadline Display
+**Location:** `mobile-app/app/OrderDetailScreen.tsx` (Lines 24-38)
+
+**Implementation:**
+- Already present: `formatDatePH()` utility function converts date strings to Philippine format
+- Handles all input types: string, Date object, null, undefined
+- Returns formatted string like "April 26, 2026"
+- Used in COD instruction box to display payment deadline
+
+**Result:** Dates display correctly in user-friendly format ✅
+
+---
+
+### Final Implementation
+
+**User-Facing Feature:**
+- ✅ Payment Method displays correctly: "Cash on Delivery"
+- ✅ COD Instruction Box appears in Items & Payment section:
+  - Title: "💳 Payment on Delivery"
+  - Instructions: "You'll pay the full amount to the delivery driver when they arrive. Please have the exact amount ready."
+  - Deadline: "Payment Due: April 26, 2026" (formatted from J&T ETA)
+  - Fallback: "Delivery date will be updated when J&T booking is confirmed"
+
+**Files Modified:** 4
+- `mobile-app/app/OrderDetailScreen.tsx` — Enhanced payment detection, added COD instruction box
+- `mobile-app/app/HistoryScreen.tsx` — Fixed payment method mapping, added payments query
+- `mobile-app/src/types/index.ts` — Added payments property to Order interface
+
+**Testing Done:**
+✅ Feature displays correctly on mobile app
+✅ Shows formatted deadline date from J&T estimated delivery
+✅ Appears in correct section (Items & Payment)
+✅ No TypeScript compilation errors
+✅ Works for orders viewed from both OrdersScreen and HistoryScreen
 
 ---
 
