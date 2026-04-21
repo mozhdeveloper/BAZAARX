@@ -23,13 +23,22 @@ export type ReturnStatus =
   | 'return_received'
   | 'refunded';
 
-export type ReturnType = 'return_refund' | 'refund_only' | 'replacement';
+export type ReturnType = 'return_refund' | 'refund_only' | 'replacement' | 'partial_refund';
 
 export type ResolutionPath = 'instant' | 'seller_review' | 'return_required';
 
+/**
+ * Current active reasons presented to the buyer.
+ * Legacy reasons (not_as_described, defective, missing_parts, changed_mind,
+ * duplicate_order) are kept in formatReturnReason() for backwards-compat display.
+ */
 export type ReturnReason =
   | 'damaged'
   | 'wrong_item'
+  | 'did_not_receive_empty'
+  | 'did_not_receive_not_delivered'
+  | 'did_not_receive_missing_items'
+  // Legacy — kept for display backwards-compat
   | 'not_as_described'
   | 'defective'
   | 'missing_parts'
@@ -37,13 +46,62 @@ export type ReturnReason =
   | 'duplicate_order'
   | 'other';
 
+/** @deprecated Use getEvidenceRequirements() instead */
 export const EVIDENCE_REQUIRED_REASONS: ReturnReason[] = [
   'damaged',
   'wrong_item',
   'not_as_described',
   'defective',
   'missing_parts',
+  'did_not_receive_empty',
+  'did_not_receive_missing_items',
 ];
+
+export interface EvidenceRequirements {
+  description: boolean;
+  photo: boolean;
+  video: boolean;
+  itemSelection: boolean; // show missing-item checklist
+}
+
+/**
+ * Returns which fields are required/shown for each active reason.
+ */
+export function getEvidenceRequirements(reason: ReturnReason): EvidenceRequirements {
+  switch (reason) {
+    case 'damaged':
+      return { description: true, photo: true, video: true, itemSelection: false };
+    case 'wrong_item':
+      return { description: true, photo: true, video: true, itemSelection: false };
+    case 'did_not_receive_empty':
+      return { description: true, photo: true, video: true, itemSelection: false };
+    case 'did_not_receive_not_delivered':
+      return { description: true, photo: false, video: false, itemSelection: false };
+    case 'did_not_receive_missing_items':
+      return { description: true, photo: true, video: true, itemSelection: true };
+    default:
+      return { description: true, photo: false, video: false, itemSelection: false };
+  }
+}
+
+/**
+ * Returns the allowed ReturnType values for each reason.
+ * single-item arrays = auto-set (no picker shown to buyer).
+ */
+export function getAllowedResolutions(reason: ReturnReason): ReturnType[] {
+  switch (reason) {
+    case 'damaged':
+    case 'wrong_item':
+      return ['return_refund'];
+    case 'did_not_receive_empty':
+    case 'did_not_receive_not_delivered':
+      return ['refund_only'];
+    case 'did_not_receive_missing_items':
+      return ['partial_refund', 'return_refund'];
+    default:
+      return ['return_refund'];
+  }
+}
 
 export interface ReturnItem {
   orderItemId: string;
@@ -99,6 +157,8 @@ export interface SubmitReturnParams {
   refundAmount?: number;
   items: ReturnItem[];
   evidenceUrls?: string[];
+  /** IDs of order items selected as missing (did_not_receive_missing_items) */
+  missingItemIds?: string[];
 }
 
 // ─── Resolution Path Calculator ──────────────────────────────────────────────
@@ -108,6 +168,15 @@ export function computeResolutionPath(
   totalAmount: number,
   hasEvidence: boolean,
 ): ResolutionPath {
+  // Did-not-receive reasons always go to seller_review (no physical return needed)
+  if (
+    reason === 'did_not_receive_empty' ||
+    reason === 'did_not_receive_not_delivered' ||
+    reason === 'did_not_receive_missing_items'
+  ) {
+    return 'seller_review';
+  }
+  // Legacy instant-refund fast path
   const instantReasons: ReturnReason[] = ['wrong_item', 'not_as_described', 'missing_parts'];
   if (totalAmount < INSTANT_REFUND_THRESHOLD && instantReasons.includes(reason) && hasEvidence) {
     return 'instant';
@@ -175,8 +244,13 @@ class ReturnService {
 
     for (let i = 0; i < localUris.length; i++) {
       const uri = localUris[i];
-      const ext = uri.split('.').pop() || 'jpg';
-      const fileName = `returns/${orderId}/${Date.now()}_${i}.${ext}`;
+      // Strip query params to get clean extension (e.g. content://... URIs on Android)
+      const cleanUri = uri.split('?')[0];
+      const ext = (cleanUri.split('.').pop() || 'jpg').toLowerCase();
+      const isVideo = ext === 'mp4' || ext === 'mov' || ext === 'avi';
+      const contentType = isVideo ? `video/${ext}` : (ext === 'png' ? 'image/png' : 'image/jpeg');
+      const folder = isVideo ? 'videos' : 'photos';
+      const fileName = `returns/${orderId}/${folder}/${Date.now()}_${i}.${ext}`;
 
       try {
         const response = await fetch(uri);
@@ -184,7 +258,7 @@ class ReturnService {
 
         const { data, error } = await supabase.storage
           .from('return-evidence')
-          .upload(fileName, blob, { contentType: `image/${ext}`, upsert: false });
+          .upload(fileName, blob, { contentType, upsert: false });
 
         if (error) {
           console.warn(`[ReturnService] Failed to upload evidence ${i}:`, error.message);
@@ -205,12 +279,45 @@ class ReturnService {
   }
 
   // ──────────────────────────────────────────────────────────────────────────
+  // BUYER: Get the return window deadline date for an order
+  // ──────────────────────────────────────────────────────────────────────────
+  async getReturnWindowDeadline(orderDbId: string): Promise<Date | null> {
+    if (!isSupabaseConfigured()) return null;
+    try {
+      const { data, error } = await supabase
+        .from('orders')
+        .select('created_at, shipment_status, order_shipments(delivered_at, created_at)')
+        .eq('id', orderDbId)
+        .single();
+
+      if (error || !data) return null;
+
+      const shipments: Array<{ delivered_at?: string | null; created_at?: string | null }> =
+        (data as any).order_shipments ?? [];
+      const deliveredAt = shipments
+        .map((s) => s.delivered_at)
+        .filter(Boolean)
+        .sort((a, b) => new Date(b!).getTime() - new Date(a!).getTime())[0];
+      const shipmentCreatedAt = shipments
+        .map((s) => s.created_at)
+        .filter(Boolean)
+        .sort((a, b) => new Date(b!).getTime() - new Date(a!).getTime())[0];
+      const baseline = new Date(deliveredAt || shipmentCreatedAt || data.created_at);
+      const deadline = new Date(baseline);
+      deadline.setDate(deadline.getDate() + RETURN_WINDOW_DAYS);
+      return deadline;
+    } catch {
+      return null;
+    }
+  }
+
+  // ──────────────────────────────────────────────────────────────────────────
   // BUYER: Submit a return request (v2 — per-item, evidence, smart path)
   // ──────────────────────────────────────────────────────────────────────────
   async submitReturnRequest(params: SubmitReturnParams): Promise<MobileReturnRequest> {
     if (!isSupabaseConfigured()) throw new Error('Supabase not configured');
 
-    const { orderDbId, reason, returnType, description, refundAmount, items, evidenceUrls } = params;
+    const { orderDbId, reason, returnType, description, refundAmount, items, evidenceUrls, missingItemIds } = params;
 
     // 1. Verify order is delivered / received
     const { data: order, error: orderError } = await supabase
@@ -254,30 +361,36 @@ class ReturnService {
     }
 
     // 4. Compute resolution path
+    const isPartialRefund = returnType === 'partial_refund';
+    const isReplacement = returnType === 'replacement';
     const totalAmount = refundAmount ?? items.reduce((sum, i) => sum + i.price * i.returnQuantity, 0);
     const hasEvidence = (evidenceUrls?.length ?? 0) > 0;
-    const isReplacement = returnType === 'replacement';
     const resolutionPath = computeResolutionPath(reason, totalAmount, hasEvidence);
 
-    // 5. Initial status (instant auto-approve doesn't apply to replacements)
-    const isInstant = resolutionPath === 'instant' && !isReplacement;
+    // 5. Initial status — instant auto-approve only for full refunds on eligible reasons
+    const isInstant = resolutionPath === 'instant' && !isReplacement && !isPartialRefund;
     const initialStatus: ReturnStatus = isInstant ? 'approved' : 'seller_review';
 
     // 6. Seller deadline (48h)
     const sellerDeadline = new Date();
     sellerDeadline.setHours(sellerDeadline.getHours() + SELLER_DEADLINE_HOURS);
 
-    // 7. Insert
+    // 7. Build items_json — embed missingItemIds for partial refund tracking
+    const itemsJsonPayload = missingItemIds && missingItemIds.length > 0
+      ? items.map((item) => ({ ...item, isMissing: missingItemIds.includes(item.orderItemId) }))
+      : items;
+
+    // 8. Insert
     const insertPayload: Record<string, any> = {
       order_id: orderDbId,
       is_returnable: true,
       return_window_days: RETURN_WINDOW_DAYS,
       return_reason: reason + (description ? ` - ${description}` : ''),
-      refund_amount: isReplacement ? null : totalAmount,
+      refund_amount: (isReplacement) ? null : totalAmount,
       status: initialStatus,
       return_type: returnType || 'return_refund',
       resolution_path: resolutionPath,
-      items_json: items,
+      items_json: itemsJsonPayload,
       evidence_urls: evidenceUrls ?? [],
       description: description || null,
       seller_deadline: isInstant ? null : sellerDeadline.toISOString(),

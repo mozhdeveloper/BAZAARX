@@ -252,7 +252,7 @@ export type ReturnReason =
   | 'duplicate_order'
   | 'other';
 
-export type ReturnType = 'refund_only' | 'return_refund' | 'replacement';
+export type ReturnType = 'refund_only' | 'return_refund' | 'replacement' | 'partial_refund';
 
 export interface ReturnRequest {
   id: string;
