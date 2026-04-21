@@ -68,312 +68,156 @@ The following files are local AI standards and are **never committed**:
 
 ---
 
-## Session Log — April 20, 2026
+## Session Log — April 21, 2026
 
-### PayMongo Card Validation & Smart Form UX - Mobile Payment Methods
-
-**Status:** ✅ COMPLETE
-
-**Problem:**
-The Payment Methods screen needed proper test card validation with smart form UX:
-1. Only PayMongo test cards should be saveable
-2. Button should be disabled until form is valid
-3. Users should see why button is disabled (validation feedback)
-4. Error messages for card field only (not global)
-5. Modal should clear errors on close
-6. Remove header plus button and bottom navigation
-
-**Changes Implemented:**
-
-#### 1. Real-Time Card Validation
-- Card number validated as soon as 16 digits entered
-- Checks against all 23 PayMongo test cards from testCards.ts
-- Real-time error feedback below card field
-
-#### 2. Smart Button Logic
-- Separate `cardNumberError` state (not global error)
-- Helper functions: `isFormComplete()` and `isCardNumberValid()`
-- Button disabled until: all fields filled AND card is valid
-- Clear feedback on why button is disabled
-
-#### 3. Modal Cleanup
-- Errors cleared when modal closes (Cancel, Back, Overlay)
-- Form reset completely for fresh start next time
-- No error persistence between sessions
-
-#### 4. UI Cleanup
-- Removed plus button from header
-- Removed bottom navigation menu (BuyerBottomNav)
-
-**Files Modified:**
-- `mobile-app/app/PaymentMethodsScreen.tsx`
-  - Line 52: Added cardNumberError state
-  - Lines 119-136: Added helper functions
-  - Lines 475-490: Real-time card validation
-  - Line 242: Removed plus button
-  - Line 603: Removed BuyerBottomNav
-
-**User Experience:**
-```
-1. Open modal → Button DISABLED (form empty)
-2. Type card number → Error shown if invalid, Button DISABLED
-3. Fill all fields → Button ENABLED if card is valid ✅
-4. Click Add Card → Saved, Modal closes, Form resets
-```
-
----
-
-### Checkout Flow - PayMongo Saved Cards Fix
+### Mobile COD Payment Display & UX Issues - Comprehensive Fix
 
 **Status:** ✅ COMPLETE
 
-**Problem:**
-- Saved PayMongo cards were being loaded correctly but navigation logic was broken
-- When buyer selected a saved card and clicked "Place Order", the app navigated to PaymentGatewayScreen instead of skipping directly to OrderConfirmation
-- Buyer had to re-enter card details even though a card was already selected
-- React hook closure issue: validation alert showed "Please select a saved card" even after selecting one
+**Problems Identified & Fixed:**
 
-**Root Causes Identified & Fixed:**
+#### 1. Payment Method Display Shows "cod" Instead of "Cash on Delivery"
+**Severity:** HIGH - User-facing text issue
 
-#### 1. **Missing Navigation Logic for Saved Cards (Lines 1976-2000)**
-**Problem:** All PayMongo payments went through PaymentGatewayScreen regardless of whether a saved card was selected.
-
-**Solution Implemented:**
-- Added special routing for PayMongo saved cards:
-  - Check if `paymentMethod === 'paymongo' && selectedPaymentMethodId` exists
-  - If true: Skip PaymentGatewayScreen, create order immediately
-  - Navigate directly to OrderConfirmation screen
-  - Early return prevents PaymentGateway navigation
-
-#### 2. **Enhanced Checkout Payload with Saved Card ID (Line 1962)**
-**Problem:** Backend didn't know which saved card to use for payment processing.
-
-**Solution Implemented:**
-- Added conditional spread operator to payload:
-  ```typescript
-  ...(paymentMethod === 'paymongo' && selectedPaymentMethodId 
-    ? { savedPaymentMethodId: selectedPaymentMethodId } 
-    : {})
-  ```
-- Backend can now identify which saved card to charge
-
-#### 3. **React Hook Closure Issue - Missing Dependencies (Line 2161)**
-**Problem:** `selectedPaymentMethodId` was missing from useCallback dependency array in `handlePlaceOrder`
-- Result: Callback always saw stale `selectedPaymentMethodId = null`
-- Validation check would fail even after selecting a card
-
-**Solution Implemented:**
-- Added missing dependencies to useCallback:
-  - `selectedPaymentMethodId` — Now captures current selected card
-  - `shippingResults` — Used in order creation
-  - `selectedMethods` — Used in logistics mapping
-- Callback now properly recreates when these values change
-
-**Files Modified:**
-- `mobile-app/app/CheckoutScreen.tsx`
-  - Line 1962: Added savedPaymentMethodId to payload (conditional spread)
-  - Lines 1976-2000: Added special routing for saved PayMongo cards
-  - Line 2161: Added 3 missing dependencies to useCallback array
-
-**Code Changes:**
-```typescript
-// Payload enhancement
-...(paymentMethod === 'paymongo' && selectedPaymentMethodId 
-  ? { savedPaymentMethodId: selectedPaymentMethodId } 
-  : {}),
-
-// Special navigation for saved cards
-if (paymentMethod === 'paymongo' && selectedPaymentMethodId) {
-  // Create order and navigate directly to OrderConfirmation
-  navigation.navigate('OrderConfirmation', { order, earnedBazcoins });
-  return;
-}
-
-// Fixed dependency array
-}, [hasUnavailableItems, ..., selectedPaymentMethodId, shippingResults, selectedMethods]);
-```
-
-**User Experience:**
-```
-Checkout Flow with Saved Card:
-1. Select saved PayMongo card ✓
-2. Click "Place Order"
-3. Order created immediately
-4. Navigate to OrderConfirmation (skips PaymentGatewayScreen) ✓
-5. No card re-entry needed ✓
-6. Validation works correctly (no false "select card" alerts) ✓
-
-Checkout Flow with New Card:
-1. Select PayMongo payment method
-2. Click "Place Order"
-3. Navigate to PaymentGatewayScreen (card entry form) ✓
-4. Enter new card details
-5. Process payment
-6. Navigate to OrderConfirmation ✓
-```
-
----
-
-### Order Details Page - Payment Method & Shipping Alignment Fix
-
-**Status:** ✅ COMPLETE
-
-**Problem:**
-- Payment method always displayed as "Cash on Delivery" even when PayMongo/GCash/Card was selected
-- Shipping information only showed first seller instead of all sellers
-- Total amount calculation was incorrect for multi-seller orders
+**Location:** `mobile-app/app/OrderConfirmation.tsx`
+- Line 118: Subtitle displaying raw `{order.paymentMethod}` → showed "cod"
+- Line 150: Payment method card displaying raw `{order.paymentMethod}` → showed "cod"
 
 **Root Cause:**
-- `order_payments` table wasn't being fetched in OrdersScreen query
-- `payment_method` field wasn't included in select statement
-- Total calculation used single `shipping_cost` instead of summing all sellers' fees
+- CheckoutScreen.tsx (line 2156) passed payment method as raw string value `'cod'`
+- OrderConfirmation displayed it without any mapping/transformation
+- OrderDetailScreen had the correct mapping implementation that wasn't replicated
 
-**Changes Implemented:**
+**Fix Implemented:**
+- Added `getPaymentMethodDisplay()` helper function (Lines 30-47)
+  - Maps `"cod"` → `"Cash on Delivery"`
+  - Maps `"gcash"` → `"GCash"`
+  - Maps `"card"` → `"Card"`
+  - Maps `"paymongo"` → `"PayMongo"`
+  - Handles both string and object payment method formats
+- Updated subtitle to use `{getPaymentMethodDisplay()}`
+- Updated payment method card to use `{getPaymentMethodDisplay()}`
 
-#### 1. Fixed Payment Method Display
-- Added `payments:order_payments(payment_method, status, created_at)` to both select queries in OrdersScreen
-- Updated payment method extraction logic to fetch from `order.payments[0]?.payment_method`
-- Now correctly displays: PayMongo, GCash, Card, or Cash on Delivery
-
-#### 2. Added COD Pending Payment Status
-- Yellow "PENDING" badge next to Cash on Delivery payment method
-- Instruction message for COD orders: "You'll pay the full amount to the delivery driver when they arrive. Please have the exact amount ready."
-- Only displays for COD orders, hidden for other payment methods
-
-#### 3. Fixed Total Amount Calculation
-- Changed from single `shippingFee` to sum of all sellers' `calculated_fee`
-- Now uses: `total = subtotal + totalShipping - voucherDiscount`
-- `totalShipping` = sum of all order_shipments.calculated_fee
-- Correctly accounts for multiple sellers with different shipping fees
-
-**Files Modified:**
-- `mobile-app/app/OrdersScreen.tsx`
-  - Lines 203, 254: Added payments relation to select queries
-  - Lines 436-453: Updated total amount calculation logic
-  - Lines 471-481: Updated payment method extraction from payments array
-  - Line 463: Changed shippingFee to totalShipping
-
-- `mobile-app/app/OrderDetailScreen.tsx`
-  - Lines 805-845: Added COD pending status badge and instruction message
-  - Existing payment extraction logic now receives correct data from OrdersScreen
-
-**User Experience:**
-```
-Orders List:
-- Displays correct payment method (e.g., "PayMongo" not "Cash on Delivery")
-- Total amount includes all sellers' shipping fees
-
-Order Details Page:
-- COD orders show: "Cash on Delivery [PENDING]" with instruction message
-- Per-seller shipping breakdown with method, fee, and estimated days
-- Correct total: subtotal + all shipping fees - voucher discount
-```
+**Result:** Buyers now see **"Cash on Delivery"** instead of **"cod"** ✅
 
 ---
 
-### Checkout Loading UI & Form Validation Refinements
+#### 2. Order Status Hardcoded as "Confirmed" for Pending COD Orders
+**Severity:** MEDIUM-HIGH - Misleading status for delayed payments
 
-**Status:** ✅ COMPLETE
+**Location:** `mobile-app/app/OrderConfirmation.tsx` (Line 162)
+- Status was hardcoded as `"Confirmed"` for ALL payment methods
+- For COD orders, it should show `"Pending"` (payment not yet received from buyer)
+
+**Root Cause:**
+- No dynamic logic to check payment method before displaying status
+- Only hardcoded single status value in badge
+
+**Fix Implemented:**
+- Added `getOrderStatus()` helper function (Lines 49-67)
+  - **COD orders**: Returns "Pending" with yellow badge (#FEF3C7, #92400E)
+  - **Other payment methods**: Returns "Confirmed" with gray badge (#E5E7EB, #374151)
+- Updated status display to use dynamic `getOrderStatus()` function
+- Badge color and text now respond to payment method type
+
+**Result:**
+- COD orders correctly show **"Pending"** status with yellow badge ✅
+- Online payment orders show **"Confirmed"** status with gray badge ✅
+- Buyer expectations aligned with actual payment status ✅
+
+---
+
+#### 3. Double Loading UI Message for COD Payments
+**Severity:** MEDIUM - UX issue with misleading loading message
+
+**Location:** `mobile-app/app/CheckoutScreen.tsx` (Line 1960)
 
 **Problem:**
-1. **Loading UI Design Mismatch**: Loading screen didn't match desired design from reference image
-   - Background color wrong (light gray instead of white)
-   - Spinner radius inconsistent
-   - Message text and dots too large, breaking proportions
-   - Animation broken when transitioning between screens
-   
-2. **Duplicate Address Issue**: Address dropdown showing duplicate entries
-   - Same address appearing multiple times in filtered list
-   - User confusion about which address to select
-   
-3. **PaymentGatewayScreen Validation**: Missing validation fields that exist in PaymentMethodsModal
-   - PaymentGatewayScreen card form had no field-level validation feedback
-   - Button wasn't disabled for invalid states
-   - User experience inconsistent between screens
+- `setProcessingMessage('Redirecting to secure payment gateway')` was set at the very beginning of checkout process
+- This message appeared for ALL payment methods, including COD
+- For COD orders, showing "Redirecting to secure payment gateway" is completely misleading
+- Created confusing UX with double loading messages
 
-**Changes Implemented:**
+**Root Cause:**
+- Initial processing message was hardcoded to payment gateway language
+- No differentiation between COD and online payment flows at start
 
-#### 1. Loading UI Refinements
-- **Background**: Changed from `#F5F5F5` (light gray) to `#FFFFFF` (pure white)
-- **Spinner styling**:
-  - Border radius: Kept at `25` (perfect circle)
-  - Border width: Maintained at `3px`
-  - Border color: `#FFFFFF` (matches background)
-  - Border-top color: `COLORS.primary` (orange)
-- **Text sizing**:
-  - Font size: Reduced from `16px` to `13px`
-  - Font weight: Changed from `600` to `500` (lighter appearance)
-  - Color: Changed from `#666666` to `#999999` (subtly lighter)
-  - Margin top: Reduced from `32px` to `24px`
-- **Dots sizing**:
-  - Reduced from `6x6px` to `4x4px` (much smaller)
-  - Border radius: Adjusted from `3` to `2`
-  - Gap between dots: Reduced from `6px` to `4px`
-  - Margin top: Reduced from `20px` to `12px`
-- **Animation optimization**:
-  - Changed from sequence (600ms up + 600ms down) to linear continuous loop (1200ms)
-  - Removed `Easing.inOut(Easing.ease)` for consistent frame rendering
-  - Used `Easing.linear` for smooth, uninterrupted rotation
+**Fix Implemented:**
+- Changed line 1960 from:
+  ```jsx
+  setProcessingMessage('Redirecting to secure payment gateway');
+  ```
+  to:
+  ```jsx
+  setProcessingMessage('Processing your order...');
+  ```
 
-**Files Modified:**
-- `mobile-app/app/CheckoutScreen.tsx`
-  - Line 3492: Background color updated to `#FFFFFF`
-  - Line 3520: Spinner border color updated to `#FFFFFF`
-  - Lines 3535-3545: Text styling refinements (font size, weight, color, spacing)
-  - Lines 3547-3562: Dots sizing refinements (width, height, borderRadius, gap, margin)
-  - Lines 380-390: Animation timing optimized (linear 1200ms loop)
+**Result:**
+- **COD flow**: "Processing your order..." → "Preparing your checkout..." → "Confirming your order..." ✅
+- **Online flow**: "Processing your order..." → "Preparing your checkout..." → "Redirecting to secure payment gateway" ✅
+- No more misleading payment gateway message for COD users ✅
 
-#### 2. Duplicate Address Fix
-- Added deduplication logic in address dropdown filtering
-- Filtered list now removes duplicate addresses based on ID
-- Prevents same address appearing multiple times after filtering
+---
 
-**Files Modified:**
-- `mobile-app/app/CheckoutScreen.tsx`
-  - Address dropdown deduplication logic implemented
+#### 4. Remove "Pending" Badge from Order Details Page for COD Orders
+**Severity:** LOW - UX/Design cleanup
 
-#### 3. PaymentGatewayScreen Validation Fields
-- Added same validation structure as PaymentMethodsModal:
-  - Real-time card number validation
-  - Field-level error display (below card input)
-  - Save button disabled until form is complete AND card is valid
-  - Helper functions: `isFormComplete()` and `isCardNumberValid()`
-  - Errors cleared when navigating away
-- User sees immediate feedback why button is disabled
+**Location:** `mobile-app/app/OrderDetailScreen.tsx` (Lines 823-843)
 
-**Files Modified:**
-- `mobile-app/app/PaymentGatewayScreen.tsx`
-  - Added `cardNumberError` state for field-level validation
-  - Lines: Added helper functions for form validation
-  - Lines: Real-time card validation on card number input
-  - Lines: Button disability logic tied to validation state
-  - Lines: Error clearing on screen unmount/blur
+**Problem:**
+- Order Details page displayed a yellow "PENDING" badge next to payment method
+- Badge appeared redundantly alongside the instruction message
+- Cleaner design if badge was removed, keeping only instruction message
 
-**User Experience:**
-```
-Loading Screen:
-✓ Clean white background matching reference design
-✓ Proportionally sized spinner and dots
-✓ Readable, smaller message text
-✓ Smooth, uninterrupted animation
-✓ No more animation jank when transitioning screens
+**Fix Implemented:**
+- Removed the yellow badge wrapper and "PENDING" text display
+- Kept the orange instruction message box ("Payment on Delivery" with delivery instructions)
+- Simplified the payment method row to just show "Cash on Delivery" text
 
-Address Selection:
-✓ No duplicate addresses in filtered list
-✓ Clean, deduped selection experience
-
-Payment Gateway Form:
-✓ Real-time card validation feedback
-✓ "Add Card" button disabled until valid
-✓ Clear field-level error messages
-✓ Consistent with PaymentMethodsModal UX
-✓ Validation errors clear on screen exit
+**Before:**
+```jsx
+<View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+  <Text style={styles.primaryInfo}>{paymentMethod}</Text>
+  {isCOD && (
+    <View style={{ backgroundColor: '#FEF3C7', ... }}>
+      <Text>PENDING</Text>
+    </View>
+  )}
+</View>
 ```
 
-**Message Updates:**
-- Payment redirect message: "Redirecting to secure payment gateway" (instead of generic "Redirecting to payment...")
-- Applies to both direct Place Order and Use Different Card flows
-- More descriptive and reassuring to users
+**After:**
+```jsx
+<Text style={styles.primaryInfo}>{paymentMethod}</Text>
+```
+
+**Result:**
+- ✅ Removed the yellow "PENDING" badge
+- ✅ Kept the orange instruction message box
+- ✅ Cleaner payment method display
+- ✅ More focused UX on the helpful instruction message
+
+---
+
+### Summary of Changes
+
+**Files Modified:** 2
+- `mobile-app/app/OrderConfirmation.tsx` — Added helper functions for payment method display and status determination
+- `mobile-app/app/OrderDetailScreen.tsx` — Removed redundant status badge, kept instruction message
+- `mobile-app/app/CheckoutScreen.tsx` — Fixed initial processing message to be generic
+
+**User-Facing Improvements:**
+1. ✅ Correct payment method text ("Cash on Delivery" not "cod")
+2. ✅ Correct order status ("Pending" for COD, "Confirmed" for others)
+3. ✅ Clear loading messages without misleading payment gateway references for COD
+4. ✅ Cleaner Order Details page design with focused instruction messaging
+5. ✅ No compilation errors across all changes
+6. ✅ Consistent implementation patterns across OrderConfirmation and OrderDetailScreen
+
+**Verification:**
+✅ All changes implemented successfully
+✅ No compilation errors
+✅ Ready for testing on mobile app
 
 ---
 
