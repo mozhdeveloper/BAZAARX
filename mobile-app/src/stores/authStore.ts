@@ -11,6 +11,8 @@ import { authService, type AuthResult } from '@/services/authService';
 import { paymentMethodService } from '@/services/paymentMethodService';
 import type { Profile } from '@/types/database.types';
 import { useWishlistStore } from './wishlistStore';
+import { useOrderStore } from './orderStore';
+import { purgeSellerData } from './sellerStore';
 
 export interface PaymentMethod {
   id: string;
@@ -31,6 +33,7 @@ interface User {
   paymentMethods?: PaymentMethod[];
   roles?: string[];
   bazcoins?: number;
+  hasAcceptedTerms?: boolean;
 }
 
 export interface PendingSignupData {
@@ -139,7 +142,8 @@ export const useAuthStore = create<AuthState>()(
               avatar: buyer?.avatar_url || undefined,
               roles: roles.length > 0 ? roles : ['buyer'],
               paymentMethods,
-              bazcoins: buyer?.bazcoins || 0
+              bazcoins: buyer?.bazcoins || 0,
+              hasAcceptedTerms: result.user.user_metadata?.has_accepted_terms === true
             };
             // Determine active role from roles
             const isSeller = roles.includes('seller');
@@ -204,6 +208,11 @@ export const useAuthStore = create<AuthState>()(
         try {
           await authService.signOut();
           useWishlistStore.getState().reset();
+          // Lazy import to break circular dependency
+          const { useCartStore } = await import('./cartStore');
+          useCartStore.getState().reset();
+          useOrderStore.getState().reset();
+          purgeSellerData();
           set({
             user: null,
             profile: null,
@@ -240,13 +249,18 @@ export const useAuthStore = create<AuthState>()(
               phone: profile?.phone || '',
               avatar: buyer?.avatar_url || undefined,
               roles: roles.length > 0 ? roles : ['buyer'],
-              bazcoins: buyer?.bazcoins || 0
+              bazcoins: buyer?.bazcoins || 0,
+              hasAcceptedTerms: sessionResult.user.user_metadata?.has_accepted_terms === true
             };
+            const preferences = buyer?.preferences as any;
+            const hasOnboarding = !!(preferences?.interests && Array.isArray(preferences.interests) && preferences.interests.length >= 3);
+
             set({
               user,
               profile,
               isAuthenticated: true,
               isGuest: false,
+              hasCompletedOnboarding: hasOnboarding,
               activeRole: roles.includes('seller') ? 'seller' : 'buyer',
             });
             // Load wishlist from Supabase after session restore
@@ -293,6 +307,11 @@ export const useAuthStore = create<AuthState>()(
 
       logout: () => {
         useWishlistStore.getState().reset();
+        // Lazy import to break circular dependency
+        const { useCartStore } = require('./cartStore');
+        useCartStore.getState().reset();
+        useOrderStore.getState().reset();
+        purgeSellerData();
         set({
           user: null,
           profile: null,

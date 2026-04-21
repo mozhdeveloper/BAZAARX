@@ -7,9 +7,9 @@ const supabaseAnonKey = process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY || '';
 
 // Custom fetch with 30-second timeout (increased from 10s to reduce Network request failed errors in slow connections)
 const fetchWithTimeout = (url: RequestInfo | URL, options?: RequestInit): Promise<Response> => {
-    const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 30_000);
-    return fetch(url, { ...options, signal: controller.signal }).finally(() => clearTimeout(timeoutId));
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), 30_000);
+  return fetch(url, { ...options, signal: controller.signal }).finally(() => clearTimeout(timeoutId));
 };
 
 /** Clear all auth-related AsyncStorage keys */
@@ -26,16 +26,16 @@ const clearAuthStorage = async () => {
 };
 
 export const supabase = createClient<Database>(supabaseUrl, supabaseAnonKey, {
-    auth: {
-        storage: AsyncStorage,
-        autoRefreshToken: true,
-        persistSession: true,
-        detectSessionInUrl: false,
-        storageKey: 'supabase.auth.token',
-    },
-    global: {
-        fetch: fetchWithTimeout,
-    },
+  auth: {
+    storage: AsyncStorage,
+    autoRefreshToken: true,
+    persistSession: true,
+    detectSessionInUrl: true,  // ✅ CHANGED: Enable OAuth redirect detection
+    storageKey: 'supabase.auth.token',
+  },
+  global: {
+    fetch: fetchWithTimeout,
+  },
 });
 
 // Handle auth state changes and refresh-token errors gracefully
@@ -57,11 +57,11 @@ supabase.auth.onAuthStateChange(async (event, session) => {
     if (error) {
       console.log('[Auth] Stale session cleared on startup');
       await clearAuthStorage();
-      await supabase.auth.signOut().catch(() => {});
+      await supabase.auth.signOut().catch(() => { });
     }
   } catch {
     await clearAuthStorage();
-    await supabase.auth.signOut().catch(() => {});
+    await supabase.auth.signOut().catch(() => { });
   }
 })();
 

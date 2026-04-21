@@ -14,7 +14,10 @@ import {
     Alert,
     ActivityIndicator,
     Dimensions,
+    Image,
 } from 'react-native';
+import * as WebBrowser from 'expo-web-browser';
+import * as AuthSession from 'expo-auth-session';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Eye, EyeOff, ArrowRight, ArrowLeft } from 'lucide-react-native';
 import { CardStyleInterpolators } from '@react-navigation/stack';
@@ -29,6 +32,7 @@ type Props = NativeStackScreenProps<RootStackParamList, 'Signup'>;
 
 export default function SignupScreen({ navigation }: Props) {
     const [loading, setLoading] = useState(false);
+    const [isGoogleLoading, setIsGoogleLoading] = useState(false);
     const [showPassword, setShowPassword] = useState(false);
     const [showConfirmPassword, setShowConfirmPassword] = useState(false);
     const [emailTouched, setEmailTouched] = useState(false);
@@ -113,37 +117,182 @@ export default function SignupScreen({ navigation }: Props) {
             return;
         }
 
-        // PERFORM SIGNUP
-        setLoading(true);
+        // NORMALLY WE SIGN UP HERE, BUT WE NOW DELAY UNTIL TERMS ARE ACCEPTED
         try {
-            const result = await authService.signUp(email.trim(), password, {
-                first_name: firstName,
-                last_name: lastName,
-                phone,
-                user_type: 'buyer',
+            const signupData = {
+                firstName,
+                lastName,
                 email: email.trim(),
+                phone,
                 password,
-            });
+                user_type: 'buyer' as const
+            };
 
-            if (result?.user) {
-                // Persist signup data to store to survive deep link redirects
-                useAuthStore.getState().setPendingSignup({
-                    firstName,
-                    lastName,
-                    email: email.trim(),
-                    phone,
-                    password,
-                    user_type: 'buyer'
-                });
+            // Persist signup data to store to survive deep link redirects
+            useAuthStore.getState().setPendingSignup(signupData);
 
-                // Navigate to Email verification
-                navigation.replace('EmailVerification', { email: email.trim() });
-            }
+            // Navigate to Terms first - THE EMAIL WILL BE SENT FROM THERE
+            navigation.replace('Terms', { signupData });
         } catch (error: any) {
-            console.error('Signup Error:', error);
-            Alert.alert('Error', error.message || 'Failed to create account.');
+            console.error('Signup Preparation Error:', error);
+            Alert.alert('Error', 'Failed to prepare account data.');
         } finally {
             setLoading(false);
+        }
+    };
+
+    const handleGoogleSignIn = async () => {
+        setIsGoogleLoading(true);
+        try {
+            console.log('[SignupScreen] Starting Google Sign-In...');
+
+            const { data, error } = await supabase.auth.signInWithOAuth({
+                provider: 'google',
+                options: {
+                    skipBrowserRedirect: false,
+                },
+            });
+
+            if (error) {
+                Alert.alert('Google Sign-In Error', error.message);
+                setIsGoogleLoading(false);
+                return;
+            }
+
+            if (!data?.url) {
+                Alert.alert('Error', 'Failed to initialize Google Sign-In.');
+                setIsGoogleLoading(false);
+                return;
+            }
+
+            const result = await WebBrowser.openBrowserAsync(data.url);
+
+            if (result.type === 'cancel' || result.type === 'dismiss') {
+                setIsGoogleLoading(false);
+                return;
+            }
+
+            // Wait for auth state change
+            const authStatePromise = new Promise<void>((resolve, reject) => {
+                let timeout = setTimeout(() => {
+                    reject(new Error('Auth state change timeout'));
+                }, 30000);
+
+                const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
+                    if (event === 'SIGNED_IN' && session?.user) {
+                        clearTimeout(timeout);
+                        subscription.unsubscribe();
+                        resolve();
+                    }
+                });
+            });
+
+            try {
+                await authStatePromise;
+                
+                const { data: sessionData } = await supabase.auth.getSession();
+                const userId = sessionData.session?.user?.id;
+
+                if (userId) {
+                    // POLICY ENFORCEMENT: Check for unauthorized Google linking
+                    const { data: identityData } = await supabase.auth.getUserIdentities();
+                    const identities = identityData?.identities || [];
+                    const emailIdentity = identities.find(id => id.provider === 'email');
+                    const googleIdentity = identities.find(id => id.provider === 'google');
+
+                    if (emailIdentity && googleIdentity) {
+                        const isExplicitlyLinked = !!sessionData.session?.user.user_metadata?.google_explicitly_linked;
+                        const linkAgeMs = Date.now() - new Date(googleIdentity.created_at || Date.now()).getTime();
+                        if (!isExplicitlyLinked && linkAgeMs < 300000) {
+                            console.log('[SignupScreen] 🛡️ Google Link Policy Blocked');
+                            await supabase.auth.unlinkIdentity(googleIdentity);
+                            await useAuthStore.getState().signOut();
+                            Alert.alert('Security Notice', 'This Google account is not yet linked. Please use email/password.');
+                            setIsGoogleLoading(false);
+                            return;
+                        }
+                    }
+
+                    const isComplete = await authService.isOnboardingComplete(userId);
+                    if (isComplete) {
+                        Alert.alert('Notice', 'User has already been registered, redirecting to homepage.');
+                        navigation.replace('MainTabs', { screen: 'Home' });
+                    } else {
+                        navigation.replace('Terms', { 
+                            signupData: { 
+                                email: sessionData.session?.user?.email || '',
+                                firstName: sessionData.session?.user?.user_metadata?.first_name || 
+                                          sessionData.session?.user?.user_metadata?.full_name?.split(' ')[0] || '',
+                                lastName: sessionData.session?.user?.user_metadata?.last_name || 
+                                         sessionData.session?.user?.user_metadata?.full_name?.split(' ').slice(1).join(' ') || '',
+                                phone: sessionData.session?.user?.phone || '',
+                                user_type: 'buyer'
+                            } 
+                        });
+                    }
+                } else {
+                    navigation.replace('MainTabs', { screen: 'Home' });
+                }
+            } catch (authError) {
+                console.error('[SignupScreen] Auth state error:', authError);
+                
+                // Double-check session
+                const { data: finalCheck } = await supabase.auth.getSession();
+                if (finalCheck.session?.user) {
+                    console.log('[SignupScreen] ⚠️ Session EXISTS but event timeout. Navigating anyway...');
+                    const userId = finalCheck.session.user.id;
+                    const isComplete = await authService.isOnboardingComplete(userId);
+                    
+                    const signupData = { 
+                        email: finalCheck.session.user.email || '',
+                        firstName: finalCheck.session.user.user_metadata?.first_name || 
+                                  finalCheck.session.user.user_metadata?.full_name?.split(' ')[0] || '',
+                        lastName: finalCheck.session.user.user_metadata?.last_name || 
+                                 finalCheck.session.user.user_metadata?.full_name?.split(' ').slice(1).join(' ') || '',
+                        phone: finalCheck.session.user.phone || '',
+                        user_type: 'buyer' as const
+                    };
+
+                    // Persist to store so CategoryPreference screen can find it
+                    useAuthStore.getState().setPendingSignup(signupData);
+
+                    if (userId) {
+                        // POLICY ENFORCEMENT: Check for unauthorized Google linking
+                        const { data: identityData } = await supabase.auth.getUserIdentities();
+                        const identities = identityData?.identities || [];
+                        const emailIdentity = identities.find(id => id.provider === 'email');
+                        const googleIdentity = identities.find(id => id.provider === 'google');
+
+                        if (emailIdentity && googleIdentity) {
+                            const isExplicitlyLinked = !!finalCheck.session.user.user_metadata?.google_explicitly_linked;
+                            const linkAgeMs = Date.now() - new Date(googleIdentity.created_at || Date.now()).getTime();
+                            if (!isExplicitlyLinked && linkAgeMs < 300000) {
+                                console.log('[SignupScreen] 🛡️ Google Link Policy Blocked (Recovery)');
+                                await supabase.auth.unlinkIdentity(googleIdentity);
+                                await useAuthStore.getState().signOut();
+                                Alert.alert('Security Notice', 'This Google account is not yet linked. Please use email/password.');
+                                setIsGoogleLoading(false);
+                                return;
+                            }
+                        }
+
+                        if (isComplete) {
+                            Alert.alert('Notice', 'User has already been registered, redirecting to homepage.');
+                            navigation.replace('MainTabs', { screen: 'Home' });
+                        } else {
+                            navigation.replace('Terms', { signupData });
+                        }
+                    }
+                    return;
+                }
+
+                Alert.alert('Sign-In Incomplete', 'We were unable to complete the sign-in process. Please try again.');
+                setIsGoogleLoading(false);
+            }
+        } catch (error) {
+            console.error('[SignupScreen] Google Sign-In exception:', error);
+            Alert.alert('Error', 'An unexpected error occurred. Please try again.');
+            setIsGoogleLoading(false);
         }
     };
 
@@ -337,6 +486,30 @@ export default function SignupScreen({ navigation }: Props) {
                         </Pressable>
                     </View>
 
+                    <View style={styles.dividerContainer}>
+                        <View style={styles.dividerLine} />
+                        <Text style={styles.dividerText}>OR</Text>
+                        <View style={styles.dividerLine} />
+                    </View>
+
+                    <Pressable
+                        style={styles.googleButton}
+                        onPress={handleGoogleSignIn}
+                        disabled={isGoogleLoading}
+                    >
+                        {isGoogleLoading ? (
+                            <ActivityIndicator color="#6B7280" />
+                        ) : (
+                            <>
+                                <Image
+                                    source={{ uri: 'https://www.gstatic.com/images/branding/product/2x/googleg_48dp.png' }}
+                                    style={styles.googleIcon}
+                                />
+                                <Text style={styles.googleButtonText}>Sign up with Google</Text>
+                            </>
+                        )}
+                    </Pressable>
+
                     {/* Footer */}
                     <View style={styles.loginSection}>
                         <Text style={styles.loginText}>Already have an account? </Text>
@@ -443,5 +616,43 @@ const styles = StyleSheet.create({
         fontSize: 14,
         color: '#D97706',
         fontWeight: '700',
+    },
+    dividerContainer: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        marginVertical: 24,
+    },
+    dividerLine: {
+        flex: 1,
+        height: 1,
+        backgroundColor: '#E5E7EB',
+    },
+    dividerText: {
+        marginHorizontal: 16,
+        fontSize: 12,
+        fontWeight: '700',
+        color: '#9CA3AF',
+        letterSpacing: 1.2,
+    },
+    googleButton: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'center',
+        backgroundColor: '#FFFFFF',
+        paddingVertical: 14,
+        borderRadius: 14,
+        borderWidth: 1,
+        borderColor: '#E5E7EB',
+        gap: 12,
+        marginBottom: 24,
+    },
+    googleIcon: {
+        width: 20,
+        height: 20,
+    },
+    googleButtonText: {
+        fontSize: 15,
+        fontWeight: '600',
+        color: '#111827',
     },
 });

@@ -1298,7 +1298,7 @@ const AdminSellers: React.FC = () => {
               <div className="flex items-center justify-end gap-2 w-full">
                 {(selectedSeller.status === "pending" || selectedSeller.status === "needs_resubmission") && (
                   <>
-                    {hasCompleteRequirements(selectedSeller) && !hasPendingResubmissionItems(selectedSeller) ? (
+                    {hasCompleteRequirements(selectedSeller).isValid && !hasPendingResubmissionItems(selectedSeller) ? (
                       <Button
                         onClick={() => setShowApproveDialog(true)}
                         className="bg-green-600 hover:bg-green-700 text-white"
@@ -1306,17 +1306,43 @@ const AdminSellers: React.FC = () => {
                         Approve Seller
                       </Button>
                     ) : (
-                      <Button
-                        disabled
-                        className="bg-gray-100 text-gray-500 border-gray-200 flex-1 cursor-not-allowed"
-                      >
-                        {hasPendingResubmissionItems(selectedSeller) ? "Waiting for Resubmission" : "Incomplete Docs"}
-                      </Button>
+                      <>
+                        <Button
+                          disabled
+                          className="bg-gray-100 text-gray-500 border-gray-200 flex-1 cursor-not-allowed"
+                        >
+                          {(() => {
+                            const reqs = hasCompleteRequirements(selectedSeller);
+                            if (hasPendingResubmissionItems(selectedSeller)) return "Waiting for Resubmission";
+                            if (!reqs.hasBusinessAddress) return "Missing Address";
+                            if (reqs.missingDocs.length > 0) return "Incomplete Docs";
+                            return "Review Required";
+                          })()}
+                        </Button>
+                        {!hasCompleteRequirements(selectedSeller).isValid && !hasPendingResubmissionItems(selectedSeller) && (
+                          <div className="mt-2 p-2 bg-amber-50 rounded-lg border border-amber-100">
+                            <p className="text-[10px] font-semibold text-amber-800 uppercase tracking-wider mb-1">Missing Requirements:</p>
+                            <ul className="space-y-1">
+                              {!hasCompleteRequirements(selectedSeller).hasBusinessAddress && (
+                                <li className="text-xs text-amber-700 flex items-center gap-1.5">
+                                  <div className="w-1 h-1 rounded-full bg-amber-400" />
+                                  Business Address
+                                </li>
+                              )}
+                              {hasCompleteRequirements(selectedSeller).missingDocs.map(doc => (
+                                <li key={doc} className="text-xs text-amber-700 flex items-center gap-1.5">
+                                  <div className="w-1 h-1 rounded-full bg-amber-400" />
+                                  {doc.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase())}
+                                </li>
+                              ))}
+                            </ul>
+                          </div>
+                        )}
+                      </>
                     )}
 
                     <Button
                       variant="outline"
-                      disabled={!hasCompleteRequirements(selectedSeller)}
                       onClick={() => {
                         initializePartialReject(selectedSeller);
                         setShowPartialRejectDialog(true);
@@ -1328,7 +1354,6 @@ const AdminSellers: React.FC = () => {
 
                     <Button
                       variant="outline"
-                      disabled={!hasCompleteRequirements(selectedSeller)}
                       onClick={() => setShowRejectDialog(true)}
                       className="text-gray-500 border-gray-200 hover:text-red-600 hover:border-red-600 hover:bg-base ml-auto transition-all disabled:opacity-50 disabled:cursor-not-allowed"
                     >

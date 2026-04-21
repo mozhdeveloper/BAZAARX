@@ -31,7 +31,7 @@ export default function ProfileScreen({ navigation }: Props) {
   const insets = useSafeAreaInsets();
   const BRAND_COLOR = COLORS.primary;
 
-  const isSeller = user?.roles?.includes('seller') || (seller && !!seller.store_name);
+  const isSeller = user?.roles?.includes('seller') || (seller && seller.id === user?.id && !!seller.store_name);
 
   // Guest Modal State
   const [showGuestModal, setShowGuestModal] = React.useState(false);
@@ -47,6 +47,7 @@ export default function ProfileScreen({ navigation }: Props) {
   const [isSwitching, setIsSwitching] = React.useState(false);
   const [isGoogleLinked, setIsGoogleLinked] = React.useState(false);
   const [isLinkingGoogle, setIsLinkingGoogle] = React.useState(false);
+  const [showGoogleAlreadyLinkedModal, setShowGoogleAlreadyLinkedModal] = React.useState(false);
   const avatarBase64Ref = React.useRef<{ base64: string; mimeType: string } | null>(null);
   const slideAnim = useRef(new Animated.Value(Dimensions.get('window').height)).current;
 
@@ -355,7 +356,24 @@ export default function ProfileScreen({ navigation }: Props) {
           skipBrowserRedirect: false,
         }
       });
-      if (error) throw error;
+      if (error) {
+        // Check if error is due to Google account already being linked to another user
+        const errorMsg = error.message?.toLowerCase() || '';
+        const isAlreadyLinked =
+          errorMsg.includes('already') ||
+          errorMsg.includes('registered') ||
+          errorMsg.includes('email_exists') ||
+          errorMsg.includes('identity_already_exists') ||
+          errorMsg.includes('is already linked');
+
+        if (isAlreadyLinked) {
+          console.warn('Google account already linked to another user:', error.message);
+          setShowGoogleAlreadyLinkedModal(true);
+          setIsLinkingGoogle(false);
+          return;
+        }
+        throw error;
+      }
       if (data?.url) {
         const result = await WebBrowser.openBrowserAsync(data.url);
         if (result.type === 'cancel' || result.type === 'dismiss') {
@@ -366,9 +384,17 @@ export default function ProfileScreen({ navigation }: Props) {
         const { data: identityData } = await supabase.auth.getUserIdentities();
         const linked = identityData?.identities?.some(id => id.provider === 'google') || false;
         setIsGoogleLinked(linked);
-        if (linked) Alert.alert('Success', 'Google account linked!');
+        if (linked) {
+          // Set a metadata flag to mark this as an EXPLICIT link
+          // This prevents the Google Sign-In enforcement policy from unlinking it during next login
+          await supabase.auth.updateUser({
+            data: { google_explicitly_linked: true }
+          });
+          Alert.alert('Success', 'Google account linked!');
+        }
       }
     } catch (e) {
+      console.error('Google link error:', e);
       Alert.alert('Error', e instanceof Error ? e.message : 'An unexpected error occurred. Please try again.');
     } finally {
       setIsLinkingGoogle(false);
@@ -761,6 +787,55 @@ export default function ProfileScreen({ navigation }: Props) {
         hideCloseButton={true}
         cancelText="Go back to Home"
       />
+
+      {/* Google Already Linked Modal */}
+      <Modal
+        visible={showGoogleAlreadyLinkedModal}
+        animationType="fade"
+        transparent={true}
+        statusBarTranslucent={true}
+        onRequestClose={() => setShowGoogleAlreadyLinkedModal(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.googleAlreadyLinkedModalContent}>
+            <View style={styles.googleModalIconContainer}>
+              <View style={[styles.googleModalIcon, { backgroundColor: '#FEF3C7' }]}>
+                <Text style={styles.googleModalIconText}>⚠️</Text>
+              </View>
+            </View>
+
+            <Text style={styles.googleModalTitle}>Google Account Already Linked</Text>
+
+            <Text style={styles.googleModalMessage}>
+              This Google account is already linked to another BazaarX account. Please try signing in with a different Google account.
+            </Text>
+
+            <View style={styles.googleModalButtonContainer}>
+              <Pressable
+                style={[styles.googleModalButton, styles.googleModalButtonCancel]}
+                onPress={() => setShowGoogleAlreadyLinkedModal(false)}
+              >
+                <Text style={styles.googleModalButtonTextCancel}>Cancel</Text>
+              </Pressable>
+
+              <Pressable
+                style={[styles.googleModalButton, styles.googleModalButtonRetry, { backgroundColor: BRAND_COLOR }]}
+                onPress={async () => {
+                  setShowGoogleAlreadyLinkedModal(false);
+                  await handleLinkGoogle();
+                }}
+                disabled={isLinkingGoogle}
+              >
+                {isLinkingGoogle ? (
+                  <ActivityIndicator color="#FFF" size="small" />
+                ) : (
+                  <Text style={styles.googleModalButtonText}>Try Another Account</Text>
+                )}
+              </Pressable>
+            </View>
+          </View>
+        </View>
+      </Modal>
     </View>
   );
 }
@@ -1045,4 +1120,78 @@ const styles = StyleSheet.create({
     justifyContent: 'center', elevation: 3
   },
   saveButtonText: { color: '#FFF', fontSize: 16, fontWeight: '700' },
+
+  // Google Already Linked Modal Styles
+  googleAlreadyLinkedModalContent: {
+    backgroundColor: '#FFF',
+    borderRadius: 20,
+    paddingHorizontal: 24,
+    paddingVertical: 28,
+    marginHorizontal: 16,
+    marginVertical: 'auto',
+    alignItems: 'center',
+    shadowColor: '#000',
+    shadowOpacity: 0.15,
+    shadowRadius: 10,
+    elevation: 10,
+  },
+  googleModalIconContainer: {
+    alignItems: 'center',
+    marginBottom: 16,
+  },
+  googleModalIcon: {
+    width: 72,
+    height: 72,
+    borderRadius: 36,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  googleModalIconText: {
+    fontSize: 36,
+  },
+  googleModalTitle: {
+    fontSize: 18,
+    fontWeight: '800',
+    color: COLORS.textHeadline,
+    marginBottom: 12,
+    textAlign: 'center',
+  },
+  googleModalMessage: {
+    fontSize: 14,
+    fontWeight: '500',
+    color: COLORS.textPrimary,
+    lineHeight: 21,
+    textAlign: 'center',
+    marginBottom: 24,
+  },
+  googleModalButtonContainer: {
+    flexDirection: 'row',
+    gap: 12,
+    width: '100%',
+  },
+  googleModalButton: {
+    flex: 1,
+    paddingVertical: 12,
+    borderRadius: 12,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  googleModalButtonCancel: {
+    backgroundColor: '#F3F4F6',
+    borderWidth: 1,
+    borderColor: '#E5E7EB',
+  },
+  googleModalButtonTextCancel: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: COLORS.textHeadline,
+  },
+  googleModalButtonRetry: {
+    backgroundColor: COLORS.primary,
+  },
+  googleModalButtonText: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#FFF',
+  },
 });
