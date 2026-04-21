@@ -38,11 +38,12 @@ interface CRMCampaignsProps {
   onCreate: (camp: Partial<MarketingCampaign>) => Promise<MarketingCampaign | null>;
   onUpdate: (id: string, updates: Partial<MarketingCampaign>) => Promise<boolean>;
   onDelete: (id: string) => Promise<boolean>;
+  onSend?: (id: string) => Promise<{ success: boolean; queued: number; error?: string }>;
   adminId: string;
 }
 
 export function CRMCampaigns({
-  campaigns, segments, loading, onRefresh, onCreate, onUpdate, onDelete,
+  campaigns, segments, loading, onRefresh, onCreate, onUpdate, onDelete, onSend,
   adminId,
 }: CRMCampaignsProps) {
   const { toast } = useToast();
@@ -245,6 +246,29 @@ export function CRMCampaigns({
 
                       {/* Actions */}
                       <div className="flex items-center justify-end gap-1 pt-2 border-t border-slate-100">
+                        {onSend && (camp.status === 'draft' || camp.status === 'scheduled') && (
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            className="h-7 text-xs text-emerald-600 hover:text-emerald-700 hover:bg-emerald-50"
+                            onClick={async () => {
+                              if (!camp.subject || !camp.content) {
+                                toast({ title: 'Cannot send', description: 'Add a subject and content first.', variant: 'destructive' });
+                                return;
+                              }
+                              if (!window.confirm(`Queue and send "${camp.name}" to recipients now? This cannot be undone.`)) return;
+                              const result = await onSend(camp.id);
+                              if (result.success) {
+                                toast({ title: 'Campaign queued', description: `${result.queued} recipient${result.queued === 1 ? '' : 's'} queued for delivery.` });
+                                onRefresh();
+                              } else {
+                                toast({ title: 'Send failed', description: result.error || 'Unknown error', variant: 'destructive' });
+                              }
+                            }}
+                          >
+                            <Send className="w-3 h-3 mr-1" /> Send
+                          </Button>
+                        )}
                         <Button variant="ghost" size="sm" className="h-7 text-xs" onClick={() => openDialog(camp)}>
                           <Pencil className="w-3 h-3 mr-1" /> Edit
                         </Button>

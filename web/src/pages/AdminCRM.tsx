@@ -54,7 +54,7 @@ export default function AdminCRM() {
   const { isAuthenticated, admin } = useAdminAuth();
   const {
     segments, segmentsLoading, fetchSegments, createSegment, updateSegment, deleteSegment,
-    campaigns, campaignsLoading, fetchCampaigns, createCampaign, updateCampaign, deleteCampaign,
+    campaigns, campaignsLoading, fetchCampaigns, createCampaign, updateCampaign, deleteCampaign, sendCampaign,
     workflows, workflowsLoading, fetchWorkflows, createWorkflow, updateWorkflow, toggleWorkflow, deleteWorkflow,
     emailTemplates, emailTemplatesLoading, fetchEmailTemplates,
   } = useAdminCRM();
@@ -352,6 +352,29 @@ export default function AdminCRM() {
                         <td className="px-6 py-4 text-sm text-center">{c.total_delivered}</td>
                         <td className="px-6 py-4 text-sm text-[var(--text-muted)]">{new Date(c.created_at).toLocaleDateString()}</td>
                         <td className="px-6 py-4 text-right">
+                          {(c.status === 'draft' || c.status === 'scheduled') && (
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              title="Send campaign now"
+                              onClick={async () => {
+                                if (!c.subject || !c.content) {
+                                  alert('Add a subject and content before sending.');
+                                  return;
+                                }
+                                if (!window.confirm(`Queue and send "${c.name}" now?`)) return;
+                                const result = await sendCampaign(c.id);
+                                if (result.success) {
+                                  alert(`Queued ${result.queued} recipient${result.queued === 1 ? '' : 's'} for delivery.`);
+                                  fetchCampaigns();
+                                } else {
+                                  alert(`Send failed: ${result.error || 'Unknown error'}`);
+                                }
+                              }}
+                            >
+                              <Send className="w-4 h-4 text-emerald-600" />
+                            </Button>
+                          )}
                           <Button variant="ghost" size="sm" onClick={() => openCampaignDialog(c)}><Pencil className="w-4 h-4" /></Button>
                           <Button variant="ghost" size="sm" onClick={() => setDeleteConfirm({ type: 'campaign', id: c.id, name: c.name })}><Trash2 className="w-4 h-4 text-red-500" /></Button>
                         </td>
