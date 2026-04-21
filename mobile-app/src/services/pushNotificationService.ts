@@ -146,6 +146,17 @@ class PushNotificationService {
     // Clean up previous subscriptions
     this.teardownHandlers();
 
+    // Ensure foreground notifications are displayed even in Expo Go (local notifications).
+    // The module-level setNotificationHandler is guarded to non-Expo-Go builds only,
+    // so we set it here unconditionally to cover local notification testing in Expo Go.
+    Notifications.setNotificationHandler({
+      handleNotification: async () => ({
+        shouldShowAlert: true,
+        shouldPlaySound: true,
+        shouldSetBadge: false,
+      } as any),
+    });
+
     // Foreground notifications are already configured via setNotificationHandler above.
     // This subscription fires when a notification arrives while app is open.
     this._subscription = Notifications.addNotificationReceivedListener((notification) => {
@@ -165,6 +176,49 @@ class PushNotificationService {
     this._responseSubscription?.remove();
     this._subscription = null;
     this._responseSubscription = null;
+  }
+
+  // ─────────────────────────────────────────────────────────────────────────
+  // Dev / testing helpers (work in Expo Go via local notifications)
+  // ─────────────────────────────────────────────────────────────────────────
+
+  /**
+   * Fire a local notification that behaves identically to a remote push.
+   * Works in Expo Go — no dev build needed.
+   *
+   * @param type - Matches the `type` field checked in App.tsx tap handler.
+   *               Use 'order', 'seller_order', 'chat', 'return', or any string.
+   * @param title - Notification title
+   * @param body  - Notification body text
+   * @param extra - Any extra data to include in `notification.request.content.data`
+   */
+  async testLocalNotification(
+    type: string = 'order',
+    title: string = '[TEST] Push Notification',
+    body: string = 'Tap me to test deep-link routing',
+    extra: Record<string, unknown> = {},
+  ): Promise<string> {
+    // Ensure foreground handler is set so the alert appears even when app is open
+    Notifications.setNotificationHandler({
+      handleNotification: async () => ({
+        shouldShowAlert: true,
+        shouldPlaySound: true,
+        shouldSetBadge: false,
+      } as any),
+    });
+
+    const id = await Notifications.scheduleNotificationAsync({
+      content: {
+        title,
+        body,
+        data: { type, ...extra },
+        sound: true,
+      },
+      trigger: null, // fire immediately
+    });
+
+    console.log(`[Push][TEST] Local notification scheduled: ${id} (type=${type})`);
+    return id;
   }
 
   // ─────────────────────────────────────────────────────────────────────────

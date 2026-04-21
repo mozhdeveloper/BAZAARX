@@ -44,10 +44,29 @@ type SettingTab = 'profile' | 'store' | 'documents' | 'notifications' | 'securit
 
 export default function SellerSettingsScreen() {
   const navigation = useNavigation();
-  const { seller, updateSellerInfo, setVacationMode, disableVacationMode } = useSellerStore();
+  const { seller, updateSellerInfo, setVacationMode, disableVacationMode, loadSellerProfile } = useSellerStore();
   const insets = useSafeAreaInsets();
   const [selectedTab, setSelectedTab] = useState<SettingTab>('profile');
   const [drawerVisible, setDrawerVisible] = useState(false);
+  const [sellerLoadAttempted, setSellerLoadAttempted] = useState(false);
+
+  // Auto-load seller profile if it's null (e.g. user signed in via global authStore
+  // and entered the seller area without going through the seller login flow).
+  useEffect(() => {
+    if (seller || sellerLoadAttempted) return;
+    const userId = useAuthStore.getState().user?.id;
+    if (!userId) {
+      setSellerLoadAttempted(true);
+      return;
+    }
+    (async () => {
+      try {
+        await loadSellerProfile?.(userId);
+      } finally {
+        setSellerLoadAttempted(true);
+      }
+    })();
+  }, [seller, sellerLoadAttempted, loadSellerProfile]);
 
   // Edit modes
   const [isEditingProfile, setIsEditingProfile] = useState(false);
@@ -146,9 +165,51 @@ export default function SellerSettingsScreen() {
 
   // Early return if seller is null
   if (!seller) {
+    const stillLoading = !sellerLoadAttempted;
     return (
-      <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
-        <Text>Loading seller data...</Text>
+      <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', padding: 24 }}>
+        {stillLoading ? (
+          <>
+            <ActivityIndicator size="large" color="#D97706" />
+            <Text style={{ marginTop: 12, color: '#6B7280' }}>Loading seller data...</Text>
+          </>
+        ) : (
+          <>
+            <AlertTriangle size={32} color="#D97706" />
+            <Text style={{ marginTop: 12, fontWeight: '600', fontSize: 16, color: '#111827', textAlign: 'center' }}>
+              We couldn&apos;t load your seller profile
+            </Text>
+            <Text style={{ marginTop: 6, color: '#6B7280', textAlign: 'center' }}>
+              You may not have a seller account yet, or your session expired.
+            </Text>
+          </>
+        )}
+
+        <Pressable
+          style={{ marginTop: 20, paddingHorizontal: 20, paddingVertical: 12, backgroundColor: '#F3F4F6', borderRadius: 8 }}
+          onPress={() => {
+            useAuthStore.getState().switchRole('buyer');
+            navigation.navigate('MainTabs' as never);
+          }}
+        >
+          <Text style={{ color: '#111827', fontWeight: '600' }}>Switch to Buyer</Text>
+        </Pressable>
+
+        <Pressable
+          style={{ marginTop: 10, paddingHorizontal: 20, paddingVertical: 12, backgroundColor: '#FEE2E2', borderRadius: 8 }}
+          onPress={async () => {
+            try {
+              await useAuthStore.getState().signOut?.();
+            } catch (e) {
+              console.warn('[SellerSettings] signOut failed:', e);
+            }
+            try { useAuthStore.getState().logout?.(); } catch {}
+            try { await supabase.auth.signOut(); } catch {}
+            navigation.reset?.({ index: 0, routes: [{ name: 'Login' as never }] } as never);
+          }}
+        >
+          <Text style={{ color: '#B91C1C', fontWeight: '600' }}>Sign Out</Text>
+        </Pressable>
       </View>
     );
   }
@@ -193,7 +254,16 @@ export default function SellerSettingsScreen() {
       {
         text: 'Logout',
         style: 'destructive',
-        onPress: () => navigation.navigate('Login' as never),
+        onPress: async () => {
+          try {
+            await useAuthStore.getState().signOut?.();
+          } catch (e) {
+            console.warn('[SellerSettings] signOut failed:', e);
+          }
+          try { useAuthStore.getState().logout?.(); } catch {}
+          try { await supabase.auth.signOut(); } catch {}
+          navigation.reset?.({ index: 0, routes: [{ name: 'Login' as never }] } as never);
+        },
       },
     ]);
   };

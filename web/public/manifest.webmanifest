@@ -1,0 +1,25 @@
+{
+  "name": "Bazaar Philippines",
+  "short_name": "BazaarX",
+  "description": "Bazaar Philippines - Discover authentic Filipino products from trusted local sellers across the Philippines",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "background_color": "#FFFFFF",
+  "theme_color": "#FF6A00",
+  "orientation": "portrait",
+  "icons": [
+    {
+      "src": "/Logo.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "/Logo.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ]
+}

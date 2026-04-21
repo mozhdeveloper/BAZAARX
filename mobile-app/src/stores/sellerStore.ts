@@ -197,6 +197,10 @@ interface AuthStore {
   setVacationMode: (reason?: string) => Promise<boolean>;
   disableVacationMode: () => Promise<boolean>;
   checkSession: () => Promise<void>;
+  // Load (or refresh) the seller profile for the given userId without requiring
+  // a password. Used by seller screens that need to recover from a null seller
+  // (e.g. when the user signed in via the global authStore and switched roles).
+  loadSellerProfile: (userId: string) => Promise<boolean>;
   reset: () => void;
 }
 
@@ -1112,9 +1116,37 @@ export const useAuthStore = create<AuthStore>()(
           if (error) throw error;
           if (session?.user) {
             set({ user: session.user, isAuthenticated: !!session.user.email_confirmed_at });
+            // If we have a session but no seller profile loaded yet, try to load it.
+            // This recovers users who signed in via the global authStore and then
+            // navigated into the seller area without going through seller login.
+            if (!get().seller) {
+              await get().loadSellerProfile(session.user.id);
+            }
           }
         } catch (error) {
           console.error('Error checking seller session:', error);
+        }
+      },
+
+      loadSellerProfile: async (userId: string) => {
+        if (!isSupabaseConfigured() || !userId) return false;
+        try {
+          const sellerProfile = await authService.getSellerProfile(userId);
+          if (!sellerProfile) {
+            // No seller record — leave seller null so the UI can show an
+            // appropriate empty/become-seller state instead of spinning forever.
+            return false;
+          }
+          const userEmail = await authService.getEmailFromProfile(userId);
+          const mappedSeller = mapDbSellerToSeller(sellerProfile);
+          if (userEmail) {
+            mappedSeller.email = userEmail;
+          }
+          set({ seller: mappedSeller, isAuthenticated: true });
+          return true;
+        } catch (error) {
+          console.error('Error loading seller profile:', error);
+          return false;
         }
       },
     }),
@@ -2657,6 +2689,8 @@ export const useSellerStore = () => {
     user: auth.user,
     setVacationMode: auth.setVacationMode,
     disableVacationMode: auth.disableVacationMode,
+    loadSellerProfile: auth.loadSellerProfile,
+    checkSession: auth.checkSession,
 
     // Product store (with fallback to empty array)
     products: products.products || [],

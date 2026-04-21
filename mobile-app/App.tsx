@@ -36,6 +36,7 @@ import TermsScreen from './app/onboarding/TermsScreen';
 import { ErrorBoundary } from './src/components/ErrorBoundary';
 import { supabase } from './src/lib/supabase';
 import { chatService } from './src/services/chatService';
+import { pushNotificationService, PushNotificationData } from './src/services/pushNotificationService';
 import { useAuthStore } from './src/stores/authStore';
 import type { Order, Product } from './src/types';
 
@@ -316,6 +317,7 @@ function MainTabs() {
 
 export default function App() {
   const { user } = useAuthStore();
+  const sessionVerified = useAuthStore((s) => s.sessionVerified);
   const appState = useRef(AppState.currentState);
 
   React.useEffect(() => {
@@ -390,15 +392,17 @@ export default function App() {
         index: 0,
         routes: [{ name: 'Login' }],
       });
-    } else if (user.hasAcceptedTerms === false) {
-      // User is logged in but hasn't accepted terms
+    } else if (sessionVerified && user.hasAcceptedTerms === false && !user.roles?.includes('seller')) {
+      // Only enforce T&C after checkSession has confirmed fresh session data.
+      // Gating on sessionVerified prevents stale persisted state from triggering
+      // a redirect before the real metadata is fetched from Supabase.
       console.log('[App] 🛡️ T&C Enforcement: Redirecting to Terms...');
       navigationRef.current.reset({
         index: 0,
         routes: [{ name: 'Terms', params: { signupData: user } }],
       });
     }
-  }, [user]);
+  }, [user, sessionVerified]);
 
   // Global Presence Listener
   React.useEffect(() => {
@@ -422,6 +426,76 @@ export default function App() {
       chatService.updateUserPresence(user.id, 'offline', 'mobile');
     };
   }, [user?.id]);
+
+  // ─── Push Notifications: register token on login, route taps ──────────
+  React.useEffect(() => {
+    if (!user?.id) {
+      // Always set up handlers (no-op if already torn down)
+      pushNotificationService.teardownHandlers();
+      return;
+    }
+
+    let cancelled = false;
+    (async () => {
+      try {
+        await pushNotificationService.register(user.id);
+        if (cancelled) return;
+
+        pushNotificationService.setupHandlers((data: PushNotificationData) => {
+          // Deep-link based on payload type
+          const nav = navigationRef.current;
+          if (!nav) return;
+
+          try {
+            switch (data?.type) {
+              case 'order':
+              case 'order_update':
+                if (data.orderId) {
+                  nav.navigate('OrderDetail', { order: { id: data.orderId } });
+                } else {
+                  nav.navigate('Orders');
+                }
+                break;
+              case 'seller_order':
+                nav.navigate('SellerOrderDetail', { orderId: data.orderId });
+                break;
+              case 'chat':
+              case 'message':
+                nav.navigate('Messages');
+                break;
+              case 'return':
+                nav.navigate('ReturnOrders');
+                break;
+              default:
+                nav.navigate('Notifications');
+            }
+          } catch (err) {
+            console.warn('[Push] Deep link nav failed:', err);
+          }
+        });
+      } catch (err) {
+        console.warn('[Push] Setup failed:', err);
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+      pushNotificationService.teardownHandlers();
+    };
+  }, [user?.id]);
+
+  // Unregister token when user explicitly signs out
+  React.useEffect(() => {
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
+      if (event === 'SIGNED_OUT') {
+        const previousUserId = useAuthStore.getState().user?.id;
+        if (previousUserId) {
+          await pushNotificationService.unregister(previousUserId).catch(() => {});
+        }
+      }
+    });
+    return () => subscription.unsubscribe();
+  }, []);
 
   return (
     <GestureHandlerRootView style={{ flex: 1 }}>
