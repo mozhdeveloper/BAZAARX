@@ -871,8 +871,8 @@ export default function OrderDetailScreen({ route, navigation }: Props) {
                          <Text style={styles.primaryInfo}>{paymentMethod}</Text>
                        </View>
                        
-                       {/* COD Payment Instruction Message - Only show when order is in 'delivered' status (payment not yet collected) */}
-                       {isCOD && (order.buyerUiStatus === 'delivered' || (order.status === 'delivered' && !order.buyerUiStatus)) && (() => {
+                       {/* COD Payment Instruction Message - Only show when order is processing, confirmed, or shipped (not yet delivered) */}
+                       {isCOD && order.buyerUiStatus !== 'delivered' && order.status !== 'delivered' && (() => {
                          const estimatedDelivery = deliveryTracking?.booking?.estimatedDelivery || order.estimatedDelivery;
                          const formattedDeadline = formatDatePH(estimatedDelivery);
                          

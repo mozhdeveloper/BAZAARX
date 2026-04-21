@@ -1368,7 +1368,7 @@ export default function OrderDetailPage() {
                   </div>
 
                   {/* COD Payment Instruction Section */}
-                  {order.paymentMethod.type === 'cod' && (() => {
+                  {order.paymentMethod.type === 'cod' && order.status !== 'delivered' && (() => {
                     const estimatedDelivery = order.estimatedDelivery;
                     const formattedDeadline = estimatedDelivery
                       ? new Date(estimatedDelivery).toLocaleDateString('en-PH', { year: 'numeric', month: 'long', day: 'numeric' })
