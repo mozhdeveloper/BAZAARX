@@ -1957,7 +1957,7 @@ export default function CheckoutScreen({ navigation, route }: Props) {
     }
 
     setIsProcessing(true);
-    setProcessingMessage('Redirecting to secure payment gateway');
+    setProcessingMessage('Processing your order...');
 
     try {
       console.log('[Checkout] 🔄 Starting checkout process...');
