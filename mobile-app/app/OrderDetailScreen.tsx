@@ -19,8 +19,27 @@ import * as FileSystem from 'expo-file-system/legacy';
 import { decode } from 'base64-arraybuffer';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
-import { ArrowLeft, Package, MapPin, CreditCard, Receipt, CheckCircle, MessageCircle, Send, X, Truck, Clock, CheckCircle2, RotateCcw, Tag, ArrowRight } from 'lucide-react-native';
+import { ArrowLeft, Package, MapPin, CreditCard, Receipt, CheckCircle, MessageCircle, Send, X, Truck, Clock, CheckCircle2, RotateCcw, Tag, ArrowRight, Store } from 'lucide-react-native';
 import { COLORS } from '../src/constants/theme';
+
+// Helper function to format date reliably across platforms
+const formatDatePH = (dateString: string | Date | null | undefined): string | null => {
+  if (!dateString) return null;
+  try {
+    const date = typeof dateString === 'string' ? new Date(dateString) : dateString;
+    if (isNaN(date.getTime())) return null;
+    
+    const months = ['January', 'February', 'March', 'April', 'May', 'June',
+                    'July', 'August', 'September', 'October', 'November', 'December'];
+    const month = months[date.getMonth()];
+    const day = date.getDate();
+    const year = date.getFullYear();
+    return `${month} ${day}, ${year}`;
+  } catch (error) {
+    console.warn('[DateFormat] Error formatting date:', dateString, error);
+    return null;
+  }
+};
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import type { RootStackParamList } from '../App';
 import { useOrderStore } from '../src/stores/orderStore';
@@ -45,6 +64,12 @@ type Props = NativeStackScreenProps<RootStackParamList, 'OrderDetail'>;
 
 export default function OrderDetailScreen({ route, navigation }: Props) {
   const { order } = route.params;
+  
+  // Comprehensive logging of order object
+  console.log('[OrderDetail] Full order object keys:', Object.keys(order || {}).join(', '));
+  console.log('[OrderDetail] order.paymentMethod:', order?.paymentMethod);
+  console.log('[OrderDetail] order.payments:', order?.payments);
+  console.log('[OrderDetail] Full order:', JSON.stringify(order, null, 2));
   
   // Guard clause for invalid order
   if (!order) {
@@ -90,7 +115,9 @@ export default function OrderDetailScreen({ route, navigation }: Props) {
   const deliveryStoreTracking = useDeliveryStore((s) => s.tracking);
 
   // BX-09-003 — Shipment details (method, fee, ETA) from order_shipments table
-  const [shipmentInfo, setShipmentInfo] = useState<{
+  // Fixed to store array of shipments for multi-seller order support
+  const [shipmentInfos, setShipmentInfos] = useState<Array<{
+    seller_id: string;
     shipping_method_label: string;
     calculated_fee: number;
     estimated_days_text: string;
@@ -98,7 +125,7 @@ export default function OrderDetailScreen({ route, navigation }: Props) {
     destination_zone: string;
     tracking_number: string | null;
     status: string;
-  } | null>(null);
+  }>>([]);
 
   // Fetch payment transaction and delivery tracking for this order
   useEffect(() => {
@@ -123,15 +150,14 @@ export default function OrderDetailScreen({ route, navigation }: Props) {
         setIsTrackingError(true);
       });
 
-    // BX-09-003 — Fetch shipment record
+    // BX-09-003 — Fetch ALL shipment records for multi-seller support
     (async () => {
       try {
         const { data } = await supabase
           .from('order_shipments')
-          .select('shipping_method_label, calculated_fee, estimated_days_text, origin_zone, destination_zone, tracking_number, status')
-          .eq('order_id', realOrderId)
-          .maybeSingle();
-        if (data) setShipmentInfo(data as any);
+          .select('seller_id, shipping_method_label, calculated_fee, estimated_days_text, origin_zone, destination_zone, tracking_number, status')
+          .eq('order_id', realOrderId);
+        if (data && data.length > 0) setShipmentInfos(data as any);
       } catch (err) {
         // Silently ignore shipment fetch errors
       }
@@ -483,7 +509,6 @@ export default function OrderDetailScreen({ route, navigation }: Props) {
   const getStatusColor = () => {
     switch (uiStatus) {
       case 'pending': return '#F59E0B';
-      case 'confirmed':
       case 'processing': return COLORS.primary;
       case 'shipped': return '#8B5CF6';
       case 'delivered': return '#22C55E';
@@ -498,7 +523,6 @@ export default function OrderDetailScreen({ route, navigation }: Props) {
   const getStatusText = () => {
     switch (uiStatus) {
       case 'pending': return 'Order Pending';
-      case 'confirmed':
       case 'processing': return 'Being Prepared';
       case 'shipped': return 'In Transit';
       case 'delivered': return 'Delivered';
@@ -513,7 +537,6 @@ export default function OrderDetailScreen({ route, navigation }: Props) {
   const getStatusIcon = () => {
     switch (uiStatus) {
       case 'pending': return Clock;
-      case 'confirmed':
       case 'processing': return Package;
       case 'shipped': return Truck;
       case 'delivered': return CheckCircle2;
@@ -602,7 +625,7 @@ export default function OrderDetailScreen({ route, navigation }: Props) {
           
           let progress = 0;
           if (uiStatus === 'pending') progress = 0.1;
-          else if (['confirmed', 'processing'].includes(uiStatus)) progress = 0.3;
+          else if (uiStatus === 'processing') progress = 0.3;
           else if (uiStatus === 'shipped') progress = 0.6;
           else if (['delivered', 'received', 'reviewed'].includes(uiStatus)) progress = 1;
 
@@ -646,7 +669,7 @@ export default function OrderDetailScreen({ route, navigation }: Props) {
 
                 <View style={styles.trackingFooter}>
                   <Text style={styles.trackingStatusDetail}>
-                    {(!deliveryTracking?.events || deliveryTracking.events.length === 0) && (uiStatus === 'confirmed' || uiStatus === 'processing') ? 'Preparing shipment' : latestEvent?.description || getStatusText()}
+                    {(!deliveryTracking?.events || deliveryTracking.events.length === 0) && uiStatus === 'processing' ? 'Preparing shipment' : latestEvent?.description || getStatusText()}
                   </Text>
                   <Text style={styles.trackingTimestamp}>
                     {formatEventTime(latestEvent?.eventAt || order.createdAt)}
@@ -690,27 +713,31 @@ export default function OrderDetailScreen({ route, navigation }: Props) {
           )}
 
           {/* BX-09-003 — Shipping Method & ETA from order_shipments */}
-          {shipmentInfo && (
+          {shipmentInfos.length > 0 && (
             <View style={{ borderTopWidth: 1, borderTopColor: '#E5E7EB', paddingTop: 16, marginBottom: deliveryTracking?.booking ? 0 : 0 }}>
-              <Text style={styles.metaLabel}>Shipping Method</Text>
-              <Text style={styles.primaryInfo}>{shipmentInfo.shipping_method_label}</Text>
-              <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginTop: 8 }}>
-                <View>
-                  <Text style={styles.metaLabel}>Estimated Delivery</Text>
-                  <Text style={[styles.primaryInfo, { color: COLORS.primary }]}>{shipmentInfo.estimated_days_text}</Text>
+              {shipmentInfos.map((shipment, idx) => (
+                <View key={idx} style={idx > 0 ? { marginTop: 16, paddingTop: 16, borderTopWidth: 1, borderTopColor: '#F3F4F6' } : undefined}>
+                  <Text style={styles.metaLabel}>Shipping Method</Text>
+                  <Text style={styles.primaryInfo}>{shipment.shipping_method_label}</Text>
+                  <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginTop: 8 }}>
+                    <View>
+                      <Text style={styles.metaLabel}>Estimated Delivery</Text>
+                      <Text style={[styles.primaryInfo, { color: COLORS.primary }]}>{shipment.estimated_days_text}</Text>
+                    </View>
+                    <View style={{ alignItems: 'flex-end' }}>
+                      <Text style={styles.metaLabel}>Shipping Fee</Text>
+                      <Text style={styles.primaryInfo}>
+                        {shipment.calculated_fee === 0 ? 'FREE' : `\u20b1${shipment.calculated_fee.toLocaleString()}`}
+                      </Text>
+                    </View>
+                  </View>
+                  <View style={{ flexDirection: 'row', alignItems: 'center', marginTop: 8, gap: 4 }}>
+                    <Text style={{ fontSize: 11, color: '#9CA3AF' }}>
+                      {shipment.origin_zone} \u2192 {shipment.destination_zone}
+                    </Text>
+                  </View>
                 </View>
-                <View style={{ alignItems: 'flex-end' }}>
-                  <Text style={styles.metaLabel}>Shipping Fee</Text>
-                  <Text style={styles.primaryInfo}>
-                    {shipmentInfo.calculated_fee === 0 ? 'FREE' : `\u20b1${shipmentInfo.calculated_fee.toLocaleString()}`}
-                  </Text>
-                </View>
-              </View>
-              <View style={{ flexDirection: 'row', alignItems: 'center', marginTop: 8, gap: 4 }}>
-                <Text style={{ fontSize: 11, color: '#9CA3AF' }}>
-                  {shipmentInfo.origin_zone} \u2192 {shipmentInfo.destination_zone}
-                </Text>
-              </View>
+              ))}
             </View>
           )}
 
@@ -742,6 +769,14 @@ export default function OrderDetailScreen({ route, navigation }: Props) {
         <View style={styles.consolidatedCard}>
           <Text style={styles.cardSectionHeader}>Items & Payment</Text>
           
+          <Pressable 
+            style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 16, gap: 8 }}
+            onPress={() => navigation.navigate('StoreDetail', { store: { id: (order as any).sellerInfo?.id || order.items[0]?.sellerId, name: (order as any).sellerInfo?.store_name || order.items[0]?.seller, rating: 4.8, verified: false, image: 'https://via.placeholder.com/150' } })}
+          >
+            <Store size={20} color={COLORS.primary} />
+            <Text style={[styles.primaryInfo, { fontSize: 14 }]}>{(order as any).sellerInfo?.store_name || order.items[0]?.seller || 'Shop'}</Text>
+          </Pressable>
+          
           {isPaymentError ? (
             <View style={{ marginVertical: 16 }}>
               <Text style={[styles.secondaryInfo, { color: '#DC2626', marginBottom: 12 }]}>
@@ -769,31 +804,132 @@ export default function OrderDetailScreen({ route, navigation }: Props) {
             <>
               <View style={{ gap: 16, marginBottom: 20 }}>
                 {order.items.filter(item => item && item.name).map((item, index) => (
-                  <View key={item.id || index} style={styles.compactItemRow}>
+                  <Pressable 
+                    key={item.id || index} 
+                    style={styles.compactItemRow}
+                    onPress={() => navigation.navigate('ProductDetail', { product: item as any })}
+                  >
                     <Image source={{ uri: safeImageUri(item.image) }} style={styles.compactItemImage} />
                     <View style={{ flex: 1 }}>
                       <Text style={styles.compactItemName} numberOfLines={1}>{item.name}</Text>
+                      {(item as any).selectedVariant && ((item as any).selectedVariant.option1Value || (item as any).selectedVariant.option2Value || (item as any).selectedVariant.size || (item as any).selectedVariant.color) && (
+                        <Text style={{ fontSize: 12, color: '#6B7280', marginTop: 2 }}>
+                          {(item as any).selectedVariant.option1Value || (item as any).selectedVariant.size || (item as any).selectedVariant.color || 'Standard'}
+                        </Text>
+                      )}
+                      {(item as any).selectedVariant && (
+                        <Text style={[styles.metaLabel, { marginBottom: 4, marginTop: 4 }]}>
+                          {(item as any).selectedVariant.option1Value ? `${(item as any).selectedVariant.option1Label || 'Option'}: ${(item as any).selectedVariant.option1Value}` : ''}
+                          {(item as any).selectedVariant.option1Value && (item as any).selectedVariant.option2Value ? ' • ' : ''}
+                          {(item as any).selectedVariant.option2Value ? `${(item as any).selectedVariant.option2Label || 'Option'}: ${(item as any).selectedVariant.option2Value}` : ''}
+                          {!((item as any).selectedVariant.option1Value || (item as any).selectedVariant.option2Value) && (item as any).selectedVariant.size ? (item as any).selectedVariant.size : ''}
+                          {!((item as any).selectedVariant.option1Value || (item as any).selectedVariant.option2Value) && !((item as any).selectedVariant.size) && (item as any).selectedVariant.color ? (item as any).selectedVariant.color : ''}
+                        </Text>
+                      )}
                       <Text style={styles.metaLabel}>{item.quantity} x ₱{item.price?.toLocaleString()}</Text>
                     </View>
                     <Text style={styles.compactItemPrice}>₱{((item.price || 0) * item.quantity).toLocaleString()}</Text>
-                  </View>
+                  </Pressable>
                 ))}
               </View>
 
               <View style={{ borderTopWidth: 1, borderTopColor: '#E5E7EB', paddingTop: 16, gap: 12 }}>
-                 <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
-                    <Text style={styles.metaLabel}>Payment Method</Text>
-                    <Text style={styles.primaryInfo}>{order.paymentMethod}</Text>
-                 </View>
+                 {/* Payment Method - with proper extraction and label mapping */}
+                 {(() => {
+                   const rawPaymentMethod = order.paymentMethod;
+                   console.log('[OrderDetail] Raw paymentMethod:', rawPaymentMethod, 'Type:', typeof rawPaymentMethod);
+                   
+                   const getPaymentMethod = (): string => {
+                     if (!rawPaymentMethod) return 'Unknown';
+                     
+                     if (typeof rawPaymentMethod === 'string') {
+                       const pm = rawPaymentMethod.toLowerCase().trim();
+                       if (pm === 'cod' || pm === 'cash on delivery') return 'Cash on Delivery';
+                       if (pm === 'gcash') return 'GCash';
+                       if (pm === 'card') return 'Card';
+                       if (pm === 'paymongo') return 'PayMongo';
+                       return rawPaymentMethod;
+                     }
+                     const type = (rawPaymentMethod as any)?.type?.toLowerCase();
+                     if (type === 'cod') return 'Cash on Delivery';
+                     if (type === 'gcash') return 'GCash';
+                     if (type === 'card') return 'Card';
+                     if (type === 'paymongo') return 'PayMongo';
+                     return type || 'Unknown';
+                   };
+                   
+                   const paymentMethod = getPaymentMethod();
+                   const isCOD = paymentMethod === 'Cash on Delivery' || 
+                                 (typeof rawPaymentMethod === 'string' && (rawPaymentMethod.toLowerCase().trim() === 'cod' || rawPaymentMethod.toLowerCase().trim() === 'cash on delivery'));
+                   
+                   console.log('[OrderDetail] Payment Method Result:', paymentMethod, 'isCOD:', isCOD);
+                   
+                   return (
+                     <>
+                       <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
+                         <Text style={styles.metaLabel}>Payment Method</Text>
+                         <Text style={styles.primaryInfo}>{paymentMethod}</Text>
+                       </View>
+                       
+                       {/* COD Payment Instruction Message */}
+                       {isCOD && (() => {
+                         const estimatedDelivery = deliveryTracking?.booking?.estimatedDelivery || order.estimatedDelivery;
+                         const formattedDeadline = formatDatePH(estimatedDelivery);
+                         
+                         console.log('[OrderDetail COD] Payment Method:', paymentMethod, 'isCOD:', isCOD, 'estimatedDelivery:', estimatedDelivery, 'formatted:', formattedDeadline);
+                         
+                         return (
+                           <View style={{ backgroundColor: '#FFFBF0', borderLeftWidth: 4, borderLeftColor: '#F59E0B', paddingHorizontal: 12, paddingVertical: 10, borderRadius: 8, gap: 6, marginTop: 8 }}>
+                             <Text style={{ fontSize: 12, fontWeight: '700', color: '#92400E' }}>💳 Payment on Delivery</Text>
+                             <Text style={{ fontSize: 12, color: '#7C2D12', lineHeight: 16 }}>
+                               You'll pay the full amount to the delivery driver when they arrive. Please have the exact amount ready.
+                             </Text>
+                             {formattedDeadline && (
+                               <Text style={{ fontSize: 12, color: '#92400E', fontWeight: '600' }}>
+                                 Payment Due: {formattedDeadline}
+                               </Text>
+                             )}
+                             {!formattedDeadline && (
+                               <Text style={{ fontSize: 11, color: '#D97706', fontStyle: 'italic' }}>
+                                 Delivery date will be updated when J&T booking is confirmed
+                               </Text>
+                             )}
+                           </View>
+                         );
+                       })()}
+                     </>
+                   );
+                 })()}
                  
                  <View style={styles.summaryRow}>
                     <Text style={styles.summaryLabel}>Subtotal</Text>
                     <Text style={styles.summaryValue}>₱{(order as any).subtotal?.toLocaleString()}</Text>
                  </View>
-                 <View style={styles.summaryRow}>
-                    <Text style={styles.summaryLabel}>Shipping</Text>
-                    <Text style={styles.summaryValue}>{order.shippingFee === 0 ? 'FREE' : `₱${order.shippingFee.toLocaleString()}`}</Text>
-                 </View>
+                 
+                 {/* Per-seller Shipping Breakdown */}
+                 {shipmentInfos.length > 0 ? (
+                   <View style={{ gap: 12 }}>
+                     {shipmentInfos.map((shipment, idx) => (
+                       <View key={idx} style={{ gap: 8 }}>
+                         {/* Seller shipping method and fee */}
+                         <View style={styles.summaryRow}>
+                           <View style={{ flex: 1 }}>
+                             <Text style={styles.summaryLabel}>{shipment.shipping_method_label}</Text>
+                             <Text style={[styles.metaLabel, { marginTop: 2, fontSize: 12 }]}>
+                               Est: {shipment.estimated_days_text}
+                             </Text>
+                           </View>
+                           <Text style={styles.summaryValue}>₱{shipment.calculated_fee.toLocaleString()}</Text>
+                         </View>
+                       </View>
+                     ))}
+                   </View>
+                 ) : (
+                   <View style={styles.summaryRow}>
+                     <Text style={styles.summaryLabel}>Shipping</Text>
+                     <Text style={styles.summaryValue}>{order.shippingFee === 0 ? 'FREE' : `₱${order.shippingFee.toLocaleString()}`}</Text>
+                   </View>
+                 )}
                  {order.voucherInfo && (
                     <View style={styles.summaryRow}>
                        <Text style={[styles.summaryLabel, { color: '#10B981' }]}>Voucher ({order.voucherInfo.code})</Text>
@@ -813,27 +949,8 @@ export default function OrderDetailScreen({ route, navigation }: Props) {
 
       {/* Bottom Action Bar - Follows PH e-commerce standards (Shopee/Lazada) */}
       <View style={styles.bottomBar}>
-        {/* PENDING: Cancel + Chat (buyer hasn't paid or order awaiting confirmation) */}
+        {/* PENDING: Chat only (buyer hasn't paid or order awaiting confirmation) */}
         {(order.buyerUiStatus || order.status) === 'pending' && (
-          <>
-            <Pressable
-              onPress={() => setShowChatModal(true)}
-              style={[styles.outlineButton, { flex: 1 }]}
-            >
-              <MessageCircle size={20} color={COLORS.primary} />
-              <Text style={styles.outlineButtonText}>Chat</Text>
-            </Pressable>
-            <Pressable
-              onPress={handleCancelOrder}
-              style={[styles.solidButton, { flex: 1, backgroundColor: COLORS.primary }]}
-            >
-              <Text style={styles.solidButtonText}>Cancel Order</Text>
-            </Pressable>
-          </>
-        )}
-
-        {/* PROCESSING / TO SHIP: Chat only (seller is preparing the order) */}
-        {(order.buyerUiStatus === 'confirmed' || order.status === 'processing') && (
           <Pressable
             onPress={() => setShowChatModal(true)}
             style={[styles.solidButton, { flex: 1, backgroundColor: COLORS.primary }]}
@@ -841,6 +958,25 @@ export default function OrderDetailScreen({ route, navigation }: Props) {
             <MessageCircle size={20} color="#FFFFFF" />
             <Text style={styles.solidButtonText}>Chat with Seller</Text>
           </Pressable>
+        )}
+
+        {/* PROCESSING / TO SHIP: Cancel + Chat (seller is preparing the order) */}
+        {(order.buyerUiStatus === 'processing' || order.status === 'processing') && (
+          <>
+            <Pressable
+              onPress={handleCancelOrder}
+              style={[styles.outlineButton, { flex: 1 }]}
+            >
+              <Text style={styles.outlineButtonText}>Cancel Order</Text>
+            </Pressable>
+            <Pressable
+              onPress={() => setShowChatModal(true)}
+              style={[styles.solidButton, { flex: 1, backgroundColor: COLORS.primary }]}
+            >
+              <MessageCircle size={20} color="#FFFFFF" />
+              <Text style={styles.solidButtonText}>Chat with Seller</Text>
+            </Pressable>
+          </>
         )}
 
         {/* SHIPPED / TO RECEIVE: Chat only — item is in transit, buyer cannot confirm yet */}

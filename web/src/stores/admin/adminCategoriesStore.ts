@@ -183,7 +183,7 @@ interface SellersState {
   selectSeller: (seller: Seller | null) => void;
   addSeller: (seller: Seller) => void;
   clearError: () => void;
-  hasCompleteRequirements: (seller: Seller) => boolean;
+  hasCompleteRequirements: (seller: Seller) => { isValid: boolean; missingDocs: string[]; hasBusinessAddress: boolean };
   updateSellerTier: (sellerId: string, tierLevel: 'standard' | 'premium_outlet') => Promise<void>;
   getSellerTier: (sellerId: string) => Promise<'standard' | 'premium_outlet' | null>;
 }

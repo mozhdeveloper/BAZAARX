@@ -45,6 +45,7 @@ interface OrderStore {
   checkoutSellerMetadata: Record<string, any>;
   isCheckoutContextLoading: boolean;
   loadCheckoutContext: (productIds: string[]) => Promise<void>;
+  reset: () => void;
 }
 
 // Dummy orders for testing - showcasing all status types with mixed payment statuses
@@ -902,6 +903,15 @@ export const useOrderStore = create<OrderStore>()(
               : order,
           ),
         }));
+      },
+      reset: () => {
+        set({
+          orders: [],
+          ordersLoading: false,
+          sellerOrders: [],
+          sellerOrdersLoading: false,
+          checkoutSellerMetadata: {},
+        });
       },
     }),
     {

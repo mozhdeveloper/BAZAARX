@@ -184,6 +184,7 @@ export interface Order {
   isPaid: boolean;
   scheduledDate: string;
   deliveryDate?: string;
+  estimatedDelivery?: Date | string;
   shippingAddress: ShippingAddress;
   paymentMethod: string;
   createdAt: string;
@@ -192,7 +193,8 @@ export interface Order {
   deliveredAt?: string;
   cancelledAt?: string;
   updatedAt?: string;
-  buyerUiStatus?: 'pending' | 'confirmed' | 'shipped' | 'delivered' | 'received' | 'returned' | 'cancelled' | 'reviewed';
+  etaText?: string;
+  buyerUiStatus?: 'processing' | 'shipped' | 'delivered' | 'received' | 'returned' | 'cancelled' | 'reviewed';
   isReviewed?: boolean;
   returnRequestId?: string;
   isGift?: boolean;
@@ -206,6 +208,11 @@ export interface Order {
     is_verified?: boolean;
     business_address?: string;
   };
+  payments?: Array<{
+    payment_method: string | { type: string };
+    status?: string;
+    created_at?: string;
+  }>;
 }
 
 export interface ShippingAddress {

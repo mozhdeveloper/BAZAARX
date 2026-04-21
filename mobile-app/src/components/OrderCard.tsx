@@ -1,7 +1,7 @@
 import React from 'react';
 import { View, Text, Pressable, StyleSheet } from 'react-native';
 import { Image } from 'expo-image';
-import { Calendar, MapPin, Eye, Copy, MessageCircle, Star, RotateCcw } from 'lucide-react-native';
+import { Calendar, MapPin, Eye, Copy, MessageCircle, Star, RotateCcw, ArrowRight } from 'lucide-react-native';
 import { Order } from '../types';
 import * as Clipboard from 'expo-clipboard';
 import { COLORS } from '../constants/theme';
@@ -31,21 +31,19 @@ export const OrderCard: React.FC<OrderCardProps> = React.memo(({
 }) => {
   const buyerUiStatus = order.buyerUiStatus || (
     order.status === 'processing'
-      ? 'confirmed'
+      ? 'processing'
       : order.status === 'shipped'
         ? 'shipped'
         : order.status === 'delivered'
           ? (order as any).shipment_status === 'received' ? 'received' : 'delivered'
           : order.status === 'cancelled'
             ? 'cancelled'
-            : 'pending'
+            : 'processing'
   );
 
   const getStatusColor = () => {
     switch (buyerUiStatus) {
-      case 'pending':
-        return '#F59E0B'; // Yellow
-      case 'confirmed':
+      case 'processing':
         return '#3B82F6'; // Blue
       case 'shipped':
         return '#8B5CF6'; // Violet
@@ -66,9 +64,7 @@ export const OrderCard: React.FC<OrderCardProps> = React.memo(({
 
   const getStatusText = () => {
     switch (buyerUiStatus) {
-      case 'pending':
-        return 'Pending';
-      case 'confirmed':
+      case 'processing':
         return 'Processing';
       case 'shipped':
         return 'Shipped';
@@ -129,6 +125,7 @@ export const OrderCard: React.FC<OrderCardProps> = React.memo(({
           </Text>
         </View>
         <View style={styles.metadataRow}>
+          <Text style={styles.dateText}>{formatDate(order.createdAt)}</Text>
           <Pressable style={styles.orderIdContainer} onPress={handleCopyOrderId}>
             <Text style={styles.orderIdText}>ID: {order.transactionId}</Text>
             <Copy size={12} color="#6B7280" style={{ marginLeft: 4 }} />
@@ -158,9 +155,12 @@ export const OrderCard: React.FC<OrderCardProps> = React.memo(({
                   cachePolicy="memory-disk"
                   transition={200}
                 />
-                <View style={styles.moreItemsOverlay}>
-                  <Text style={styles.moreItemsText}>+{itemCount - 1}</Text>
-                </View>
+              </View>
+            )}
+            {/* More Items Overlay */}
+            {itemCount > 1 && (
+              <View style={styles.moreItemsOverlay}>
+                <ArrowRight size={20} color="#FFFFFF" />
               </View>
             )}
           </View>
@@ -200,9 +200,12 @@ export const OrderCard: React.FC<OrderCardProps> = React.memo(({
           )}
           <Text style={styles.quantityText}>x{firstItem.quantity}</Text>
             <View style={styles.summaryRow}>
-              <Text style={styles.summaryText}>
-                Total ({itemCount} items): <Text style={styles.totalPrice}>₱{order.total.toLocaleString()}</Text>
-              </Text>
+              <View>
+                {order.etaText && <Text style={{fontSize: 12, color: '#6B7280', marginBottom: 4}}>ETA: {order.etaText}</Text>}
+                <Text style={styles.summaryText}>
+                  Total ({itemCount} items): <Text style={styles.totalPrice}>₱{order.total.toLocaleString()}</Text>
+                </Text>
+              </View>
             </View>
           </View>
         </View>
@@ -210,7 +213,7 @@ export const OrderCard: React.FC<OrderCardProps> = React.memo(({
 
       {/* Action Buttons */}
       <View style={styles.actionButtonsContainer}>
-        {order.status === 'pending' && (
+        {buyerUiStatus === 'processing' && (
           <>
             {onCancel && (
               <Pressable style={styles.outlineButton} onPress={onCancel}>
@@ -223,26 +226,22 @@ export const OrderCard: React.FC<OrderCardProps> = React.memo(({
           </>
         )}
 
-        {order.status === 'processing' && (
-          <Pressable style={styles.solidButton} onPress={onPress}>
-            <Text style={styles.solidButtonText}>View Details</Text>
-          </Pressable>
+        {(buyerUiStatus === 'shipped' || buyerUiStatus === 'delivered') && (
+          <View style={{ flexDirection: 'row', gap: 8 }}>
+            <Pressable style={[styles.outlineButton, { flex: 1 }]} onPress={onPress}>
+              <MessageCircle size={14} color="#4B5563" style={{ marginRight: 4 }} />
+              <Text style={styles.outlineButtonText}>Chat with Seller</Text>
+            </Pressable>
+            <Pressable style={[styles.solidButton, { flex: 1 }]} onPress={onPress}>
+              <Text style={styles.solidButtonText}>Track</Text>
+            </Pressable>
+          </View>
         )}
 
-        {order.status === 'shipped' && buyerUiStatus === 'shipped' && (
-          <Pressable style={styles.solidButton} onPress={onPress}>
-            <Text style={styles.solidButtonText}>Track Package</Text>
+        {buyerUiStatus === 'delivered' && onReceive && (
+          <Pressable style={[styles.solidButton, { backgroundColor: '#16A34A' }]} onPress={onReceive}>
+            <Text style={styles.solidButtonText}>Confirm Received</Text>
           </Pressable>
-        )}
-
-        {order.status === 'delivered' && buyerUiStatus === 'delivered' && (
-          <>
-            {onReceive && (
-              <Pressable style={[styles.solidButton, { flex: 1, backgroundColor: '#16A34A' }]} onPress={onReceive}>
-                <Text style={styles.solidButtonText}>Confirm Received</Text>
-              </Pressable>
-            )}
-          </>
         )}
 
         {buyerUiStatus === 'received' && (
@@ -429,8 +428,9 @@ const styles = StyleSheet.create({
     position: 'absolute',
     top: 0,
     left: 0,
-    right: 0,
-    bottom: 0,
+    width: 70,
+    height: 70,
+    zIndex: 3,
     backgroundColor: 'rgba(0,0,0,0.3)',
     justifyContent: 'center',
     alignItems: 'center',

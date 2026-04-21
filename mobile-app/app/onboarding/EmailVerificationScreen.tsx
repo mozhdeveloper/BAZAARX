@@ -33,6 +33,7 @@ export default function EmailVerificationScreen({ navigation, route }: Props) {
   const [checking, setChecking] = useState(false);
   const [resendCooldown, setResendCooldown] = useState(RESEND_COOLDOWN);
   const intervalRef = useRef<any>(null);
+  const pollingRef = useRef<any>(null);
 
   // Computed: button appears when cooldown reaches 0
   const canResend = resendCooldown <= 0;
@@ -41,7 +42,28 @@ export default function EmailVerificationScreen({ navigation, route }: Props) {
     navigation.setOptions({
       animation: 'slide_from_right',
     });
+
+    // Start polling on mount
+    startPolling();
+
+    return () => {
+      stopPolling();
+    };
   }, [navigation]);
+
+  const startPolling = () => {
+    if (pollingRef.current) return;
+    pollingRef.current = setInterval(() => {
+      checkStatus(false);
+    }, 3000); // Check every 3 seconds
+  };
+
+  const stopPolling = () => {
+    if (pollingRef.current) {
+      clearInterval(pollingRef.current);
+      pollingRef.current = null;
+    }
+  };
 
   // Countdown timer logic
   useEffect(() => {
@@ -64,20 +86,24 @@ export default function EmailVerificationScreen({ navigation, route }: Props) {
     };
   }, [resendCooldown]);
 
-  const handleCheckStatus = async () => {
-    setChecking(true);
+  const checkStatus = async (isManual = false) => {
+    if (isManual) setChecking(true);
     try {
       const isVerified = await authService.checkVerificationStatus(email);
       if (isVerified) {
+        stopPolling(); // Stop polling immediately on success
+
         // Sync the session to the auth store so we have the user ID
         await useAuthStore.getState().checkSession();
 
         // Retrieve persistent signup data
-        const signupData = useAuthStore.getState().pendingSignupData;
+        // Retrieve signup data from params or persistent store
+        const signupData = route.params?.signupData || useAuthStore.getState().pendingSignupData;
+        console.log('[EmailVerification] Navigating to Preference with signupData:', signupData ? 'Exists' : 'MISSING');
 
-        // User is now authenticated - navigate to Terms
-        navigation.navigate('Terms', { signupData });
-      } else {
+        // User is now authenticated - navigate to CategoryPreference
+        navigation.replace('CategoryPreference', { signupData });
+      } else if (isManual) {
         Alert.alert(
           'Not Verified Yet',
           'We couldn\'t verify your email confirmation yet. Please make sure you clicked the link in the email we sent you.',
@@ -88,11 +114,15 @@ export default function EmailVerificationScreen({ navigation, route }: Props) {
         );
       }
     } catch (err: any) {
-      Alert.alert('Error', err.message || 'Verification check failed');
+      if (isManual) {
+        Alert.alert('Error', err.message || 'Verification check failed');
+      }
     } finally {
-      setChecking(false);
+      if (isManual) setChecking(false);
     }
   };
+
+  const handleCheckStatus = () => checkStatus(true);
 
   const handleOpenEmail = async () => {
     try {

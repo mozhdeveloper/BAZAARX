@@ -1,8 +1,8 @@
 import React, { useEffect, useState, useRef } from 'react';
-import { View, Text, ScrollView, Pressable, StyleSheet, Modal, StatusBar, ActivityIndicator } from 'react-native';
+import { View, Text, ScrollView, Pressable, StyleSheet, Modal, StatusBar, ActivityIndicator, TextInput } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { ChevronLeft, Plus, Edit2, Trash2, Home, Briefcase, MapPinned } from 'lucide-react-native';
+import { ChevronLeft, Plus, Edit2, Trash2, Home, Briefcase, MapPinned, ChevronUp, ChevronDown, Search } from 'lucide-react-native';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import type { RootStackParamList } from '../App';
 import { COLORS } from '../src/constants/theme';
@@ -10,6 +10,7 @@ import { type Address } from '../src/services/addressService';
 import { useAddressStore } from '../src/stores/addressStore';
 import { useAuthStore } from '../src/stores/authStore';
 import AddressFormModal from '../src/components/AddressFormModal';
+import { regions, provinces, cities, barangays } from 'select-philippines-address';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'Addresses'>;
 
@@ -35,6 +36,15 @@ export default function AddressesScreen({ navigation }: Props) {
   const [selectedAddressId, setSelectedAddressId] = useState<string | null>(null);
   const [isAddressModalOpen, setIsAddressModalOpen] = useState(false);
   const [editingAddress, setEditingAddress] = useState<Address | null>(null);
+  
+  // Dropdown and location states
+  const [openDropdown, setOpenDropdown] = useState<'region' | 'province' | 'city' | 'barangay' | null>(null);
+  const [searchText, setSearchText] = useState('');
+  const [isLoadingLocation, setIsLoadingLocation] = useState(false);
+  const [regionList, setRegionList] = useState<any[]>([]);
+  const [provinceList, setProvinceList] = useState<any[]>([]);
+  const [cityList, setCityList] = useState<any[]>([]);
+  const [barangayList, setBarangayList] = useState<any[]>([]);
 
   const getAddressIcon = (type: string) => {
     switch (type.toLowerCase()) {
@@ -95,73 +105,7 @@ export default function AddressesScreen({ navigation }: Props) {
     }
   };
 
-  // --- STRICTLY FORMATTED DROPDOWN ---
-  const Dropdown = ({ label, value, type, list, disabled = false, placeholder = "Select..." }: any) => {
-    const isOpen = openDropdown === type;
-    const filteredList = list.filter((item: any) => {
-      const itemName = item.region_name || item.province_name || item.city_name || item.brgy_name || '';
-      return itemName.toLowerCase().includes(searchText.toLowerCase());
-    });
 
-    return (
-      <View style={{ marginBottom: 12, zIndex: isOpen ? 100 : 1 }}>
-        <Text style={styles.inputLabel}>{label}</Text>
-        <Pressable
-          onPress={() => toggleDropdown(type)}
-          disabled={disabled}
-          style={[styles.dropdownTrigger, disabled && styles.dropdownDisabled, isOpen && styles.dropdownActive]}
-        >
-          <Text style={[styles.dropdownText, !value && styles.placeholderText, disabled && { color: '#9CA3AF' }]} numberOfLines={1}>
-            {value || placeholder}
-          </Text>
-          {isLoadingLocation && isOpen ? (
-            <ActivityIndicator size="small" color="#FF6A00" />
-          ) : (
-            isOpen ? <ChevronUp size={20} color={disabled ? "#9CA3AF" : "#4B5563"} /> : <ChevronDown size={20} color={disabled ? "#9CA3AF" : "#4B5563"} />
-          )}
-        </Pressable>
-        {isOpen && (
-          <View style={styles.dropdownListContainer}>
-            <View style={styles.searchContainer}>
-              <Search size={16} color="#9CA3AF" />
-              <TextInput
-                style={styles.searchInput}
-                placeholder="Search..."
-                value={searchText}
-                onChangeText={setSearchText}
-                autoFocus={true}
-              />
-            </View>
-            <ScrollView style={styles.selectList} nestedScrollEnabled={true} keyboardShouldPersistTaps="handled">
-              {filteredList.map((item: any, index: number) => {
-                const key = `${type}-${index}`;
-                let name = '';
-                if (type === 'region') name = item.region_name;
-                else if (type === 'province') name = item.province_name;
-                else if (type === 'city') name = item.city_name;
-                else name = item.brgy_name;
-
-                return (
-                  <Pressable
-                    key={key}
-                    style={({ pressed }) => [styles.selectItem, pressed && { backgroundColor: '#FFF7ED' }]}
-                    onPress={() => {
-                      if (type === 'region') onRegionChange(item.region_code);
-                      else if (type === 'province') onProvinceChange(item.province_code);
-                      else if (type === 'city') onCityChange(item.city_code);
-                      else onBarangayChange(item.brgy_name, item.brgy_code);
-                    }}
-                  >
-                    <Text style={styles.selectItemText}>{name}</Text>
-                  </Pressable>
-                );
-              })}
-            </ScrollView>
-          </View>
-        )}
-      </View>
-    );
-  };
 
   return (
     <View style={styles.container}>

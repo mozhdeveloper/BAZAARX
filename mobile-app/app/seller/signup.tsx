@@ -1,15 +1,20 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
+import { useForm, Controller } from 'react-hook-form';
+import { zodResolver } from '@hookform/resolvers/zod';
+import { sellerSignupSchema, type SellerSignupFormData } from '../../src/lib/schemas';
+import { COLORS } from '../../src/constants/theme';
 import {
     View, Text, TextInput, StyleSheet, Pressable, KeyboardAvoidingView,
-    Platform, ScrollView, Alert, ActivityIndicator, Dimensions, Image
+    Platform, ScrollView, Alert, ActivityIndicator, Dimensions, Image, Modal
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
-import { Mail, Lock, Store, Phone, Eye, EyeOff, ArrowRight, Check, XCircle, ChevronRight, CheckCircle2, UserCheck } from 'lucide-react-native';
+import { Mail, Lock, Store, Phone, Eye, EyeOff, ArrowRight, Check, XCircle, ChevronRight, CheckCircle2, UserCheck, ArrowLeft, Square, CheckSquare, Clock, ExternalLink } from 'lucide-react-native';
 import { useNavigation } from '@react-navigation/native';
 import { supabase } from '../../src/lib/supabase';
 import { authService } from '../../src/services/authService';
 import { useSellerStore, useAuthStore } from '../../src/stores/sellerStore';
+import { useAuthStore as useGlobalAuthStore } from '../../src/stores/authStore';
 
 const { width } = Dimensions.get('window');
 
@@ -20,83 +25,82 @@ export default function SellerSignupScreen() {
     const [loading, setLoading] = useState(false);
     const [showPassword, setShowPassword] = useState(false);
     const [showConfirmPassword, setShowConfirmPassword] = useState(false);
-
-    const [formData, setFormData] = useState({
-        email: '',
-        password: '',
-        confirmPassword: '',
-        storeName: '',
-        phone: '',
-        storeDescription: '',
-        storeAddress: '',
-    });
+    const [acceptedTerms, setAcceptedTerms] = useState(false);
+    const [showTermsModal, setShowTermsModal] = useState(false);
+    const [checking, setChecking] = useState(false);
+    const [resendCooldown, setResendCooldown] = useState(0);
+    const intervalRef = useRef<any>(null);
 
     // Validation States
     const [emailStatus, setEmailStatus] = useState<'idle' | 'checking' | 'available' | 'taken'>('idle');
     const [emailMode, setEmailMode] = useState<'new' | 'buyer-only' | 'blocked' | null>(null);
     const [storeStatus, setStoreStatus] = useState<'idle' | 'checking' | 'available' | 'taken'>('idle');
     const [emailMessage, setEmailMessage] = useState('');
-    const [error, setError] = useState('');
 
-    const validateEmail = (value: string) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value);
-    const validatePassword = (password: string): { valid: boolean; errors: string[] } => {
-        const errors: string[] = [];
+    // Verification States
+    const [verificationSent, setVerificationSent] = useState(false);
+    const [pendingEmail, setPendingEmail] = useState('');
 
-        if (password.length < 8) {
-            errors.push('Password must be at least 8 characters long');
-        }
-        if (!/[A-Z]/.test(password)) {
-            errors.push('Password must contain at least one uppercase letter');
-        }
-        if (!/[a-z]/.test(password)) {
-            errors.push('Password must contain at least one lowercase letter');
-        }
-        if (!/\d/.test(password)) {
-            errors.push('Password must contain at least one number');
-        }
-        if (!/[!@#$%^&*(),.?":{}|<>\-_[\]\\/`~+=;']/.test(password)) {
-            errors.push('Password must contain at least one special character');
-        }
-        if (/\s/.test(password)) {
-            errors.push('Password must not contain spaces');
-        }
+    const {
+        control,
+        handleSubmit,
+        trigger,
+        setError,
+        clearErrors,
+        formState: { errors, isValid },
+        watch,
+    } = useForm<SellerSignupFormData>({
+        resolver: zodResolver(sellerSignupSchema),
+        mode: 'onChange',
+        defaultValues: {
+            email: '',
+            password: '',
+            confirmPassword: '',
+            storeName: '',
+            phone: '',
+            storeAddress: '',
+            storeDescription: '',
+        },
+    });
 
-        return {
-            valid: errors.length === 0,
-            errors,
-        };
-    };
+    const watchedEmail = watch('email');
+    const watchedStoreName = watch('storeName');
+    const trimmedEmail = watchedEmail?.trim().toLowerCase() || '';
+    const trimmedStoreName = watchedStoreName?.trim() || '';
 
-    const livePasswordValidation = formData.password.length > 0 ? validatePassword(formData.password) : null;
-    const livePasswordError = livePasswordValidation && !livePasswordValidation.valid ? livePasswordValidation.errors[0] : '';
+    useEffect(() => {
+        navigation.setOptions({
+            animation: 'slide_from_right',
+        });
+    }, [navigation]);
 
     // --- LIVE EMAIL CHECK ---
     useEffect(() => {
-        const checkEmail = async () => {
-            const normalizedEmail = formData.email.trim().toLowerCase();
+        if (!trimmedEmail) {
+            setEmailStatus('idle');
+            setEmailMessage('');
+            setEmailMode(null);
+            clearErrors('email');
+            return;
+        }
 
-            if (!normalizedEmail) {
-                setEmailStatus('idle');
-                setEmailMessage('');
-                setEmailMode(null);
-                return;
-            }
+        // Basic format check before server check
+        if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(trimmedEmail)) {
+            setEmailStatus('idle');
+            setEmailMode(null);
+            return;
+        }
 
-            if (!validateEmail(normalizedEmail)) {
-                setEmailStatus('taken');
-                setEmailMessage('Please enter a valid email format.');
-                setEmailMode(null);
-                return;
-            }
-
-            setEmailStatus('checking');
+        setEmailStatus('checking');
+        const timeoutId = setTimeout(async () => {
             try {
-                const status = await authService.getEmailRoleStatus(normalizedEmail);
+                const status = await authService.getEmailRoleStatus(trimmedEmail);
 
                 if (!status.exists) {
                     setEmailStatus('available');
                     setEmailMessage('Email is available.');
                     setEmailMode('new');
+                    if (errors.email?.type === 'manual') clearErrors('email');
                     return;
                 }
 
@@ -105,211 +109,265 @@ export default function SellerSignupScreen() {
 
                 if (isBuyerOnly) {
                     setEmailStatus('available');
-                    setEmailMessage('Existing buyer account found. You can continue to create a seller profile.');
+                    setEmailMessage('Existing buyer account found. You can upgrade to seller.');
                     setEmailMode('buyer-only');
+                    if (errors.email?.type === 'manual') clearErrors('email');
                     return;
                 }
 
                 const hasSellerRole = roles.includes('seller');
                 setEmailStatus('taken');
                 setEmailMode('blocked');
-                setEmailMessage(
-                    hasSellerRole
-                        ? 'This email is already registered as a seller. Please sign in instead.'
-                        : 'This email is already registered with restricted roles. Use another email.'
-                );
+                const msg = hasSellerRole
+                    ? 'This email is already registered as a seller.'
+                    : 'This email is already registered with restricted roles.';
+                setEmailMessage(msg);
+                setError('email', { type: 'manual', message: msg });
             } catch (err) {
                 setEmailStatus('idle');
-                setEmailMessage('');
-                setEmailMode(null);
             }
-        };
+        }, 500);
 
-        const timeoutId = setTimeout(checkEmail, 500);
         return () => clearTimeout(timeoutId);
-    }, [formData.email]);
+    }, [trimmedEmail]);
 
     // --- LIVE STORE NAME CHECK ---
     useEffect(() => {
-        const checkStore = async () => {
-            if (formData.storeName.trim().length < 3) {
-                setStoreStatus('idle');
-                return;
-            }
+        if (trimmedStoreName.length < 3) {
+            setStoreStatus('idle');
+            if (errors.storeName?.type === 'manual') clearErrors('storeName');
+            return;
+        }
 
-            setStoreStatus('checking');
+        setStoreStatus('checking');
+        const timeoutId = setTimeout(async () => {
             try {
                 const { data, error: fetchError } = await supabase
                     .from('sellers')
                     .select('store_name')
-                    .ilike('store_name', formData.storeName.trim())
+                    .ilike('store_name', trimmedStoreName)
                     .maybeSingle();
 
                 if (fetchError) throw fetchError;
-                setStoreStatus(data ? 'taken' : 'available');
+                if (data) {
+                    setStoreStatus('taken');
+                    setError('storeName', { type: 'manual', message: 'This store name is already taken' });
+                } else {
+                    setStoreStatus('available');
+                    if (errors.storeName?.type === 'manual') clearErrors('storeName');
+                }
             } catch (err) {
                 setStoreStatus('idle');
             }
-        };
+        }, 500);
 
-        const timeoutId = setTimeout(checkStore, 500);
         return () => clearTimeout(timeoutId);
-    }, [formData.storeName]);
+    }, [trimmedStoreName]);
 
-    const handleNextStep = () => {
-        if (step === 1) {
-            if (!formData.email || !formData.password || !formData.confirmPassword) {
-                setError("Please fill in all fields");
-                return;
-            }
-            if (!validateEmail(formData.email.trim())) {
-                setError("Please enter a valid email address");
-                return;
-            }
-            if (formData.password !== formData.confirmPassword) {
-                setError("Passwords do not match");
-                return;
-            }
-            if (emailMode === 'new') {
-                const passwordValidation = validatePassword(formData.password);
-                if (!passwordValidation.valid) {
-                    setError(passwordValidation.errors[0] || "Password does not meet minimum security requirements.");
-                    return;
-                }
-            }
-            if (emailMode === null && emailStatus === 'available') {
-                const passwordValidation = validatePassword(formData.password);
-                if (!passwordValidation.valid) {
-                    setError(passwordValidation.errors[0] || "Password does not meet minimum security requirements.");
-                    return;
-                }
-            }
-            if (emailMode === null && emailStatus === 'idle') {
-                setError("Please wait for email validation.");
-                return;
-            }
-            if (emailStatus === 'checking') {
-                setError("Checking email status. Please wait.");
-                return;
-            }
-            if (emailStatus === 'taken') {
-                setError("Email is already registered");
-                return;
-            }
-            setError("");
-            setStep(2);
+    // Add polling cleanup
+    useEffect(() => {
+        return () => {
+            if (intervalRef.current) clearInterval(intervalRef.current);
+        };
+    }, []);
+
+    // Cooldown timer logic
+    useEffect(() => {
+        let timer: any;
+        if (resendCooldown > 0) {
+            timer = setInterval(() => {
+                setResendCooldown((prev) => prev - 1);
+            }, 1000);
+        }
+        return () => clearInterval(timer);
+    }, [resendCooldown]);
+
+    const handleNextStep = async () => {
+        const isValidStep1 = await trigger(['email', 'password', 'confirmPassword']);
+        if (isValidStep1 && emailStatus !== 'taken') {
+            await startVerification();
         }
     };
 
-    const handleFinalSignup = async () => {
-        if (!formData.storeName) {
-            setError("Store name is required");
-            return;
-        }
-
-        if (storeStatus === 'taken') {
-            setError("Store name is already taken");
-            return;
-        }
-
+    const startVerification = async () => {
         setLoading(true);
-        setError("");
+        try {
+            const email = watch('email').trim().toLowerCase();
+            const password = watch('password');
+            setPendingEmail(email);
 
+            const status = await authService.getEmailRoleStatus(email);
+            
+            if (status.exists) {
+                // User already exists (likely a buyer)
+                // We check if they are already verified
+                const isVerified = await authService.checkVerificationStatus(email);
+                if (isVerified) {
+                    setStep(3);
+                    return;
+                }
+                // If not verified, resend link
+                await authService.resendVerificationLink(email);
+            } else {
+                // New user - sign up
+                await authService.signUp(email, password, {
+                    user_type: 'buyer', // Default to buyer first, then add seller in step 3
+                    email: email,
+                    password: password,
+                    has_accepted_terms: true,
+                });
+            }
+
+            setVerificationSent(true);
+            setStep(2);
+            startPolling();
+            setResendCooldown(60);
+        } catch (err: any) {
+            Alert.alert('Error', err.message || 'Failed to start verification.');
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    const startPolling = () => {
+        if (intervalRef.current) clearInterval(intervalRef.current);
+        intervalRef.current = setInterval(async () => {
+            try {
+                const verified = await authService.checkVerificationStatus(pendingEmail);
+                if (verified) {
+                    stopPolling();
+                    setStep(3);
+                }
+            } catch (e) {
+                console.error('Polling error:', e);
+            }
+        }, 3000);
+    };
+
+    const stopPolling = () => {
+        if (intervalRef.current) {
+            clearInterval(intervalRef.current);
+            intervalRef.current = null;
+        }
+    };
+
+    const checkVerificationManually = async () => {
+        setChecking(true);
+        try {
+            const verified = await authService.checkVerificationStatus(pendingEmail);
+            if (verified) {
+                stopPolling();
+                setStep(3);
+            } else {
+                Alert.alert('Not Verified Yet', 'Please click the link in your email to continue.');
+            }
+        } catch (err: any) {
+            Alert.alert('Error', err.message || 'Failed to check status.');
+        } finally {
+            setChecking(false);
+        }
+    };
+
+    const resendLink = async () => {
+        if (resendCooldown > 0) return;
+        setLoading(true);
+        try {
+            await authService.resendVerificationLink(pendingEmail);
+            setResendCooldown(60);
+            Alert.alert('Link Resent', 'A new confirmation link has been sent to your email.');
+        } catch (err: any) {
+            Alert.alert('Error', err.message || 'Failed to resend link.');
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    const handleFinalSignup = async (formData: SellerSignupFormData) => {
+        setLoading(true);
         try {
             const normalizedEmail = formData.email.trim().toLowerCase();
-            const latestStatus = await authService.getEmailRoleStatus(normalizedEmail);
-            const roles = latestStatus.roles;
-            const isBuyerOnly = latestStatus.exists && roles.length > 0 && roles.every((role) => role === 'buyer');
+            
+            // Ensure we have a valid session after verification
+            await useAuthStore.getState().checkSession();
+            let currentUser = useAuthStore.getState().user;
 
-            let userId: string;
-
-            if (isBuyerOnly) {
-                if (!latestStatus.userId) {
-                    throw new Error('Unable to find buyer account for this email.');
-                }
-
+            // If no session exists (e.g., they verified in a different browser and deep-linking failed),
+            // we attempt a silent login since we have their email and password from the form
+            if (!currentUser) {
                 const { data: signInData, error: signInError } = await supabase.auth.signInWithPassword({
                     email: normalizedEmail,
                     password: formData.password,
                 });
-
-                if (signInError || !signInData.user) {
-                    throw new Error('Incorrect password for existing buyer account.');
-                }
-
-                if (signInData.user.id !== latestStatus.userId) {
-                    throw new Error('Account mismatch detected. Please try again.');
-                }
-
-                const sellerResult = await authService.registerBuyerAsSeller(latestStatus.userId, {
-                    store_name: formData.storeName,
-                    store_description: formData.storeDescription,
-                    owner_name: formData.storeName,
-                });
-
-                if (!sellerResult) {
-                    throw new Error('Failed to upgrade buyer account to seller.');
-                }
-
-                userId = latestStatus.userId;
-
-                await supabase
-                    .from('sellers')
-                    .update({
-                        business_name: formData.storeName,
-                        business_address: formData.storeAddress,
-                    } as any)
-                    .eq('id', userId);
-            } else {
-                // Use authService for proper profile and user_roles creation
-                const result = await authService.signUp(
-                    normalizedEmail,
-                    formData.password,
-                    {
-                        first_name: formData.storeName,
-                        phone: formData.phone,
-                        user_type: 'seller',
-                        email: normalizedEmail,
-                        password: formData.password,
-                    }
-                );
-
-                if (!result || !result.user) throw new Error('Signup failed. Please try again.');
-
-                userId = result.user.id;
-
-                // Insert Seller record
-                const { error: sellerError } = await supabase.from('sellers').insert({
-                    id: userId,
-                    store_name: formData.storeName,
-                    business_name: formData.storeName,
-                    store_description: formData.storeDescription,
-                    business_address: formData.storeAddress,
-                    approval_status: 'pending'
-                });
-
-                if (sellerError) throw sellerError;
+                
+                if (signInError) throw new Error('Credentials mismatch. Please log in again.');
+                currentUser = {
+                    id: signInData.user.id,
+                    email: signInData.user.email || '',
+                    name: formData.storeName,
+                    roles: ['buyer'] // Default
+                } as any;
             }
 
-            // Sync data to store - IMPORTANT: Include the seller ID
+            if (!currentUser?.id) throw new Error('Account initialization failed.');
+            const userId = currentUser.id;
+
+            // 1. Create/Ensure Profile data is updated
+            await supabase
+                .from('profiles')
+                .update({
+                    first_name: formData.storeName,
+                    phone: formData.phone,
+                })
+                .eq('id', userId);
+
+            // 2. Add 'seller' role
+            await authService.addUserRole(userId, 'seller');
+
+            // 3. Create or Update Seller core record
+            const { error: sellerError } = await supabase
+                .from('sellers')
+                .upsert({
+                    id: userId,
+                    store_name: formData.storeName,
+                    store_description: formData.storeDescription || '',
+                    approval_status: 'pending',
+                    updated_at: new Date().toISOString()
+                }, { onConflict: 'id' });
+
+            if (sellerError) throw sellerError;
+
+            // 4. Create or Update Seller Business Profile (for address)
+            const { error: bizProfileError } = await supabase
+                .from('seller_business_profiles')
+                .upsert({
+                    seller_id: userId,
+                    address_line_1: formData.storeAddress,
+                    updated_at: new Date().toISOString()
+                }, { onConflict: 'seller_id' });
+
+            if (bizProfileError) throw bizProfileError;
+
+            // 4. Update Global Store & Switch to Seller
             updateSellerInfo({
                 id: userId,
                 store_name: formData.storeName,
-                email: formData.email,
+                email: normalizedEmail,
                 approval_status: 'pending'
             });
 
-            // Sync roles to AuthStore
             addRole('seller');
             switchRole('seller');
 
-            Alert.alert(
-                'Success',
-                'Application submitted! We will review your shop.',
-                [{ text: 'OK', onPress: () => navigation.replace('SellerStack') }]
-            );
+            // Sync with Global Auth Store to ensure root navigation respects the role
+            useGlobalAuthStore.getState().addRole('seller');
+            useGlobalAuthStore.getState().switchRole('seller');
+
+            Alert.alert('Success', 'Application submitted! We will review your shop.', [
+                { text: 'OK', onPress: () => navigation.replace('SellerStack') }
+            ]);
         } catch (err: any) {
-            setError(err.message || 'Signup failed. Please try again.');
+            console.error('Final signup error:', err);
+            Alert.alert('Error', err.message || 'Signup completion failed.');
         } finally {
             setLoading(false);
         }
@@ -322,210 +380,350 @@ export default function SellerSignupScreen() {
 
                     {/* Header Section */}
                     <View style={styles.header}>
+                        <Pressable style={styles.backArrow} onPress={() => navigation.goBack()}>
+                            <ArrowLeft size={20} color={COLORS.gray400} />
+                        </Pressable>
                         <View style={styles.logoWrapper}>
                             <Image
                                 source={require('../../assets/icon.png')}
                                 style={styles.logo}
                             />
                         </View>
-                        <Text style={styles.title}>Join BazaarPH</Text>
-                        <Text style={styles.subtitle}>Create your seller account to get started.</Text>
+                        <Text style={[styles.title, { color: COLORS.textHeadline }]}>Join BazaarX</Text>
+                        <Text style={[styles.subtitle, { color: COLORS.textMuted }]}>Create your seller account today</Text>
                     </View>
 
                     {/* Progress Indicator */}
                     <View style={styles.progressContainer}>
-                        <View style={styles.progressRow}>
-                            <View style={[styles.stepCircle, step >= 1 && styles.activeCircle]}>
-                                {step > 1 ? <CheckCircle2 size={20} color="#FFF" /> : <Text style={styles.stepNumber}>1</Text>}
+                        <View style={styles.progressLineBase} />
+                        <View style={[styles.progressLineActive, { width: step === 1 ? '0%' : step === 2 ? '50%' : '100%' }]} />
+                        <View style={styles.stepsRow}>
+                            <View style={[styles.stepDot, step >= 1 && styles.activeDot]}>
+                                {step > 1 ? <Check size={14} color="#FFF" /> : <Text style={styles.stepNum}>1</Text>}
                             </View>
-                            <View style={[styles.progressLine, step === 2 && styles.activeLine]} />
-                            <View style={[styles.stepCircle, step === 2 && styles.activeCircle]}>
-                                <Text style={[styles.stepNumber, step < 2 && styles.inactiveNumber]}>2</Text>
+                            <View style={[styles.stepDot, step >= 2 && styles.activeDot]}>
+                                {step > 2 ? <Check size={14} color="#FFF" /> : <Text style={[styles.stepNum, step < 2 && styles.inactiveNum]}>2</Text>}
+                            </View>
+                            <View style={[styles.stepDot, step >= 3 && styles.activeDot]}>
+                                <Text style={[styles.stepNum, step < 3 && styles.inactiveNum]}>3</Text>
                             </View>
                         </View>
-                        <View style={styles.progressLabels}>
-                            <Text style={[styles.progressLabel, step >= 1 && styles.activeLabel]}>Account</Text>
-                            <Text style={[styles.progressLabel, step === 2 && styles.activeLabel]}>Store Details</Text>
+                        <View style={styles.stepLabels}>
+                            <Text style={[styles.stepLabel, step >= 1 && styles.activeLabel]}>Account</Text>
+                            <Text style={[styles.stepLabel, step >= 2 && styles.activeLabel]}>Email</Text>
+                            <Text style={[styles.stepLabel, step >= 3 && styles.activeLabel]}>Store</Text>
                         </View>
                     </View>
 
-                    {/* Error Message */}
-                    {error && (
-                        <View style={styles.errorCard}>
-                            <XCircle size={18} color="#EF4444" />
-                            <Text style={styles.errorText}>{error}</Text>
-                        </View>
-                    )}
-
                     <View style={styles.form}>
-                        {step === 1 ? (
+                        <View style={{ display: step === 1 ? 'flex' : 'none' }}>
                             <View style={styles.stepContent}>
-                                <View style={styles.inputGroup}>
+                                <View style={styles.inputContainer}>
                                     <Text style={styles.label}>Email Address</Text>
-                                    <View style={[styles.inputWrapper, emailStatus === 'taken' && styles.errorInput]}>
-                                        <Mail size={18} color="#9CA3AF" />
-                                        <TextInput
-                                            style={styles.input}
-                                            placeholder="Enter your email"
-                                            autoCapitalize="none"
-                                            keyboardType="email-address"
-                                            value={formData.email}
-                                            onChangeText={(v) => {
-                                                setFormData({ ...formData, email: v });
-                                                if (error) setError("");
-                                            }}
-                                        />
-                                        {emailStatus === 'checking' && <ActivityIndicator size="small" color="#D97706" />}
-                                        {emailStatus === 'available' && <CheckCircle2 size={18} color="#10B981" />}
-                                        {emailStatus === 'taken' && <XCircle size={18} color="#EF4444" />}
-                                    </View>
-                                    {(emailStatus === 'checking' || !!emailMessage) && (
-                                        <Text
-                                            style={[
-                                                styles.emailStatusText,
-                                                emailStatus === 'available' && styles.emailStatusSuccess,
-                                                emailStatus === 'taken' && styles.emailStatusError,
-                                                emailStatus === 'checking' && styles.emailStatusChecking,
-                                            ]}
-                                        >
-                                            {emailStatus === 'checking' ? 'Checking email availability...' : emailMessage}
+                                    <Controller
+                                        control={control}
+                                        name="email"
+                                        render={({ field: { onChange, onBlur, value } }) => (
+                                            <View style={[styles.inputWrapper, (errors.email) && styles.inputWrapperError]}>
+                                                <Mail size={18} color={errors.email ? COLORS.error : COLORS.gray400} />
+                                                <TextInput
+                                                    style={styles.input}
+                                                    placeholder="Enter your store email"
+                                                    placeholderTextColor={COLORS.gray400}
+                                                    autoCapitalize="none"
+                                                    keyboardType="email-address"
+                                                    onBlur={onBlur}
+                                                    onChangeText={onChange}
+                                                    value={value}
+                                                />
+                                                {emailStatus === 'checking' && <ActivityIndicator size="small" color="#D97706" />}
+                                                {emailStatus === 'available' && <CheckCircle2 size={18} color={COLORS.success} />}
+                                            </View>
+                                        )}
+                                    />
+                                    {errors.email ? (
+                                        <Text style={styles.errorText}>{errors.email.message}</Text>
+                                    ) : !!emailMessage && emailStatus !== 'idle' ? (
+                                        <Text style={[styles.statusText, emailStatus === 'available' ? styles.statusSuccess : styles.statusChecking]}>
+                                            {emailMessage}
                                         </Text>
-                                    )}
+                                    ) : null}
                                 </View>
 
-                                <View style={styles.inputGroup}>
+                                <View style={styles.inputContainer}>
                                     <Text style={styles.label}>Password</Text>
-                                    <View style={styles.inputWrapper}>
-                                        <Lock size={18} color="#9CA3AF" />
-                                        <TextInput
-                                            style={styles.input}
-                                            placeholder="Create a password"
-                                            secureTextEntry={!showPassword}
-                                            value={formData.password}
-                                            onChangeText={(v) => {
-                                                setFormData({ ...formData, password: v });
-                                                if (error) setError("");
-                                            }}
-                                        />
-                                        <Pressable onPress={() => setShowPassword(!showPassword)}>
-                                            {showPassword ? <EyeOff size={18} color="#9CA3AF" /> : <Eye size={18} color="#9CA3AF" />}
-                                        </Pressable>
-                                    </View>
-                                    {(emailMode !== 'buyer-only') && !!livePasswordError && (
-                                        <Text style={styles.passwordErrorText}>{livePasswordError}</Text>
-                                    )}
+                                    <Controller
+                                        control={control}
+                                        name="password"
+                                        render={({ field: { onChange, onBlur, value } }) => (
+                                            <View style={[styles.inputWrapper, errors.password && styles.inputWrapperError]}>
+                                                <Lock size={18} color={errors.password ? COLORS.error : COLORS.gray400} />
+                                                <TextInput
+                                                    style={styles.input}
+                                                    placeholder="Create a strong password"
+                                                    placeholderTextColor={COLORS.gray400}
+                                                    secureTextEntry={!showPassword}
+                                                    onBlur={onBlur}
+                                                    onChangeText={onChange}
+                                                    value={value}
+                                                />
+                                                <Pressable onPress={() => setShowPassword(!showPassword)}>
+                                                    {showPassword ? <EyeOff size={18} color={COLORS.gray400} /> : <Eye size={18} color={COLORS.gray400} />}
+                                                </Pressable>
+                                            </View>
+                                        )}
+                                    />
+                                    {errors.password && <Text style={styles.errorText}>{errors.password.message}</Text>}
                                 </View>
 
-                                <View style={styles.inputGroup}>
+                                <View style={styles.inputContainer}>
                                     <Text style={styles.label}>Confirm Password</Text>
-                                    <View style={styles.inputWrapper}>
-                                        <Lock size={18} color="#9CA3AF" />
-                                        <TextInput
-                                            style={styles.input}
-                                            placeholder="Confirm your password"
-                                            secureTextEntry={!showConfirmPassword}
-                                            value={formData.confirmPassword}
-                                            onChangeText={(v) => {
-                                                setFormData({ ...formData, confirmPassword: v });
-                                                if (error) setError("");
-                                            }}
-                                        />
-                                        <Pressable onPress={() => setShowConfirmPassword(!showConfirmPassword)}>
-                                            {showConfirmPassword ? <EyeOff size={18} color="#9CA3AF" /> : <Eye size={18} color="#9CA3AF" />}
+                                    <Controller
+                                        control={control}
+                                        name="confirmPassword"
+                                        render={({ field: { onChange, onBlur, value } }) => (
+                                            <View style={[styles.inputWrapper, errors.confirmPassword && styles.inputWrapperError]}>
+                                                <Lock size={18} color={errors.confirmPassword ? COLORS.error : COLORS.gray400} />
+                                                <TextInput
+                                                    style={styles.input}
+                                                    placeholder="Confirm your password"
+                                                    placeholderTextColor={COLORS.gray400}
+                                                    secureTextEntry={!showConfirmPassword}
+                                                    onBlur={onBlur}
+                                                    onChangeText={onChange}
+                                                    value={value}
+                                                />
+                                                <Pressable onPress={() => setShowConfirmPassword(!showConfirmPassword)}>
+                                                    {showConfirmPassword ? <EyeOff size={18} color={COLORS.gray400} /> : <Eye size={18} color={COLORS.gray400} />}
+                                                </Pressable>
+                                            </View>
+                                        )}
+                                    />
+                                    {errors.confirmPassword && <Text style={styles.errorText}>{errors.confirmPassword.message}</Text>}
+                                </View>
+
+                                <View style={styles.termsContainer}>
+                                    <Pressable 
+                                        style={styles.checkboxBase} 
+                                        onPress={() => setAcceptedTerms(!acceptedTerms)}
+                                    >
+                                        {acceptedTerms ? (
+                                            <CheckSquare size={20} color="#D97706" />
+                                        ) : (
+                                            <Square size={20} color={COLORS.gray400} />
+                                        )}
+                                    </Pressable>
+                                    <View style={styles.termsTextContainer}>
+                                        <Text style={styles.termsText}>I agree to the </Text>
+                                        <Pressable onPress={() => setShowTermsModal(true)}>
+                                            <Text style={styles.termsLink}>Terms and Conditions</Text>
                                         </Pressable>
                                     </View>
                                 </View>
 
-                                <Pressable style={styles.primaryButton} onPress={handleNextStep}>
-                                    <LinearGradient
-                                        colors={['#D97706', '#B45309']}
-                                        style={styles.buttonGradient}
-                                    >
-                                        <Text style={styles.buttonText}>Next: Store Info</Text>
-                                        <ArrowRight size={20} color="#FFF" />
-                                    </LinearGradient>
+                                <Pressable
+                                    style={[
+                                        styles.primaryButton, 
+                                        (loading || emailStatus === 'checking' || emailStatus === 'taken' || !acceptedTerms || !watch('email') || !watch('password') || !watch('confirmPassword')) && styles.buttonDisabled
+                                    ]}
+                                    onPress={handleNextStep}
+                                    disabled={loading || emailStatus === 'checking' || emailStatus === 'taken' || !acceptedTerms || !watch('email') || !watch('password') || !watch('confirmPassword')}
+                                >
+                                    {loading ? <ActivityIndicator color="#FFF" /> : (
+                                        <>
+                                            <Text style={styles.buttonText}>Next: Verify Email</Text>
+                                            <ArrowRight size={20} color="#FFF" />
+                                        </>
+                                    )}
                                 </Pressable>
                             </View>
-                        ) : (
+                        </View>
+                        
+                        {/* Step 2: Confirmation Link Verification */}
+                        <View style={{ display: step === 2 ? 'flex' : 'none' }}>
                             <View style={styles.stepContent}>
-                                <View style={styles.inputGroup}>
-                                    <Text style={styles.label}>Store Name *</Text>
-                                    <View style={[styles.inputWrapper, storeStatus === 'taken' && styles.errorInput]}>
-                                        <Store size={18} color="#9CA3AF" />
-                                        <TextInput
-                                            style={styles.input}
-                                            placeholder="Enter your store name"
-                                            value={formData.storeName}
-                                            onChangeText={(v) => {
-                                                setFormData({ ...formData, storeName: v });
-                                                if (error) setError("");
-                                            }}
-                                        />
-                                        {storeStatus === 'checking' && <ActivityIndicator size="small" color="#D97706" />}
-                                        {storeStatus === 'available' && <CheckCircle2 size={18} color="#10B981" />}
-                                        {storeStatus === 'taken' && <XCircle size={18} color="#EF4444" />}
+                                <View style={styles.emailVerifyContainer}>
+                                    <View style={styles.mailIconCircle}>
+                                        <Mail size={48} color="#D97706" />
+                                    </View>
+                                    <Text style={[styles.verifyTitle, { color: COLORS.textHeadline }]}>Confirm Your Email</Text>
+                                    <Text style={[styles.verifySubtitle, { color: COLORS.textMuted }]}>
+                                        We've sent a confirmation link to{'\n'}
+                                        <Text style={{ fontWeight: '700', color: COLORS.textHeadline }}>{pendingEmail}</Text>
+                                    </Text>
+                                    
+                                    <View style={styles.instructionCard}>
+                                        <View style={styles.instructionRow}>
+                                            <View style={styles.instructionDot}>
+                                                <Text style={styles.instructionNum}>1</Text>
+                                            </View>
+                                            <Text style={styles.instructionText}>Check your inbox and spam folder</Text>
+                                        </View>
+                                        <View style={styles.instructionRow}>
+                                            <View style={styles.instructionDot}>
+                                                <Text style={styles.instructionNum}>2</Text>
+                                            </View>
+                                            <Text style={styles.instructionText}>Click the verification link in the email</Text>
+                                        </View>
+                                        <View style={styles.instructionRow}>
+                                            <View style={styles.instructionDot}>
+                                                <Text style={styles.instructionNum}>3</Text>
+                                            </View>
+                                            <Text style={styles.instructionText}>Return here to complete your setup</Text>
+                                        </View>
                                     </View>
                                 </View>
 
-                                <View style={styles.inputGroup}>
+                                <Pressable
+                                    style={[styles.primaryButton, (checking) && styles.buttonDisabled]}
+                                    onPress={checkVerificationManually}
+                                    disabled={checking}
+                                >
+                                    {checking ? <ActivityIndicator color="#FFF" /> : (
+                                        <>
+                                            <Text style={styles.buttonText}>I've Verified My Email</Text>
+                                            <ArrowRight size={20} color="#FFF" />
+                                        </>
+                                    )}
+                                </Pressable>
+
+                                <View style={styles.resendContainer}>
+                                    <View style={styles.cooldownRow}>
+                                        <Clock size={16} color={COLORS.gray400} />
+                                        <Text style={[styles.resendText, { color: COLORS.textMuted }]}>
+                                            {resendCooldown > 0 
+                                                ? `Resend available in ${resendCooldown}s` 
+                                                : "Didn't receive the link?"}
+                                        </Text>
+                                    </View>
+                                    <Pressable onPress={resendLink} disabled={loading || resendCooldown > 0}>
+                                        <Text style={[styles.resendLink, (loading || resendCooldown > 0) && styles.resendDisabled]}>Resend Link</Text>
+                                    </Pressable>
+                                </View>
+
+                                <Pressable
+                                    style={styles.backBtn}
+                                    onPress={() => {
+                                        stopPolling();
+                                        setStep(1);
+                                    }}
+                                >
+                                    <Text style={styles.backBtnText}>← Back to Account</Text>
+                                </Pressable>
+                            </View>
+                        </View>
+
+                        <View style={{ display: step === 3 ? 'flex' : 'none' }}>
+                            <View style={styles.stepContent}>
+                                <View style={styles.inputContainer}>
+                                    <Text style={styles.label}>Store Name</Text>
+                                    <Controller
+                                        control={control}
+                                        name="storeName"
+                                        render={({ field: { onChange, onBlur, value } }) => (
+                                            <View style={[styles.inputWrapper, errors.storeName && styles.inputWrapperError]}>
+                                                <Store size={18} color={errors.storeName ? COLORS.error : COLORS.gray400} />
+                                                <TextInput
+                                                    style={styles.input}
+                                                    placeholder="What's your shop called?"
+                                                    placeholderTextColor={COLORS.gray400}
+                                                    onBlur={onBlur}
+                                                    onChangeText={onChange}
+                                                    value={value}
+                                                />
+                                                {storeStatus === 'checking' && <ActivityIndicator size="small" color="#D97706" />}
+                                                {storeStatus === 'available' && <CheckCircle2 size={18} color={COLORS.success} />}
+                                            </View>
+                                        )}
+                                    />
+                                    {errors.storeName && <Text style={styles.errorText}>{errors.storeName.message}</Text>}
+                                </View>
+
+                                <View style={styles.inputContainer}>
                                     <Text style={styles.label}>Phone Number</Text>
-                                    <View style={styles.inputWrapper}>
-                                        <Phone size={18} color="#9CA3AF" />
-                                        <TextInput
-                                            style={styles.input}
-                                            placeholder="+63 912 345 6789"
-                                            keyboardType="phone-pad"
-                                            value={formData.phone}
-                                            onChangeText={(v) => setFormData({ ...formData, phone: v })}
-                                        />
-                                    </View>
+                                    <Controller
+                                        control={control}
+                                        name="phone"
+                                        render={({ field: { onChange, onBlur, value } }) => (
+                                            <View style={[styles.inputWrapper, errors.phone && styles.inputWrapperError]}>
+                                                <Phone size={18} color={errors.phone ? COLORS.error : COLORS.gray400} />
+                                                <TextInput
+                                                    style={styles.input}
+                                                    placeholder="Contact number"
+                                                    placeholderTextColor={COLORS.gray400}
+                                                    keyboardType="phone-pad"
+                                                    onBlur={onBlur}
+                                                    onChangeText={onChange}
+                                                    value={value}
+                                                />
+                                            </View>
+                                        )}
+                                    />
+                                    {errors.phone && <Text style={styles.errorText}>{errors.phone.message}</Text>}
                                 </View>
 
-                                <View style={styles.inputGroup}>
+                                <View style={styles.inputContainer}>
                                     <Text style={styles.label}>Store Address</Text>
-                                    <View style={styles.inputWrapper}>
-                                        <TextInput
-                                            style={[styles.input, { marginLeft: 0 }]}
-                                            placeholder="City, Province"
-                                            value={formData.storeAddress}
-                                            onChangeText={(v) => setFormData({ ...formData, storeAddress: v })}
-                                        />
-                                    </View>
+                                    <Controller
+                                        control={control}
+                                        name="storeAddress"
+                                        render={({ field: { onChange, onBlur, value } }) => (
+                                            <View style={[styles.inputWrapper, errors.storeAddress && styles.inputWrapperError]}>
+                                                <TextInput
+                                                    style={[styles.input, { marginLeft: 0 }]}
+                                                    placeholder="Full store address"
+                                                    placeholderTextColor={COLORS.gray400}
+                                                    onBlur={onBlur}
+                                                    onChangeText={onChange}
+                                                    value={value}
+                                                />
+                                            </View>
+                                        )}
+                                    />
+                                    {errors.storeAddress && <Text style={styles.errorText}>{errors.storeAddress.message}</Text>}
                                 </View>
 
-                                <View style={styles.inputGroup}>
-                                    <Text style={styles.label}>Store Description</Text>
-                                    <View style={[styles.inputWrapper, { height: 100, alignItems: 'flex-start', paddingTop: 12 }]}>
-                                        <TextInput
-                                            style={[styles.input, { marginLeft: 0 }]}
-                                            placeholder="Describe your store and products"
-                                            multiline
-                                            numberOfLines={4}
-                                            value={formData.storeDescription}
-                                            onChangeText={(v) => setFormData({ ...formData, storeDescription: v })}
-                                        />
-                                    </View>
+                                <View style={styles.inputContainer}>
+                                    <Text style={styles.label}>Store Description (Optional)</Text>
+                                    <Controller
+                                        control={control}
+                                        name="storeDescription"
+                                        render={({ field: { onChange, onBlur, value } }) => (
+                                            <View style={[styles.inputWrapper, { height: 100, alignItems: 'flex-start', paddingTop: 12 }]}>
+                                                <TextInput
+                                                    style={[styles.input, { marginLeft: 0 }]}
+                                                    placeholder="Tell customers about your shop"
+                                                    placeholderTextColor={COLORS.gray400}
+                                                    multiline
+                                                    numberOfLines={4}
+                                                    onBlur={onBlur}
+                                                    onChangeText={onChange}
+                                                    value={value}
+                                                />
+                                            </View>
+                                        )}
+                                    />
                                 </View>
 
                                 <View style={styles.buttonRow}>
-                                    <Pressable style={styles.backButton} onPress={() => setStep(1)}>
-                                        <Text style={styles.backButtonText}>Back</Text>
+                                    <Pressable style={styles.backBtn} onPress={() => setStep(2)}>
+                                        <Text style={styles.backBtnText}>Back</Text>
                                     </Pressable>
                                     <Pressable
-                                        style={[styles.primaryButton, { flex: 2 }]}
-                                        onPress={handleFinalSignup}
-                                        disabled={loading}
+                                        style={[styles.primaryButton, { flex: 2 }, (loading || storeStatus === 'checking' || storeStatus === 'taken') && styles.buttonDisabled]}
+                                        onPress={handleSubmit(handleFinalSignup, (errs) => {
+                                            const firstError = Object.values(errs)[0];
+                                            if (firstError) {
+                                                Alert.alert('Form Missing Data', firstError.message || 'Please check all fields.');
+                                            }
+                                        })}
+                                        disabled={loading || storeStatus === 'checking' || storeStatus === 'taken'}
                                     >
-                                        <LinearGradient
-                                            colors={['#D97706', '#B45309']}
-                                            style={styles.buttonGradient}
-                                        >
-                                            {loading ? <ActivityIndicator color="#FFF" /> : <Text style={styles.buttonText}>Create Account</Text>}
-                                        </LinearGradient>
+                                        {loading ? <ActivityIndicator color="#FFF" /> : <Text style={styles.buttonText}>Submit Shop</Text>}
                                     </Pressable>
                                 </View>
                             </View>
-                        )}
+                        </View>
                     </View>
 
                     <View style={styles.footer}>
@@ -541,170 +739,282 @@ export default function SellerSignupScreen() {
                         </Pressable>
                     </View>
                 </ScrollView>
+
+                {/* TERMS MODAL */}
+                <Modal
+                    visible={showTermsModal}
+                    animationType="slide"
+                    transparent={true}
+                >
+                    <View style={styles.modalOverlay}>
+                        <View style={styles.modalContent}>
+                            <View style={styles.modalHeader}>
+                                <Text style={styles.modalTitle}>Terms & Conditions</Text>
+                                <Pressable onPress={() => setShowTermsModal(false)} style={styles.modalCloseIcon}>
+                                    <XCircle size={24} color={COLORS.gray400} />
+                                </Pressable>
+                            </View>
+                            <ScrollView style={styles.modalScroll}>
+                                <Text style={styles.termsSectionTitle}>1. Seller Agreement</Text>
+                                <Text style={styles.termsBodyText}>
+                                    By registering as a seller on BazaarX, you agree to provide accurate information about your business and products. You are responsible for maintaining the quality of items listed and fulfilling orders in a timely manner.
+                                </Text>
+                                <Text style={styles.termsSectionTitle}>2. Commissions and Fees</Text>
+                                <Text style={styles.termsBodyText}>
+                                    BazaarX charges a standard platform fee on successful transactions. By joining, you accept our current fee structure, which is subject to change with notice.
+                                </Text>
+                                <Text style={styles.termsSectionTitle}>3. Product Compliance</Text>
+                                <Text style={styles.termsBodyText}>
+                                    Sellers must ensure that all products comply with local laws and platform policies. Prohibited items will be removed, and repeat violations may lead to account suspension.
+                                </Text>
+                                <Text style={styles.termsSectionTitle}>4. Data Privacy</Text>
+                                <Text style={styles.termsBodyText}>
+                                    We handle your data in accordance with our Privacy Policy. You agree not to misuse customer data provided for order fulfillment.
+                                </Text>
+                                <View style={{ height: 40 }} />
+                            </ScrollView>
+                            <Pressable 
+                                style={styles.modalCloseButton}
+                                onPress={() => {
+                                    setAcceptedTerms(true);
+                                    setShowTermsModal(false);
+                                }}
+                            >
+                                <Text style={styles.modalCloseButtonText}>I Accept</Text>
+                            </Pressable>
+                        </View>
+                    </View>
+                </Modal>
             </KeyboardAvoidingView>
         </SafeAreaView>
     );
 }
 
 const styles = StyleSheet.create({
-    container: { flex: 1, backgroundColor: '#FFFFFF' },
-    scrollContent: { paddingBottom: 40 },
-    header: {
-        paddingTop: 30,
-        paddingBottom: 25,
-        alignItems: 'center',
-        paddingHorizontal: 25,
-    },
+    container: { flex: 1, backgroundColor: COLORS.background || '#FFFFFF' },
+    scrollContent: { padding: 24, paddingBottom: 40 },
+    header: { marginBottom: 32, alignItems: 'center' },
+    backArrow: { position: 'absolute', left: 0, top: 0, padding: 8 },
     logoWrapper: {
         width: 64,
         height: 64,
         backgroundColor: '#FFFFFF',
-        borderRadius: 16,
+        borderRadius: 14,
         justifyContent: 'center',
         alignItems: 'center',
         shadowColor: '#D97706',
         shadowOffset: { width: 0, height: 8 },
-        shadowOpacity: 0.15,
+        shadowOpacity: 0.1,
         shadowRadius: 12,
-        marginBottom: 20,
+        elevation: 4,
+        marginBottom: 24,
         borderWidth: 1,
-        borderColor: '#FFE4D6',
+        borderColor: '#F3F4F6',
     },
-    logo: { width: 50, height: 50, borderRadius: 12 },
-    title: { fontSize: 28, fontWeight: '800', color: '#111827', marginBottom: 8 },
-    subtitle: { fontSize: 15, color: '#6B7280', fontWeight: '500', textAlign: 'center' },
+    logo: { width: 44, height: 44, borderRadius: 8 },
+    title: { fontSize: 26, fontWeight: '800', marginBottom: 8 },
+    subtitle: { fontSize: 15, textAlign: 'center' },
 
-    progressContainer: {
-        marginHorizontal: 40,
-        marginBottom: 30,
-    },
-    progressRow: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        justifyContent: 'center',
-    },
-    stepCircle: {
-        width: 40,
-        height: 40,
-        borderRadius: 20,
-        backgroundColor: '#F3F4F6',
-        justifyContent: 'center',
-        alignItems: 'center',
-        zIndex: 1,
-    },
-    activeCircle: {
-        backgroundColor: '#D97706',
-        shadowColor: '#D97706',
-        shadowOffset: { width: 0, height: 4 },
-        shadowOpacity: 0.3,
-        shadowRadius: 8,
-    },
-    stepNumber: {
-        fontSize: 16,
-        fontWeight: '700',
-        color: '#FFF',
-    },
-    inactiveNumber: {
-        color: '#9CA3AF',
-    },
-    progressLine: {
-        flex: 1,
-        height: 4,
-        backgroundColor: '#F3F4F6',
-        marginHorizontal: -5,
-    },
-    activeLine: {
-        backgroundColor: '#D97706',
-    },
-    progressLabels: {
-        flexDirection: 'row',
-        justifyContent: 'space-between',
-        marginTop: 10,
-        paddingHorizontal: -10,
-    },
-    progressLabel: {
-        fontSize: 12,
-        fontWeight: '700',
-        color: '#9CA3AF',
-    },
-    activeLabel: {
-        color: '#D97706',
-    },
+    progressContainer: { marginBottom: 40, paddingHorizontal: 20 },
+    progressLineBase: { position: 'absolute', top: 20, left: 40, right: 40, height: 2, backgroundColor: '#F3F4F6' },
+    progressLineActive: { position: 'absolute', top: 20, left: 40, height: 2, backgroundColor: '#D97706' },
+    stepsRow: { flexDirection: 'row', justifyContent: 'space-between' },
+    stepDot: { width: 40, height: 40, borderRadius: 20, backgroundColor: '#F3F4F6', justifyContent: 'center', alignItems: 'center', zIndex: 1 },
+    activeDot: { backgroundColor: '#D97706' },
+    stepNum: { fontSize: 16, fontWeight: '700', color: '#FFF' },
+    inactiveNum: { color: COLORS.gray400 },
+    stepLabels: { flexDirection: 'row', justifyContent: 'space-between', marginTop: 12 },
+    stepLabel: { fontSize: 12, color: COLORS.gray400, fontWeight: '600' },
+    activeLabel: { color: '#D97706' },
 
-    errorCard: {
-        marginHorizontal: 25,
-        backgroundColor: '#FEF2F2',
-        borderRadius: 12,
-        padding: 12,
-        flexDirection: 'row',
-        alignItems: 'center',
-        gap: 10,
-        marginBottom: 20,
-        borderWidth: 1,
-        borderColor: '#FEF2F2',
-    },
-    errorText: {
-        fontSize: 13,
-        color: '#EF4444',
-        fontWeight: '600',
-        flex: 1,
-    },
-
-    form: { paddingHorizontal: 25 },
-    stepContent: { gap: 15 },
-    inputGroup: { marginBottom: 5 },
-    label: { fontSize: 14, fontWeight: '700', color: '#374151', marginBottom: 8, marginLeft: 4 },
+    form: { marginBottom: 24 },
+    stepContent: { gap: 0 },
+    inputContainer: { flexDirection: 'column', marginBottom: 20 },
+    label: { fontSize: 13, fontWeight: '700', color: COLORS.gray400, marginBottom: 8 },
     inputWrapper: {
         flexDirection: 'row',
         alignItems: 'center',
-        backgroundColor: '#FFF4EC',
-        borderRadius: 16,
-        paddingHorizontal: 16,
-        height: 56,
+        backgroundColor: '#FFFFFF',
         borderWidth: 1,
         borderColor: '#E5E7EB',
+        borderRadius: 14,
+        paddingHorizontal: 16,
+        height: 52,
         gap: 12,
     },
-    errorInput: {
-        borderColor: '#EF4444',
-        backgroundColor: '#FEF2F2',
+    inputWrapperError: { borderColor: COLORS.error },
+    input: { flex: 1, fontSize: 15, color: COLORS.textHeadline, fontWeight: '500' },
+    errorText: { fontSize: 12, color: COLORS.error, marginTop: 4 },
+    statusText: { fontSize: 12, marginTop: 4, fontWeight: '600' },
+    statusSuccess: { color: COLORS.success },
+    statusChecking: { color: '#92400E' },
+
+    primaryButton: {
+        borderRadius: 14,
+        backgroundColor: '#D97706',
+        height: 52,
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'center',
+        gap: 8,
+        shadowColor: '#D97706',
+        shadowOffset: { width: 0, height: 8 },
+        shadowOpacity: 0.2,
+        shadowRadius: 12,
+        elevation: 4,
     },
-    input: { flex: 1, fontSize: 16, color: '#111827', fontWeight: '600' },
-    emailStatusText: {
-        marginTop: 6,
-        marginLeft: 4,
+    buttonDisabled: { opacity: 0.6 },
+    buttonText: { color: '#FFFFFF', fontSize: 16, fontWeight: '700' },
+    buttonRow: { flexDirection: 'row', gap: 12 },
+    backBtn: { flex: 1, height: 52, borderRadius: 14, backgroundColor: '#F9FAFB', borderWidth: 1, borderColor: '#F3F4F6', justifyContent: 'center', alignItems: 'center' },
+    backBtnText: { fontSize: 15, color: COLORS.gray400, fontWeight: '700' },
+
+    footer: { flexDirection: 'row', justifyContent: 'center', alignItems: 'center', marginBottom: 24 },
+    footerText: { fontSize: 14, color: COLORS.textMuted },
+    loginLink: { fontSize: 14, color: '#D97706', fontWeight: '700' },
+    backToHome: { alignItems: 'center', marginBottom: 40 },
+    backLink: { fontSize: 14, color: COLORS.gray400, fontWeight: '600' },
+
+    // Email Verification Styles
+    emailVerifyContainer: { alignItems: 'center', marginBottom: 40 },
+    verifyTitle: { fontSize: 24, fontWeight: '800', marginBottom: 12, marginTop: 20 },
+    verifySubtitle: { fontSize: 14, textAlign: 'center', lineHeight: 20 },
+    resendContainer: { flexDirection: 'row', justifyContent: 'center', alignItems: 'center', marginTop: 20, marginBottom: 24 },
+    resendText: { fontSize: 13, fontWeight: '500' },
+    resendLink: { fontSize: 13, color: '#D97706', fontWeight: '700', textDecorationLine: 'underline' },
+    resendDisabled: { opacity: 0.6 },
+
+    mailIconCircle: {
+        width: 100,
+        height: 100,
+        borderRadius: 50,
+        backgroundColor: '#FEF3C7',
+        justifyContent: 'center',
+        alignItems: 'center',
+        marginBottom: 20,
+    },
+    instructionCard: {
+        backgroundColor: '#F9FAFB',
+        borderRadius: 16,
+        padding: 20,
+        width: '100%',
+        marginTop: 24,
+        borderWidth: 1,
+        borderColor: '#F3F4F6',
+    },
+    instructionRow: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        marginBottom: 16,
+    },
+    instructionDot: {
+        width: 24,
+        height: 24,
+        borderRadius: 12,
+        backgroundColor: '#D97706',
+        justifyContent: 'center',
+        alignItems: 'center',
+        marginRight: 12,
+    },
+    instructionNum: {
+        color: '#FFFFFF',
         fontSize: 12,
-        fontWeight: '600',
+        fontWeight: '800',
     },
-    emailStatusSuccess: {
-        color: '#059669',
+    instructionText: {
+        fontSize: 14,
+        color: COLORS.textHeadline,
+        fontWeight: '500',
+        flex: 1,
     },
-    emailStatusError: {
-        color: '#DC2626',
-    },
-    emailStatusChecking: {
-        color: '#92400E',
-    },
-    passwordErrorText: {
-        marginTop: 6,
-        marginLeft: 4,
-        fontSize: 12,
-        fontWeight: '600',
-        color: '#DC2626',
+    cooldownRow: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 6,
+        marginRight: 8,
     },
 
-    primaryButton: { borderRadius: 16, overflow: 'hidden', marginTop: 10, elevation: 4, shadowColor: '#D97706', shadowOffset: { width: 0, height: 8 }, shadowOpacity: 0.25, shadowRadius: 12 },
-    buttonGradient: { height: 56, justifyContent: 'center', alignItems: 'center', flexDirection: 'row', gap: 10 },
-    buttonText: { fontSize: 17, fontWeight: '800', color: '#FFFFFF' },
+    // Terms Styling
+    termsContainer: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        marginBottom: 24,
+        marginTop: 8,
+        paddingHorizontal: 4,
+    },
+    checkboxBase: {
+        marginRight: 10,
+    },
+    termsTextContainer: {
+        flexDirection: 'row',
+        flexWrap: 'wrap',
+        flex: 1,
+    },
+    termsText: {
+        fontSize: 14,
+        color: COLORS.textMuted,
+    },
+    termsLink: {
+        fontSize: 14,
+        color: '#D97706',
+        fontWeight: '700',
+        textDecorationLine: 'underline',
+    },
 
-    buttonRow: { flexDirection: 'row', gap: 12, marginTop: 10 },
-    backButton: { flex: 1, height: 56, justifyContent: 'center', alignItems: 'center', borderRadius: 16, backgroundColor: '#FFF4EC', borderWidth: 1, borderColor: '#E5E7EB' },
-    backButtonText: { fontSize: 16, color: '#6B7280', fontWeight: '700' },
-
-    footer: { flexDirection: 'row', justifyContent: 'center', marginTop: 30 },
-    footerText: { fontSize: 15, color: '#6B7280', fontWeight: '500' },
-    loginLink: { fontSize: 15, color: '#D97706', fontWeight: '700' },
-
-    backToHome: { alignItems: 'center', marginTop: 20 },
-    backLink: { fontSize: 14, color: '#9CA3AF', fontWeight: '700' },
+    // Modal Styling
+    modalOverlay: {
+        flex: 1,
+        backgroundColor: 'rgba(0,0,0,0.5)',
+        justifyContent: 'flex-end',
+    },
+    modalContent: {
+        backgroundColor: '#FFFFFF',
+        borderTopLeftRadius: 24,
+        borderTopRightRadius: 24,
+        height: '80%',
+        padding: 24,
+    },
+    modalHeader: {
+        flexDirection: 'row',
+        justifyContent: 'space-between',
+        alignItems: 'center',
+        marginBottom: 20,
+    },
+    modalTitle: {
+        fontSize: 20,
+        fontWeight: '800',
+        color: COLORS.textHeadline,
+    },
+    modalCloseIcon: {
+        padding: 4,
+    },
+    modalScroll: {
+        flex: 1,
+    },
+    termsSectionTitle: {
+        fontSize: 16,
+        fontWeight: '700',
+        color: COLORS.textHeadline,
+        marginTop: 16,
+        marginBottom: 8,
+    },
+    termsBodyText: {
+        fontSize: 14,
+        color: COLORS.textMuted,
+        lineHeight: 22,
+    },
+    modalCloseButton: {
+        backgroundColor: '#D97706',
+        borderRadius: 14,
+        height: 52,
+        justifyContent: 'center',
+        alignItems: 'center',
+        marginTop: 20,
+    },
+    modalCloseButtonText: {
+        color: '#FFFFFF',
+        fontSize: 16,
+        fontWeight: '700',
+    },
 });
+

@@ -27,6 +27,7 @@ import type {
   GatewayPaymentType,
   PayoutMethod,
 } from '../types/payment.types';
+import { validateTestCard } from '../utils/testCardValidator';
 
 // ============================================================================
 // Configuration
@@ -113,6 +114,54 @@ export class PayMongoGatewayService {
   // ──────────────────────────────────────────────────────────────────────────
 
   private async processCardPayment(transactionId: string, request: CreatePaymentRequest): Promise<PaymentResult> {
+    // ─── STEP 0: Validate test cards BEFORE PayMongo API call ───
+    console.log(`🎴 processCardPayment called with request:`, {
+      cardNumber: request.cardDetails?.cardNumber,
+      expMonth: request.cardDetails?.expMonth,
+      expYear: request.cardDetails?.expYear,
+      cvc: request.cardDetails?.cvc,
+    });
+
+    if (request.cardDetails) {
+      // Sanitize card number: remove spaces, dashes, etc.
+      const originalNumber = request.cardDetails.cardNumber;
+      const sanitizedCardNumber = request.cardDetails.cardNumber.replace(/\D/g, '');
+      
+      console.log(`💳 Card number sanitization:`);
+      console.log(`   - Original: "${originalNumber}"`);
+      console.log(`   - Sanitized: "${sanitizedCardNumber}"`);
+      
+      const expiryForValidator = `${request.cardDetails.expMonth}/${request.cardDetails.expYear.toString().slice(-2)}`;
+      console.log(`📅 Expiry format for validator: ${expiryForValidator}`);
+      
+      const validation = validateTestCard(
+        sanitizedCardNumber,
+        expiryForValidator,
+        request.cardDetails.cvc
+      );
+
+      console.log(`✔️ Validation result:`, validation);
+
+      if (!validation.isTestCard) {
+        // Not a test card, proceed normally
+        console.log('✅ Not a test card, proceeding with PayMongo');
+      } else if (validation.shouldDecline) {
+        // Test card that should decline
+        console.log(`🚫 Test card should decline: ${validation.errorCode}`, validation.errorMessage);
+        
+        // Mark transaction as failed
+        await this.updateTransactionStatus(transactionId, 'failed', {
+          failureReason: validation.errorMessage,
+          errorCode: validation.errorCode,
+        });
+
+        throw new Error(validation.errorMessage || `Test card decline: ${validation.errorCode}`);
+      } else {
+        // Test card that should succeed
+        console.log(`✅ Test card validation passed: ${validation.scenario}`);
+      }
+    }
+
     const intent = await this.apiCreatePaymentIntent({
       amount: Math.round(request.amount * 100),
       currency: 'PHP',
@@ -667,6 +716,20 @@ export class PayMongoGatewayService {
   // ──────────────────────────────────────────────────────────────────────────
 
   private async createTransactionRecord(request: CreatePaymentRequest): Promise<{ id: string }> {
+    // Validate required fields before insert
+    if (!request.orderId) throw new Error('Order ID is required for payment transaction');
+    if (!request.buyerId) throw new Error('Buyer ID is required for payment transaction');
+    if (!request.sellerId) throw new Error('Seller ID is required for payment transaction');
+    if (!request.amount || request.amount <= 0) throw new Error('Valid amount is required for payment transaction');
+
+    console.log('💾 Creating payment transaction record:', {
+      orderId: request.orderId,
+      buyerId: request.buyerId,
+      sellerId: request.sellerId,
+      amount: request.amount,
+      paymentType: request.paymentType,
+    });
+
     const { data, error } = await supabase
       .from('payment_transactions')
       .insert({
@@ -682,7 +745,13 @@ export class PayMongoGatewayService {
       .select('id')
       .single();
 
-    if (error || !data) throw new Error('Failed to create payment transaction');
+    if (error) {
+      console.error('🔴 Supabase payment_transactions insert error:', error);
+      throw new Error(`Database error creating transaction: ${error.message}`);
+    }
+    
+    if (!data) throw new Error('No transaction ID returned from database');
+    console.log('✅ Payment transaction created:', data.id);
     return { id: data.id };
   }
 

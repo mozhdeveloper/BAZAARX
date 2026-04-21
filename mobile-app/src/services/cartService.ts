@@ -85,6 +85,7 @@ export class CartService {
   /**
    * Get or create cart for a buyer
    * New schema: simplified cart creation
+   * Handles race condition: if INSERT fails due to duplicate key, fetch existing cart
    */
   async getOrCreateCart(buyerId: string): Promise<Cart> {
     if (!isSupabaseConfigured()) {
@@ -105,7 +106,18 @@ export class CartService {
           .select()
           .single();
 
-        if (createError) throw createError;
+        if (createError) {
+          // Handle race condition: if duplicate key error, fetch the existing cart
+          if (createError.code === '23505') {
+            console.log('[CartService] ⚠️ Duplicate key error (race condition), fetching existing cart...');
+            const existingCart = await this.getCart(buyerId);
+            if (existingCart) {
+              console.log('[CartService] ✅ Retrieved existing cart after race condition:', existingCart.id);
+              return existingCart;
+            }
+          }
+          throw createError;
+        }
         if (!newCart) throw new Error('Failed to create new cart');
 
         return newCart;
@@ -419,15 +431,79 @@ export class CartService {
     }
 
     try {
-      const { error } = await supabase
+      // Step 1: Fetch the current cart item to get product_id and cart_id
+      const { data: currentItem, error: fetchError } = await supabase
         .from('cart_items')
-        .update({ 
-          variant_id: variantId || null,
-          personalized_options: (personalizedOptions || null) as any
-        })
-        .eq('id', itemId);
+        .select('id, product_id, cart_id, quantity, variant_id')
+        .eq('id', itemId)
+        .single();
 
-      if (error) throw error;
+      if (fetchError) throw fetchError;
+      if (!currentItem) throw new Error('Cart item not found.');
+
+      const { product_id, cart_id, quantity: currentQuantity } = currentItem;
+      const currentQty = Number(currentQuantity || 0);
+
+      // Step 2: Check if another item with the same product_id and new variant_id exists
+      let query = supabase
+        .from('cart_items')
+        .select('id, quantity')
+        .eq('cart_id', cart_id)
+        .eq('product_id', product_id)
+        .neq('id', itemId); // Exclude the current item
+
+      if (variantId) {
+        query = query.eq('variant_id', variantId);
+      } else {
+        query = query.is('variant_id', null);
+      }
+
+      const { data: duplicateItems, error: checkError } = await query;
+      if (checkError) throw checkError;
+
+      // Step 3: If a duplicate exists, combine quantities and remove old item
+      if (duplicateItems && duplicateItems.length > 0) {
+        const duplicateItem = duplicateItems[0];
+        const duplicateQty = Number(duplicateItem.quantity || 0);
+        const newQuantity = duplicateQty + currentQty;
+
+        // Check available stock before combining
+        const availableStock = await this.getAvailableStock(product_id, variantId || null);
+        if (newQuantity > availableStock) {
+          throw new Error(`Cannot combine items. Only ${availableStock} items left in stock.`);
+        }
+
+        // Update the duplicate item with combined quantity and new variant/options
+        const { error: updateError } = await supabase
+          .from('cart_items')
+          .update({ 
+            quantity: newQuantity,
+            variant_id: variantId || null,
+            personalized_options: (personalizedOptions || null) as any
+          })
+          .eq('id', duplicateItem.id);
+
+        if (updateError) throw updateError;
+
+        // Delete the current item
+        const { error: deleteError } = await supabase
+          .from('cart_items')
+          .delete()
+          .eq('id', itemId);
+
+        if (deleteError) throw deleteError;
+      } else {
+        // Step 4: No duplicate found, just update the variant
+        const { error: updateError } = await supabase
+          .from('cart_items')
+          .update({ 
+            variant_id: variantId || null,
+            personalized_options: (personalizedOptions || null) as any
+          })
+          .eq('id', itemId);
+
+        if (updateError) throw updateError;
+      }
     } catch (error) {
        console.error('Error updating cart item variant:', error);
        throw new Error('Failed to update item variant.');

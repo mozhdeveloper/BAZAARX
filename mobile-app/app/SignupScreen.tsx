@@ -1,4 +1,7 @@
 import React, { useEffect, useRef, useState } from 'react';
+import { useForm, Controller } from 'react-hook-form';
+import { zodResolver } from '@hookform/resolvers/zod';
+import { signupSchema, type SignupFormData } from '../src/lib/schemas';
 import {
     View,
     Text,
@@ -11,7 +14,10 @@ import {
     Alert,
     ActivityIndicator,
     Dimensions,
+    Image,
 } from 'react-native';
+import * as WebBrowser from 'expo-web-browser';
+import * as AuthSession from 'expo-auth-session';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Eye, EyeOff, ArrowRight, ArrowLeft } from 'lucide-react-native';
 import { CardStyleInterpolators } from '@react-navigation/stack';
@@ -26,6 +32,7 @@ type Props = NativeStackScreenProps<RootStackParamList, 'Signup'>;
 
 export default function SignupScreen({ navigation }: Props) {
     const [loading, setLoading] = useState(false);
+    const [isGoogleLoading, setIsGoogleLoading] = useState(false);
     const [showPassword, setShowPassword] = useState(false);
     const [showConfirmPassword, setShowConfirmPassword] = useState(false);
     const [emailTouched, setEmailTouched] = useState(false);
@@ -33,50 +40,28 @@ export default function SignupScreen({ navigation }: Props) {
     const [emailStatusMessage, setEmailStatusMessage] = useState('');
     const emailCheckRequestIdRef = useRef(0);
 
-    const [formData, setFormData] = useState({
-        firstName: '',
-        lastName: '',
-        email: '',
-        phone: '',
-        password: '',
-        confirmPassword: '', // Added field
+    const {
+        control,
+        handleSubmit,
+        setError,
+        clearErrors,
+        formState: { errors, isValid },
+        watch,
+    } = useForm<SignupFormData>({
+        resolver: zodResolver(signupSchema),
+        mode: 'onChange',
+        defaultValues: {
+            firstName: '',
+            lastName: '',
+            email: '',
+            phone: '',
+            password: '',
+            confirmPassword: '',
+        },
     });
 
-    const validateEmail = (email: string) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
-    const validatePhone = (phone: string) => /^(\+63|0)?9\d{9}$/.test(phone.replace(/\s/g, ''));
-    const validatePassword = (password: string): { valid: boolean; errors: string[] } => {
-        const errors: string[] = [];
-
-        if (password.length < 8) {
-            errors.push('Password must be at least 8 characters long');
-        }
-        if (!/[A-Z]/.test(password)) {
-            errors.push('Password must contain at least one uppercase letter');
-        }
-        if (!/[a-z]/.test(password)) {
-            errors.push('Password must contain at least one lowercase letter');
-        }
-        if (!/\d/.test(password)) {
-            errors.push('Password must contain at least one number');
-        }
-        if (!/[!@#$%^&*(),.?":{}|<>\-_[\]\\/`~+=;']/.test(password)) {
-            errors.push('Password must contain at least one special character');
-        }
-        if (/\s/.test(password)) {
-            errors.push('Password must not contain spaces');
-        }
-
-        return {
-            valid: errors.length === 0,
-            errors,
-        };
-    };
-
-    const trimmedEmail = formData.email.trim();
-    const livePasswordValidation = formData.password.length > 0 ? validatePassword(formData.password) : null;
-    const livePasswordError = livePasswordValidation && !livePasswordValidation.valid ? livePasswordValidation.errors[0] : '';
-    const showEmailError = emailTouched && (emailStatus === 'invalid' || emailStatus === 'taken');
-    const showEmailSuccess = emailTouched && emailStatus === 'available';
+    const watchedEmail = watch('email');
+    const trimmedEmail = watchedEmail?.trim() || '';
 
     useEffect(() => {
         navigation.setOptions({
@@ -85,17 +70,16 @@ export default function SignupScreen({ navigation }: Props) {
     }, [navigation]);
 
     useEffect(() => {
-        if (!emailTouched) return;
-
         if (!trimmedEmail) {
             setEmailStatus('idle');
             setEmailStatusMessage('');
+            clearErrors('email');
             return;
         }
 
-        if (!validateEmail(trimmedEmail)) {
+        // Basic format check before server check
+        if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(trimmedEmail)) {
             setEmailStatus('invalid');
-            setEmailStatusMessage('Please enter a valid email address.');
             return;
         }
 
@@ -110,82 +94,205 @@ export default function SignupScreen({ navigation }: Props) {
             if (exists) {
                 setEmailStatus('taken');
                 setEmailStatusMessage('Email is already taken.');
+                setError('email', { type: 'manual', message: 'Email is already taken' });
             } else {
                 setEmailStatus('available');
                 setEmailStatusMessage('Email is available.');
+                // We don't clearErrors('email') here because it might have zod errors
+                // But if it's available, we don't need the 'manual' error anymore
+                if (errors.email?.type === 'manual') {
+                    clearErrors('email');
+                }
             }
-        }, 400);
+        }, 500);
 
         return () => clearTimeout(timer);
-    }, [trimmedEmail, emailTouched]);
+    }, [trimmedEmail]);
 
-    const handleSignup = async () => {
-        const { firstName, lastName, email, phone, password, confirmPassword } = formData;
+    const handleSignup = async (formData: SignupFormData) => {
+        const { firstName, lastName, email, phone, password } = formData;
 
-        // Validations
-        if (!firstName || !lastName || !email || !phone || !password) {
-            Alert.alert('Error', 'Please fill in all fields');
-            return;
-        }
-
-        if (password !== confirmPassword) {
-            Alert.alert('Error', 'Passwords do not match');
-            return;
-        }
-
-        if (!validateEmail(email.trim())) {
-            Alert.alert('Error', 'Invalid email address');
-            return;
-        }
-
-        const passwordValidation = validatePassword(password);
-        if (!passwordValidation.valid) {
-            Alert.alert('Error', passwordValidation.errors[0] || 'Password does not meet minimum security requirements.');
-            return;
-        }
-
-        const isEmailTaken = await authService.checkEmailExists(email.trim());
-        if (isEmailTaken) {
+        if (emailStatus === 'taken') {
             Alert.alert('Error', 'Email is already taken');
             return;
         }
 
-        if (!validatePhone(phone)) {
-            Alert.alert('Error', 'Invalid phone number');
-            return;
-        }
-
-        // PERFORM SIGNUP
-        setLoading(true);
+        // NORMALLY WE SIGN UP HERE, BUT WE NOW DELAY UNTIL TERMS ARE ACCEPTED
         try {
-            const result = await authService.signUp(email.trim(), password, {
-                first_name: firstName,
-                last_name: lastName,
-                phone,
-                user_type: 'buyer',
+            const signupData = {
+                firstName,
+                lastName,
                 email: email.trim(),
+                phone,
                 password,
-            });
+                user_type: 'buyer' as const
+            };
 
-            if (result?.user) {
-                // Persist signup data to store to survive deep link redirects
-                useAuthStore.getState().setPendingSignup({
-                    firstName,
-                    lastName,
-                    email: email.trim(),
-                    phone,
-                    password,
-                    user_type: 'buyer'
-                });
+            // Persist signup data to store to survive deep link redirects
+            useAuthStore.getState().setPendingSignup(signupData);
 
-                // Navigate to Email verification
-                navigation.replace('EmailVerification', { email: email.trim() });
-            }
+            // Navigate to Terms first - THE EMAIL WILL BE SENT FROM THERE
+            navigation.replace('Terms', { signupData });
         } catch (error: any) {
-            console.error('Signup Error:', error);
-            Alert.alert('Error', error.message || 'Failed to create account.');
+            console.error('Signup Preparation Error:', error);
+            Alert.alert('Error', 'Failed to prepare account data.');
         } finally {
             setLoading(false);
+        }
+    };
+
+    const handleGoogleSignIn = async () => {
+        setIsGoogleLoading(true);
+        try {
+            console.log('[SignupScreen] Starting Google Sign-In...');
+
+            const { data, error } = await supabase.auth.signInWithOAuth({
+                provider: 'google',
+                options: {
+                    skipBrowserRedirect: false,
+                },
+            });
+
+            if (error) {
+                Alert.alert('Google Sign-In Error', error.message);
+                setIsGoogleLoading(false);
+                return;
+            }
+
+            if (!data?.url) {
+                Alert.alert('Error', 'Failed to initialize Google Sign-In.');
+                setIsGoogleLoading(false);
+                return;
+            }
+
+            const result = await WebBrowser.openBrowserAsync(data.url);
+
+            if (result.type === 'cancel' || result.type === 'dismiss') {
+                setIsGoogleLoading(false);
+                return;
+            }
+
+            // Wait for auth state change
+            const authStatePromise = new Promise<void>((resolve, reject) => {
+                let timeout = setTimeout(() => {
+                    reject(new Error('Auth state change timeout'));
+                }, 30000);
+
+                const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
+                    if (event === 'SIGNED_IN' && session?.user) {
+                        clearTimeout(timeout);
+                        subscription.unsubscribe();
+                        resolve();
+                    }
+                });
+            });
+
+            try {
+                await authStatePromise;
+                
+                const { data: sessionData } = await supabase.auth.getSession();
+                const userId = sessionData.session?.user?.id;
+
+                if (userId) {
+                    // POLICY ENFORCEMENT: Check for unauthorized Google linking
+                    const { data: identityData } = await supabase.auth.getUserIdentities();
+                    const identities = identityData?.identities || [];
+                    const emailIdentity = identities.find(id => id.provider === 'email');
+                    const googleIdentity = identities.find(id => id.provider === 'google');
+
+                    if (emailIdentity && googleIdentity) {
+                        const isExplicitlyLinked = !!sessionData.session?.user.user_metadata?.google_explicitly_linked;
+                        const linkAgeMs = Date.now() - new Date(googleIdentity.created_at || Date.now()).getTime();
+                        if (!isExplicitlyLinked && linkAgeMs < 300000) {
+                            console.log('[SignupScreen] 🛡️ Google Link Policy Blocked');
+                            await supabase.auth.unlinkIdentity(googleIdentity);
+                            await useAuthStore.getState().signOut();
+                            Alert.alert('Security Notice', 'This Google account is not yet linked. Please use email/password.');
+                            setIsGoogleLoading(false);
+                            return;
+                        }
+                    }
+
+                    const isComplete = await authService.isOnboardingComplete(userId);
+                    if (isComplete) {
+                        Alert.alert('Notice', 'User has already been registered, redirecting to homepage.');
+                        navigation.replace('MainTabs', { screen: 'Home' });
+                    } else {
+                        navigation.replace('Terms', { 
+                            signupData: { 
+                                email: sessionData.session?.user?.email || '',
+                                firstName: sessionData.session?.user?.user_metadata?.first_name || 
+                                          sessionData.session?.user?.user_metadata?.full_name?.split(' ')[0] || '',
+                                lastName: sessionData.session?.user?.user_metadata?.last_name || 
+                                         sessionData.session?.user?.user_metadata?.full_name?.split(' ').slice(1).join(' ') || '',
+                                phone: sessionData.session?.user?.phone || '',
+                                user_type: 'buyer'
+                            } 
+                        });
+                    }
+                } else {
+                    navigation.replace('MainTabs', { screen: 'Home' });
+                }
+            } catch (authError) {
+                console.error('[SignupScreen] Auth state error:', authError);
+                
+                // Double-check session
+                const { data: finalCheck } = await supabase.auth.getSession();
+                if (finalCheck.session?.user) {
+                    console.log('[SignupScreen] ⚠️ Session EXISTS but event timeout. Navigating anyway...');
+                    const userId = finalCheck.session.user.id;
+                    const isComplete = await authService.isOnboardingComplete(userId);
+                    
+                    const signupData = { 
+                        email: finalCheck.session.user.email || '',
+                        firstName: finalCheck.session.user.user_metadata?.first_name || 
+                                  finalCheck.session.user.user_metadata?.full_name?.split(' ')[0] || '',
+                        lastName: finalCheck.session.user.user_metadata?.last_name || 
+                                 finalCheck.session.user.user_metadata?.full_name?.split(' ').slice(1).join(' ') || '',
+                        phone: finalCheck.session.user.phone || '',
+                        user_type: 'buyer' as const
+                    };
+
+                    // Persist to store so CategoryPreference screen can find it
+                    useAuthStore.getState().setPendingSignup(signupData);
+
+                    if (userId) {
+                        // POLICY ENFORCEMENT: Check for unauthorized Google linking
+                        const { data: identityData } = await supabase.auth.getUserIdentities();
+                        const identities = identityData?.identities || [];
+                        const emailIdentity = identities.find(id => id.provider === 'email');
+                        const googleIdentity = identities.find(id => id.provider === 'google');
+
+                        if (emailIdentity && googleIdentity) {
+                            const isExplicitlyLinked = !!finalCheck.session.user.user_metadata?.google_explicitly_linked;
+                            const linkAgeMs = Date.now() - new Date(googleIdentity.created_at || Date.now()).getTime();
+                            if (!isExplicitlyLinked && linkAgeMs < 300000) {
+                                console.log('[SignupScreen] 🛡️ Google Link Policy Blocked (Recovery)');
+                                await supabase.auth.unlinkIdentity(googleIdentity);
+                                await useAuthStore.getState().signOut();
+                                Alert.alert('Security Notice', 'This Google account is not yet linked. Please use email/password.');
+                                setIsGoogleLoading(false);
+                                return;
+                            }
+                        }
+
+                        if (isComplete) {
+                            Alert.alert('Notice', 'User has already been registered, redirecting to homepage.');
+                            navigation.replace('MainTabs', { screen: 'Home' });
+                        } else {
+                            navigation.replace('Terms', { signupData });
+                        }
+                    }
+                    return;
+                }
+
+                Alert.alert('Sign-In Incomplete', 'We were unable to complete the sign-in process. Please try again.');
+                setIsGoogleLoading(false);
+            }
+        } catch (error) {
+            console.error('[SignupScreen] Google Sign-In exception:', error);
+            Alert.alert('Error', 'An unexpected error occurred. Please try again.');
+            setIsGoogleLoading(false);
         }
     };
 
@@ -210,58 +317,78 @@ export default function SignupScreen({ navigation }: Props) {
                         <View style={styles.row}>
                             <View style={[styles.inputContainer, { flex: 1, marginRight: 8 }]}>
                                 <Text style={styles.label}>First Name</Text>
-                                <View style={styles.inputWrapper}>
-                                    <TextInput
-                                        style={styles.input}
-                                        placeholder="Juan"
-                                        placeholderTextColor="#9CA3AF"
-                                        onChangeText={(v) => setFormData({ ...formData, firstName: v })}
-                                    />
-                                </View>
+                                <Controller
+                                    control={control}
+                                    name="firstName"
+                                    render={({ field: { onChange, onBlur, value } }) => (
+                                        <View style={[styles.inputWrapper, errors.firstName && styles.inputWrapperError]}>
+                                            <TextInput
+                                                style={styles.input}
+                                                placeholder="Juan"
+                                                placeholderTextColor="#9CA3AF"
+                                                onBlur={onBlur}
+                                                onChangeText={onChange}
+                                                value={value}
+                                            />
+                                        </View>
+                                    )}
+                                />
+                                {errors.firstName && <Text style={styles.errorText}>{errors.firstName.message}</Text>}
                             </View>
                             <View style={[styles.inputContainer, { flex: 1 }]}>
                                 <Text style={styles.label}>Last Name</Text>
-                                <View style={styles.inputWrapper}>
-                                    <TextInput
-                                        style={styles.input}
-                                        placeholder="Dela Cruz"
-                                        placeholderTextColor="#9CA3AF"
-                                        onChangeText={(v) => setFormData({ ...formData, lastName: v })}
-                                    />
-                                </View>
+                                <Controller
+                                    control={control}
+                                    name="lastName"
+                                    render={({ field: { onChange, onBlur, value } }) => (
+                                        <View style={[styles.inputWrapper, errors.lastName && styles.inputWrapperError]}>
+                                            <TextInput
+                                                style={styles.input}
+                                                placeholder="Dela Cruz"
+                                                placeholderTextColor="#9CA3AF"
+                                                onBlur={onBlur}
+                                                onChangeText={onChange}
+                                                value={value}
+                                            />
+                                        </View>
+                                    )}
+                                />
+                                {errors.lastName && <Text style={styles.errorText}>{errors.lastName.message}</Text>}
                             </View>
                         </View>
 
                         {/* Email */}
                         <View style={styles.inputContainer}>
                             <Text style={styles.label}>Email Address</Text>
-                            <View style={[
-                                styles.inputWrapper,
-                                showEmailError && styles.inputWrapperError,
-                                showEmailSuccess && styles.inputWrapperSuccess,
-                            ]}>
-                                <TextInput
-                                    style={styles.input}
-                                    placeholder="juan@example.ph"
-                                    placeholderTextColor="#9CA3AF"
-                                    keyboardType="email-address"
-                                    autoCapitalize="none"
-                                    value={formData.email}
-                                    onChangeText={(v) => {
-                                        setFormData({ ...formData, email: v });
-                                        if (!emailTouched && v.length > 0) {
-                                            setEmailTouched(true);
-                                        }
-                                    }}
-                                    onBlur={() => setEmailTouched(true)}
-                                />
-                            </View>
-                            {emailTouched && trimmedEmail.length > 0 && emailStatusMessage ? (
+                            <Controller
+                                control={control}
+                                name="email"
+                                render={({ field: { onChange, onBlur, value } }) => (
+                                    <View style={[
+                                        styles.inputWrapper,
+                                        errors.email && styles.inputWrapperError,
+                                        emailStatus === 'available' && styles.inputWrapperSuccess,
+                                    ]}>
+                                        <TextInput
+                                            style={styles.input}
+                                            placeholder="juan@example.ph"
+                                            placeholderTextColor="#9CA3AF"
+                                            keyboardType="email-address"
+                                            autoCapitalize="none"
+                                            onBlur={onBlur}
+                                            onChangeText={onChange}
+                                            value={value}
+                                        />
+                                    </View>
+                                )}
+                            />
+                            {errors.email ? (
+                                <Text style={styles.errorText}>{errors.email.message}</Text>
+                            ) : emailStatusMessage ? (
                                 <Text
                                     style={[
                                         styles.emailStatusText,
                                         emailStatus === 'available' && styles.emailStatusSuccess,
-                                        (emailStatus === 'invalid' || emailStatus === 'taken') && styles.emailStatusError,
                                         emailStatus === 'checking' && styles.emailStatusChecking,
                                     ]}
                                 >
@@ -272,53 +399,83 @@ export default function SignupScreen({ navigation }: Props) {
 
                         <View style={styles.inputContainer}>
                             <Text style={styles.label}>Phone Number</Text>
-                            <View style={styles.inputWrapper}>
-                                <TextInput
-                                    style={styles.input}
-                                    placeholder="09123456789"
-                                    placeholderTextColor="#9CA3AF"
-                                    keyboardType="phone-pad"
-                                    onChangeText={(v) => setFormData({ ...formData, phone: v })}
-                                />
-                            </View>
+                            <Controller
+                                control={control}
+                                name="phone"
+                                render={({ field: { onChange, onBlur, value } }) => (
+                                    <View style={[styles.inputWrapper, errors.phone && styles.inputWrapperError]}>
+                                        <TextInput
+                                            style={styles.input}
+                                            placeholder="09123456789"
+                                            placeholderTextColor="#9CA3AF"
+                                            keyboardType="phone-pad"
+                                            onBlur={onBlur}
+                                            onChangeText={onChange}
+                                            value={value}
+                                        />
+                                    </View>
+                                )}
+                            />
+                            {errors.phone && <Text style={styles.errorText}>{errors.phone.message}</Text>}
                         </View>
 
                         {/* Password */}
                         <View style={styles.inputContainer}>
                             <Text style={styles.label}>Password</Text>
-                            <View style={styles.inputWrapper}>
-                                <TextInput
-                                    style={styles.input}
-                                    placeholder="••••••••"
-                                    placeholderTextColor="#9CA3AF"
-                                    secureTextEntry={!showPassword}
-                                    onChangeText={(v) => setFormData({ ...formData, password: v })}
-                                />
-                                <Pressable onPress={() => setShowPassword(!showPassword)} style={styles.eyeIcon}>
-                                    {showPassword ? <EyeOff size={20} color="#9CA3AF" /> : <Eye size={20} color="#9CA3AF" />}
-                                </Pressable>
-                            </View>
-                            {!!livePasswordError && <Text style={styles.passwordErrorText}>{livePasswordError}</Text>}
+                            <Controller
+                                control={control}
+                                name="password"
+                                render={({ field: { onChange, onBlur, value } }) => (
+                                    <View style={[styles.inputWrapper, errors.password && styles.inputWrapperError]}>
+                                        <TextInput
+                                            style={styles.input}
+                                            placeholder="••••••••"
+                                            placeholderTextColor="#9CA3AF"
+                                            secureTextEntry={!showPassword}
+                                            onBlur={onBlur}
+                                            onChangeText={onChange}
+                                            value={value}
+                                        />
+                                        <Pressable onPress={() => setShowPassword(!showPassword)} style={styles.eyeIcon}>
+                                            {showPassword ? <EyeOff size={20} color="#9CA3AF" /> : <Eye size={20} color="#9CA3AF" />}
+                                        </Pressable>
+                                    </View>
+                                )}
+                            />
+                            {errors.password && <Text style={styles.errorText}>{errors.password.message}</Text>}
                         </View>
 
                         {/* Confirm Password */}
                         <View style={styles.inputContainer}>
                             <Text style={styles.label}>Confirm Password</Text>
-                            <View style={styles.inputWrapper}>
-                                <TextInput
-                                    style={styles.input}
-                                    placeholder="••••••••"
-                                    placeholderTextColor="#9CA3AF"
-                                    secureTextEntry={!showConfirmPassword}
-                                    onChangeText={(v) => setFormData({ ...formData, confirmPassword: v })}
-                                />
-                                <Pressable onPress={() => setShowConfirmPassword(!showConfirmPassword)} style={styles.eyeIcon}>
-                                    {showConfirmPassword ? <EyeOff size={20} color="#9CA3AF" /> : <Eye size={20} color="#9CA3AF" />}
-                                </Pressable>
-                            </View>
+                            <Controller
+                                control={control}
+                                name="confirmPassword"
+                                render={({ field: { onChange, onBlur, value } }) => (
+                                    <View style={[styles.inputWrapper, errors.confirmPassword && styles.inputWrapperError]}>
+                                        <TextInput
+                                            style={styles.input}
+                                            placeholder="••••••••"
+                                            placeholderTextColor="#9CA3AF"
+                                            secureTextEntry={!showConfirmPassword}
+                                            onBlur={onBlur}
+                                            onChangeText={onChange}
+                                            value={value}
+                                        />
+                                        <Pressable onPress={() => setShowConfirmPassword(!showConfirmPassword)} style={styles.eyeIcon}>
+                                            {showConfirmPassword ? <EyeOff size={20} color="#9CA3AF" /> : <Eye size={20} color="#9CA3AF" />}
+                                        </Pressable>
+                                    </View>
+                                )}
+                            />
+                            {errors.confirmPassword && <Text style={styles.errorText}>{errors.confirmPassword.message}</Text>}
                         </View>
 
-                        <Pressable style={[styles.signupButton, loading && styles.signupButtonDisabled]} onPress={handleSignup} disabled={loading}>
+                        <Pressable 
+                            style={[styles.signupButton, (loading || !isValid || emailStatus === 'taken') && styles.signupButtonDisabled]} 
+                            onPress={handleSubmit(handleSignup)} 
+                            disabled={loading || !isValid || emailStatus === 'taken'}
+                        >
                             {loading ? (
                                 <ActivityIndicator color="#FFFFFF" />
                             ) : (
@@ -328,6 +485,30 @@ export default function SignupScreen({ navigation }: Props) {
                             )}
                         </Pressable>
                     </View>
+
+                    <View style={styles.dividerContainer}>
+                        <View style={styles.dividerLine} />
+                        <Text style={styles.dividerText}>OR</Text>
+                        <View style={styles.dividerLine} />
+                    </View>
+
+                    <Pressable
+                        style={styles.googleButton}
+                        onPress={handleGoogleSignIn}
+                        disabled={isGoogleLoading}
+                    >
+                        {isGoogleLoading ? (
+                            <ActivityIndicator color="#6B7280" />
+                        ) : (
+                            <>
+                                <Image
+                                    source={{ uri: 'https://www.gstatic.com/images/branding/product/2x/googleg_48dp.png' }}
+                                    style={styles.googleIcon}
+                                />
+                                <Text style={styles.googleButtonText}>Sign up with Google</Text>
+                            </>
+                        )}
+                    </Pressable>
 
                     {/* Footer */}
                     <View style={styles.loginSection}>
@@ -392,7 +573,7 @@ const styles = StyleSheet.create({
     emailStatusChecking: {
         color: '#92400E',
     },
-    passwordErrorText: {
+    errorText: {
         marginTop: 6,
         fontSize: 12,
         fontWeight: '500',
@@ -435,5 +616,43 @@ const styles = StyleSheet.create({
         fontSize: 14,
         color: '#D97706',
         fontWeight: '700',
+    },
+    dividerContainer: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        marginVertical: 24,
+    },
+    dividerLine: {
+        flex: 1,
+        height: 1,
+        backgroundColor: '#E5E7EB',
+    },
+    dividerText: {
+        marginHorizontal: 16,
+        fontSize: 12,
+        fontWeight: '700',
+        color: '#9CA3AF',
+        letterSpacing: 1.2,
+    },
+    googleButton: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'center',
+        backgroundColor: '#FFFFFF',
+        paddingVertical: 14,
+        borderRadius: 14,
+        borderWidth: 1,
+        borderColor: '#E5E7EB',
+        gap: 12,
+        marginBottom: 24,
+    },
+    googleIcon: {
+        width: 20,
+        height: 20,
+    },
+    googleButtonText: {
+        fontSize: 15,
+        fontWeight: '600',
+        color: '#111827',
     },
 });

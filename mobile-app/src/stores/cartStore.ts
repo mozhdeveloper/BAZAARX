@@ -30,6 +30,7 @@ interface CartStore {
   setQuickOrder: (product: Product, quantity?: number) => void;
   clearQuickOrder: () => void;
   getQuickOrderTotal: () => number;
+  reset: () => void;
 }
 
 /**
@@ -450,7 +451,7 @@ export const useCartStore = create<CartStore>()(
             }
           }, 500);
         };
-        run();
+        return run();
       },
 
       updateItemVariant: async (cartItemId, variantId, options) => {
@@ -486,7 +487,7 @@ export const useCartStore = create<CartStore>()(
             set({ error: 'Failed to update item variant' });
           }
         };
-        run();
+        return run();
       },
 
       clearCart: () => {
@@ -560,6 +561,7 @@ export const useCartStore = create<CartStore>()(
       },
       clearQuickOrder: () => set({ quickOrder: null }),
       getQuickOrderTotal: () => get().quickOrder ? ((get().quickOrder!.price ?? 0) * get().quickOrder!.quantity) : 0,
+      reset: () => set({ items: [], cartId: null, isLoading: false, error: null, quickOrder: null }),
     }),
     {
       name: 'cart-storage',

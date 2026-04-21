@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useCallback } from 'react';
 import {
   View,
   Text,
@@ -11,14 +11,18 @@ import {
   Image,
   ScrollView,
   Alert,
+  BackHandler,
 } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
-import { ArrowLeft, Lock, CheckCircle, Shield, CreditCard } from 'lucide-react-native';
+import { useFocusEffect } from '@react-navigation/native';
+import { ArrowLeft, Lock, CheckCircle, Shield, CreditCard, Zap } from 'lucide-react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import type { RootStackParamList } from '../App';
 import type { Order } from '../src/types';
 import { COLORS } from '../src/constants/theme';
+import { BASIC_TEST_CARDS, SCENARIO_TEST_CARDS, getTestCardByNumber } from '../src/constants/testCards';
+import { AlertCircle } from 'lucide-react-native';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'PaymentGateway'>;
 
@@ -27,10 +31,34 @@ import { usePaymentStore } from '../src/stores/paymentStore';
 import type { GatewayPaymentType } from '../src/types/database.types';
 
 export default function PaymentGatewayScreen({ navigation, route }: Props) {
-  const { paymentMethod: rawPaymentMethod, order, isQuickCheckout } = route.params as { paymentMethod: string; order: Order; isQuickCheckout?: boolean };
+  type RouteParams = { 
+    paymentMethod: string; 
+    order?: Order; 
+    checkoutPayload?: any;
+    isQuickCheckout?: boolean;
+    earnedBazcoins?: number;
+    bazcoinDiscount?: number;
+    appliedVoucher?: any;
+    isGift?: boolean;
+    isAnonymous?: boolean;
+    recipientId?: string;
+  };
+  
+  const params = route.params as RouteParams;
+  const { paymentMethod: rawPaymentMethod, order, checkoutPayload, isQuickCheckout, earnedBazcoins = 0, bazcoinDiscount = 0, appliedVoucher, isGift = false, isAnonymous = false, recipientId } = params;
   const paymentMethod = rawPaymentMethod || 'card';
   
-  const { clearCart, clearQuickOrder } = useCartStore();
+  console.log('[PaymentGateway] Route params received:', {
+    hasOrder: !!order,
+    orderId: order?.orderId,
+    orderTotal: order?.total,
+    orderSellerId: order?.sellerId,
+    orderBuyerId: order?.buyerId,
+    hasCheckoutPayload: !!checkoutPayload,
+    paymentMethod
+  });
+  
+  const { clearCart, clearQuickOrder, removeItems } = useCartStore();
   const { createPayment, confirmPayment, openEWalletCheckout, isSandbox } = usePaymentStore();
   const [status, setStatus] = useState<'idle' | 'processing' | 'approved' | 'failed'>('idle');
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
@@ -44,8 +72,34 @@ export default function PaymentGatewayScreen({ navigation, route }: Props) {
   const [expiryDate, setExpiryDate] = useState('');
   const [cvv, setCvv] = useState('');
   const [cardName, setCardName] = useState('');
+  const [cardNumberError, setCardNumberError] = useState<string | null>(null);
+  
+  // Order tracking for new card flow
+  const [createdOrder, setCreatedOrder] = useState<Order | null>(null);
 
   const insets = useSafeAreaInsets();
+
+  // Prevent back navigation while payment is processing
+  useFocusEffect(
+    useCallback(() => {
+      const backAction = () => {
+        if (status === 'processing') {
+          Alert.alert(
+            'Payment in Progress',
+            'Your payment is being processed. Please wait for it to complete before going back.',
+            [{ text: 'OK', onPress: () => {} }],
+            { cancelable: false }
+          );
+          return true; // Prevent back navigation
+        }
+        return false; // Allow back navigation
+      };
+
+      const subscription = BackHandler.addEventListener('hardwareBackPress', backAction);
+
+      return () => subscription.remove();
+    }, [status])
+  );
 
   // Map UI payment method slug to GatewayPaymentType
   const methodSlug = paymentMethod.toLowerCase();
@@ -96,10 +150,24 @@ export default function PaymentGatewayScreen({ navigation, route }: Props) {
 
   const isFormValid = () => {
     if (showCardForm) {
-      return cardNumber.length >= 16 && expiryDate.length >= 5 && cvv.length >= 3 && cardName.length > 3;
+      return !cardNumberError && cardNumber.length >= 16 && expiryDate.length >= 5 && cvv.length >= 3 && cardName.length > 3;
     }
     // GCash/Maya validation
     return mobileNumber.length >= 10 && mpin.length >= 4;
+  };
+
+  // Format card number with spaces (4343 4343 4343 4345)
+  const formatCardNumber = (num: string): string => {
+    const cleaned = num.replace(/\D/g, '').substring(0, 16);
+    return cleaned.replace(/(.{4})/g, '$1 ').trim();
+  };
+
+  // Format expiry date (12/25)
+  const formatExpiryDate = (date: string): string => {
+    const cleaned = date.replace(/\D/g, '');
+    if (cleaned.length === 0) return '';
+    if (cleaned.length <= 2) return cleaned;
+    return cleaned.substring(0, 2) + '/' + cleaned.substring(2, 4);
   };
 
   const handlePayment = async () => {
@@ -109,6 +177,36 @@ export default function PaymentGatewayScreen({ navigation, route }: Props) {
     setErrorMessage(null);
 
     try {
+      let currentOrder = order || createdOrder;
+      let paymentOrderId: string;
+      let paymentBuyerId: string;
+      let paymentSellerId: string;
+      let paymentTotal: number;
+
+      // ✅ FIX: Don't create orders here - CheckoutScreen already creates complete orders with items via processCheckout
+      // Only use the order that was passed from CheckoutScreen
+      // This prevents duplicate empty orders from appearing in the Orders screen
+
+      // Now we have a valid order, use its IDs for payment
+      if (!currentOrder) {
+        throw new Error('Unable to create order. Please try again.');
+      }
+
+      if (!currentOrder.buyerId) {
+        throw new Error('Buyer ID is missing. Please go back and try again.');
+      }
+      if (!currentOrder.sellerId) {
+        throw new Error('Seller ID is missing. Please go back and try again.');
+      }
+      if (!currentOrder.orderId) {
+        throw new Error('Order ID is missing. Please go back and try again.');
+      }
+
+      paymentOrderId = currentOrder.orderId || currentOrder.id;
+      paymentBuyerId = currentOrder.buyerId;
+      paymentSellerId = currentOrder.sellerId;
+      paymentTotal = currentOrder.total;
+
       const gatewayType = getGatewayPaymentType();
 
       // Parse expiry for card
@@ -121,10 +219,10 @@ export default function PaymentGatewayScreen({ navigation, route }: Props) {
       }
 
       const result = await createPayment({
-        orderId: order.orderId || order.id,
-        buyerId: order.buyerId || '',
-        sellerId: order.sellerId || '',
-        amount: order.total,
+        orderId: paymentOrderId,
+        buyerId: paymentBuyerId,
+        sellerId: paymentSellerId,
+        amount: paymentTotal,
         paymentType: gatewayType,
         billing: showCardForm ? { name: cardName, email: '' } : { name: '', email: '', phone: `+63${mobileNumber}` },
         cardDetails: showCardForm ? {
@@ -137,7 +235,7 @@ export default function PaymentGatewayScreen({ navigation, route }: Props) {
 
       if (result.status === 'paid') {
         // Payment succeeded (card sandbox, COD confirmed)
-        onPaymentApproved();
+        onPaymentApproved(currentOrder);
         return;
       }
 
@@ -146,7 +244,7 @@ export default function PaymentGatewayScreen({ navigation, route }: Props) {
           // Sandbox: skip browser redirect, auto-confirm
           const confirmed = await confirmPayment(result.transactionId);
           if (confirmed.status === 'paid') {
-            onPaymentApproved();
+            onPaymentApproved(currentOrder);
           } else {
             setStatus('failed');
             setErrorMessage('Sandbox e-wallet payment could not be confirmed');
@@ -157,7 +255,7 @@ export default function PaymentGatewayScreen({ navigation, route }: Props) {
           // After user returns via deep link, confirmPayment will be called
           const confirmed = await confirmPayment(result.transactionId);
           if (confirmed.status === 'paid') {
-            onPaymentApproved();
+            onPaymentApproved(currentOrder);
           } else {
             setStatus('idle');
           }
@@ -167,23 +265,24 @@ export default function PaymentGatewayScreen({ navigation, route }: Props) {
 
       if (result.referenceNumber) {
         // Bank transfer — show reference and approve
+        const amount = order?.total || checkoutPayload?.totalAmount || 0;
         Alert.alert(
           'Bank Transfer',
-          `Reference: ${result.referenceNumber}\n\nPlease transfer ₱${order.total.toLocaleString()} and use this reference number.`,
-          [{ text: 'OK', onPress: () => onPaymentApproved() }],
+          `Reference: ${result.referenceNumber}\n\nPlease transfer ₱${amount.toLocaleString()} and use this reference number.`,
+          [{ text: 'OK', onPress: () => onPaymentApproved(currentOrder) }],
         );
         return;
       }
 
       if (result.status === 'awaiting_payment') {
         // COD or other awaiting
-        onPaymentApproved();
+        onPaymentApproved(currentOrder);
         return;
       }
 
       // Fallback: mark as approved for sandbox
       if (isSandbox) {
-        onPaymentApproved();
+        onPaymentApproved(currentOrder);
       }
     } catch (err: any) {
       setStatus('failed');
@@ -191,18 +290,55 @@ export default function PaymentGatewayScreen({ navigation, route }: Props) {
     }
   };
 
-  const onPaymentApproved = () => {
+  const onPaymentApproved = async (existingOrder: Order | undefined) => {
     setStatus('approved');
 
-    if (isQuickCheckout) {
-      clearQuickOrder();
-    } else {
-      clearCart();
-    }
+    try {
+      let finalOrder = existingOrder;
 
-    setTimeout(() => {
-      navigation.replace('DeliveryTracking', { order });
-    }, 1500);
+      if (!finalOrder) {
+        throw new Error('Order object is missing from payment flow');
+      }
+
+      // ✅ FIX: Don't call processCheckout here - it was already called in CheckoutScreen
+      // ProcessCheckout in CheckoutScreen created all the database orders and items
+      // We just need to mark the order as paid
+      
+      finalOrder.isPaid = true;
+
+      setTimeout(() => {
+        // Remove only the items that were checked out from the cart
+        if (isQuickCheckout) {
+          clearQuickOrder();
+        } else {
+          // Only remove the items that were actually purchased (from checkoutPayload)
+          if (checkoutPayload && checkoutPayload.items && Array.isArray(checkoutPayload.items)) {
+            const cartItemIdsToRemove = checkoutPayload.items
+              .map((item: any) => item.cartItemId)
+              .filter((id: string) => id); // Filter out undefined/null IDs
+            
+            if (cartItemIdsToRemove.length > 0) {
+              console.log('[PaymentGateway] Removing checked out items from cart:', cartItemIdsToRemove);
+              removeItems(cartItemIdsToRemove);
+            }
+          } else {
+            // Fallback: if no checkoutPayload.items, don't clear the cart (keep user's other items)
+            console.log('[PaymentGateway] No checkoutPayload.items found, keeping cart intact');
+          }
+        }
+        
+        // Go to OrderConfirmation to show order confirmation
+        if (finalOrder) {
+          navigation.replace('OrderConfirmation', { order: finalOrder, earnedBazcoins, isQuickCheckout });
+        } else {
+          throw new Error('Order object is missing');
+        }
+      }, 1500);
+    } catch (err: any) {
+      console.error('[PaymentGateway] Error in onPaymentApproved:', err);
+      setStatus('failed');
+      setErrorMessage(err?.message || 'Failed to complete payment. Please contact support.');
+    }
   };
 
   if (status === 'approved') {
@@ -269,18 +405,49 @@ export default function PaymentGatewayScreen({ navigation, route }: Props) {
           contentContainerStyle={{ paddingBottom: 140 }}
           showsVerticalScrollIndicator={false}
         >
-          {/* Merchant & Amount Summary */}
+          {/* Payment Details Summary */}
           <View style={styles.billContainer}>
-            <View style={styles.billLeft}>
-              <Text style={styles.billLabel}>Total Amount</Text>
-              <Text style={styles.billAmount}>₱ {order.total.toLocaleString()}</Text>
+            <View style={styles.billDetailsHeader}>
+              <Text style={styles.billDetailsTitle}>Payment Details</Text>
             </View>
-            <View style={styles.providerLogoContainer}>
-              <Image
-                source={{ uri: getProviderLogo() }}
-                style={styles.providerLogo}
-                resizeMode="contain"
-              />
+
+            {/* Subtotal */}
+            <View style={styles.billDetailRow}>
+              <Text style={styles.billDetailLabel}>Subtotal</Text>
+              <Text style={styles.billDetailValue}>₱ {((order?.total || checkoutPayload?.totalAmount || 0) - (order?.shippingFee || checkoutPayload?.shippingFee || 0) + (order?.discount || checkoutPayload?.discount || 0)).toLocaleString()}</Text>
+            </View>
+
+            {/* Shipping Fee */}
+            {(order?.shippingFee || checkoutPayload?.shippingFee) ? (
+              <View style={styles.billDetailRow}>
+                <Text style={styles.billDetailLabel}>Shipping</Text>
+                <Text style={styles.billDetailValue}>₱ {(order?.shippingFee || checkoutPayload?.shippingFee || 0).toLocaleString()}</Text>
+              </View>
+            ) : null}
+
+            {/* Discount / Voucher */}
+            {(order?.discount || checkoutPayload?.discount) ? (
+              <View style={styles.billDetailRow}>
+                <Text style={[styles.billDetailLabel, { color: COLORS.success }]}>Discount</Text>
+                <Text style={[styles.billDetailValue, { color: COLORS.success }]}>-₱ {(order?.discount || checkoutPayload?.discount || 0).toLocaleString()}</Text>
+              </View>
+            ) : null}
+
+            {/* Bazcoin Discount */}
+            {bazcoinDiscount > 0 ? (
+              <View style={styles.billDetailRow}>
+                <Text style={[styles.billDetailLabel, { color: COLORS.success }]}>Bazcoin Discount</Text>
+                <Text style={[styles.billDetailValue, { color: COLORS.success }]}>-₱ {bazcoinDiscount.toLocaleString()}</Text>
+              </View>
+            ) : null}
+
+            {/* Divider */}
+            <View style={styles.billDetailDivider} />
+
+            {/* Total Amount */}
+            <View style={styles.billDetailRowTotal}>
+              <Text style={styles.billDetailLabelTotal}>Total Amount</Text>
+              <Text style={styles.billAmountTotal}>₱ {(order?.total || checkoutPayload?.totalAmount || 0).toLocaleString()}</Text>
             </View>
           </View>
 
@@ -291,6 +458,59 @@ export default function PaymentGatewayScreen({ navigation, route }: Props) {
             {showCardForm ? (
               // Credit/Debit Card Form (Card & PayMongo)
               <>
+                {/* Test Card Selector (Development/Sandbox Only) */}
+                {__DEV__ && (
+                  <View style={styles.testCardSelector}>
+                    <View style={styles.testCardHeader}>
+                      <Zap size={16} color="#1F2937" fill="#D97706" />
+                      <Text style={styles.testCardTitle}>Quick Fill Test Cards</Text>
+                    </View>
+                    <Text style={styles.testCardDesc}>Click a card to auto-fill for testing:</Text>
+                    <View style={styles.testCardGrid}>
+                      {/* Basic Success Cards */}
+                      {BASIC_TEST_CARDS.slice(0, 3).map((card) => (
+                        <Pressable
+                          key={card.number}
+                          style={styles.testCardButton}
+                          onPress={() => {
+                            console.log('[PaymentGateway] Auto-filling test card:', card.number);
+                            setCardNumber(card.number);
+                            setCardName('TEST CARD');
+                            setExpiryDate(card.expiry);
+                            setCvv(card.cvc);
+                            setCardNumberError(null);
+                          }}
+                        >
+                          <Text style={styles.testCardBrand}>✓ {card.brand}</Text>
+                          <Text style={styles.testCardScenario} numberOfLines={2}>
+                            {card.scenario}
+                          </Text>
+                        </Pressable>
+                      ))}
+                      {/* Error Scenario Cards */}
+                      {SCENARIO_TEST_CARDS.slice(0, 3).map((card) => (
+                        <Pressable
+                          key={card.number}
+                          style={[styles.testCardButton, styles.testCardButtonError]}
+                          onPress={() => {
+                            console.log('[PaymentGateway] Auto-filling error test card:', card.number);
+                            setCardNumber(card.number);
+                            setCardName('TEST CARD');
+                            setExpiryDate(card.expiry);
+                            setCvv(card.cvc);
+                            setCardNumberError(null);
+                          }}
+                        >
+                          <Text style={styles.testCardBrand}>✗ {card.errorCode}</Text>
+                          <Text style={styles.testCardScenario} numberOfLines={2}>
+                            {card.scenario}
+                          </Text>
+                        </Pressable>
+                      ))}
+                    </View>
+                  </View>
+                )}
+
                 {/* Card Number */}
                 <View style={styles.inputGroup}>
                   <Text style={styles.inputLabel}>Card Number</Text>
@@ -300,17 +520,39 @@ export default function PaymentGatewayScreen({ navigation, route }: Props) {
                     </View>
                     <TextInput
                       style={styles.input}
-                      placeholder="0000 0000 0000 0000"
+                      placeholder="1234 5678 9012 3456"
                       placeholderTextColor="#9CA3AF"
-                      value={cardNumber}
-                      onChangeText={(text) => setCardNumber(text.replace(/\D/g, '').substring(0, 16))}
+                      value={formatCardNumber(cardNumber)}
+                      onChangeText={(text) => {
+                        const cleaned = text.replace(/\D/g, '').substring(0, 16);
+                        setCardNumber(cleaned);
+                        
+                        // Real-time validation: validate as soon as card number is complete (16 digits)
+                        if (cleaned.length === 16) {
+                          const testCard = getTestCardByNumber(cleaned);
+                          if (!testCard) {
+                            setCardNumberError('Card number does not match card type. Please use a valid PayMongo test card.');
+                          } else {
+                            setCardNumberError(null);
+                          }
+                        } else {
+                          // Clear error if card number is incomplete
+                          setCardNumberError(null);
+                        }
+                      }}
                       keyboardType="number-pad"
-                      maxLength={16}
+                      maxLength={19}
                       editable={status !== 'processing'}
                       accessibilityLabel="Card Number Input"
                     />
                   </View>
                 </View>
+                {cardNumberError && (
+                  <View style={styles.inputErrorContainer}>
+                    <AlertCircle size={14} color="#EF4444" strokeWidth={2} />
+                    <Text style={styles.inputErrorText}>{cardNumberError}</Text>
+                  </View>
+                )}
 
                 <View style={{ flexDirection: 'row', gap: 12 }}>
                   {/* Expiry Date */}
@@ -321,7 +563,7 @@ export default function PaymentGatewayScreen({ navigation, route }: Props) {
                       placeholder="MM/YY"
                       placeholderTextColor="#9CA3AF"
                       value={expiryDate}
-                      onChangeText={setExpiryDate}
+                      onChangeText={(text) => setExpiryDate(formatExpiryDate(text))}
                       keyboardType="number-pad"
                       maxLength={5}
                       editable={status !== 'processing'}
@@ -338,7 +580,10 @@ export default function PaymentGatewayScreen({ navigation, route }: Props) {
                         placeholder="123"
                         placeholderTextColor="#9CA3AF"
                         value={cvv}
-                        onChangeText={setCvv}
+                        onChangeText={(text) => {
+                          const cleaned = text.replace(/\D/g, '').substring(0, 4);
+                          setCvv(cleaned);
+                        }}
                         keyboardType="number-pad"
                         maxLength={4}
                         secureTextEntry
@@ -361,7 +606,6 @@ export default function PaymentGatewayScreen({ navigation, route }: Props) {
                     placeholderTextColor="#9CA3AF"
                     value={cardName}
                     onChangeText={setCardName}
-                    autoCapitalize="characters"
                     editable={status !== 'processing'}
                     accessibilityLabel="Cardholder Name Input"
                   />
@@ -416,7 +660,7 @@ export default function PaymentGatewayScreen({ navigation, route }: Props) {
             <View style={styles.providerInfo}>
               <Shield size={16} color="#6B7280" />
               <Text style={styles.providerInfoText}>
-                You'll be charged ₱{order.total.toLocaleString()} via {getMethodName()}
+                You'll be charged ₱{(order?.total || checkoutPayload?.totalAmount || 0).toLocaleString()} via {getMethodName()}
               </Text>
             </View>
           </View>
@@ -457,11 +701,11 @@ export default function PaymentGatewayScreen({ navigation, route }: Props) {
             ]}
             onPress={handlePayment}
             disabled={!isFormValid() || status === 'processing'}
-            accessibilityLabel={`Pay ${order.total.toLocaleString()} pesos`}
+            accessibilityLabel={`Pay ${(order?.total || checkoutPayload?.totalAmount || 0).toLocaleString()} pesos`}
             accessibilityRole="button"
           >
             <Text style={styles.payButtonText}>
-              {status === 'processing' ? 'Processing...' : `Pay ₱${order.total.toLocaleString()}`}
+              {status === 'processing' ? 'Processing...' : `Pay ₱${(order?.total || checkoutPayload?.totalAmount || 0).toLocaleString()}`}
             </Text>
           </Pressable>
 
@@ -527,15 +771,68 @@ const styles = StyleSheet.create({
 
   // Bill Summary Container
   billContainer: {
-    backgroundColor: '#F9F9F9',
-    borderRadius: 12,
+    backgroundColor: '#FFFFFF',
+    borderRadius: 16,
     marginHorizontal: 24,
     marginTop: 16,
     marginBottom: 24,
     padding: 20,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.08,
+    shadowRadius: 8,
+    elevation: 3,
+  },
+  billDetailsHeader: {
     flexDirection: 'row',
     alignItems: 'center',
+    justifyContent: 'flex-start',
+    marginBottom: 16,
+  },
+  billDetailsTitle: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: COLORS.textHeadline,
+    flex: 1,
+  },
+  billDetailRow: {
+    flexDirection: 'row',
     justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 12,
+    paddingVertical: 8,
+  },
+  billDetailLabel: {
+    fontSize: 13,
+    color: COLORS.textPrimary,
+    fontWeight: '500',
+  },
+  billDetailValue: {
+    fontSize: 13,
+    color: COLORS.textHeadline,
+    fontWeight: '600',
+  },
+  billDetailDivider: {
+    height: 1,
+    backgroundColor: '#E5E7EB',
+    marginVertical: 12,
+  },
+  billDetailRowTotal: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingVertical: 8,
+  },
+  billDetailLabelTotal: {
+    fontSize: 14,
+    color: COLORS.textHeadline,
+    fontWeight: '700',
+  },
+  billAmountTotal: {
+    fontSize: 24,
+    fontWeight: '800',
+    color: '#C53030',
+    letterSpacing: 0.5,
   },
   billLeft: {
     flex: 1,
@@ -802,5 +1099,73 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     color: '#92400E',
     letterSpacing: 0.5,
+  },
+
+  // Test Card Selector
+  testCardSelector: {
+    marginBottom: 20,
+    padding: 12,
+    backgroundColor: '#DBEAFE',
+    borderRadius: 12,
+    borderWidth: 1.5,
+    borderColor: '#93C5FD',
+  },
+  testCardHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    marginBottom: 12,
+  },
+  testCardTitle: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: '#1F2937',
+  },
+  testCardDesc: {
+    fontSize: 11,
+    color: '#1F2937',
+    marginBottom: 8,
+    fontWeight: '500',
+  },
+  testCardGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+  },
+  testCardButton: {
+    flex: 1,
+    minWidth: '45%',
+    padding: 10,
+    backgroundColor: '#FFFFFF',
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: '#60A5FA',
+  },
+  testCardButtonError: {
+    borderColor: '#F87171',
+  },
+  testCardBrand: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: '#1F2937',
+    marginBottom: 2,
+  },
+  testCardScenario: {
+    fontSize: 9,
+    color: '#6B7280',
+    fontWeight: '500',
+  },
+  inputErrorContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    marginTop: 6,
+    marginBottom: 12,
+    paddingHorizontal: 4,
+  },
+  inputErrorText: {
+    fontSize: 12,
+    color: '#EF4444',
+    fontWeight: '500',
   },
 });

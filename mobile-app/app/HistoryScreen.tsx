@@ -60,7 +60,8 @@ export default function HistoryScreen({ navigation }: Props) {
                 images:product_images (image_url, is_primary)
               ),
               variant:product_variants (*)
-            )
+            ),
+            payments:order_payments(payment_method, status, created_at)
           `)
           .eq('buyer_id', user.id)
           .in('shipment_status', ['delivered', 'received']) // Completed orders for history
@@ -74,6 +75,23 @@ export default function HistoryScreen({ navigation }: Props) {
           const calculatedTotal = items.reduce((sum: number, it: any) => {
             return sum + ((it.price || 0) * (it.quantity || 1));
           }, 0);
+
+          // Extract payment method from payments array (same logic as OrdersScreen)
+          const getPaymentMethod = (): string => {
+            const paymentData = (order.payments && order.payments.length > 0) ? order.payments[0]?.payment_method : null;
+            if (typeof paymentData === 'string') {
+              return paymentData;
+            }
+            if (typeof paymentData === 'object' && paymentData) {
+              const type = (paymentData as any)?.type;
+              if (type === 'cod') return 'Cash on Delivery';
+              if (type === 'gcash') return 'GCash';
+              if (type === 'card') return 'Card';
+              if (type === 'paymongo') return 'PayMongo';
+              return type || 'Cash on Delivery';
+            }
+            return 'Paid';
+          };
 
           return {
             id: order.id,
@@ -106,7 +124,7 @@ export default function HistoryScreen({ navigation }: Props) {
             isPaid: order.payment_status === 'paid',
             scheduledDate: new Date(order.created_at).toLocaleDateString(),
             createdAt: order.created_at,
-            paymentMethod: 'Paid',
+            paymentMethod: getPaymentMethod(),
           };
         }) as Order[];
 

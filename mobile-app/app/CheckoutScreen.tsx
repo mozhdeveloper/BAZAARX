@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
+import { useFocusEffect } from '@react-navigation/native';
 import {
   View,
   Text,
@@ -17,6 +18,7 @@ import {
   Animated,
   Easing,
   Dimensions,
+  BackHandler,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -29,6 +31,7 @@ import { COLORS } from '../src/constants/theme';
 import { supabase } from '../src/lib/supabase';
 import { processCheckout, getCheckoutContext } from '@/services/checkoutService';
 import { addressService, type Address, validateCheckoutAddress, type AddressValidationResult } from '@/services/addressService';
+import { paymentMethodService, type SavedPaymentMethod } from '@/services/paymentMethodService';
 import { voucherService, calculateVoucherDiscount, getVoucherErrorMessage } from '@/services/voucherService';
 import { calculateShippingForSellers, type SellerShippingResult, type ShippingMethodOption } from '@/services/shippingService';
 import AddressFormModal from '@/components/AddressFormModal';
@@ -41,6 +44,7 @@ import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import type { RootStackParamList } from '../App';
 import type { CartItem, ShippingAddress, Order, Voucher } from '../src/types';
 import { safeImageUri } from '../src/utils/imageUtils';
+import { generateUUID } from '../src/utils/uuid';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'Checkout'>;
 
@@ -241,6 +245,36 @@ export default function CheckoutScreen({ navigation, route }: Props) {
   const [isValidatingStock, setIsValidatingStock] = useState(false);
   const hasUnavailableItems = unavailableItems.length > 0;
 
+  // ===== STATE DECLARATIONS MOVED TO TOP (before hooks) =====
+  // Payments and Vouchers
+  const [paymentMethod, setPaymentMethod] = useState<'cod' | 'gcash' | 'card' | 'paymongo' | null>('cod');
+  const [voucherCode, setVoucherCode] = useState('');
+  const [appliedVoucher, setAppliedVoucher] = useState<Voucher | null>(null);
+  const [isAnonymous, setIsAnonymous] = useState(false);
+
+  // Saved Payment Methods (for PayMongo)
+  const [savedPaymentMethods, setSavedPaymentMethods] = useState<SavedPaymentMethod[]>([]);
+  const [selectedPaymentMethodId, setSelectedPaymentMethodId] = useState<string | null>(null);
+  const [loadingPaymentMethods, setLoadingPaymentMethods] = useState(false);
+
+  // Processing State
+  const [paymentComplete, setPaymentComplete] = useState(false); // Track if payment was successful
+  const [paymentProcessedOrder, setPaymentProcessedOrder] = useState<any>(null); // Store order data after payment
+  const [isProcessing, setIsProcessing] = useState(false);
+  const [processingMessage, setProcessingMessage] = useState('Processing your order...');
+
+  // Bazcoins
+  const [useBazcoins, setUseBazcoins] = useState(false);
+  const [availableBazcoins, setAvailableBazcoins] = useState(0);
+  
+  // Payment Method State
+  const [hasSavedCard, setHasSavedCard] = useState(false);
+
+  // Loading Animation
+  const processingFadeAnim = useRef(new Animated.Value(0)).current;
+
+  // ===== END STATE DECLARATIONS =====
+
   // Fetch seller metadata (vacation check + shipping origin) on mount
   // Extract and memoize seller IDs to prevent constant re-fetches
   const sellerIds = useMemo(() => {
@@ -344,6 +378,60 @@ export default function CheckoutScreen({ navigation, route }: Props) {
     validateCheckoutItemsStock();
   }, [checkoutItems]);
 
+  // Animate loading modal in/out
+  useEffect(() => {
+    if (isProcessing) {
+      Animated.loop(
+        Animated.timing(processingFadeAnim, {
+          toValue: 1,
+          duration: 1200,
+          useNativeDriver: true,
+          easing: Easing.linear
+        })
+      ).start();
+    } else {
+      processingFadeAnim.setValue(0);
+    }
+  }, [isProcessing, processingFadeAnim]);
+
+  // Cleanup loading state when navigating away from CheckoutScreen
+  useFocusEffect(
+    useCallback(() => {
+      // Cleanup when losing focus (navigating away)
+      return () => {
+        // Reset loading state if still processing
+        if (isProcessing) {
+          console.log('[Checkout] 🔄 Resetting loading state - navigating away from checkout');
+          setIsProcessing(false);
+          setProcessingMessage('Processing your order...');
+          processingFadeAnim.setValue(0);
+        }
+      };
+    }, [isProcessing, processingFadeAnim])
+  );
+
+  // Handle hardware back button - prevent back while processing
+  useFocusEffect(
+    useCallback(() => {
+      const backAction = () => {
+        if (isProcessing) {
+          Alert.alert(
+            'Checkout in Progress',
+            'Your order is being processed. Please wait for it to complete before going back.',
+            [{ text: 'OK', onPress: () => {} }],
+            { cancelable: false }
+          );
+          return true; // Prevent back navigation
+        }
+        return false; // Allow back navigation
+      };
+
+      const subscription = BackHandler.addEventListener('hardwareBackPress', backAction);
+
+      return () => subscription.remove();
+    }, [isProcessing])
+  );
+
   // Pre-fetch addresses + seller metadata via Edge Function on mount.
   // The Edge Function uses Promise.all internally so both queries run concurrently.
   useEffect(() => {
@@ -375,6 +463,32 @@ export default function CheckoutScreen({ navigation, route }: Props) {
   const [selectedCardId, setSelectedCardId] = useState<string | null>(null);
   const [currentStep, setCurrentStep] = useState<CheckoutStep>('shipping');
 
+  // Validate payment method is available (Acceptance Criteria #4, #5: Validate availability and eligibility)
+  const isPaymentMethodAvailable = useCallback((method: string): boolean => {
+    if (!selectedAddress) return false; // No address = no delivery = no payment
+    
+    // COD eligibility: Check if it's a gift (Acceptance Criteria #5: block COD for gifts)
+    if (method === 'cod' && isGift) {
+      return false;
+    }
+    
+    // Online methods (PayMongo, GCash) are always available when address exists
+    if (method === 'paymongo' || method === 'gcash') {
+      return true;
+    }
+    
+    // Card method is available
+    if (method === 'card') {
+      return true;
+    }
+    
+    // COD is available when not a gift
+    if (method === 'cod') {
+      return true;
+    }
+    
+    return false;
+  }, [selectedAddress, isGift]);
   const createOrder = (items: CartItem[], addr: any, payment: string, options: any) => {
     return {
       id: `ORD-${Date.now()}`,
@@ -393,16 +507,33 @@ export default function CheckoutScreen({ navigation, route }: Props) {
     };
   };
 
-  // Payments and Vouchers
-  const [paymentMethod, setPaymentMethod] = useState<'cod' | 'gcash' | 'card' | 'paymongo'>('cod');
-  const [voucherCode, setVoucherCode] = useState('');
-  const [appliedVoucher, setAppliedVoucher] = useState<Voucher | null>(null);
-  const [isAnonymous, setIsAnonymous] = useState(false);
+  // Load saved payment methods when user ID is available
+  useEffect(() => {
+    if (!user?.id) return;
 
-  // Bazcoins Logic
+    const loadPaymentMethods = async () => {
+      setLoadingPaymentMethods(true);
+      try {
+        const methods = await paymentMethodService.getSavedPaymentMethods(user.id);
+        setSavedPaymentMethods(methods);
+
+        // Auto-select default card if available
+        const defaultCard = methods.find((m: SavedPaymentMethod) => m.isDefault);
+        if (defaultCard) {
+          setSelectedPaymentMethodId(defaultCard.id);
+        }
+      } catch (err) {
+        console.error('[Checkout] Failed to load payment methods:', err);
+      } finally {
+        setLoadingPaymentMethods(false);
+      }
+    };
+
+    loadPaymentMethods();
+  }, [user?.id]);
+
+  // Bazcoins Logic (state moved to top)
   const earnedBazcoins = useMemo(() => Math.floor(checkoutSubtotal / 10), [checkoutSubtotal]);
-  const [useBazcoins, setUseBazcoins] = useState(false);
-  const [availableBazcoins, setAvailableBazcoins] = useState(0);
   const maxRedeemableBazcoins = useMemo(() =>
     Math.min(availableBazcoins, checkoutSubtotal),
     [availableBazcoins, checkoutSubtotal]
@@ -412,7 +543,6 @@ export default function CheckoutScreen({ navigation, route }: Props) {
     [useBazcoins, maxRedeemableBazcoins]
   );
 
-  const [isProcessing, setIsProcessing] = useState(false);
 
   // Calculate campaign discount and original subtotal
   const { campaignDiscountTotal, originalSubtotal } = useMemo(() => {
@@ -1580,7 +1710,7 @@ export default function CheckoutScreen({ navigation, route }: Props) {
               const storedCoords = await AsyncStorage.getItem('currentDeliveryCoordinates');
               if (storedAddress && storedAddress !== 'Select Location') {
                 homeScreenAddress = storedAddress;
-                homeScreenCoords = storedCoords ? JSON.parse(storedCoords) : null;
+                homeScreenCoords = storedCoords ? JSON.parse(storedCoords) : undefined;
               }
             }
           } catch (storageError) {
@@ -1805,9 +1935,32 @@ export default function CheckoutScreen({ navigation, route }: Props) {
       return;
     }
 
+    // Acceptance Criteria #6: Validate payment method is selected
+    if (!paymentMethod) {
+      Alert.alert('Payment Method Required', 'Please select a payment method to proceed with checkout.');
+      return;
+    }
+
+    // Acceptance Criteria #4, #5: Validate payment method is available
+    if (!isPaymentMethodAvailable(paymentMethod)) {
+      Alert.alert('Payment Method Unavailable', 'The selected payment method is not available for this order. Please select another method.');
+      return;
+    }
+
+    // For PayMongo with saved card: Include card ID in payload
+    if (paymentMethod === 'paymongo' && selectedPaymentMethodId) {
+      // User selected a saved card - will be used instead of card form
+    } else if (paymentMethod === 'paymongo' && !selectedPaymentMethodId) {
+      // User has no saved cards selected
+      Alert.alert('Payment Method', 'Please select a saved card or click "Use Different Card" to enter a new card.');
+      return;
+    }
+
     setIsProcessing(true);
+    setProcessingMessage('Processing your order...');
 
     try {
+      console.log('[Checkout] 🔄 Starting checkout process...');
       // Prepare checkout payload
       const payload = {
         userId: user.id,
@@ -1859,6 +2012,8 @@ export default function CheckoutScreen({ navigation, route }: Props) {
             destinationZone: r.destinationZone,
           };
         }),
+        // Include saved PayMongo card ID if user selected one
+        ...(paymentMethod === 'paymongo' && selectedPaymentMethodId ? { savedPaymentMethodId: selectedPaymentMethodId } : {}),
       };
 
       const result = await processCheckout(payload);
@@ -1866,6 +2021,15 @@ export default function CheckoutScreen({ navigation, route }: Props) {
       if (!result.success) {
         throw new Error(result.error || 'Checkout failed');
       }
+
+      setProcessingMessage('Preparing your checkout...');
+
+      console.log('[Checkout] ✅ processCheckout result:', {
+        success: result.success,
+        orderIds: result.orderIds,
+        orderUuids: result.orderUuids,
+        orderCount: result.orderIds?.length || 0
+      });
 
       // Update local Bazcoins balance
       const newBalance = availableBazcoins - bazcoinDiscount + earnedBazcoins;
@@ -1879,9 +2043,60 @@ export default function CheckoutScreen({ navigation, route }: Props) {
         clearQuickOrder();
       }
 
+      // ✅ FIX: Special handling for PayMongo saved cards - skip payment gateway
+      if (paymentMethod === 'paymongo' && selectedPaymentMethodId) {
+        console.log('[Checkout] 💳 PayMongo saved card detected - skipping PaymentGateway');
+        // Saved PayMongo card - proceed directly to confirmation
+        const shippingAddressForOrder: ShippingAddress = {
+          name: `${selectedAddress?.firstName || ''} ${selectedAddress?.lastName || ''}`.trim(),
+          email: user.email,
+          phone: selectedAddress?.phone || '',
+          address: `${selectedAddress?.street || ''}${selectedAddress?.barangay ? `, ${selectedAddress.barangay}` : ''}`,
+          city: selectedAddress?.city || '',
+          region: selectedAddress?.province || selectedAddress?.region || '',
+          postalCode: selectedAddress?.zipCode || '',
+        };
+
+        const order: Order = {
+          id: result.orderIds?.[0] || 'ORD-' + Date.now(),
+          orderId: result.orderUuids?.[0],
+          buyerId: user.id,
+          sellerId: checkoutItems[0]?.seller_id || checkoutItems[0]?.sellerId || '',
+          transactionId: 'TXN' + Math.random().toString(36).slice(2, 10).toUpperCase(),
+          items: checkoutItems,
+          total,
+          shippingFee,
+          discount: discount > 0 ? discount : undefined,
+          voucherInfo: appliedVoucher ? {
+            code: appliedVoucher.code,
+            type: appliedVoucher.type,
+            discountAmount: discount
+          } : undefined,
+          campaignDiscounts: campaignDiscountTotal > 0 ? checkoutItems
+            .filter(item => item.campaignDiscount)
+            .map(item => ({
+              campaignId: item.campaignDiscount?.campaignId || '',
+              campaignName: item.campaignDiscount?.campaignName || 'Discount',
+              discountAmount: ((item.originalPrice ?? item.price ?? 0) - (item.price ?? 0)) * item.quantity
+            })) : undefined,
+          status: 'pending',
+          isPaid: false,
+          scheduledDate: new Date(Date.now() + 3 * 24 * 60 * 60 * 1000).toLocaleDateString('en-US'),
+          shippingAddress: shippingAddressForOrder,
+          paymentMethod,
+          createdAt: new Date().toISOString(),
+          isGift,
+          isAnonymous,
+          recipientId: isGift ? recipientId : undefined
+        };
+
+        setProcessingMessage('Confirming your order...');
+        console.log('[Checkout] PayMongo saved card selected - skipping payment gateway');
+        navigation.replace('OrderConfirmation', { order, earnedBazcoins, isQuickCheckout });
+        return;
+      }
 
       // Check if online payment (GCash, PayMongo, PayMaya, Card)
-
       const isOnlinePayment = paymentMethod.toLowerCase() !== 'cod' && paymentMethod.toLowerCase() !== 'cash on delivery';
 
       const shippingAddressForOrder: ShippingAddress = {
@@ -1894,13 +2109,28 @@ export default function CheckoutScreen({ navigation, route }: Props) {
         postalCode: selectedAddress?.zipCode || '',
       };
 
+      // Validate and extract seller ID
+      const sellerId = checkoutItems[0]?.seller_id || checkoutItems[0]?.sellerId || checkoutItems[0]?.['sellerId'] || null;
+      console.log('[Checkout] Extracted sellerId:', {
+        sellerId,
+        item0: checkoutItems[0],
+        seller_id: checkoutItems[0]?.seller_id,
+        sellerId_prop: checkoutItems[0]?.sellerId,
+        bracket_sellerId: checkoutItems[0]?.['sellerId']
+      });
+      
+      if (!sellerId) {
+        console.error('[Checkout] ❌ Missing seller! checkoutItems:', checkoutItems);
+        throw new Error('Unable to determine seller. Please refresh and try again.');
+      }
+
       const order: Order = {
         id: result.orderIds?.[0] || 'ORD-' + Date.now(),
         orderId: result.orderUuids?.[0],
         buyerId: user.id,
-        sellerId: checkoutItems[0]?.seller_id || checkoutItems[0]?.sellerId || '',
+        sellerId: sellerId,
         transactionId: 'TXN' + Math.random().toString(36).slice(2, 10).toUpperCase(),
-        items: checkoutItems,
+        items: checkoutItems, // NOTE: This might not serialize properly through navigation, but checkoutPayload has all items
         total,
         shippingFee,
         discount: discount > 0 ? discount : undefined,
@@ -1927,18 +2157,73 @@ export default function CheckoutScreen({ navigation, route }: Props) {
         recipientId: isGift ? recipientId : undefined
       };
 
+      console.log('[Checkout] ✅ Order object created:', {
+        id: order.id,
+        orderId: order.orderId,
+        buyerId: order.buyerId,
+        sellerId: order.sellerId,
+        total: order.total,
+        itemCount: order.items?.length
+      });
+
+      // Create a serializable version of the order for navigation
+      // React Navigation can't serialize complex objects with Date properties
+      const serializableOrder = {
+        ...order,
+        items: (order.items || []).map((item: any) => ({
+          id: item.id,
+          name: item.name,
+          price: item.price,
+          quantity: item.quantity,
+          image: item.image,
+          sellerId: item.sellerId || item.seller_id,
+          cartItemId: item.cartItemId,
+          selectedVariant: item.selectedVariant,
+          // Skip campaignEndsAt and other Date properties
+        }))
+      };
+
+      console.log('[Checkout] ✅ Serializable order created:', {
+        id: serializableOrder.id,
+        orderId: serializableOrder.orderId,
+        itemCount: serializableOrder.items?.length
+      });
+
       // Check if online payment (GCash, PayMongo, PayMaya, Card)
 
       if (isOnlinePayment) {
+        setProcessingMessage('Redirecting to secure payment gateway');
         // Navigate to payment gateway simulation
         // Pass isQuickCheckout flag so we know what to clear later
-        navigation.navigate('PaymentGateway', { paymentMethod, order, isQuickCheckout, earnedBazcoins });
+        console.log('[Checkout] Navigating to PaymentGateway with serializable order:', {
+          orderId: serializableOrder?.orderId,
+          orderTotal: serializableOrder?.total,
+          orderSellerId: serializableOrder?.sellerId,
+          orderBuyerId: serializableOrder?.buyerId,
+          itemCount: serializableOrder?.items?.length,
+          orderShippingFee: serializableOrder?.shippingFee,
+        });
+        navigation.navigate('PaymentGateway', { 
+          paymentMethod, 
+          order: serializableOrder,  // Use serializable version for navigation
+          checkoutPayload: payload, 
+          isQuickCheckout, 
+          earnedBazcoins,
+          bazcoinDiscount,
+          appliedVoucher,
+          isGift,
+          recipientId
+        });
+
       } else {
-        // COD - Cart items already removed per processCheckout; just clear quick order if used
-        if (isQuickCheckout) {
-          clearQuickOrder();
-        }
-        navigation.navigate('OrderConfirmation', { order, earnedBazcoins });
+        setProcessingMessage('Confirming your order...');
+        // For COD: use the order already defined above
+        console.log('[Checkout] Proceeding to OrderConfirmation for COD with order:', {
+          orderId: order?.orderId,
+          orderTotal: order?.total,
+          itemCount: order?.items?.length,
+        });
+        navigation.replace('OrderConfirmation', { order, earnedBazcoins, isQuickCheckout });
       }
 
     } catch (error: any) {
@@ -1947,7 +2232,7 @@ export default function CheckoutScreen({ navigation, route }: Props) {
     } finally {
       setIsProcessing(false);
     }
-  }, [hasUnavailableItems, unavailableItems, hasVacationSeller, vacationSellers, selectedAddress, checkoutItems, user, total, paymentMethod, bazcoinDiscount, earnedBazcoins, shippingFee, discount, availableBazcoins, isQuickCheckout, isGift, isAnonymous, recipientId, navigation, initializeForCurrentUser, clearQuickOrder, campaignDiscountTotal, appliedVoucher]);
+  }, [hasUnavailableItems, unavailableItems, hasVacationSeller, vacationSellers, selectedAddress, checkoutItems, user, total, paymentMethod, bazcoinDiscount, earnedBazcoins, shippingFee, discount, availableBazcoins, isQuickCheckout, isGift, isAnonymous, recipientId, navigation, initializeForCurrentUser, clearQuickOrder, campaignDiscountTotal, appliedVoucher, selectedPaymentMethodId, shippingResults, selectedMethods]);
 
   if (isCheckoutContextLoading) {
     return (
@@ -2226,23 +2511,255 @@ export default function CheckoutScreen({ navigation, route }: Props) {
               </Pressable>
 
               <Pressable
-                onPress={() => { }}
-                style={[styles.paymentOption, { opacity: 0.5, backgroundColor: '#F3F4F6' }]}
+                onPress={() => setPaymentMethod('paymongo')}
+                style={[
+                  styles.paymentOption,
+                  paymentMethod === 'paymongo' && styles.paymentOptionActive
+                ]}
               >
                 <View style={styles.radio}>
                   {paymentMethod === 'paymongo' && <View style={styles.radioInner} />}
                 </View>
                 <View style={{ flex: 1 }}>
                   <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-                    <Text style={[styles.paymentText, { color: '#9CA3AF' }]}>PayMongo</Text>
-                    <View style={{ backgroundColor: '#E5E7EB', paddingHorizontal: 6, paddingVertical: 2, borderRadius: 4, marginLeft: 8 }}>
-                      <Text style={{ fontSize: 10, fontWeight: '700', color: '#6B7280' }}>COMING SOON</Text>
-                    </View>
+                    <Text style={styles.paymentText}>PayMongo</Text>
                   </View>
-                  <Text style={styles.paymentSubtext}>Instantly paid online</Text>
+                  <Text style={styles.paymentSubtext}>Securely pay with your card</Text>
                 </View>
-                <Shield size={16} color="#9CA3AF" />
+                <Shield size={16} color={COLORS.primary} />
               </Pressable>
+
+              {/* PayMongo Payment Method */}
+              {paymentMethod === 'paymongo' && (
+                <View style={styles.cardFormContainer}>
+                  <Text style={styles.cardFormTitle}>💳 Payment Method</Text>
+
+                  {/* Loading State */}
+                  {loadingPaymentMethods && (
+                    <View style={styles.loadingContainer}>
+                      <ActivityIndicator size="small" color={COLORS.primary} />
+                      <Text style={styles.loadingText}>Loading saved cards...</Text>
+                    </View>
+                  )}
+
+                  {/* Saved Cards Section */}
+                  {!loadingPaymentMethods && savedPaymentMethods.length > 0 && (
+                    <View style={styles.savedCardsSection}>
+                      <Text style={styles.savedCardsTitle}>Your Saved Cards</Text>
+                      {savedPaymentMethods.map((method) => (
+                        <Pressable
+                          key={method.id}
+                          onPress={() => setSelectedPaymentMethodId(method.id)}
+                          style={[
+                            styles.savedCardOption,
+                            selectedPaymentMethodId === method.id && styles.savedCardOptionSelected
+                          ]}
+                        >
+                          <View style={styles.cardRadio}>
+                            {selectedPaymentMethodId === method.id && (
+                              <View style={styles.cardRadioInner} />
+                            )}
+                          </View>
+                          <View style={styles.savedCardInfo}>
+                            <Text style={styles.savedCardName}>{method.cardholderName}</Text>
+                            {method.isDefault && (
+                              <View style={styles.defaultBadgeSmall}>
+                                <Text style={styles.defaultBadgeText}>Default</Text>
+                              </View>
+                            )}
+                          </View>
+                          <ChevronRight size={16} color={COLORS.textMuted} />
+                        </Pressable>
+                      ))}
+                      
+                      {/* Use Different Card Button - Create order and navigate to PaymentGatewayScreen */}
+                      <Pressable
+                        onPress={async () => {
+                          try {
+                            setIsProcessing(true);
+                            setProcessingMessage('Redirecting to secure payment gateway');
+
+                            // Validate required fields before proceeding to payment gateway
+                            if (!user?.id) {
+                              Alert.alert('Error', 'User not authenticated. Please sign in again.');
+                              setIsProcessing(false);
+                              return;
+                            }
+                            
+                            if (!selectedAddress) {
+                              Alert.alert('Error', 'Please select a delivery address');
+                              setIsProcessing(false);
+                              return;
+                            }
+
+                            const sellerId = checkoutItems[0]?.seller_id || checkoutItems[0]?.sellerId;
+                            if (!sellerId) {
+                              Alert.alert('Error', 'No seller found for items. Please try again.');
+                              setIsProcessing(false);
+                              return;
+                            }
+
+                            // Prepare checkout payload with full details
+                            const payload = {
+                              userId: user.id,
+                              items: checkoutItems,
+                              totalAmount: total,
+                              shippingAddress: {
+                                fullName: `${selectedAddress.firstName} ${selectedAddress.lastName}`,
+                                street: selectedAddress.street || '',
+                                barangay: selectedAddress.barangay || '',
+                                city: selectedAddress.city || 'Manila',
+                                province: selectedAddress.province || 'Metro Manila',
+                                region: selectedAddress.region || 'NCR',
+                                postalCode: selectedAddress.zipCode || '0000',
+                                phone: selectedAddress.phone || '',
+                                country: 'Philippines'
+                              },
+                              paymentMethod: 'paymongo',
+                              usedBazcoins: bazcoinDiscount,
+                              earnedBazcoins,
+                              shippingFee,
+                              discount,
+                              voucherId: appliedVoucher?.id || null,
+                              discountAmount: discount,
+                              email: user.email,
+                              campaignDiscountTotal,
+                              campaignDiscounts: checkoutItems
+                                .filter(item => item.campaignDiscount)
+                                .map(item => ({
+                                  campaignId: item.campaignDiscount?.campaignId,
+                                  campaignName: item.campaignDiscount?.campaignName || 'Discount',
+                                  discountAmount: ((item.originalPrice ?? item.price ?? 0) - (item.price ?? 0)) * item.quantity,
+                                  productId: item.id,
+                                  quantity: item.quantity
+                                })),
+                              shippingBreakdown: shippingResults.map(r => {
+                                const methodKey = selectedMethods[r.sellerId];
+                                const method = r.methods.find(m => m.method === methodKey) || r.defaultMethod;
+                                return {
+                                  sellerId: r.sellerId,
+                                  sellerName: r.sellerName,
+                                  method: method?.method ?? 'standard',
+                                  methodLabel: method?.label ?? 'Standard',
+                                  fee: method?.fee ?? 0,
+                                  breakdown: method?.breakdown ?? { baseRate: 0, weightSurcharge: 0, valuationFee: 0, odzFee: 0 },
+                                  estimatedDays: method?.estimatedDays ?? 'N/A',
+                                  originZone: r.originZone,
+                                  destinationZone: r.destinationZone,
+                                };
+                              })
+                            };
+
+                            // Call processCheckout to create the actual order in database
+                            console.log('[Checkout] 🔄 Processing checkout for "Use Different Card" flow...');
+                            const result = await processCheckout(payload);
+
+                            if (!result.success || !result.orderUuids || result.orderUuids.length === 0) {
+                              Alert.alert('Error', 'Failed to create order. Please try again.');
+                              return;
+                            }
+
+                            console.log('[Checkout] ✅ processCheckout result:', {
+                              success: result.success,
+                              orderIds: result.orderIds,
+                              orderUuids: result.orderUuids
+                            });
+
+                            // Now create the serializable order object for navigation
+                            const shippingAddressForOrder: ShippingAddress = {
+                              name: `${selectedAddress.firstName} ${selectedAddress.lastName}`.trim(),
+                              email: user.email,
+                              phone: selectedAddress.phone || '',
+                              address: `${selectedAddress.street || ''}${selectedAddress.barangay ? `, ${selectedAddress.barangay}` : ''}`,
+                              city: selectedAddress.city || 'Manila',
+                              region: selectedAddress.province || selectedAddress.region || 'NCR',
+                              postalCode: selectedAddress.zipCode || '0000',
+                            };
+
+                            const orderObject: Order = {
+                              id: result.orderIds?.[0] || 'ORD-' + Date.now(),
+                              orderId: result.orderUuids?.[0],
+                              buyerId: user.id,
+                              sellerId: sellerId,
+                              transactionId: 'TXN' + Math.random().toString(36).slice(2, 10).toUpperCase(),
+                              items: checkoutItems,
+                              total,
+                              shippingFee,
+                              discount: discount > 0 ? discount : undefined,
+                              voucherInfo: appliedVoucher ? {
+                                code: appliedVoucher.code,
+                                type: appliedVoucher.type,
+                                discountAmount: discount
+                              } : undefined,
+                              status: 'pending',
+                              isPaid: false,
+                              scheduledDate: new Date(Date.now() + 3 * 24 * 60 * 60 * 1000).toLocaleDateString('en-US'),
+                              shippingAddress: shippingAddressForOrder,
+                              paymentMethod: 'paymongo',
+                              createdAt: new Date().toISOString(),
+                            };
+
+                            // Create serializable version for navigation
+                            const serializableOrderForNavigation = {
+                              ...orderObject,
+                              items: (orderObject.items || []).map((item: any) => ({
+                                id: item.id,
+                                name: item.name,
+                                price: item.price,
+                                quantity: item.quantity,
+                                image: item.image,
+                                sellerId: item.sellerId || item.seller_id,
+                                cartItemId: item.cartItemId,
+                                selectedVariant: item.selectedVariant,
+                              }))
+                            };
+
+                            console.log('[Checkout] ✅ Navigating to PaymentGateway with order:', {
+                              orderId: serializableOrderForNavigation?.orderId,
+                              orderTotal: serializableOrderForNavigation?.total,
+                              orderSellerId: serializableOrderForNavigation?.sellerId,
+                              orderBuyerId: serializableOrderForNavigation?.buyerId,
+                            });
+
+                            setProcessingMessage('Redirecting to secure payment gateway');
+
+                            navigation.navigate('PaymentGateway', { 
+                              paymentMethod: 'paymongo', 
+                              order: serializableOrderForNavigation,
+                              checkoutPayload: payload,
+                              isQuickCheckout: false,
+                              earnedBazcoins,
+                              bazcoinDiscount,
+                              appliedVoucher,
+                              isGift: false,
+                              isAnonymous: false,
+                              recipientId: undefined
+                            } as any);
+                          } catch (error: any) {
+                            setIsProcessing(false);
+                            console.error('[Checkout] ❌ Error in Use Different Card:', error);
+                            Alert.alert('Error', error?.message || 'Failed to process order. Please try again.');
+                          }
+                        }}
+                        style={styles.useDifferentCardButton}
+                      >
+                        <Text style={styles.useDifferentCardText}>💳 Use Different Card</Text>
+                      </Pressable>
+                    </View>
+                  )}
+
+                  {/* No Saved Cards - Show message to use different card */}
+                  {!loadingPaymentMethods && savedPaymentMethods.length === 0 && (
+                    <View style={{ backgroundColor: '#F0F9FF', borderColor: '#0EA5E9', borderWidth: 1, borderRadius: 8, padding: 12, marginVertical: 8 }}>
+                      <Text style={{ fontSize: 13, color: '#0369A1', lineHeight: 20 }}>
+                        Enter your card details on the next screen after clicking "Place Order"
+                      </Text>
+                    </View>
+                  )}
+                </View>
+              )}
+
+
 
               <View>
                 <Pressable
@@ -2265,9 +2782,9 @@ export default function CheckoutScreen({ navigation, route }: Props) {
                 </Pressable>
 
                 {/* Saved Cards List */}
-                {paymentMethod === 'card' && user?.savedCards && user.savedCards.length > 0 && (
+                {paymentMethod === 'card' && savedPaymentMethods && savedPaymentMethods.length > 0 && (
                   <View style={styles.savedCardsContainer}>
-                    {user.savedCards.map((card) => (
+                    {savedPaymentMethods.map((card: any) => (
                       <Pressable
                         key={card.id}
                         style={[
@@ -2940,6 +3457,88 @@ export default function CheckoutScreen({ navigation, route }: Props) {
           setShowAddressFormModal(false);
         }}
       />
+
+      {/* Loading Modal Overlay - Matches Design Image */}
+      <Modal
+        visible={isProcessing}
+        transparent={true}
+        animationType="fade"
+        statusBarTranslucent={true}
+      >
+        <View
+          style={{
+            flex: 1,
+            backgroundColor: '#FFFFFF',
+            justifyContent: 'center',
+            alignItems: 'center',
+          }}
+        >
+          <View
+            style={{
+              alignItems: 'center',
+              justifyContent: 'center',
+            }}
+          >
+            {/* Animated Spinner Arc - Single rotating element */}
+            <Animated.View
+              style={{
+                transform: [
+                  {
+                    rotate: processingFadeAnim.interpolate({
+                      inputRange: [0, 1],
+                      outputRange: ['0deg', '360deg']
+                    })
+                  }
+                ]
+              }}
+            >
+              <View
+                style={{
+                  width: 35,
+                  height: 35,
+                  borderRadius: 25,
+                  borderWidth: 4,
+                  borderColor: '#FFFFFF',
+                  borderTopColor: COLORS.primary,
+                }}
+              />
+            </Animated.View>
+
+            {/* Loading Text - Context-aware message */}
+            <Text
+              style={{
+                marginTop: 24,
+                fontSize: 13,
+                fontWeight: '500',
+                color: '#999999',
+                textAlign: 'center',
+                letterSpacing: 0.2,
+              }}
+            >
+              {processingMessage}
+            </Text>
+
+            {/* Animated Dots */}
+            <View style={{ flexDirection: 'row', marginTop: 12, justifyContent: 'center', gap: 4 }}>
+              {[0, 1, 2].map((index) => (
+                <Animated.View
+                  key={index}
+                  style={{
+                    width: 4,
+                    height: 4,
+                    borderRadius: 2,
+                    backgroundColor: COLORS.primary,
+                    opacity: processingFadeAnim.interpolate({
+                      inputRange: [0, 0.33, 0.66, 1],
+                      outputRange: [0.3, 0.6, 0.9, 0.3]
+                    })
+                  }}
+                />
+              ))}
+            </View>
+          </View>
+        </View>
+      </Modal>
     </LinearGradient>
   );
 
@@ -3921,4 +4520,119 @@ const styles = StyleSheet.create({
     borderRadius: 8,
     backgroundColor: COLORS.primary,
   },
+  
+  // PayMongo Payment Method Styles
+  cardFormContainer: {
+    marginBottom: 16,
+    marginHorizontal: 0,
+  },
+  cardFormTitle: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#111827',
+    marginBottom: 12,
+  },
+  loadingContainer: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 24,
+  },
+  loadingText: {
+    fontSize: 14,
+    color: '#6B7280',
+    marginTop: 8,
+  },
+  savedCardsSection: {
+    marginBottom: 12,
+    marginHorizontal: 0,
+  },
+  savedCardsTitle: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#111827',
+    marginBottom: 12,
+  },
+  savedCardOption: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 12,
+    paddingVertical: 12,
+    marginBottom: 8,
+    marginHorizontal: 0,
+    borderWidth: 1,
+    borderColor: '#E5E7EB',
+    borderRadius: 8,
+    backgroundColor: '#FFFFFF',
+  },
+  savedCardOptionSelected: {
+    borderColor: COLORS.primary,
+    backgroundColor: '#FFF5F0',
+  },
+  cardRadio: {
+    width: 18,
+    height: 18,
+    borderRadius: 9,
+    borderWidth: 2,
+    borderColor: '#D1D5DB',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: 12,
+    flexShrink: 0,
+  },
+  cardRadioSelected: {
+    borderColor: COLORS.primary,
+  },
+  cardRadioInner: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+    backgroundColor: COLORS.primary,
+  },
+  cardCircleIndicator: {
+    width: 12,
+    height: 12,
+    borderRadius: 6,
+    backgroundColor: COLORS.primary,
+    marginRight: 12,
+  },
+  savedCardName: {
+    fontSize: 15,
+    fontWeight: '500',
+    color: '#111827',
+    flex: 1,
+  },
+  defaultBadgeSmall: {
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    backgroundColor: '#E8F5E9',
+    borderRadius: 4,
+    marginTop: 4,
+    alignSelf: 'flex-start',
+  },
+  defaultBadgeText: {
+    fontSize: 12,
+    color: '#2E7D32',
+    fontWeight: '500',
+  },
+  useDifferentCardButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    marginTop: 12,
+    marginHorizontal: 0,
+    borderRadius: 8,
+    backgroundColor: '#F9FAFB',
+    borderWidth: 1,
+    borderColor: '#E5E7EB',
+  },
+  useDifferentCardText: {
+    fontSize: 15,
+    fontWeight: '500',
+    color: '#111827',
+    marginLeft: 6,
+  },
 });
+
+
