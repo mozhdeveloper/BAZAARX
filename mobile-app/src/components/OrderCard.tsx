@@ -474,14 +474,14 @@ const styles = StyleSheet.create({
     color: '#F59E0B', // Default Brand Color, can be customized
   },
   actionButtonsContainer: {
-    flexDirection: 'row',
+    flexDirection: 'column',
     justifyContent: 'flex-end',
     gap: 8,
     marginTop: 8,
     paddingTop: 12,
     borderTopWidth: 1,
     borderTopColor: '#F3F4F6',
-    alignItems: 'flex-start',
+    alignItems: 'stretch',
   },
   buttonRow: {
     flexDirection: 'row',

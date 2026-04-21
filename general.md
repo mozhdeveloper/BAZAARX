@@ -352,3 +352,134 @@ The following files are local AI standards and are **never committed**:
 
 ---
 
+### Mobile Order Card - Delivered Button Overlap Fix
+
+**Status:** ✅ COMPLETE
+
+**Objective:** Fix "Confirm Received" button overlapping with other action buttons in mobile Order Card component when order status is "delivered".
+
+**Problem Identified:**
+The action buttons container in OrderCard was using a horizontal flex layout (`flexDirection: 'row'`), causing buttons to cramp together and overlap when multiple buttons needed to display for the same order status.
+
+**Specific Issue:**
+For "delivered" orders, three action buttons would render in quick succession:
+1. "Chat with Seller" button
+2. "Track" button  
+3. "Confirm Received" button
+
+All three buttons tried to fit in a single horizontal row, causing visual overlap and truncation.
+
+**Root Cause:**
+Location: `mobile-app/src/components/OrderCard.tsx` (Lines 476-484)
+
+```javascript
+actionButtonsContainer: {
+  flexDirection: 'row',        // ← PROBLEM: Forces all buttons into single row
+  justifyContent: 'flex-end',
+  gap: 8,
+  marginTop: 8,
+  paddingTop: 12,
+  borderTopWidth: 1,
+  borderTopColor: '#F3F4F6',
+  alignItems: 'flex-start',    // ← PROBLEM: Top-aligned instead of stretching
+}
+```
+
+**Fix Implemented:**
+Updated the `actionButtonsContainer` styling to use vertical stacking:
+
+```javascript
+actionButtonsContainer: {
+  flexDirection: 'column',     // Changed to column for vertical stacking
+  justifyContent: 'flex-end',
+  gap: 8,
+  marginTop: 8,
+  paddingTop: 12,
+  borderTopWidth: 1,
+  borderTopColor: '#F3F4F6',
+  alignItems: 'stretch',       // Changed to stretch for full-width buttons
+}
+```
+
+**Changes Made:**
+- `flexDirection: 'row'` → `flexDirection: 'column'` (stack buttons vertically instead of horizontally)
+- `alignItems: 'flex-start'` → `alignItems: 'stretch'` (buttons expand to full container width)
+
+**Result:**
+- ✅ Buttons no longer overlap or cramp together
+- ✅ All action buttons remain fully visible and clickable
+- ✅ Improved touch target sizes (full-width buttons)
+- ✅ Better spacing with 8px gap between stacked buttons
+- ✅ Layout adapts to multiple button scenarios (Processing, Shipped/Delivered, Received, etc.)
+
+**Visual Comparison:**
+
+**Before (Overlapping):**
+```
+┌────────────────────────┐
+│ [Chat][Track][Confirm] │ ← All cramped in one row
+└────────────────────────┘
+```
+
+**After (Properly Stacked):**
+```
+┌────────────────────────┐
+│ [Chat with Seller]     │
+│ [Track]                │
+│ [Confirm Received]     │ ← Full-width buttons in column
+└────────────────────────┘
+```
+
+**File Modified:** 1
+- `mobile-app/src/components/OrderCard.tsx` — Updated actionButtonsContainer styles (Lines 476-484)
+
+---
+
+### COD Payment Deadline Visibility Fix - Hide on Confirm Received
+
+**Status:** ✅ COMPLETE
+
+**Objective:** Hide COD payment deadline and instruction message once buyer confirms receipt (when order status changes from "delivered" to "received").
+
+**Problem:**
+- COD instruction box was displaying on all order statuses
+- After buyer clicked "Confirm Received", the payment instruction remained visible
+- Message no longer made sense once payment had been collected
+
+**Root Cause:**
+The condition at [OrderDetailScreen.tsx Line 873](mobile-app/app/OrderDetailScreen.tsx#L873) only checked if COD payment method, without checking order status:
+```typescript
+{isCOD && (() => {
+  // Always shows regardless of order status
+})}
+```
+
+**Fix Implemented:**
+Updated condition to also check order status (Line 876):
+```typescript
+{isCOD && (order.buyerUiStatus === 'delivered' || (order.status === 'delivered' && !order.buyerUiStatus)) && (() => {
+  // Only shows when order is in 'delivered' status
+})}
+```
+
+**Result:**
+- ✅ **Delivered Status**: "💳 Payment on Delivery" instruction displays with deadline
+- ✅ **Received Status**: Instruction box DISAPPEARS after buyer confirms receipt
+- ✅ **Reviewed/Final**: Instruction box remains hidden
+- ✅ Matches user expectation (no payment message needed after order already received)
+
+**File Modified:** 1
+- `mobile-app/app/OrderDetailScreen.tsx` — Added status check to COD instruction condition
+
+**Order Status Flow:**
+| Status | COD Box Display | Action |
+|--------|-----------------|--------|
+| pending | Hidden | Awaiting confirmation |
+| processing | Hidden | Being prepared |
+| shipped | Hidden | In transit |
+| delivered | ✅ **VISIBLE** | "Confirm Received" button shows |
+| received | ❌ **HIDDEN** | Buyer confirmed delivery |
+| reviewed | ❌ **HIDDEN** | Order completed |
+
+---
+
