@@ -196,6 +196,8 @@ interface AuthStore {
   setUser: (user: any) => void;
   setVacationMode: (reason?: string) => Promise<boolean>;
   disableVacationMode: () => Promise<boolean>;
+  checkSession: () => Promise<void>;
+  reset: () => void;
 }
 
 interface ProductStore {
@@ -292,6 +294,7 @@ const sanitizeOrder = (order: Omit<SellerOrder, 'id'>): Omit<SellerOrder, 'id'> 
 interface StatsStore {
   stats: SellerStats;
   refreshStats: () => void;
+  reset: () => void;
 }
 
 type ProductInsert = Database['public']['Tables']['products']['Insert'];
@@ -1101,6 +1104,18 @@ export const useAuthStore = create<AuthStore>()(
           set({ seller: { ...seller, is_vacation_mode: false, vacation_reason: null } });
         }
         return result.success;
+      },
+      checkSession: async () => {
+        if (!isSupabaseConfigured()) return;
+        try {
+          const { data: { session }, error } = await supabase.auth.getSession();
+          if (error) throw error;
+          if (session?.user) {
+            set({ user: session.user, isAuthenticated: !!session.user.email_confirmed_at });
+          }
+        } catch (error) {
+          console.error('Error checking seller session:', error);
+        }
       },
     }),
     {
@@ -2045,6 +2060,7 @@ const useLegacyOrderStore = create<OrderStore>()(
   persist(
     (set, get) => ({
       orders: dummyOrders,
+      sellerId: null,
       loading: false,
       error: null,
       reset: () => {

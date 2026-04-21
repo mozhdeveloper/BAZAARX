@@ -40,6 +40,8 @@ import { useAuthStore } from '../src/stores/authStore';
 import { authService } from '../src/services/authService';
 import { supabase } from '../src/lib/supabase';
 import { COLORS } from '../src/constants/theme';
+import { useLockoutStore } from '../src/stores/lockoutStore';
+import { useEffect } from 'react';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'Login'>;
 
@@ -55,6 +57,9 @@ export default function LoginScreen({ navigation }: Props) {
   const [isGoogleLoading, setIsGoogleLoading] = useState(false);
   const [showTestModal, setShowTestModal] = useState(false);
   const [showMoreOptions, setShowMoreOptions] = useState(false);
+  const [lockoutTimer, setLockoutTimer] = useState(0);
+
+  const lockoutStore = useLockoutStore();
 
   const {
     control,
@@ -71,9 +76,45 @@ export default function LoginScreen({ navigation }: Props) {
     },
   });
 
+  const watchedEmail = watch('email');
+
+  // Handle lockout countdown
+  useEffect(() => {
+    const remaining = lockoutStore.getRemainingLockoutTime(watchedEmail);
+    if (remaining > 0) {
+      setLockoutTimer(remaining);
+    }
+  }, [watchedEmail]);
+
+  useEffect(() => {
+    let interval: any;
+    if (lockoutTimer > 0) {
+      interval = setInterval(() => {
+        setLockoutTimer((prev) => {
+          if (prev <= 1) {
+            clearInterval(interval);
+            return 0;
+          }
+          return prev - 1;
+        });
+      }, 1000);
+    }
+    return () => clearInterval(interval);
+  }, [lockoutTimer]);
+
   const handleLogin = async (formData: LoginFormData) => {
     const { email, password } = formData;
     const trimmedEmail = email.trim();
+
+    const remaining = lockoutStore.getRemainingLockoutTime(trimmedEmail);
+    if (remaining > 0) {
+      setLockoutTimer(remaining);
+      Alert.alert(
+        'Too Many Attempts',
+        `Please wait ${remaining} seconds before trying again.`
+      );
+      return;
+    }
 
     setIsLoading(true);
 
@@ -84,12 +125,25 @@ export default function LoginScreen({ navigation }: Props) {
       });
 
       if (error) {
-        Alert.alert('Login Error', error.message);
+        // Record failure for lockout
+        lockoutStore.recordFailure(trimmedEmail);
+        const newRemaining = lockoutStore.getRemainingLockoutTime(trimmedEmail);
+        
+        if (newRemaining > 0) {
+          setLockoutTimer(newRemaining);
+          Alert.alert('Login Error', `${error.message}\n\nYou are locked out for ${newRemaining} seconds.`);
+        } else {
+          Alert.alert('Login Error', error.message);
+        }
+        
         setIsLoading(false);
         return;
       }
 
       if (data.user) {
+        // Record success to reset attempts
+        lockoutStore.recordSuccess(trimmedEmail);
+        
         const { data: buyerData, error: buyerError } = await supabase
           .from('buyers')
           .select('id, bazcoins, avatar_url')
@@ -190,7 +244,7 @@ export default function LoginScreen({ navigation }: Props) {
       }
 
       // Browser closed - wait for auth state change event (token arrived via deep link)
-      console.log('[LoginScreen] Browser closed. Waiting for auth state change event...');
+      console.log('[LoginScreen] Browser closed. Waiting for session...');
 
       // Create a promise that resolves when auth state changes to SIGNED_IN
       const authStatePromise = new Promise<void>((resolve, reject) => {
@@ -199,9 +253,9 @@ export default function LoginScreen({ navigation }: Props) {
 
         timeout = setTimeout(() => {
           if (unsubscribe) unsubscribe();
-          console.error('[LoginScreen] ⏱️ Auth state timeout: 15 seconds passed without SIGNED_IN event');
+          console.error('[LoginScreen] ⏱️ Auth state timeout: 30 seconds passed without SIGNED_IN event');
           reject(new Error('Auth state change timeout'));
-        }, 15000);
+        }, 30000);
 
         const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
           console.log(`[LoginScreen] onAuthStateChange event: ${event}`);
@@ -222,8 +276,58 @@ export default function LoginScreen({ navigation }: Props) {
 
       try {
         await authStatePromise;
-        console.log('[LoginScreen] Navigating to MainTabs...');
-        navigation.replace('MainTabs', { screen: 'Home' });
+        console.log('[LoginScreen] Auth success, checking onboarding status...');
+        
+        // Get the verified user ID from the newly established session
+        const { data: sessionData } = await supabase.auth.getSession();
+        const userId = sessionData.session?.user?.id;
+
+        if (userId) {
+          // POLICY ENFORCEMENT: Check for unauthorized Google linking
+          const { data: identityData } = await supabase.auth.getUserIdentities();
+          const identities = identityData?.identities || [];
+          const emailIdentity = identities.find(id => id.provider === 'email');
+          const googleIdentity = identities.find(id => id.provider === 'google');
+
+          if (emailIdentity && googleIdentity) {
+            const isExplicitlyLinked = !!sessionData.session?.user.user_metadata?.google_explicitly_linked;
+            const linkAgeMs = Date.now() - new Date(googleIdentity.created_at || Date.now()).getTime();
+            if (!isExplicitlyLinked && linkAgeMs < 300000) {
+              console.log('[LoginScreen] 🛡️ Google Link Policy Blocked');
+              await supabase.auth.unlinkIdentity(googleIdentity);
+              await useAuthStore.getState().signOut();
+              Alert.alert('Security Notice', 'This Google account is not yet linked to your BazaarX account. Please use your email and password instead, then link Google from your profile settings.');
+              setIsGoogleLoading(false);
+              return;
+            }
+          }
+
+          const isComplete = await authService.isOnboardingComplete(userId);
+          
+          if (isComplete) {
+            console.log('[LoginScreen] Onboarding complete. Navigating to Home.');
+            navigation.replace('MainTabs', { screen: 'Home' });
+          } else {
+            console.log('[LoginScreen] Onboarding incomplete. Redirecting to Terms.');
+            const signupData = { 
+              email: sessionData.session?.user?.email || '',
+              firstName: sessionData.session?.user?.user_metadata?.first_name || 
+                        sessionData.session?.user?.user_metadata?.full_name?.split(' ')[0] || '',
+              lastName: sessionData.session?.user?.user_metadata?.last_name || 
+                       sessionData.session?.user?.user_metadata?.full_name?.split(' ').slice(1).join(' ') || '',
+              phone: sessionData.session?.user?.phone || '',
+              user_type: 'buyer' as const
+            };
+
+            // Persist to store so CategoryPreference screen can find it
+            useAuthStore.getState().setPendingSignup(signupData);
+
+            navigation.replace('Terms', { signupData });
+          }
+        } else {
+          // Fallback if session is somehow missing after SIGNED_IN event
+          navigation.replace('MainTabs', { screen: 'Home' });
+        }
       } catch (authError) {
         console.error('[LoginScreen] ❌ Auth state error:', authError);
 
@@ -231,15 +335,51 @@ export default function LoginScreen({ navigation }: Props) {
         const { data: finalCheck } = await supabase.auth.getSession();
         if (finalCheck.session?.user) {
           console.log('[LoginScreen] ⚠️ Session EXISTS but event timeout. Navigating anyway...');
-          navigation.replace('MainTabs', { screen: 'Home' });
+          const user = finalCheck.session.user;
+          const userId = user.id;
+
+          // POLICY ENFORCEMENT: Check for unauthorized Google linking
+          const { data: identityData } = await supabase.auth.getUserIdentities();
+          const identities = identityData?.identities || [];
+          const emailIdentity = identities.find(id => id.provider === 'email');
+          const googleIdentity = identities.find(id => id.provider === 'google');
+
+          if (emailIdentity && googleIdentity) {
+            const isExplicitlyLinked = !!user.user_metadata?.google_explicitly_linked;
+            const linkAgeMs = Date.now() - new Date(googleIdentity.created_at || Date.now()).getTime();
+            if (!isExplicitlyLinked && linkAgeMs < 300000) {
+              console.log('[LoginScreen] 🛡️ Google Link Policy Blocked (Recovery)');
+              await supabase.auth.unlinkIdentity(googleIdentity);
+              await useAuthStore.getState().signOut();
+              Alert.alert('Security Notice', 'This Google account is not yet linked. Please use email/password.');
+              setIsGoogleLoading(false);
+              return;
+            }
+          }
+
+          const isComplete = await authService.isOnboardingComplete(userId);
+          
+          if (isComplete) {
+            navigation.replace('MainTabs', { screen: 'Home' });
+          } else {
+            const signupData = { 
+              email: finalCheck.session.user.email || '',
+              firstName: finalCheck.session.user.user_metadata?.first_name || 
+                        finalCheck.session.user.user_metadata?.full_name?.split(' ')[0] || '',
+              lastName: finalCheck.session.user.user_metadata?.last_name || 
+                       finalCheck.session.user.user_metadata?.full_name?.split(' ').slice(1).join(' ') || '',
+              phone: finalCheck.session.user.phone || '',
+              user_type: 'buyer' as const
+            };
+            useAuthStore.getState().setPendingSignup(signupData);
+            navigation.replace('Terms', { signupData });
+          }
           return;
         }
 
         Alert.alert(
           'Sign-In Incomplete',
-          'Your Google account was created, but we\'re having trouble establishing your session.\n\n' +
-          'The token arrived, but wasn\'t processed in time.\n\n' +
-          'Please try signing in again.'
+          'We were unable to complete the sign-in process. Please try again.'
         );
         setIsGoogleLoading(false);
       }
@@ -252,32 +392,6 @@ export default function LoginScreen({ navigation }: Props) {
       setIsGoogleLoading(false);
     }
   };
-
-  // Listen for deep links (OAuth redirects) on this screen
-  React.useEffect(() => {
-    console.log('[LoginScreen] Setting up deep link listener...');
-    const unsubscribe = Linking.addEventListener('url', ({ url }) => {
-      console.log('[LoginScreen] 🔗 Deep link received on LoginScreen:', url);
-
-      if (url.includes('auth/callback') || url.includes('--/auth/callback')) {
-        console.log('[LoginScreen] ✅ OAuth callback URL detected!');
-
-        // Parse the URL to check for error or code
-        const hasCode = url.includes('code=');
-        const hasError = url.includes('error=');
-
-        console.log('[LoginScreen] Has code:', hasCode, '| Has error:', hasError);
-
-        if (hasError) {
-          const errorMatch = url.match(/error=([^&]*)/);
-          const errorDesc = url.match(/error_description=([^&]*)/);
-          console.error('[LoginScreen] OAuth error:', errorMatch?.[1], errorDesc?.[1]);
-        }
-      }
-    });
-
-    return () => unsubscribe.remove();
-  }, []);
 
   React.useEffect(() => {
     navigation.setOptions({
@@ -375,10 +489,21 @@ export default function LoginScreen({ navigation }: Props) {
               {errors.password && <Text style={styles.errorText}>{errors.password.message}</Text>}
             </View>
 
+            {lockoutTimer > 0 && (
+              <View style={styles.lockoutContainer}>
+                <Text style={styles.lockoutText}>
+                  Temporarily locked due to too many failed attempts.
+                </Text>
+                <Text style={styles.lockoutTimer}>
+                  Retry in {lockoutTimer}s
+                </Text>
+              </View>
+            )}
+
             <Pressable
-              style={[styles.loginButton, (isLoading || !isValid) && styles.loginButtonDisabled]}
+              style={[styles.loginButton, (isLoading || !isValid || lockoutTimer > 0) && styles.loginButtonDisabled]}
               onPress={handleSubmit(handleLogin)}
-              disabled={isLoading || !isValid}
+              disabled={isLoading || !isValid || lockoutTimer > 0}
               accessibilityRole="button"
               accessibilityLabel="Sign In"
             >
@@ -779,7 +904,28 @@ const styles = StyleSheet.create({
   },
   testAccountBadgeText: {
     fontSize: 12,
-    fontWeight: '600',
+    fontWeight: '700',
     color: COLORS.primary,
+  },
+  lockoutContainer: {
+    backgroundColor: '#FEF2F2',
+    padding: 12,
+    borderRadius: 12,
+    marginBottom: 8,
+    borderWidth: 1,
+    borderColor: '#FEE2E2',
+    alignItems: 'center',
+  },
+  lockoutText: {
+    color: COLORS.error,
+    fontSize: 13,
+    textAlign: 'center',
+    fontWeight: '500',
+  },
+  lockoutTimer: {
+    color: COLORS.error,
+    fontSize: 15,
+    fontWeight: '700',
+    marginTop: 4,
   },
 });

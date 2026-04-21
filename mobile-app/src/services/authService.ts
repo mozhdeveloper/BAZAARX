@@ -16,6 +16,7 @@ export interface SignUpData {
   last_name?: string;
   phone?: string;
   user_type: UserRole;
+  has_accepted_terms?: boolean;
 }
 
 // Legacy support - maps to first_name
@@ -25,6 +26,7 @@ export interface LegacySignUpData {
   full_name?: string;
   phone?: string;
   user_type: UserRole;
+  has_accepted_terms?: boolean;
 }
 
 export interface AuthResult {
@@ -942,6 +944,32 @@ export class AuthService {
   }
 
   /**
+   * Check if user has completed onboarding (Interests selection)
+   * @param userId - User ID
+   * @returns Promise<boolean>
+   */
+  async isOnboardingComplete(userId: string): Promise<boolean> {
+    if (!isSupabaseConfigured()) return true;
+
+    try {
+      const { data: buyer, error } = await supabase
+        .from('buyers')
+        .select('preferences')
+        .eq('id', userId)
+        .single();
+
+      if (error || !buyer) return false;
+
+      const preferences = buyer.preferences as Record<string, any>;
+      // If interests array exists and has at least 3 items (as per CategoryPreferenceScreen validation), it's complete
+      return !!(preferences?.interests && Array.isArray(preferences.interests) && preferences.interests.length >= 3);
+    } catch (error) {
+      // PGRST116 means no row found, which is expected for new users
+      return false;
+    }
+  }
+
+  /**
    * Update buyer preferences (interests)
    * @param userId - User ID
    * @param interests - Array of category IDs
@@ -963,8 +991,13 @@ export class AuthService {
 
       const { error } = await supabase
         .from('buyers')
-        .update({ preferences: updatedPreferences })
-        .eq('id', userId);
+        .upsert(
+          { 
+            id: userId,
+            preferences: updatedPreferences 
+          }, 
+          { onConflict: 'id' }
+        );
 
       if (error) throw error;
       return true;
@@ -1024,11 +1057,14 @@ export class AuthService {
 
       if (data.user) {
         // Update last login timestamp
-        await supabase
-          .from('profiles')
-          .update({ last_login_at: new Date().toISOString() })
-          .eq('id', data.user.id)
-          .catch(err => console.error('Error updating last login:', err));
+        try {
+          await supabase
+            .from('profiles')
+            .update({ last_login_at: new Date().toISOString() })
+            .eq('id', data.user.id);
+        } catch (err) {
+          console.error('Error updating last login:', err);
+        }
       }
 
       return { user: data.user, session: data.session };

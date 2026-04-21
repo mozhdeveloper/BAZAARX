@@ -384,7 +384,14 @@ export default function ProfileScreen({ navigation }: Props) {
         const { data: identityData } = await supabase.auth.getUserIdentities();
         const linked = identityData?.identities?.some(id => id.provider === 'google') || false;
         setIsGoogleLinked(linked);
-        if (linked) Alert.alert('Success', 'Google account linked!');
+        if (linked) {
+          // Set a metadata flag to mark this as an EXPLICIT link
+          // This prevents the Google Sign-In enforcement policy from unlinking it during next login
+          await supabase.auth.updateUser({
+            data: { google_explicitly_linked: true }
+          });
+          Alert.alert('Success', 'Google account linked!');
+        }
       }
     } catch (e) {
       console.error('Google link error:', e);
