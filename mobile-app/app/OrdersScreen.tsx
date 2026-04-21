@@ -44,12 +44,12 @@ type Props = NativeStackScreenProps<RootStackParamList, 'Orders'>;
 
 const { width } = Dimensions.get('window');
 
-type OrdersTab = 'all' | 'processing' | 'shipped' | 'delivered' | 'received' | 'returned' | 'cancelled';
+type OrdersTab = 'all' | 'pending' | 'processing' | 'shipped' | 'delivered' | 'received' | 'returned' | 'cancelled';
 
 const normalizeInitialTab = (tab?: string): OrdersTab => {
   const normalized = (tab || 'processing').toLowerCase();
 
-  if (normalized === 'topay') return 'processing';
+  if (normalized === 'topay') return 'pending';
   if (normalized === 'toship') return 'processing';
   if (normalized === 'toreceive') return 'shipped';
   if (normalized === 'toreview') return 'cancelled';
@@ -58,6 +58,7 @@ const normalizeInitialTab = (tab?: string): OrdersTab => {
 
   if (
     normalized === 'all' ||
+    normalized === 'pending' ||
     normalized === 'processing' ||
     normalized === 'shipped' ||
     normalized === 'delivered' ||
@@ -78,7 +79,7 @@ const mapBuyerUiStatusFromNormalized = (
   hasCancellationRecord?: boolean,
   isReviewed?: boolean,
   hasReturnRequest?: boolean,
-): 'processing' | 'shipped' | 'delivered' | 'received' | 'returned' | 'cancelled' | 'reviewed' => {
+): 'pending' | 'processing' | 'shipped' | 'delivered' | 'received' | 'returned' | 'cancelled' | 'reviewed' => {
   // If there's a return request (pending, rejected, approved), show in returned tab
   if (hasReturnRequest) return 'returned';
 
@@ -100,6 +101,10 @@ const mapBuyerUiStatusFromNormalized = (
     return 'processing';
   }
 
+  if (shipmentStatus === 'waiting_for_seller') {
+    return 'pending';
+  }
+
   if (shipmentStatus === 'failed_to_deliver') {
     return 'cancelled';
   }
@@ -110,6 +115,11 @@ const mapBuyerUiStatusFromNormalized = (
 
   if (paymentStatus === 'refunded' || paymentStatus === 'partially_refunded') {
     return hasCancellationRecord ? 'cancelled' : 'returned';
+  }
+
+  // Order with no shipment status and payment not yet confirmed is in pending state
+  if (paymentStatus === 'pending' || paymentStatus === 'pending_payment' || !shipmentStatus) {
+    return 'pending';
   }
 
   return 'processing';
@@ -308,6 +318,7 @@ export default function OrdersScreen({ navigation, route }: Props) {
         );
 
         const statusByBuyerUiStatus: Record<string, Order['status']> = {
+          pending: 'pending',
           processing: 'processing',
           shipped: 'shipped',
           delivered: 'delivered',
@@ -789,7 +800,10 @@ export default function OrdersScreen({ navigation, route }: Props) {
           navigation.navigate('OrderDetail', { order });
         }
       }}
-      onCancel={() => handleCancelOrder(order)}
+      onCancel={order.buyerUiStatus === 'pending' ? () => handleCancelOrder(order) : undefined}
+      onEditVariant={order.buyerUiStatus === 'pending' ? () => navigation.navigate('OrderDetail', { order }) : undefined}
+      onEditShipping={order.buyerUiStatus === 'pending' ? () => navigation.navigate('OrderDetail', { order }) : undefined}
+      onEditPayment={order.buyerUiStatus === 'pending' ? () => navigation.navigate('OrderDetail', { order }) : undefined}
       onReceive={order.buyerUiStatus === 'delivered' ? () => handleOrderReceived(order) : undefined}
       onReview={order.buyerUiStatus === 'received' ? () => handleReview(order) : undefined}
       onReturn={(order.buyerUiStatus === 'received') && (Date.now() - new Date(order.deliveredAt || order.updatedAt || order.createdAt).getTime()) <= 7 * 24 * 60 * 60 * 1000 ? () => navigation.navigate('ReturnRequest', { order }) : undefined}
@@ -1040,9 +1054,10 @@ export default function OrdersScreen({ navigation, route }: Props) {
           showsHorizontalScrollIndicator={false}
           contentContainerStyle={styles.tabsContentContainer}
         >
-          {(['all', 'processing', 'shipped', 'delivered', 'received', 'returned', 'cancelled'] as const).map((tab) => {
+          {(['all', 'pending', 'processing', 'shipped', 'delivered', 'received', 'returned', 'cancelled'] as const).map((tab) => {
             const labelMap: Record<string, string> = {
               all: 'All',
+              pending: 'Pending',
               processing: 'Processing',
               shipped: 'Shipped',
               delivered: 'Delivered',

@@ -194,7 +194,7 @@ export interface Order {
   cancelledAt?: string;
   updatedAt?: string;
   etaText?: string;
-  buyerUiStatus?: 'processing' | 'shipped' | 'delivered' | 'received' | 'returned' | 'cancelled' | 'reviewed';
+  buyerUiStatus?: 'pending' | 'processing' | 'shipped' | 'delivered' | 'received' | 'returned' | 'cancelled' | 'reviewed';
   isReviewed?: boolean;
   returnRequestId?: string;
   isGift?: boolean;

@@ -42,12 +42,12 @@ const formatDatePH = (dateString: string | Date | null | undefined): string | nu
 };
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import type { RootStackParamList } from '../App';
-import { useOrderStore } from '../src/stores/orderStore';
+import { useOrderStore } from '../stores/orderStore';
 import { useCartStore } from '../src/stores/cartStore';
 import { supabase } from '../src/lib/supabase';
 import { useReturnStore } from '../src/stores/returnStore';
 import { orderService } from '../src/services/orderService';
-import { orderMutationService } from '../src/services/orders/orderMutationService';
+import { orderMutationService } from '../services/orders/orderMutationService';
 import { useAuthStore } from '../src/stores/authStore';
 import { safeImageUri } from '../src/utils/imageUtils';
 import ReviewModal from '../src/components/ReviewModal';
@@ -86,7 +86,7 @@ export default function OrderDetailScreen({ route, navigation }: Props) {
   }
 
   const insets = useSafeAreaInsets();
-  const updateOrderStatus = useOrderStore((state) => state.updateOrderStatus);
+  const { updateOrderStatus } = useOrderStore();
   const [showReviewModal, setShowReviewModal] = useState(false);
   const [showChatModal, setShowChatModal] = useState(false);
   const [chatMessage, setChatMessage] = useState('');
@@ -407,7 +407,18 @@ export default function OrderDetailScreen({ route, navigation }: Props) {
 
       await orderMutationService.confirmOrderReceived(realOrderId, buyerId, uploaded.length > 0 ? uploaded : undefined);
 
-      updateOrderStatus(realOrderId, 'delivered');
+      useOrderStore.setState((state) => ({
+        orders: state.orders.map((existingOrder) =>
+          existingOrder.orderId === realOrderId || existingOrder.id === realOrderId
+            ? {
+                ...existingOrder,
+                status: 'delivered',
+                buyerUiStatus: 'received',
+                isPaid: true,
+              }
+            : existingOrder,
+        ),
+      }));
       setShowReceiptModal(false);
       setReceiptPhotos([]);
       setShowReviewModal(true);
@@ -471,38 +482,32 @@ export default function OrderDetailScreen({ route, navigation }: Props) {
 
   const { user } = useAuthStore();
 
-  const handleCancelOrder = () => {
-    Alert.alert(
-      'Cancel Order',
-      "Are you sure you want to cancel? You won't be charged. You can buy these items again later.",
-      [
-        { text: 'Keep Order', style: 'cancel' },
-        {
-          text: 'Yes, Cancel Order',
-          style: 'destructive',
-          onPress: async () => {
-            try {
-              await orderMutationService.cancelOrder({
-                orderId: order.id,
-                reason: 'Cancelled by buyer',
-                cancelledBy: user?.id,
-              });
+  const handleCancelOrder = async () => {
+    try {
+      console.log('Order Object:', order);
 
-              // Note: Don't call updateOrderStatus here - the database is already updated.
-              // The order list will be refreshed by navigation.
+      // 1. Tell Supabase to cancel the order
+      await orderMutationService.updateOrderStatus({
+        orderId: (order as any).orderId || order.id,
+        nextStatus: 'cancelled',
+        actorRole: 'buyer',
+        note: 'Cancelled by buyer via app'
+      });
 
-              Alert.alert('Order Cancelled', 'Your order has been cancelled.', [
-                { text: 'OK', onPress: () => navigation.goBack() }
-              ]);
-            } catch (e: any) {
-              console.error('Error cancelling order:', e);
-              Alert.alert('Error', e?.message || 'Failed to cancel order. Please try again.');
-            }
-          }
-        }
-      ]
-    );
+      // 2. Instantly update the local UI
+      await updateOrderStatus((order as any).orderId || order.id, 'cancelled');
+
+      // 3. Notify the user
+      Alert.alert('Success', 'Your order has been successfully cancelled.');
+
+    } catch (error) {
+      console.error('Cancellation error:', error);
+      Alert.alert('Cancellation Failed', 'There was a problem cancelling your order. Please check your connection and try again.');
+    }
   };
+
+  // Grace Period Edit Eligibility (1-minute window for fresh checkouts)
+  const isEligibleForEdit = order?.status === 'pending' && (new Date().getTime() - new Date(order.createdAt).getTime() < 60000);
 
   const uiStatus = order.buyerUiStatus || order.status;
 
@@ -703,7 +708,14 @@ export default function OrderDetailScreen({ route, navigation }: Props) {
           {/* Shipping Address Sub-section */}
           {order.shippingAddress && (
             <View style={{ marginBottom: 16 }}>
-              <Text style={styles.metaLabel}>Recipient</Text>
+              <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
+                <Text style={styles.metaLabel}>Recipient</Text>
+                {isEligibleForEdit && (
+                  <Pressable onPress={() => Alert.alert('Edit Address', 'Address modal will open here')}>
+                    <Text style={{ fontSize: 13, color: COLORS.primary, fontWeight: '600' }}>Edit</Text>
+                  </Pressable>
+                )}
+              </View>
               <Text style={styles.primaryInfo}>{order.shippingAddress.name}</Text>
               <Text style={styles.secondaryInfo}>{order.shippingAddress.phone}</Text>
               <Text style={styles.secondaryInfo}>
@@ -804,32 +816,41 @@ export default function OrderDetailScreen({ route, navigation }: Props) {
             <>
               <View style={{ gap: 16, marginBottom: 20 }}>
                 {order.items.filter(item => item && item.name).map((item, index) => (
-                  <Pressable 
-                    key={item.id || index} 
-                    style={styles.compactItemRow}
-                    onPress={() => navigation.navigate('ProductDetail', { product: item as any })}
-                  >
-                    <Image source={{ uri: safeImageUri(item.image) }} style={styles.compactItemImage} />
-                    <View style={{ flex: 1 }}>
-                      <Text style={styles.compactItemName} numberOfLines={1}>{item.name}</Text>
-                      {(item as any).selectedVariant && ((item as any).selectedVariant.option1Value || (item as any).selectedVariant.option2Value || (item as any).selectedVariant.size || (item as any).selectedVariant.color) && (
-                        <Text style={{ fontSize: 12, color: '#6B7280', marginTop: 2 }}>
-                          {(item as any).selectedVariant.option1Value || (item as any).selectedVariant.size || (item as any).selectedVariant.color || 'Standard'}
-                        </Text>
-                      )}
-                      {(item as any).selectedVariant && (
-                        <Text style={[styles.metaLabel, { marginBottom: 4, marginTop: 4 }]}>
-                          {(item as any).selectedVariant.option1Value ? `${(item as any).selectedVariant.option1Label || 'Option'}: ${(item as any).selectedVariant.option1Value}` : ''}
-                          {(item as any).selectedVariant.option1Value && (item as any).selectedVariant.option2Value ? ' • ' : ''}
-                          {(item as any).selectedVariant.option2Value ? `${(item as any).selectedVariant.option2Label || 'Option'}: ${(item as any).selectedVariant.option2Value}` : ''}
-                          {!((item as any).selectedVariant.option1Value || (item as any).selectedVariant.option2Value) && (item as any).selectedVariant.size ? (item as any).selectedVariant.size : ''}
-                          {!((item as any).selectedVariant.option1Value || (item as any).selectedVariant.option2Value) && !((item as any).selectedVariant.size) && (item as any).selectedVariant.color ? (item as any).selectedVariant.color : ''}
-                        </Text>
-                      )}
-                      <Text style={styles.metaLabel}>{item.quantity} x ₱{item.price?.toLocaleString()}</Text>
-                    </View>
-                    <Text style={styles.compactItemPrice}>₱{((item.price || 0) * item.quantity).toLocaleString()}</Text>
-                  </Pressable>
+                  <View key={item.id || index}>
+                    <Pressable 
+                      style={styles.compactItemRow}
+                      onPress={() => navigation.navigate('ProductDetail', { product: item as any })}
+                    >
+                      <Image source={{ uri: safeImageUri(item.image) }} style={styles.compactItemImage} />
+                      <View style={{ flex: 1 }}>
+                        <Text style={styles.compactItemName} numberOfLines={1}>{item.name}</Text>
+                        {(item as any).selectedVariant && ((item as any).selectedVariant.option1Value || (item as any).selectedVariant.option2Value || (item as any).selectedVariant.size || (item as any).selectedVariant.color) && (
+                          <Text style={{ fontSize: 12, color: '#6B7280', marginTop: 2 }}>
+                            {(item as any).selectedVariant.option1Value || (item as any).selectedVariant.size || (item as any).selectedVariant.color || 'Standard'}
+                          </Text>
+                        )}
+                        {(item as any).selectedVariant && (
+                          <Text style={[styles.metaLabel, { marginBottom: 4, marginTop: 4 }]}>
+                            {(item as any).selectedVariant.option1Value ? `${(item as any).selectedVariant.option1Label || 'Option'}: ${(item as any).selectedVariant.option1Value}` : ''}
+                            {(item as any).selectedVariant.option1Value && (item as any).selectedVariant.option2Value ? ' • ' : ''}
+                            {(item as any).selectedVariant.option2Value ? `${(item as any).selectedVariant.option2Label || 'Option'}: ${(item as any).selectedVariant.option2Value}` : ''}
+                            {!((item as any).selectedVariant.option1Value || (item as any).selectedVariant.option2Value) && (item as any).selectedVariant.size ? (item as any).selectedVariant.size : ''}
+                            {!((item as any).selectedVariant.option1Value || (item as any).selectedVariant.option2Value) && !((item as any).selectedVariant.size) && (item as any).selectedVariant.color ? (item as any).selectedVariant.color : ''}
+                          </Text>
+                        )}
+                        <Text style={styles.metaLabel}>{item.quantity} x ₱{item.price?.toLocaleString()}</Text>
+                      </View>
+                      <Text style={styles.compactItemPrice}>₱{((item.price || 0) * item.quantity).toLocaleString()}</Text>
+                    </Pressable>
+                    {isEligibleForEdit && (
+                      <Pressable 
+                        onPress={() => Alert.alert('Change Variant', 'Variant modal will open here')}
+                        style={{ marginTop: 8, marginLeft: 60 }}
+                      >
+                        <Text style={{ fontSize: 12, color: COLORS.primary, fontWeight: '600' }}>Change Variant</Text>
+                      </Pressable>
+                    )}
+                  </View>
                 ))}
               </View>
 
@@ -949,22 +970,24 @@ export default function OrderDetailScreen({ route, navigation }: Props) {
 
       {/* Bottom Action Bar - Follows PH e-commerce standards (Shopee/Lazada) */}
       <View style={styles.bottomBar}>
-        {/* PENDING: Chat only (buyer hasn't paid or order awaiting confirmation) */}
+        {/* PENDING: Cancel + Chat */}
         {(order.buyerUiStatus || order.status) === 'pending' && (
-          <Pressable
-            onPress={() => setShowChatModal(true)}
-            style={[styles.solidButton, { flex: 1, backgroundColor: COLORS.primary }]}
-          >
-            <MessageCircle size={20} color="#FFFFFF" />
-            <Text style={styles.solidButtonText}>Chat with Seller</Text>
-          </Pressable>
-        )}
-
-        {/* PROCESSING / TO SHIP: Cancel + Chat (seller is preparing the order) */}
-        {(order.buyerUiStatus === 'processing' || order.status === 'processing') && (
           <>
             <Pressable
-              onPress={handleCancelOrder}
+              onPress={() =>
+                Alert.alert(
+                  'Cancel Order',
+                  'Are you sure you want to cancel this order?',
+                  [
+                    { text: 'No, keep it', style: 'cancel' },
+                    {
+                      text: 'Yes, cancel',
+                      style: 'destructive',
+                      onPress: handleCancelOrder,
+                    },
+                  ]
+                )
+              }
               style={[styles.outlineButton, { flex: 1 }]}
             >
               <Text style={styles.outlineButtonText}>Cancel Order</Text>
@@ -977,6 +1000,17 @@ export default function OrderDetailScreen({ route, navigation }: Props) {
               <Text style={styles.solidButtonText}>Chat with Seller</Text>
             </Pressable>
           </>
+        )}
+
+        {/* PROCESSING / TO SHIP: Chat only (cancellation locked) */}
+        {(order.buyerUiStatus === 'processing' || order.status === 'processing') && (
+          <Pressable
+            onPress={() => setShowChatModal(true)}
+            style={[styles.solidButton, { flex: 1, backgroundColor: COLORS.primary }]}
+          >
+            <MessageCircle size={20} color="#FFFFFF" />
+            <Text style={styles.solidButtonText}>Chat with Seller</Text>
+          </Pressable>
         )}
 
         {/* SHIPPED / TO RECEIVE: Chat only — item is in transit, buyer cannot confirm yet */}

@@ -1,7 +1,7 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { View, Text, Pressable, StyleSheet } from 'react-native';
 import { Image } from 'expo-image';
-import { Calendar, MapPin, Eye, Copy, MessageCircle, Star, RotateCcw, ArrowRight } from 'lucide-react-native';
+import { Calendar, MapPin, Eye, Copy, MessageCircle, Star, RotateCcw, ArrowRight, AlertCircle } from 'lucide-react-native';
 import { Order } from '../types';
 import * as Clipboard from 'expo-clipboard';
 import { COLORS } from '../constants/theme';
@@ -11,6 +11,9 @@ interface OrderCardProps {
   onPress: () => void;
   onTrack?: () => void;
   onCancel?: () => void;
+  onEditVariant?: () => void;
+  onEditShipping?: () => void;
+  onEditPayment?: () => void;
   onReceive?: () => void;
   onReview?: () => void;
   onReturn?: () => void;
@@ -23,14 +26,44 @@ export const OrderCard: React.FC<OrderCardProps> = React.memo(({
   onPress,
   onTrack,
   onCancel,
+  onEditVariant,
+  onEditShipping,
+  onEditPayment,
   onReceive,
   onReview,
   onReturn,
   onBuyAgain,
   onShopPress
 }) => {
+  // Grace Period countdown timer state
+  const [timeLeft, setTimeLeft] = useState<number>(0);
+
+  // Grace Period timer effect - 1 minute from order creation
+  useEffect(() => {
+    if (!order || order.status !== 'pending') {
+      setTimeLeft(0);
+      return;
+    }
+
+    const expirationTime = new Date(order.createdAt).getTime() + 60000; // 60 seconds from creation
+
+    const interval = setInterval(() => {
+      const now = new Date().getTime();
+      const remaining = Math.max(0, Math.floor((expirationTime - now) / 1000));
+      setTimeLeft(remaining);
+
+      if (remaining === 0) {
+        clearInterval(interval);
+      }
+    }, 1000);
+
+    return () => clearInterval(interval);
+  }, [order]);
+
   const buyerUiStatus = order.buyerUiStatus || (
-    order.status === 'processing'
+    order.status === 'pending'
+      ? 'pending'
+      : order.status === 'processing'
       ? 'processing'
       : order.status === 'shipped'
         ? 'shipped'
@@ -38,7 +71,7 @@ export const OrderCard: React.FC<OrderCardProps> = React.memo(({
           ? (order as any).shipment_status === 'received' ? 'received' : 'delivered'
           : order.status === 'cancelled'
             ? 'cancelled'
-            : 'processing'
+            : 'pending'
   );
 
   const getStatusColor = () => {
@@ -211,19 +244,50 @@ export const OrderCard: React.FC<OrderCardProps> = React.memo(({
         </View>
       </Pressable>
 
+      {/* Grace Period Warning Banner */}
+      {timeLeft > 0 && order.status === 'pending' && (
+        <View style={styles.gracePeriodBanner}>
+          <AlertCircle size={16} color="#D97706" style={{ marginRight: 8 }} />
+          <Text style={styles.gracePeriodText}>
+            Eligible for edits: {Math.floor(timeLeft / 60)}:{(timeLeft % 60).toString().padStart(2, '0')} min
+          </Text>
+        </View>
+      )}
+
       {/* Action Buttons */}
       <View style={styles.actionButtonsContainer}>
-        {buyerUiStatus === 'processing' && (
+        {buyerUiStatus === 'pending' && (
           <>
             {onCancel && (
               <Pressable style={styles.outlineButton} onPress={onCancel}>
                 <Text style={styles.outlineButtonText}>Cancel Order</Text>
               </Pressable>
             )}
+            {timeLeft > 0 && (
+              <View style={styles.buttonRow}>
+                <Pressable style={[styles.outlineButton, { flex: 1 }]} onPress={onEditVariant || onPress}>
+                  <Text style={styles.outlineButtonText}>Edit Variant</Text>
+                </Pressable>
+                <Pressable style={[styles.outlineButton, { flex: 1 }]} onPress={onEditShipping || onPress}>
+                  <Text style={styles.outlineButtonText}>Edit Shipping</Text>
+                </Pressable>
+              </View>
+            )}
+            {timeLeft > 0 && (
+              <Pressable style={styles.outlineButton} onPress={onEditPayment || onPress}>
+                <Text style={styles.outlineButtonText}>Edit COD / Payment</Text>
+              </Pressable>
+            )}
             <Pressable style={styles.solidButton} onPress={onPress}>
               <Text style={styles.solidButtonText}>View Details</Text>
             </Pressable>
           </>
+        )}
+
+        {buyerUiStatus === 'processing' && (
+          <Pressable style={styles.solidButton} onPress={onPress}>
+            <Text style={styles.solidButtonText}>View Details</Text>
+          </Pressable>
         )}
 
         {(buyerUiStatus === 'shipped' || buyerUiStatus === 'delivered') && (
@@ -581,5 +645,23 @@ const styles = StyleSheet.create({
     color: '#4B5563',
     fontStyle: 'italic',
     lineHeight: 18,
+  },
+  gracePeriodBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#FFFBEB',
+    borderLeftWidth: 4,
+    borderLeftColor: '#D97706',
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    borderRadius: 8,
+    marginBottom: 12,
+    marginTop: 8,
+  },
+  gracePeriodText: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: '#B45309',
+    flex: 1,
   },
 });
