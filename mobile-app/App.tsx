@@ -92,7 +92,7 @@ export type RootStackParamList = {
     isAnonymous?: boolean;
     recipientId?: string;
   };
-  OrderConfirmation: { order: Order; earnedBazcoins?: number };
+  OrderConfirmation: { order: Order; earnedBazcoins?: number; isQuickCheckout?: boolean };
   OrderResult: {
     order: Order;
     status: 'success' | 'failed' | 'processing' | 'pending_3ds' | 'insufficient_funds' | 'card_expired' | 'invalid_cvc' | 'fraudulent' | 'generic_decline' | 'processor_blocked';

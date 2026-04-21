@@ -213,9 +213,37 @@ export const processCheckout = async (payload: CheckoutPayload): Promise<Checkou
         const sharedBaseNumber = generateOrderNumber();
         let sellerIndex = 1;
 
+        // 3a. Create order_recipients record (once per checkout, used by all orders from all sellers)
+        const nameParts = (shippingAddress.fullName || '').trim().split(' ');
+        const recipientFirstName = nameParts[0] || '';
+        const recipientLastName = nameParts.slice(1).join(' ') || '';
+
+        const { data: recipientData, error: recipientError } = await supabase
+            .from('order_recipients')
+            .insert({
+                first_name: recipientFirstName,
+                last_name: recipientLastName,
+                phone: shippingAddress.phone || '',
+                email: email || '',
+            })
+            .select('id')
+            .single();
+
+        if (recipientError) throw recipientError;
+
+        const recipientId = recipientData?.id;
+        if (!recipientId) {
+            throw new Error('Failed to create order recipient record');
+        }
+
+        console.log(`[Checkout] ✅ Created order_recipients record:`, recipientId);
+
         // 3. Process orders per seller
+        const checkoutStartTime = Date.now();
+        if (__DEV__) console.log('[Checkout] 🔄 Processing orders for sellers:', Object.keys(itemsBySeller));
         for (const [sellerId, sellerItems] of Object.entries(itemsBySeller)) {
             const orderNumber = `${sharedBaseNumber}#${sellerIndex++}`;
+            if (__DEV__) console.log(`[Checkout] Processing seller ${sellerId}: ${sellerItems.length} items`);
 
             // Calculate subtotal for this specific order
             const orderSubtotal = sellerItems.reduce(
@@ -227,15 +255,13 @@ export const processCheckout = async (payload: CheckoutPayload): Promise<Checkou
             const taxAmount = Math.round(orderSubtotal * 0.12);
 
             // First, create a shipping address record
-            // Build address_line_1 properly - filter out empty values
-            const addressParts = [
-                shippingAddress.fullName || '',
-                shippingAddress.phone || '',
-                shippingAddress.street || ''
-            ].filter(Boolean);
-            const addressLine1 = addressParts.length > 0 ? addressParts.join(', ') : shippingAddress.street || 'Address';
+            // Build address_line_1 with ONLY street address (not name/phone)
+            // This ensures duplicate detection works correctly
+            const addressLine1 = shippingAddress.street || 'Address';
 
-            // Check for existing matching address to avoid duplicates
+            // Check for ANY existing matching address (ANY label) to avoid duplicates
+            // Match only on: street, city, postal_code (not name/phone which can vary)
+            // This reuses saved addresses instead of creating new ones
             let addressData: { id: string } | null = null;
             const { data: existingAddr } = await supabase
                 .from('shipping_addresses')
@@ -244,10 +270,13 @@ export const processCheckout = async (payload: CheckoutPayload): Promise<Checkou
                 .eq('address_line_1', addressLine1)
                 .eq('city', shippingAddress.city || 'Manila')
                 .eq('postal_code', shippingAddress.postalCode || '0000')
+                // ❌ REMOVED: .eq('label', 'Checkout Address')
+                // ✅ NEW: Check ALL addresses regardless of label (saved, checkout, current location)
                 .limit(1)
                 .maybeSingle();
 
             if (existingAddr) {
+                if (__DEV__) console.log('[Checkout] ✅ Found existing address (any label), reusing:', { addressId: existingAddr.id });
                 addressData = existingAddr;
             } else {
                 // Extract first and last name from fullName
@@ -255,12 +284,14 @@ export const processCheckout = async (payload: CheckoutPayload): Promise<Checkou
                 const firstName = nameParts[0] || '';
                 const lastName = nameParts.slice(1).join(' ') || '';
 
+                if (__DEV__) console.log('[Checkout] 📍 Address is new, creating entry:', { street: addressLine1, city: shippingAddress.city });
+
                 const { data: newAddr, error: addressError } = await supabase
                     .from('shipping_addresses')
                     .insert({
                         user_id: userId,
                         label: 'Checkout Address',
-                        address_line_1: addressLine1,
+                        address_line_1: addressLine1,  // ← Only street, no name/phone
                         first_name: firstName,
                         last_name: lastName,
                         phone_number: shippingAddress.phone || '',
@@ -279,6 +310,7 @@ export const processCheckout = async (payload: CheckoutPayload): Promise<Checkou
 
                 if (addressError) throw addressError;
                 addressData = newAddr;
+                if (__DEV__) console.log('[Checkout] ✅ New address created:', { addressId: newAddr?.id });
             }
 
             if (!addressData) throw new Error('Failed to resolve shipping address');
@@ -294,6 +326,7 @@ export const processCheckout = async (payload: CheckoutPayload): Promise<Checkou
                     p_buyer_id: userId,
                     p_order_type: 'ONLINE',
                     p_address_id: addressData.id,
+                    p_recipient_id: recipientId,
                     p_payment_status: 'pending_payment',
                     p_shipment_status: 'waiting_for_seller',
                     p_notes: `Order from ${shippingAddress.fullName}`
@@ -301,7 +334,7 @@ export const processCheckout = async (payload: CheckoutPayload): Promise<Checkou
 
             if (!rpcError && rpcResult && (rpcResult as any).success) {
                 // RPC function worked
-                console.log('[Checkout] ✅ Order created via safe RPC:', orderNumber);
+                if (__DEV__) console.log('[Checkout] ✅ Order created via safe RPC:', orderNumber);
                 if ((rpcResult as any).warning) {
                     console.warn('[Checkout] ⚠️ RPC warning:', (rpcResult as any).warning);
                 }
@@ -312,7 +345,7 @@ export const processCheckout = async (payload: CheckoutPayload): Promise<Checkou
                 };
             } else {
                 // Strategy 2: Fall back to direct insert (RPC might not exist yet)
-                console.log('[Checkout] RPC not available or failed, using direct insert...');
+                if (__DEV__) console.log('[Checkout] RPC not available or failed, using direct insert...');
 
                 const { data: insertedOrder, error: orderError } = await supabase
                     .from('orders')
@@ -321,6 +354,7 @@ export const processCheckout = async (payload: CheckoutPayload): Promise<Checkou
                         buyer_id: userId,
                         order_type: 'ONLINE',
                         address_id: addressData.id,
+                        recipient_id: recipientId,
                         payment_status: 'pending_payment',
                         shipment_status: 'waiting_for_seller',
                         notes: `Order from ${shippingAddress.fullName}`,
@@ -354,7 +388,7 @@ export const processCheckout = async (payload: CheckoutPayload): Promise<Checkou
                                 .maybeSingle();
 
                             if (existingOrder) {
-                                console.log('[Checkout] ✅ Order found on retry', retryCount + 1, ':', orderNumber);
+                                if (__DEV__) console.log('[Checkout] ✅ Order found on retry', retryCount + 1, ':', orderNumber);
                                 orderData = existingOrder as { id: string; order_number: string; buyer_id: string };
                             } else {
                                 retryCount++;
@@ -388,13 +422,20 @@ export const processCheckout = async (payload: CheckoutPayload): Promise<Checkou
             createdOrderIds.push(orderData.order_number);
             createdOrderUuids.push(orderData.id);
 
-            console.log(`[Checkout] ✅ Order created: ${orderData.order_number} for seller ${sellerId}`);
+            if (__DEV__) console.log(`[Checkout] ✅ Order created: ${orderData.order_number} (UUID: ${orderData.id}) for seller ${sellerId}`);
+            if (__DEV__) console.log(`[Checkout] Total createdOrderUuids so far:`, createdOrderUuids);
 
             // BX-09-002 — Persist per-seller shipment record
             if (payload.shippingBreakdown && payload.shippingBreakdown.length > 0) {
                 const sellerBreakdown = payload.shippingBreakdown.find((sb: any) => sb.sellerId === sellerId);
                 if (sellerBreakdown) {
-                    supabase
+                    if (__DEV__) console.log(`[Checkout] Creating shipment for seller ${sellerId}:`, {
+                        method: sellerBreakdown.method,
+                        label: sellerBreakdown.methodLabel,
+                        fee: sellerBreakdown.fee,
+                        estimatedDays: sellerBreakdown.estimatedDays
+                    });
+                    const { error: shipErr } = await supabase
                         .from('order_shipments')
                         .insert({
                             order_id: orderData.id,
@@ -409,15 +450,18 @@ export const processCheckout = async (payload: CheckoutPayload): Promise<Checkou
                             chargeable_weight_kg: 0,
                             tracking_number: null,
                             status: 'pending',
-                        })
-                        .then(({ error: shipErr }) => {
-                            if (shipErr) {
-                                console.warn(`[Checkout] ⚠️ Failed to insert order_shipment for seller ${sellerId}:`, shipErr.message);
-                            } else {
-                                console.log(`[Checkout] ✅ Shipment record created for order ${orderData!.order_number}, seller ${sellerId}`);
-                            }
                         });
+                    
+                    if (shipErr) {
+                        console.warn(`[Checkout] ⚠️ Failed to insert order_shipment for seller ${sellerId}:`, shipErr.message);
+                    } else {
+                        if (__DEV__) console.log(`[Checkout] ✅ Shipment record created for order ${orderData!.order_number}, seller ${sellerId} with fee ₱${sellerBreakdown.fee}`);
+                    }
+                } else {
+                    console.warn(`[Checkout] ⚠️ No shipping breakdown found for seller ${sellerId}. Available sellers:`, payload.shippingBreakdown.map((sb: any) => sb.sellerId));
                 }
+            } else {
+                console.warn(`[Checkout] ⚠️ No shippingBreakdown in payload for order ${orderData.order_number}`);
             }
 
             // � Send bell notification to buyer about order placed (only this one, no duplicate 'pending')
@@ -571,7 +615,7 @@ export const processCheckout = async (payload: CheckoutPayload): Promise<Checkou
                         .eq('order_id', orderData.id);
 
                     if (existingItems && existingItems.length > 0) {
-                        console.log('[Checkout] ✅ Order items found despite trigger error');
+                        if (__DEV__) console.log('[Checkout] ✅ Order items found despite trigger error');
                         // Items were created - continue
                     } else {
                         // Items weren't created - try one more time without the trigger issue
@@ -598,7 +642,7 @@ export const processCheckout = async (payload: CheckoutPayload): Promise<Checkou
                                 'Please contact support or run the database migration.'
                             );
                         }
-                        console.log('[Checkout] ✅ Order items created on retry');
+                        if (__DEV__) console.log('[Checkout] ✅ Order items created on retry');
                     }
                 } else {
                     throw itemsError;
@@ -633,7 +677,7 @@ export const processCheckout = async (payload: CheckoutPayload): Promise<Checkou
                 if (voucherError) {
                     console.error('[Checkout] Failed to record voucher usage:', voucherError);
                 } else {
-                    console.log('[Checkout] ✅ Voucher usage recorded:', voucherId, 'discount:', discountAmount);
+                    if (__DEV__) console.log('[Checkout] ✅ Voucher usage recorded:', voucherId, 'discount:', discountAmount);
                 }
             }
 
@@ -802,11 +846,13 @@ export const processCheckout = async (payload: CheckoutPayload): Promise<Checkou
                 if (deleteError) {
                     console.warn('[Checkout] Failed to clear cart items:', deleteError.message);
                 } else {
-                    console.log('[Checkout] ✅ Cleared', productIdsToRemove.length, 'items from cart');
+                    if (__DEV__) console.log('[Checkout] ✅ Cleared', productIdsToRemove.length, 'items from cart');
                 }
             }
         }
 
+        const checkoutDuration = Date.now() - checkoutStartTime;
+        console.log(`[Checkout] ✅ CHECKOUT COMPLETE in ${checkoutDuration}ms with ${createdOrderUuids.length} orders`);
 
         return {
             success: true,
@@ -815,7 +861,8 @@ export const processCheckout = async (payload: CheckoutPayload): Promise<Checkou
         };
 
     } catch (error: any) {
-        console.error('[Checkout] \u274c Checkout processing failed:', error);
+        console.error('[Checkout] ❌ Checkout processing failed:', error);
+        console.error('[Checkout] Error stack:', error.stack);
         return { success: false, error: error.message || 'Unknown error occurred' };
     }
 };

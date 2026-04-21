@@ -44,30 +44,32 @@ type Props = NativeStackScreenProps<RootStackParamList, 'Orders'>;
 
 const { width } = Dimensions.get('window');
 
-type OrdersTab = 'all' | 'pending' | 'confirmed' | 'shipped' | 'reviewed' | 'returned' | 'cancelled';
+type OrdersTab = 'all' | 'processing' | 'shipped' | 'delivered' | 'received' | 'returned' | 'cancelled';
 
 const normalizeInitialTab = (tab?: string): OrdersTab => {
-  const normalized = (tab || 'pending').toLowerCase();
+  const normalized = (tab || 'processing').toLowerCase();
 
-  if (normalized === 'topay') return 'pending';
-  if (normalized === 'toship') return 'confirmed';
+  if (normalized === 'topay') return 'processing';
+  if (normalized === 'toship') return 'processing';
   if (normalized === 'toreceive') return 'shipped';
-  if (normalized === 'toreview') return 'reviewed';
-  if (normalized === 'completed') return 'reviewed';
-  if (normalized === 'returns') return 'cancelled';
+  if (normalized === 'toreview') return 'cancelled';
+  if (normalized === 'completed') return 'cancelled';
+  if (normalized === 'returns') return 'returned';
 
   if (
     normalized === 'all' ||
-    normalized === 'pending' ||
-    normalized === 'confirmed' ||
+    normalized === 'processing' ||
     normalized === 'shipped' ||
+    normalized === 'delivered' ||
+    normalized === 'received' ||
     normalized === 'reviewed' ||
+    normalized === 'returned' ||
     normalized === 'cancelled'
   ) {
     return normalized as OrdersTab;
   }
 
-  return 'pending';
+  return 'processing';
 };
 
 const mapBuyerUiStatusFromNormalized = (
@@ -76,7 +78,7 @@ const mapBuyerUiStatusFromNormalized = (
   hasCancellationRecord?: boolean,
   isReviewed?: boolean,
   hasReturnRequest?: boolean,
-): 'pending' | 'confirmed' | 'shipped' | 'delivered' | 'received' | 'returned' | 'cancelled' | 'reviewed' => {
+): 'processing' | 'shipped' | 'delivered' | 'received' | 'returned' | 'cancelled' | 'reviewed' => {
   // If there's a return request (pending, rejected, approved), show in returned tab
   if (hasReturnRequest) return 'returned';
 
@@ -95,7 +97,7 @@ const mapBuyerUiStatusFromNormalized = (
   }
 
   if (shipmentStatus === 'processing' || shipmentStatus === 'ready_to_ship') {
-    return 'confirmed';
+    return 'processing';
   }
 
   if (shipmentStatus === 'failed_to_deliver') {
@@ -110,7 +112,7 @@ const mapBuyerUiStatusFromNormalized = (
     return hasCancellationRecord ? 'cancelled' : 'returned';
   }
 
-  return 'pending';
+  return 'processing';
 };
 
 export default function OrdersScreen({ navigation, route }: Props) {
@@ -197,6 +199,7 @@ export default function OrdersScreen({ navigation, route }: Props) {
             id, status, is_returnable, refund_date
           ),
           shipments:order_shipments(*),
+          payments:order_payments(payment_method, status, created_at),
           history:order_status_history(status, created_at)
         `;
 
@@ -248,6 +251,7 @@ export default function OrdersScreen({ navigation, route }: Props) {
           return_requests:refund_return_periods (
             id, status, is_returnable, refund_date
           ),
+          payments:order_payments(payment_method, status, created_at),
           history:order_status_history(status, created_at)
         `;
 
@@ -304,8 +308,7 @@ export default function OrdersScreen({ navigation, route }: Props) {
         );
 
         const statusByBuyerUiStatus: Record<string, Order['status']> = {
-          pending: 'pending',
-          confirmed: 'processing',
+          processing: 'processing',
           shipped: 'shipped',
           delivered: 'delivered',
           received: 'delivered',
@@ -314,7 +317,7 @@ export default function OrdersScreen({ navigation, route }: Props) {
           cancelled: 'cancelled',
         };
 
-        const mappedStatus = statusByBuyerUiStatus[buyerUiStatus] || 'pending';
+        const mappedStatus = statusByBuyerUiStatus[buyerUiStatus] || 'processing';
         const isReviewed = buyerUiStatus === 'reviewed';
 
         // Get seller from first order item's product (orders don't have direct seller_id)
@@ -431,11 +434,17 @@ export default function OrdersScreen({ navigation, route }: Props) {
         // Original items total (before campaign discount)
         const itemsSubtotal = items.reduce((sum: number, i: any) => sum + ((i.price || 0) * i.quantity), 0);
         
-        // subtotal = original price - campaign discount
+        // Calculate total shipping from all sellers
+        const totalShipping = (order.shipments || []).reduce((sum: number, shipment: any) => {
+          const fee = typeof shipment.calculated_fee === 'number' ? shipment.calculated_fee : parseFloat(shipment.calculated_fee || '0') || 0;
+          return sum + fee;
+        }, 0);
+        
+        // subtotal = original items total
         const subtotal = itemsSubtotal;
         
-        // total = subtotal + shipping - voucher
-        const total = subtotal + shippingFee - (voucherInfo?.discountAmount || 0);
+        // total = subtotal + all seller shipping - voucher discount
+        const total = subtotal + totalShipping - (voucherInfo?.discountAmount || 0);
 
         return {
           id: order.order_number || order.id,
@@ -445,7 +454,7 @@ export default function OrdersScreen({ navigation, route }: Props) {
           sellerInfo: productSeller,
           total,
           subtotal,
-          shippingFee,
+          shippingFee: totalShipping,
           discount: campaignDiscount + (voucherInfo?.discountAmount || 0),
           voucherInfo,
           campaignDiscounts: campaignDiscount > 0 ? [{
@@ -466,17 +475,21 @@ export default function OrdersScreen({ navigation, route }: Props) {
             region: linkedAddress.province || linkedAddress.region || '',
             postalCode: linkedAddress.postal_code || '',
           },
-          paymentMethod: typeof order.payment_method === 'string'
-            ? order.payment_method
-            : ((order.payment_method as any)?.type === 'cod'
-              ? 'Cash on Delivery'
-              : (order.payment_method as any)?.type === 'gcash'
-                ? 'GCash'
-                : (order.payment_method as any)?.type === 'card'
-                  ? 'Card'
-                  : (order.payment_method as any)?.type === 'paymongo'
-                    ? 'PayMongo'
-                    : (order.payment_method as any)?.type || 'Cash on Delivery'),
+          paymentMethod: (() => {
+            const paymentData = (order.payments && order.payments.length > 0) ? order.payments[0]?.payment_method : null;
+            if (typeof paymentData === 'string') {
+              return paymentData;
+            }
+            if (typeof paymentData === 'object' && paymentData) {
+              const type = (paymentData as any)?.type;
+              if (type === 'cod') return 'Cash on Delivery';
+              if (type === 'gcash') return 'GCash';
+              if (type === 'card') return 'Card';
+              if (type === 'paymongo') return 'PayMongo';
+              return type || 'Cash on Delivery';
+            }
+            return 'Cash on Delivery';
+          })(),
           createdAt: order.created_at,
           confirmedAt: (order.history || []).find((h: any) => h.status === 'processing' || h.status === 'confirmed')?.created_at || order.paid_at || null,
           shippedAt: (order.history || []).find((h: any) => h.status === 'shipped')?.created_at || (order.shipments || []).find((s: any) => s.shipped_at)?.shipped_at || null,
@@ -486,6 +499,7 @@ export default function OrdersScreen({ navigation, route }: Props) {
           buyerUiStatus,
           isReviewed,
           returnRequestId,
+          etaText: (order.order_shipments && order.order_shipments.length > 0) ? order.order_shipments[0].estimated_days_text : undefined,
           review: order.reviews && order.reviews.length > 0 ? order.reviews[0] : null,
           // Include cancellation reason for cancelled orders (latest cancellation first)
           cancellationReason: (() => {
@@ -712,7 +726,7 @@ export default function OrdersScreen({ navigation, route }: Props) {
       }
 
       await loadOrders();
-      setActiveTab('reviewed');
+      setActiveTab('all');
       Alert.alert('Success', 'Your review has been submitted.');
     } catch (error: any) {
       console.error('[OrdersScreen] Error submitting review:', error);
@@ -803,7 +817,7 @@ export default function OrdersScreen({ navigation, route }: Props) {
     const uiStatus = order.buyerUiStatus || order.status;
 
     switch (uiStatus) {
-      case 'pending':
+      case 'processing':
         return (
           <View style={styles.buttonRow}>
             <Pressable
@@ -816,12 +830,6 @@ export default function OrdersScreen({ navigation, route }: Props) {
               <Text style={styles.outlineButtonText}>View Details</Text>
             </Pressable>
           </View>
-        );
-      case 'confirmed':
-        return (
-          <Pressable style={styles.primaryButton} onPress={() => navigation.navigate('OrderDetail', { order })}>
-            <Text style={styles.primaryButtonText}>View Details</Text>
-          </Pressable>
         );
       case 'shipped':
         return (
@@ -1032,13 +1040,13 @@ export default function OrdersScreen({ navigation, route }: Props) {
           showsHorizontalScrollIndicator={false}
           contentContainerStyle={styles.tabsContentContainer}
         >
-          {(['all', 'pending', 'confirmed', 'shipped', 'reviewed', 'returned', 'cancelled'] as const).map((tab) => {
+          {(['all', 'processing', 'shipped', 'delivered', 'received', 'returned', 'cancelled'] as const).map((tab) => {
             const labelMap: Record<string, string> = {
               all: 'All',
-              pending: 'To Pay',
-              confirmed: 'To Ship',
-              shipped: 'To Receive',
-              reviewed: 'Completed',
+              processing: 'Processing',
+              shipped: 'Shipped',
+              delivered: 'Delivered',
+              received: 'Received',
               returned: 'Return/Refund',
               cancelled: 'Cancelled'
             };
