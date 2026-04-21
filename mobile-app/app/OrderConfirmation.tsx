@@ -27,6 +27,46 @@ export default function OrderConfirmation({ navigation, route }: Props) {
   const [paymentTx, setPaymentTx] = useState<PaymentTransaction | null>(null);
   const getTransactionByOrderId = usePaymentStore((s) => s.getTransactionByOrderId);
 
+  // Helper function to map payment method to display text
+  const getPaymentMethodDisplay = (): string => {
+    if (typeof order.paymentMethod === 'string') {
+      const method = order.paymentMethod.toLowerCase();
+      if (method === 'cod') return 'Cash on Delivery';
+      if (method === 'gcash') return 'GCash';
+      if (method === 'card') return 'Card';
+      if (method === 'paymongo') return 'PayMongo';
+      return order.paymentMethod;
+    }
+    const type = (order.paymentMethod as any)?.type?.toLowerCase();
+    if (type === 'cod') return 'Cash on Delivery';
+    if (type === 'gcash') return 'GCash';
+    if (type === 'card') return 'Card';
+    if (type === 'paymongo') return 'PayMongo';
+    return 'Unknown';
+  };
+
+  // Helper function to determine order status and styling
+  const getOrderStatus = (): { status: string; backgroundColor: string; textColor: string } => {
+    const paymentMethod = order.paymentMethod;
+    const isCOD = typeof paymentMethod === 'string'
+      ? paymentMethod.toLowerCase() === 'cod'
+      : (paymentMethod as any)?.type?.toLowerCase() === 'cod';
+
+    if (isCOD) {
+      return {
+        status: 'Pending',
+        backgroundColor: '#FEF3C7',
+        textColor: '#92400E',
+      };
+    }
+
+    return {
+      status: 'Confirmed',
+      backgroundColor: '#E5E7EB',
+      textColor: '#374151',
+    };
+  };
+
   useEffect(() => {
     const realOrderId = (order as any).orderId || order.id;
     if (!realOrderId) return;
@@ -115,7 +155,7 @@ export default function OrderConfirmation({ navigation, route }: Props) {
           {/* Success Message */}
           <Text style={styles.title}>Order Placed Successfully!</Text>
           <Text style={styles.subtitle}>
-            Your order has been confirmed. Payment method: {order.paymentMethod}
+            Your order has been confirmed. Payment method: {getPaymentMethodDisplay()}
           </Text>
 
 
@@ -147,19 +187,19 @@ export default function OrderConfirmation({ navigation, route }: Props) {
             <View style={styles.card}>
               <View style={{ flexDirection: 'row', justifyContent: 'space-between', paddingVertical: 8 }}>
                 <Text style={{ fontSize: 14, color: '#6B7280' }}>Method</Text>
-                <Text style={{ fontSize: 14, fontWeight: '600', color: '#1F2937' }}>{order.paymentMethod}</Text>
+                <Text style={{ fontSize: 14, fontWeight: '600', color: '#1F2937' }}>{getPaymentMethodDisplay()}</Text>
               </View>
               <View style={{ flexDirection: 'row', justifyContent: 'space-between', paddingVertical: 8, borderTopWidth: 1, borderTopColor: '#FDF2E9' }}>
                 <Text style={{ fontSize: 14, color: '#6B7280' }}>Status</Text>
                 <View style={{
                   paddingHorizontal: 10, paddingVertical: 3, borderRadius: 8,
-                  backgroundColor: '#E5E7EB',
+                  backgroundColor: getOrderStatus().backgroundColor,
                 }}>
                   <Text style={{
                     fontSize: 12, fontWeight: '700',
-                    color: '#374151',
+                    color: getOrderStatus().textColor,
                   }}>
-                    Confirmed
+                    {getOrderStatus().status}
                   </Text>
                 </View>
               </View>

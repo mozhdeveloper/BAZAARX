@@ -828,14 +828,7 @@ export default function OrderDetailScreen({ route, navigation }: Props) {
                      <>
                        <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
                          <Text style={styles.metaLabel}>Payment Method</Text>
-                         <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-                           <Text style={styles.primaryInfo}>{paymentMethod}</Text>
-                           {isCOD && (
-                             <View style={{ backgroundColor: '#FEF3C7', paddingHorizontal: 10, paddingVertical: 4, borderRadius: 8 }}>
-                               <Text style={{ fontSize: 11, fontWeight: '700', color: '#92400E' }}>PENDING</Text>
-                             </View>
-                           )}
-                         </View>
+                         <Text style={styles.primaryInfo}>{paymentMethod}</Text>
                        </View>
                        
                        {/* COD Payment Instruction Message */}
