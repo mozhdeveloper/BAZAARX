@@ -180,6 +180,8 @@ interface SellersState {
   rejectSeller: (id: string, reason?: string) => Promise<void>;
   partiallyRejectSeller: (id: string, payload: PartialSellerRejectionInput) => Promise<void>;
   suspendSeller: (id: string, reason: string) => Promise<void>;
+  blacklistSeller: (id: string, reason: string) => Promise<void>;
+  reinstateSeller: (id: string) => Promise<void>;
   selectSeller: (seller: Seller | null) => void;
   addSeller: (seller: Seller) => void;
   clearError: () => void;
