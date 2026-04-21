@@ -33,7 +33,7 @@ CREATE TRIGGER trg_admin_settings_touch
 
 ALTER TABLE public.admin_settings ENABLE ROW LEVEL SECURITY;
 
--- Helper: is current user an admin? (checks profiles.role)
+-- Helper: is current user an admin? (checks admins table, which FKs to profiles)
 CREATE OR REPLACE FUNCTION public.is_admin_user()
 RETURNS boolean
 LANGUAGE sql
@@ -41,9 +41,8 @@ SECURITY DEFINER
 SET search_path = public
 AS $$
   SELECT EXISTS (
-    SELECT 1 FROM public.profiles
+    SELECT 1 FROM public.admins
     WHERE id = auth.uid()
-      AND role IN ('admin', 'super_admin', 'qa_team', 'support_admin')
   );
 $$;
 
