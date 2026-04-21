@@ -58,21 +58,12 @@ const PIPELINE_COLUMNS = [
   { key: 'live', label: 'Live', borderColor: 'border-gray-400', textColor: 'text-gray-600', bgColor: 'bg-gray-50' },
 ] as const;
 
-/* ── Mock data for tabs that have no DB tables yet ─────────── */
-
-const MOCK_SUPPLIERS = [
-  { id: '1', name: 'TechSource Global', status: 'verified', products: 12, avgPrice: 45, reliability: 92 },
-  { id: '2', name: 'QualityFirst Manufacturing', status: 'verified', products: 8, avgPrice: 38, reliability: 88 },
-  { id: '3', name: 'BulkTech Supplies', status: 'monitoring', products: 5, avgPrice: 52, reliability: 76 },
-];
-
-const MOCK_FAILURE_REASONS = [
-  { reason: 'Spec mismatch (claimed vs actual)', count: 12 },
-  { reason: 'Failed durability testing', count: 8 },
-  { reason: 'Quality control issues', count: 6 },
-  { reason: 'Authenticity concerns', count: 4 },
-  { reason: 'Safety non-compliance', count: 3 },
-];
+/* ── Suppliers tab placeholder data (DB-backed feature TBD) ───────────
+ * The suppliers directory is not yet backed by a real table.
+ * Replaced previously hard-coded mock supplier records with an empty
+ * source so the UI shows a proper empty state instead of fake data. */
+type SupplierRow = { id: string; name: string; status: 'verified' | 'monitoring'; products: number; avgPrice: number; reliability: number };
+const SUPPLIERS: SupplierRow[] = [];
 
 const AdminProductRequests: React.FC = () => {
   const { isAuthenticated } = useAdminAuth();
@@ -160,6 +151,21 @@ const AdminProductRequests: React.FC = () => {
     return map;
   }, [requests]);
 
+  // Derive top failure reasons from rejected requests' adminNotes (real data)
+  const failureReasons = useMemo(() => {
+    const counts = new Map<string, number>();
+    requests
+      .filter(r => r.status === 'rejected' && r.adminNotes && r.adminNotes.trim().length > 0)
+      .forEach(r => {
+        const key = r.adminNotes!.trim().slice(0, 120);
+        counts.set(key, (counts.get(key) ?? 0) + 1);
+      });
+    return Array.from(counts.entries())
+      .map(([reason, count]) => ({ reason, count }))
+      .sort((a, b) => b.count - a.count)
+      .slice(0, 5);
+  }, [requests]);
+
   const handleUpdateStatus = async (requestId: string, newStatus: 'approved' | 'rejected' | 'in_progress', notes?: string) => {
     setUpdatingId(requestId);
     try {
@@ -223,7 +229,7 @@ const AdminProductRequests: React.FC = () => {
               {TABS.map(({ key, label }) => {
                 const count = key === 'pipeline' ? requests.length :
                   key === 'testing' ? requests.filter(r => r.status === 'in_progress' || r.status === 'approved').length :
-                    key === 'suppliers' ? MOCK_SUPPLIERS.length : null;
+                    key === 'suppliers' ? SUPPLIERS.length : null;
 
                 return (
                   <button
@@ -524,7 +530,12 @@ const AdminProductRequests: React.FC = () => {
               </div>
 
               <div className="bg-white rounded-xl shadow-md overflow-hidden divide-y divide-gray-100">
-                {MOCK_SUPPLIERS
+                {SUPPLIERS.length === 0 && (
+                  <div className="p-10 text-center">
+                    <p className="text-sm text-gray-500 italic">Supplier directory is not yet populated. Add suppliers using the button above.</p>
+                  </div>
+                )}
+                {SUPPLIERS
                   .slice((supplierPage - 1) * ITEMS_PER_PAGE, supplierPage * ITEMS_PER_PAGE)
                   .map((s) => (
                     <div key={s.id} className="p-5 hover:bg-gray-50/50 transition-colors">
@@ -562,10 +573,10 @@ const AdminProductRequests: React.FC = () => {
                   ))}
 
                 {/* Pagination Footer */}
-                {MOCK_SUPPLIERS.length > 0 && (
+                {SUPPLIERS.length > 0 && (
                   <div className="px-6 py-4 border-t border-gray-100 flex items-center justify-between bg-white text-[var(--text-muted)] text-xs font-medium">
                     <div>
-                      {Math.min((supplierPage - 1) * ITEMS_PER_PAGE + 1, MOCK_SUPPLIERS.length)}-{Math.min(supplierPage * ITEMS_PER_PAGE, MOCK_SUPPLIERS.length)} of {MOCK_SUPPLIERS.length}
+                      {Math.min((supplierPage - 1) * ITEMS_PER_PAGE + 1, SUPPLIERS.length)}-{Math.min(supplierPage * ITEMS_PER_PAGE, SUPPLIERS.length)} of {SUPPLIERS.length}
                     </div>
                     <div className="flex items-center gap-2">
                       <button
@@ -576,8 +587,8 @@ const AdminProductRequests: React.FC = () => {
                         <ChevronLeft className="h-4 w-4" />
                       </button>
                       <button
-                        onClick={() => setSupplierPage(p => Math.min(Math.ceil(MOCK_SUPPLIERS.length / ITEMS_PER_PAGE), p + 1))}
-                        disabled={supplierPage >= Math.ceil(MOCK_SUPPLIERS.length / ITEMS_PER_PAGE)}
+                        onClick={() => setSupplierPage(p => Math.min(Math.ceil(SUPPLIERS.length / ITEMS_PER_PAGE), p + 1))}
+                        disabled={supplierPage >= Math.ceil(SUPPLIERS.length / ITEMS_PER_PAGE)}
                         className="p-1.5 hover:bg-gray-50 rounded-lg disabled:opacity-30 disabled:hover:bg-transparent transition-colors"
                       >
                         <ChevronRight className="h-4 w-4" />
@@ -635,17 +646,21 @@ const AdminProductRequests: React.FC = () => {
               <Card className="border-none shadow-md">
                 <CardContent className="p-6">
                   <h3 className="text-lg font-extrabold text-[var(--text-headline)] mb-5 tracking-wide">Common failure reasons</h3>
-                  <div className="space-y-3">
-                    {MOCK_FAILURE_REASONS.map(({ reason, count }) => (
-                      <div
-                        key={reason}
-                        className="flex items-center justify-between py-3 px-4 rounded-lg bg-gray-50/50"
-                      >
-                        <span className="text-sm text-gray-700 font-medium">{reason}</span>
-                        <Badge variant="outline" className="text-xs font-bold">{count} products</Badge>
-                      </div>
-                    ))}
-                  </div>
+                  {failureReasons.length === 0 ? (
+                    <p className="text-sm text-gray-500 italic">No rejected requests yet — failure reasons will appear here once admins reject requests with notes.</p>
+                  ) : (
+                    <div className="space-y-3">
+                      {failureReasons.map(({ reason, count }) => (
+                        <div
+                          key={reason}
+                          className="flex items-center justify-between py-3 px-4 rounded-lg bg-gray-50/50"
+                        >
+                          <span className="text-sm text-gray-700 font-medium">{reason}</span>
+                          <Badge variant="outline" className="text-xs font-bold">{count} request{count === 1 ? '' : 's'}</Badge>
+                        </div>
+                      ))}
+                    </div>
+                  )}
                 </CardContent>
               </Card>
             </div>
