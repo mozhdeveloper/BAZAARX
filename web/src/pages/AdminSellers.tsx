@@ -139,8 +139,6 @@ const SuspendDialog = React.memo(({
 SuspendDialog.displayName = 'SuspendDialog';
 
 const AdminSellers: React.FC = () => {
-  const SHOW_BANKING_INFO = false;
-
   const { isAuthenticated } = useAdminAuth();
   const {
     sellers,
@@ -152,6 +150,8 @@ const AdminSellers: React.FC = () => {
     rejectSeller,
     partiallyRejectSeller,
     suspendSeller,
+    blacklistSeller,
+    reinstateSeller,
     selectSeller,
     hasCompleteRequirements,
     updateSellerTier,
@@ -1075,7 +1075,7 @@ const AdminSellers: React.FC = () => {
               </div>
 
               {/* Banking Information */}
-              {SHOW_BANKING_INFO && (
+              {(selectedSeller.bankName || selectedSeller.accountName || selectedSeller.accountNumber) && (
                 <div>
                   <h4 className="font-semibold text-gray-900 mb-2 text-sm">
                     Banking Information
@@ -1363,12 +1363,70 @@ const AdminSellers: React.FC = () => {
                 )}
 
                 {selectedSeller.status === "approved" && (
+                  <>
+                    <Button
+                      variant="outline"
+                      onClick={async () => {
+                        const reason = window.prompt('Reason for blacklisting this seller (this is permanent):');
+                        if (!reason || !reason.trim()) return;
+                        await blacklistSeller(selectedSeller.id, reason.trim());
+                        setShowDetailsDialog(false);
+                        selectSeller(null);
+                      }}
+                      className="text-gray-500 border-gray-200 hover:text-red-700 hover:border-red-700 hover:bg-red-50 transition-all"
+                    >
+                      Blacklist
+                    </Button>
+                    <Button
+                      variant="outline"
+                      onClick={() => setShowSuspendDialog(true)}
+                      className="ml-auto text-gray-500 border-gray-200 hover:text-orange-600 hover:border-orange-600 hover:bg-orange-50 transition-all"
+                    >
+                      Suspend Account
+                    </Button>
+                  </>
+                )}
+
+                {selectedSeller.status === "suspended" && (
                   <Button
-                    variant="outline"
-                    onClick={() => setShowSuspendDialog(true)}
-                    className="ml-auto text-gray-500 border-gray-200 hover:text-orange-600 hover:border-orange-600 hover:bg-orange-50 transition-all"
+                    onClick={async () => {
+                      if (!window.confirm('Reinstate this seller? They will regain full access to selling.')) return;
+                      await reinstateSeller(selectedSeller.id);
+                      setShowDetailsDialog(false);
+                      selectSeller(null);
+                    }}
+                    className="ml-auto bg-green-600 hover:bg-green-700 text-white"
                   >
-                    Suspend Account
+                    Reinstate Seller
+                  </Button>
+                )}
+
+                {selectedSeller.status === "blacklisted" && (
+                  <Button
+                    onClick={async () => {
+                      if (!window.confirm('Remove this seller from the blacklist? They will be reinstated as approved.')) return;
+                      await reinstateSeller(selectedSeller.id);
+                      setShowDetailsDialog(false);
+                      selectSeller(null);
+                    }}
+                    className="ml-auto bg-green-600 hover:bg-green-700 text-white"
+                  >
+                    Remove from Blacklist
+                  </Button>
+                )}
+
+                {selectedSeller.status === "rejected" && (
+                  <Button
+                    onClick={async () => {
+                      if (!window.confirm('Reinstate this rejected seller as approved? They will regain full selling access.')) return;
+                      await reinstateSeller(selectedSeller.id);
+                      setShowDetailsDialog(false);
+                      selectSeller(null);
+                    }}
+                    variant="outline"
+                    className="ml-auto text-blue-700 border-blue-200 hover:bg-blue-50"
+                  >
+                    Reinstate as Approved
                   </Button>
                 )}
 
