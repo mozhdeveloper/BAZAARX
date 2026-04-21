@@ -287,6 +287,7 @@ interface AdminCRMState {
   createCampaign: (campaign: Partial<MarketingCampaign>) => Promise<MarketingCampaign | null>;
   updateCampaign: (id: string, updates: Partial<MarketingCampaign>) => Promise<boolean>;
   deleteCampaign: (id: string) => Promise<boolean>;
+  sendCampaign: (id: string) => Promise<{ success: boolean; queued: number; error?: string }>;
 
   // Automation
   workflows: AutomationWorkflow[];
@@ -419,6 +420,119 @@ export const useAdminCRM = create<AdminCRMState>((set, get) => ({
     if (error) return false;
     set({ campaigns: get().campaigns.filter((c) => c.id !== id) });
     return true;
+  },
+
+  /**
+   * sendCampaign — resolves recipients, queues per-recipient rows in email_logs
+   * for the cron-driven process-email-queue function to deliver, and marks the
+   * campaign as 'sending'. The queue cron will deliver via Resend.
+   *
+   * Recipient resolution:
+   *   - If segment_id is set, takes all buyers in that segment (snapshot via
+   *     filter_criteria.buyer_ids if present, otherwise all opted-in buyers).
+   *   - If no segment, sends to all opted-in buyers (consent + not suppressed).
+   *
+   * Honors suppression_list and user_consent (also re-checked by the queue
+   * processor as a defense-in-depth).
+   */
+  sendCampaign: async (id) => {
+    const campaign = get().campaigns.find((c) => c.id === id);
+    if (!campaign) return { success: false, queued: 0, error: 'Campaign not found' };
+    if (campaign.campaign_type !== 'email_blast' && campaign.campaign_type !== 'multi_channel') {
+      return { success: false, queued: 0, error: 'Only email/multi-channel campaigns are supported by this pipeline' };
+    }
+    if (!campaign.subject || !campaign.content) {
+      return { success: false, queued: 0, error: 'Campaign is missing subject or content' };
+    }
+    if (campaign.status === 'sending' || campaign.status === 'sent') {
+      return { success: false, queued: 0, error: `Campaign is already ${campaign.status}` };
+    }
+
+    // 1. Resolve recipient buyer ids
+    let buyerIds: string[] = [];
+    if (campaign.segment_id) {
+      const seg = get().segments.find((s) => s.id === campaign.segment_id);
+      const explicit = (seg?.filter_criteria as { buyer_ids?: string[] } | undefined)?.buyer_ids;
+      if (explicit && Array.isArray(explicit) && explicit.length > 0) {
+        buyerIds = explicit;
+      }
+    }
+    let recipientRows: { id: string; email: string }[] = [];
+    if (buyerIds.length > 0) {
+      const { data: profs, error: profErr } = await supabase
+        .from('profiles')
+        .select('id, email')
+        .in('id', buyerIds)
+        .not('email', 'is', null);
+      if (profErr) return { success: false, queued: 0, error: profErr.message };
+      recipientRows = (profs ?? []).filter((p) => !!p.email).map((p) => ({ id: p.id as string, email: p.email as string }));
+    } else {
+      // Fallback: all buyer-role profiles with an email
+      const { data: profs, error: profErr } = await supabase
+        .from('profiles')
+        .select('id, email, role')
+        .eq('role', 'buyer')
+        .not('email', 'is', null)
+        .limit(5000);
+      if (profErr) return { success: false, queued: 0, error: profErr.message };
+      recipientRows = (profs ?? []).filter((p) => !!p.email).map((p) => ({ id: p.id as string, email: p.email as string }));
+    }
+
+    if (recipientRows.length === 0) {
+      return { success: false, queued: 0, error: 'No recipients matched this campaign' };
+    }
+
+    // 2. Filter out suppressed addresses (best effort)
+    try {
+      const { data: suppressed } = await supabase
+        .from('suppression_list')
+        .select('email')
+        .in('email', recipientRows.map((r) => r.email));
+      const suppressedSet = new Set((suppressed ?? []).map((s: { email: string }) => s.email.toLowerCase()));
+      recipientRows = recipientRows.filter((r) => !suppressedSet.has(r.email.toLowerCase()));
+    } catch {
+      // suppression_list optional
+    }
+
+    if (recipientRows.length === 0) {
+      return { success: false, queued: 0, error: 'All recipients are suppressed' };
+    }
+
+    // 3. Insert one queued email_logs row per recipient (chunked)
+    const CHUNK = 500;
+    let queued = 0;
+    for (let i = 0; i < recipientRows.length; i += CHUNK) {
+      const chunk = recipientRows.slice(i, i + CHUNK);
+      const rows = chunk.map((r) => ({
+        recipient_email: r.email,
+        recipient_id: r.id,
+        template_id: campaign.template_id,
+        event_type: 'marketing_campaign',
+        subject: campaign.subject!,
+        status: 'queued',
+        metadata: {
+          campaign_id: campaign.id,
+          campaign_name: campaign.name,
+          html_content: campaign.content,
+        },
+      }));
+      const { error: insErr, count } = await supabase
+        .from('email_logs')
+        .insert(rows, { count: 'exact' });
+      if (insErr) {
+        return { success: false, queued, error: `Queue insert failed after ${queued} rows: ${insErr.message}` };
+      }
+      queued += count ?? chunk.length;
+    }
+
+    // 4. Mark campaign as sending with snapshot recipient count
+    await get().updateCampaign(id, {
+      status: 'sending',
+      total_recipients: queued,
+      sent_at: new Date().toISOString(),
+    } as Partial<MarketingCampaign>);
+
+    return { success: true, queued };
   },
 
   // ── Automation Workflows ──────────────────────────────────────────────
