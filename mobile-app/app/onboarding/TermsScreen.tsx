@@ -5,6 +5,8 @@ import {
   StyleSheet,
   ScrollView,
   Pressable,
+  Alert,
+  ActivityIndicator,
 } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { CheckSquare, Square, ArrowLeft } from 'lucide-react-native';
@@ -14,19 +16,73 @@ import { StatusBar } from 'expo-status-bar';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import type { RootStackParamList } from '../../App';
 import { useAuthStore } from '../../src/stores/authStore';
+import { supabase } from '../../src/lib/supabase';
+import { authService } from '../../src/services/authService';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'Terms'>;
 
 export default function TermsScreen({ navigation, route }: Props) {
   const insets = useSafeAreaInsets();
   const [agreed, setAgreed] = useState(false);
+  const [loading, setLoading] = useState(false);
 
-  const handleContinue = () => {
+  const handleContinue = async () => {
     if (agreed) {
-      // Prioritize navigation params, fallback to persistent store
-      const signupData = route.params?.signupData || useAuthStore.getState().pendingSignupData;
-      
-      navigation.replace('EmailVerification', { email: signupData.email });
+      setLoading(true);
+      try {
+        const { data: { session } } = await supabase.auth.getSession();
+        
+        if (session) {
+          // Enforcement flow (user logged in/verified but haven't accepted terms)
+          const { error } = await supabase.auth.updateUser({
+            data: { has_accepted_terms: true }
+          });
+          
+          if (error) throw error;
+          
+          // Refresh session to update local user object with new metadata
+          await useAuthStore.getState().checkSession?.();
+          
+          // CHECK IF ONBOARDING (INTERESTS) IS COMPLETE
+          const isComplete = useAuthStore.getState().hasCompletedOnboarding;
+          
+          if (isComplete) {
+            navigation.replace('MainTabs', { screen: 'Home' });
+          } else {
+            // Force user to select interests if they haven't yet (e.g. first time Google login)
+            const signupData = route.params?.signupData || useAuthStore.getState().pendingSignupData;
+            navigation.replace('CategoryPreference', { signupData });
+          }
+        } else {
+          // Pre-verification flow (during signup)
+          const signupData = route.params?.signupData || useAuthStore.getState().pendingSignupData;
+          if (!signupData) {
+            throw new Error('Signup session expired. Please sign up again.');
+          }
+
+          // PERFORM THE ACTUAL SIGNUP NOW
+          const result = await authService.signUp(signupData.email, signupData.password, {
+            first_name: signupData.firstName,
+            last_name: signupData.lastName,
+            full_name: `${signupData.firstName} ${signupData.lastName}`,
+            phone: signupData.phone,
+            user_type: signupData.user_type || 'buyer',
+            email: signupData.email,
+            password: signupData.password,
+            has_accepted_terms: true, // They just agreed!
+          });
+
+          if (!result?.user) {
+            throw new Error('Failed to create account. Please try again.');
+          }
+
+          navigation.replace('EmailVerification', { email: signupData.email, signupData });
+        }
+      } catch (error: any) {
+        Alert.alert('Error', error.message || 'Failed to process request.');
+      } finally {
+        setLoading(false);
+      }
     }
   };
 
@@ -40,13 +96,9 @@ export default function TermsScreen({ navigation, route }: Props) {
         end={{ x: 1, y: 1 }}
         style={[styles.header, { paddingTop: insets.top + 10 }]}
       >
-         <View style={styles.headerTop}>
-             <Pressable onPress={() => navigation.goBack()} style={styles.backButton}>
-                <ArrowLeft size={24} color={COLORS.textHeadline} />
-             </Pressable>
-             <Text style={[styles.headerTitle, { color: COLORS.textHeadline }]}>Terms & Conditions</Text>
-             <View style={{ width: 24 }} />
-        </View>
+          <View style={[styles.headerTop, { justifyContent: 'center' }]}>
+              <Text style={[styles.headerTitle, { color: COLORS.textHeadline }]}>Terms & Conditions</Text>
+          </View>
         <Text style={[styles.headerSubtitle, { color: COLORS.textMuted }]}>Please review and accept our terms</Text>
       </LinearGradient>
 
@@ -95,11 +147,15 @@ export default function TermsScreen({ navigation, route }: Props) {
         </Pressable>
 
         <Pressable
-          style={[styles.button, !agreed && styles.buttonDisabled]}
+          style={[styles.button, (!agreed || loading) && styles.buttonDisabled]}
           onPress={handleContinue}
-          disabled={!agreed}
+          disabled={!agreed || loading}
         >
-          <Text style={styles.buttonText}>Continue</Text>
+          {loading ? (
+            <ActivityIndicator color="#FFFFFF" />
+          ) : (
+            <Text style={styles.buttonText}>Continue</Text>
+          )}
         </Pressable>
       </View>
     </View>

@@ -4,7 +4,7 @@ import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { StatusBar } from 'expo-status-bar';
 import { Home, MessageCircle, ShoppingCart, Store, User } from 'lucide-react-native';
 import React, { useRef } from 'react';
-import { AppState, AppStateStatus, LogBox } from 'react-native';
+import { AppState, AppStateStatus, LogBox, Linking } from 'react-native';
 import 'react-native-gesture-handler';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { SafeAreaProvider, useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -58,7 +58,7 @@ export type RootStackParamList = {
   AddressSetup: { signupData: any };
   Login: undefined;
   Signup: undefined;
-  EmailVerification: { email: string; otpAlreadySent?: boolean };
+  EmailVerification: { email: string; otpAlreadySent?: boolean; signupData?: any };
   ForgotPassword: undefined;
   ResetPassword: undefined;
   SellerLogin: undefined;
@@ -332,11 +332,32 @@ export default function App() {
     ]);
 
     // Deep link listener for debugging OAuth redirects
-    const unsubscribeDeepLink = Linking.addEventListener('url', ({ url }) => {
+    const unsubscribeDeepLink = Linking.addEventListener('url', async ({ url }) => {
       console.log('[App] Deep link received:', url);
 
-      if (url.includes('auth/callback') || url.includes('--/auth/callback')) {
-        console.log('[App] ✅ OAuth callback captured!');
+      if (url.includes('access_token=') && url.includes('refresh_token=')) {
+        console.log('[App] 🔐 OAuth session detected in URL. Manually setting session...');
+        try {
+          // Parse fragments from URL hash (e.g. #access_token=...&refresh_token=...)
+          const hash = url.split('#')[1];
+          if (!hash) return;
+
+          const params: Record<string, string> = {};
+          hash.split('&').forEach(part => {
+            const [key, val] = part.split('=');
+            if (key && val) params[key] = decodeURIComponent(val);
+          });
+
+          if (params.access_token && params.refresh_token) {
+            await supabase.auth.setSession({
+              access_token: params.access_token,
+              refresh_token: params.refresh_token,
+            });
+            console.log('[App] ✅ Session established successfully.');
+          }
+        } catch (err) {
+          console.error('[App] Failed to parse/set OAuth session:', err);
+        }
       }
     });
 
@@ -359,13 +380,22 @@ export default function App() {
     };
   }, []);
 
-  // Handle logout navigation — when user becomes null, navigate to Login
+  // Handle logout and T&C enforcement navigation
   React.useEffect(() => {
-    if (!user && navigationRef.current) {
+    if (!navigationRef.current) return;
+
+    if (!user) {
       // User has logged out, go directly to Login (not Splash, which re-checks session)
       navigationRef.current.reset({
         index: 0,
         routes: [{ name: 'Login' }],
+      });
+    } else if (user.hasAcceptedTerms === false) {
+      // User is logged in but hasn't accepted terms
+      console.log('[App] 🛡️ T&C Enforcement: Redirecting to Terms...');
+      navigationRef.current.reset({
+        index: 0,
+        routes: [{ name: 'Terms', params: { signupData: user } }],
       });
     }
   }, [user]);

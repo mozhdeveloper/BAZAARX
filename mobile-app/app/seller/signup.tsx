@@ -1,19 +1,20 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useForm, Controller } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { sellerSignupSchema, type SellerSignupFormData } from '../../src/lib/schemas';
 import { COLORS } from '../../src/constants/theme';
 import {
     View, Text, TextInput, StyleSheet, Pressable, KeyboardAvoidingView,
-    Platform, ScrollView, Alert, ActivityIndicator, Dimensions, Image
+    Platform, ScrollView, Alert, ActivityIndicator, Dimensions, Image, Modal
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
-import { Mail, Lock, Store, Phone, Eye, EyeOff, ArrowRight, Check, XCircle, ChevronRight, CheckCircle2, UserCheck, ArrowLeft } from 'lucide-react-native';
+import { Mail, Lock, Store, Phone, Eye, EyeOff, ArrowRight, Check, XCircle, ChevronRight, CheckCircle2, UserCheck, ArrowLeft, Square, CheckSquare, Clock, ExternalLink } from 'lucide-react-native';
 import { useNavigation } from '@react-navigation/native';
 import { supabase } from '../../src/lib/supabase';
 import { authService } from '../../src/services/authService';
 import { useSellerStore, useAuthStore } from '../../src/stores/sellerStore';
+import { useAuthStore as useGlobalAuthStore } from '../../src/stores/authStore';
 
 const { width } = Dimensions.get('window');
 
@@ -24,6 +25,11 @@ export default function SellerSignupScreen() {
     const [loading, setLoading] = useState(false);
     const [showPassword, setShowPassword] = useState(false);
     const [showConfirmPassword, setShowConfirmPassword] = useState(false);
+    const [acceptedTerms, setAcceptedTerms] = useState(false);
+    const [showTermsModal, setShowTermsModal] = useState(false);
+    const [checking, setChecking] = useState(false);
+    const [resendCooldown, setResendCooldown] = useState(0);
+    const intervalRef = useRef<any>(null);
 
     // Validation States
     const [emailStatus, setEmailStatus] = useState<'idle' | 'checking' | 'available' | 'taken'>('idle');
@@ -31,11 +37,8 @@ export default function SellerSignupScreen() {
     const [storeStatus, setStoreStatus] = useState<'idle' | 'checking' | 'available' | 'taken'>('idle');
     const [emailMessage, setEmailMessage] = useState('');
 
-    // OTP/Email Verification States
-    const [otpCode, setOtpCode] = useState('');
-    const [otpLoading, setOtpLoading] = useState(false);
-    const [otpSent, setOtpSent] = useState(false);
-    const [otpError, setOtpError] = useState('');
+    // Verification States
+    const [verificationSent, setVerificationSent] = useState(false);
     const [pendingEmail, setPendingEmail] = useState('');
 
     const {
@@ -161,151 +164,210 @@ export default function SellerSignupScreen() {
         return () => clearTimeout(timeoutId);
     }, [trimmedStoreName]);
 
+    // Add polling cleanup
+    useEffect(() => {
+        return () => {
+            if (intervalRef.current) clearInterval(intervalRef.current);
+        };
+    }, []);
+
+    // Cooldown timer logic
+    useEffect(() => {
+        let timer: any;
+        if (resendCooldown > 0) {
+            timer = setInterval(() => {
+                setResendCooldown((prev) => prev - 1);
+            }, 1000);
+        }
+        return () => clearInterval(timer);
+    }, [resendCooldown]);
+
     const handleNextStep = async () => {
         const isValidStep1 = await trigger(['email', 'password', 'confirmPassword']);
         if (isValidStep1 && emailStatus !== 'taken') {
-            // Send OTP to email
-            await sendOTPEmail();
+            await startVerification();
         }
     };
 
-    const sendOTPEmail = async () => {
-        setOtpLoading(true);
-        setOtpError('');
+    const startVerification = async () => {
+        setLoading(true);
         try {
-            const normalizedEmail = watch('email').trim().toLowerCase();
-            setPendingEmail(normalizedEmail);
+            const email = watch('email').trim().toLowerCase();
+            const password = watch('password');
+            setPendingEmail(email);
 
-            const sent = await authService.sendOTP(normalizedEmail);
-            if (sent) {
-                setOtpSent(true);
-                setStep(2);
-                Alert.alert('OTP Sent', `A verification code has been sent to ${normalizedEmail}`);
+            const status = await authService.getEmailRoleStatus(email);
+            
+            if (status.exists) {
+                // User already exists (likely a buyer)
+                // We check if they are already verified
+                const isVerified = await authService.checkVerificationStatus(email);
+                if (isVerified) {
+                    setStep(3);
+                    return;
+                }
+                // If not verified, resend link
+                await authService.resendVerificationLink(email);
             } else {
-                setOtpError('Failed to send OTP. Please try again.');
+                // New user - sign up
+                await authService.signUp(email, password, {
+                    user_type: 'buyer', // Default to buyer first, then add seller in step 3
+                    email: email,
+                    password: password,
+                    has_accepted_terms: true,
+                });
             }
+
+            setVerificationSent(true);
+            setStep(2);
+            startPolling();
+            setResendCooldown(60);
         } catch (err: any) {
-            setOtpError(err.message || 'Failed to send OTP. Please try again.');
+            Alert.alert('Error', err.message || 'Failed to start verification.');
         } finally {
-            setOtpLoading(false);
+            setLoading(false);
         }
     };
 
-    const verifyOTPCode = async () => {
-        if (!otpCode.trim()) {
-            setOtpError('Please enter the verification code');
-            return;
-        }
+    const startPolling = () => {
+        if (intervalRef.current) clearInterval(intervalRef.current);
+        intervalRef.current = setInterval(async () => {
+            try {
+                const verified = await authService.checkVerificationStatus(pendingEmail);
+                if (verified) {
+                    stopPolling();
+                    setStep(3);
+                }
+            } catch (e) {
+                console.error('Polling error:', e);
+            }
+        }, 3000);
+    };
 
-        setOtpLoading(true);
-        setOtpError('');
+    const stopPolling = () => {
+        if (intervalRef.current) {
+            clearInterval(intervalRef.current);
+            intervalRef.current = null;
+        }
+    };
+
+    const checkVerificationManually = async () => {
+        setChecking(true);
         try {
-            const result = await authService.verifyOTP(pendingEmail, otpCode);
-            if (result) {
-                setOtpCode('');
+            const verified = await authService.checkVerificationStatus(pendingEmail);
+            if (verified) {
+                stopPolling();
                 setStep(3);
+            } else {
+                Alert.alert('Not Verified Yet', 'Please click the link in your email to continue.');
             }
         } catch (err: any) {
-            setOtpError(err.message || 'Invalid or expired code. Please try again.');
+            Alert.alert('Error', err.message || 'Failed to check status.');
         } finally {
-            setOtpLoading(false);
+            setChecking(false);
         }
     };
 
-    const resendOTP = async () => {
-        setOtpLoading(true);
-        setOtpError('');
+    const resendLink = async () => {
+        if (resendCooldown > 0) return;
+        setLoading(true);
         try {
-            const sent = await authService.sendOTP(pendingEmail);
-            if (sent) {
-                setOtpCode('');
-                Alert.alert('OTP Resent', `A new verification code has been sent to ${pendingEmail}`);
-            } else {
-                setOtpError('Failed to resend OTP. Please try again.');
-            }
+            await authService.resendVerificationLink(pendingEmail);
+            setResendCooldown(60);
+            Alert.alert('Link Resent', 'A new confirmation link has been sent to your email.');
         } catch (err: any) {
-            setOtpError(err.message || 'Failed to resend OTP. Please try again.');
+            Alert.alert('Error', err.message || 'Failed to resend link.');
         } finally {
-            setOtpLoading(false);
+            setLoading(false);
         }
     };
 
     const handleFinalSignup = async (formData: SellerSignupFormData) => {
-        if (emailStatus === 'taken' || storeStatus === 'taken') return;
-
         setLoading(true);
         try {
             const normalizedEmail = formData.email.trim().toLowerCase();
-            const latestStatus = await authService.getEmailRoleStatus(normalizedEmail);
-            const roles = latestStatus.roles;
-            const isBuyerOnly = latestStatus.exists && roles.length > 0 && roles.every((role) => role === 'buyer');
+            
+            // Ensure we have a valid session after verification
+            await useAuthStore.getState().checkSession();
+            let currentUser = useAuthStore.getState().user;
 
-            let userId: string;
-
-            if (isBuyerOnly) {
-                if (!latestStatus.userId) throw new Error('Account mismatch detected.');
-
+            // If no session exists (e.g., they verified in a different browser and deep-linking failed),
+            // we attempt a silent login since we have their email and password from the form
+            if (!currentUser) {
                 const { data: signInData, error: signInError } = await supabase.auth.signInWithPassword({
                     email: normalizedEmail,
                     password: formData.password,
                 });
-
-                if (signInError) throw new Error('Incorrect password for existing buyer account.');
-
-                userId = signInData.user.id;
-
-                await authService.registerBuyerAsSeller(userId, {
-                    store_name: formData.storeName,
-                    store_description: formData.storeDescription || '',
-                    owner_name: formData.storeName,
-                });
-
-                await supabase
-                    .from('sellers')
-                    .update({
-                        business_name: formData.storeName,
-                        business_address: formData.storeAddress,
-                    } as any)
-                    .eq('id', userId);
-            } else {
-                const result = await authService.signUp(normalizedEmail, formData.password, {
-                    first_name: formData.storeName,
-                    phone: formData.phone,
-                    user_type: 'seller',
-                    email: normalizedEmail,
-                    password: formData.password,
-                });
-
-                if (!result?.user) throw new Error('Signup failed.');
-                userId = result.user.id;
-
-                const { error: sellerError } = await supabase.from('sellers').insert({
-                    id: userId,
-                    store_name: formData.storeName,
-                    business_name: formData.storeName,
-                    store_description: formData.storeDescription || '',
-                    business_address: formData.storeAddress,
-                    approval_status: 'pending'
-                });
-
-                if (sellerError) throw sellerError;
+                
+                if (signInError) throw new Error('Credentials mismatch. Please log in again.');
+                currentUser = {
+                    id: signInData.user.id,
+                    email: signInData.user.email || '',
+                    name: formData.storeName,
+                    roles: ['buyer'] // Default
+                } as any;
             }
 
+            if (!currentUser?.id) throw new Error('Account initialization failed.');
+            const userId = currentUser.id;
+
+            // 1. Create/Ensure Profile data is updated
+            await supabase
+                .from('profiles')
+                .update({
+                    first_name: formData.storeName,
+                    phone: formData.phone,
+                })
+                .eq('id', userId);
+
+            // 2. Add 'seller' role
+            await authService.addUserRole(userId, 'seller');
+
+            // 3. Create or Update Seller core record
+            const { error: sellerError } = await supabase
+                .from('sellers')
+                .upsert({
+                    id: userId,
+                    store_name: formData.storeName,
+                    store_description: formData.storeDescription || '',
+                    approval_status: 'pending',
+                    updated_at: new Date().toISOString()
+                }, { onConflict: 'id' });
+
+            if (sellerError) throw sellerError;
+
+            // 4. Create or Update Seller Business Profile (for address)
+            const { error: bizProfileError } = await supabase
+                .from('seller_business_profiles')
+                .upsert({
+                    seller_id: userId,
+                    address_line_1: formData.storeAddress,
+                    updated_at: new Date().toISOString()
+                }, { onConflict: 'seller_id' });
+
+            if (bizProfileError) throw bizProfileError;
+
+            // 4. Update Global Store & Switch to Seller
             updateSellerInfo({
                 id: userId,
                 store_name: formData.storeName,
-                email: formData.email,
+                email: normalizedEmail,
                 approval_status: 'pending'
             });
 
             addRole('seller');
             switchRole('seller');
 
+            // Sync with Global Auth Store to ensure root navigation respects the role
+            useGlobalAuthStore.getState().addRole('seller');
+            useGlobalAuthStore.getState().switchRole('seller');
+
             Alert.alert('Success', 'Application submitted! We will review your shop.', [
                 { text: 'OK', onPress: () => navigation.replace('SellerStack') }
             ]);
         } catch (err: any) {
-            Alert.alert('Error', err.message || 'Signup failed.');
+            console.error('Final signup error:', err);
+            Alert.alert('Error', err.message || 'Signup completion failed.');
         } finally {
             setLoading(false);
         }
@@ -440,12 +502,34 @@ export default function SellerSignupScreen() {
                                     {errors.confirmPassword && <Text style={styles.errorText}>{errors.confirmPassword.message}</Text>}
                                 </View>
 
+                                <View style={styles.termsContainer}>
+                                    <Pressable 
+                                        style={styles.checkboxBase} 
+                                        onPress={() => setAcceptedTerms(!acceptedTerms)}
+                                    >
+                                        {acceptedTerms ? (
+                                            <CheckSquare size={20} color="#D97706" />
+                                        ) : (
+                                            <Square size={20} color={COLORS.gray400} />
+                                        )}
+                                    </Pressable>
+                                    <View style={styles.termsTextContainer}>
+                                        <Text style={styles.termsText}>I agree to the </Text>
+                                        <Pressable onPress={() => setShowTermsModal(true)}>
+                                            <Text style={styles.termsLink}>Terms and Conditions</Text>
+                                        </Pressable>
+                                    </View>
+                                </View>
+
                                 <Pressable
-                                    style={[styles.primaryButton, (loading || emailStatus === 'checking' || emailStatus === 'taken' || otpLoading) && styles.buttonDisabled]}
+                                    style={[
+                                        styles.primaryButton, 
+                                        (loading || emailStatus === 'checking' || emailStatus === 'taken' || !acceptedTerms || !watch('email') || !watch('password') || !watch('confirmPassword')) && styles.buttonDisabled
+                                    ]}
                                     onPress={handleNextStep}
-                                    disabled={loading || emailStatus === 'checking' || emailStatus === 'taken' || otpLoading}
+                                    disabled={loading || emailStatus === 'checking' || emailStatus === 'taken' || !acceptedTerms || !watch('email') || !watch('password') || !watch('confirmPassword')}
                                 >
-                                    {otpLoading ? <ActivityIndicator color="#FFF" /> : (
+                                    {loading ? <ActivityIndicator color="#FFF" /> : (
                                         <>
                                             <Text style={styles.buttonText}>Next: Verify Email</Text>
                                             <ArrowRight size={20} color="#FFF" />
@@ -454,61 +538,74 @@ export default function SellerSignupScreen() {
                                 </Pressable>
                             </View>
                         </View>
-
-                        {/* Step 2: Email Verification */}
+                        
+                        {/* Step 2: Confirmation Link Verification */}
                         <View style={{ display: step === 2 ? 'flex' : 'none' }}>
                             <View style={styles.stepContent}>
                                 <View style={styles.emailVerifyContainer}>
-                                    <Mail size={48} color="#D97706" />
-                                    <Text style={[styles.verifyTitle, { color: COLORS.textHeadline }]}>Verify Your Email</Text>
-                                    <Text style={[styles.verifySubtitle, { color: COLORS.textMuted }]}>
-                                        We've sent a verification code to {pendingEmail}
-                                    </Text>
-                                </View>
-
-                                <View style={styles.inputContainer}>
-                                    <Text style={styles.label}>Verification Code</Text>
-                                    <View style={[styles.inputWrapper, otpError && styles.inputWrapperError]}>
-                                        <TextInput
-                                            style={[styles.input, { marginLeft: 0 }]}
-                                            placeholder="Enter 6-digit code"
-                                            placeholderTextColor={COLORS.gray400}
-                                            keyboardType="number-pad"
-                                            maxLength={6}
-                                            value={otpCode}
-                                            onChangeText={setOtpCode}
-                                        />
+                                    <View style={styles.mailIconCircle}>
+                                        <Mail size={48} color="#D97706" />
                                     </View>
-                                    {otpError && <Text style={styles.errorText}>{otpError}</Text>}
+                                    <Text style={[styles.verifyTitle, { color: COLORS.textHeadline }]}>Confirm Your Email</Text>
+                                    <Text style={[styles.verifySubtitle, { color: COLORS.textMuted }]}>
+                                        We've sent a confirmation link to{'\n'}
+                                        <Text style={{ fontWeight: '700', color: COLORS.textHeadline }}>{pendingEmail}</Text>
+                                    </Text>
+                                    
+                                    <View style={styles.instructionCard}>
+                                        <View style={styles.instructionRow}>
+                                            <View style={styles.instructionDot}>
+                                                <Text style={styles.instructionNum}>1</Text>
+                                            </View>
+                                            <Text style={styles.instructionText}>Check your inbox and spam folder</Text>
+                                        </View>
+                                        <View style={styles.instructionRow}>
+                                            <View style={styles.instructionDot}>
+                                                <Text style={styles.instructionNum}>2</Text>
+                                            </View>
+                                            <Text style={styles.instructionText}>Click the verification link in the email</Text>
+                                        </View>
+                                        <View style={styles.instructionRow}>
+                                            <View style={styles.instructionDot}>
+                                                <Text style={styles.instructionNum}>3</Text>
+                                            </View>
+                                            <Text style={styles.instructionText}>Return here to complete your setup</Text>
+                                        </View>
+                                    </View>
                                 </View>
 
                                 <Pressable
-                                    style={[styles.primaryButton, (otpLoading) && styles.buttonDisabled]}
-                                    onPress={verifyOTPCode}
-                                    disabled={otpLoading || !otpCode.trim()}
+                                    style={[styles.primaryButton, (checking) && styles.buttonDisabled]}
+                                    onPress={checkVerificationManually}
+                                    disabled={checking}
                                 >
-                                    {otpLoading ? <ActivityIndicator color="#FFF" /> : (
+                                    {checking ? <ActivityIndicator color="#FFF" /> : (
                                         <>
-                                            <Text style={styles.buttonText}>Verify Email</Text>
-                                            <CheckCircle2 size={20} color="#FFF" />
+                                            <Text style={styles.buttonText}>I've Verified My Email</Text>
+                                            <ArrowRight size={20} color="#FFF" />
                                         </>
                                     )}
                                 </Pressable>
 
                                 <View style={styles.resendContainer}>
-                                    <Text style={[styles.resendText, { color: COLORS.textMuted }]}>Didn't receive the code? </Text>
-                                    <Pressable onPress={resendOTP} disabled={otpLoading}>
-                                        <Text style={[styles.resendLink, otpLoading && styles.resendDisabled]}>Resend</Text>
+                                    <View style={styles.cooldownRow}>
+                                        <Clock size={16} color={COLORS.gray400} />
+                                        <Text style={[styles.resendText, { color: COLORS.textMuted }]}>
+                                            {resendCooldown > 0 
+                                                ? `Resend available in ${resendCooldown}s` 
+                                                : "Didn't receive the link?"}
+                                        </Text>
+                                    </View>
+                                    <Pressable onPress={resendLink} disabled={loading || resendCooldown > 0}>
+                                        <Text style={[styles.resendLink, (loading || resendCooldown > 0) && styles.resendDisabled]}>Resend Link</Text>
                                     </Pressable>
                                 </View>
 
                                 <Pressable
                                     style={styles.backBtn}
                                     onPress={() => {
+                                        stopPolling();
                                         setStep(1);
-                                        setOtpCode('');
-                                        setOtpError('');
-                                        setOtpSent(false);
                                     }}
                                 >
                                     <Text style={styles.backBtnText}>← Back to Account</Text>
@@ -642,6 +739,52 @@ export default function SellerSignupScreen() {
                         </Pressable>
                     </View>
                 </ScrollView>
+
+                {/* TERMS MODAL */}
+                <Modal
+                    visible={showTermsModal}
+                    animationType="slide"
+                    transparent={true}
+                >
+                    <View style={styles.modalOverlay}>
+                        <View style={styles.modalContent}>
+                            <View style={styles.modalHeader}>
+                                <Text style={styles.modalTitle}>Terms & Conditions</Text>
+                                <Pressable onPress={() => setShowTermsModal(false)} style={styles.modalCloseIcon}>
+                                    <XCircle size={24} color={COLORS.gray400} />
+                                </Pressable>
+                            </View>
+                            <ScrollView style={styles.modalScroll}>
+                                <Text style={styles.termsSectionTitle}>1. Seller Agreement</Text>
+                                <Text style={styles.termsBodyText}>
+                                    By registering as a seller on BazaarX, you agree to provide accurate information about your business and products. You are responsible for maintaining the quality of items listed and fulfilling orders in a timely manner.
+                                </Text>
+                                <Text style={styles.termsSectionTitle}>2. Commissions and Fees</Text>
+                                <Text style={styles.termsBodyText}>
+                                    BazaarX charges a standard platform fee on successful transactions. By joining, you accept our current fee structure, which is subject to change with notice.
+                                </Text>
+                                <Text style={styles.termsSectionTitle}>3. Product Compliance</Text>
+                                <Text style={styles.termsBodyText}>
+                                    Sellers must ensure that all products comply with local laws and platform policies. Prohibited items will be removed, and repeat violations may lead to account suspension.
+                                </Text>
+                                <Text style={styles.termsSectionTitle}>4. Data Privacy</Text>
+                                <Text style={styles.termsBodyText}>
+                                    We handle your data in accordance with our Privacy Policy. You agree not to misuse customer data provided for order fulfillment.
+                                </Text>
+                                <View style={{ height: 40 }} />
+                            </ScrollView>
+                            <Pressable 
+                                style={styles.modalCloseButton}
+                                onPress={() => {
+                                    setAcceptedTerms(true);
+                                    setShowTermsModal(false);
+                                }}
+                            >
+                                <Text style={styles.modalCloseButtonText}>I Accept</Text>
+                            </Pressable>
+                        </View>
+                    </View>
+                </Modal>
             </KeyboardAvoidingView>
         </SafeAreaView>
     );
@@ -740,5 +883,138 @@ const styles = StyleSheet.create({
     resendText: { fontSize: 13, fontWeight: '500' },
     resendLink: { fontSize: 13, color: '#D97706', fontWeight: '700', textDecorationLine: 'underline' },
     resendDisabled: { opacity: 0.6 },
+
+    mailIconCircle: {
+        width: 100,
+        height: 100,
+        borderRadius: 50,
+        backgroundColor: '#FEF3C7',
+        justifyContent: 'center',
+        alignItems: 'center',
+        marginBottom: 20,
+    },
+    instructionCard: {
+        backgroundColor: '#F9FAFB',
+        borderRadius: 16,
+        padding: 20,
+        width: '100%',
+        marginTop: 24,
+        borderWidth: 1,
+        borderColor: '#F3F4F6',
+    },
+    instructionRow: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        marginBottom: 16,
+    },
+    instructionDot: {
+        width: 24,
+        height: 24,
+        borderRadius: 12,
+        backgroundColor: '#D97706',
+        justifyContent: 'center',
+        alignItems: 'center',
+        marginRight: 12,
+    },
+    instructionNum: {
+        color: '#FFFFFF',
+        fontSize: 12,
+        fontWeight: '800',
+    },
+    instructionText: {
+        fontSize: 14,
+        color: COLORS.textHeadline,
+        fontWeight: '500',
+        flex: 1,
+    },
+    cooldownRow: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 6,
+        marginRight: 8,
+    },
+
+    // Terms Styling
+    termsContainer: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        marginBottom: 24,
+        marginTop: 8,
+        paddingHorizontal: 4,
+    },
+    checkboxBase: {
+        marginRight: 10,
+    },
+    termsTextContainer: {
+        flexDirection: 'row',
+        flexWrap: 'wrap',
+        flex: 1,
+    },
+    termsText: {
+        fontSize: 14,
+        color: COLORS.textMuted,
+    },
+    termsLink: {
+        fontSize: 14,
+        color: '#D97706',
+        fontWeight: '700',
+        textDecorationLine: 'underline',
+    },
+
+    // Modal Styling
+    modalOverlay: {
+        flex: 1,
+        backgroundColor: 'rgba(0,0,0,0.5)',
+        justifyContent: 'flex-end',
+    },
+    modalContent: {
+        backgroundColor: '#FFFFFF',
+        borderTopLeftRadius: 24,
+        borderTopRightRadius: 24,
+        height: '80%',
+        padding: 24,
+    },
+    modalHeader: {
+        flexDirection: 'row',
+        justifyContent: 'space-between',
+        alignItems: 'center',
+        marginBottom: 20,
+    },
+    modalTitle: {
+        fontSize: 20,
+        fontWeight: '800',
+        color: COLORS.textHeadline,
+    },
+    modalCloseIcon: {
+        padding: 4,
+    },
+    modalScroll: {
+        flex: 1,
+    },
+    termsSectionTitle: {
+        fontSize: 16,
+        fontWeight: '700',
+        color: COLORS.textHeadline,
+        marginTop: 16,
+        marginBottom: 8,
+    },
+    termsBodyText: {
+        fontSize: 14,
+        color: COLORS.textMuted,
+        lineHeight: 22,
+    },
+    modalCloseButton: {
+        backgroundColor: '#D97706',
+        borderRadius: 14,
+        height: 52,
+        justifyContent: 'center',
+        alignItems: 'center',
+        marginTop: 20,
+    },
+    modalCloseButtonText: {
+        color: '#FFFFFF',
+        fontSize: 16,
+        fontWeight: '700',
+    },
 });
 
