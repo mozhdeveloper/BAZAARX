@@ -28,6 +28,8 @@ type Props = NativeStackScreenProps<RootStackParamList, 'PaymentGateway'>;
 
 import { useCartStore } from '../src/stores/cartStore';
 import { usePaymentStore } from '../src/stores/paymentStore';
+import { useAuthStore } from '../src/stores/authStore';
+import { paymentMethodService } from '../src/services/paymentMethodService';
 import type { GatewayPaymentType } from '../src/types/database.types';
 
 export default function PaymentGatewayScreen({ navigation, route }: Props) {
@@ -73,6 +75,7 @@ export default function PaymentGatewayScreen({ navigation, route }: Props) {
   const [cvv, setCvv] = useState('');
   const [cardName, setCardName] = useState('');
   const [cardNumberError, setCardNumberError] = useState<string | null>(null);
+  const [isManualEntry, setIsManualEntry] = useState(true); // Track if card was manually entered vs autofilled
   
   // Order tracking for new card flow
   const [createdOrder, setCreatedOrder] = useState<Order | null>(null);
@@ -306,6 +309,38 @@ export default function PaymentGatewayScreen({ navigation, route }: Props) {
       
       finalOrder.isPaid = true;
 
+      // ✅ NEW: Save manually entered card to Payment Methods (not autofilled test cards)
+      if (isManualEntry && showCardForm && cardName !== 'TEST CARD') {
+        try {
+          const user = useAuthStore.getState().user;
+          if (user?.id) {
+            console.log('[PaymentGateway] 💳 Saving manually entered card to Payment Methods...');
+            
+            // Get existing cards to determine if this should be default
+            const existingCards = await paymentMethodService.getSavedPaymentMethods(user.id);
+            const isFirstCard = existingCards.length === 0;
+
+            await paymentMethodService.savePaymentMethod(
+              user.id,
+              {
+                cardNumber: cardNumber,
+                cardName: cardName,
+                expiryDate: expiryDate,
+                cvv: cvv,
+              },
+              isFirstCard // Set as default if it's the first card
+            );
+            
+            console.log('[PaymentGateway] ✅ Card saved successfully to Payment Methods');
+            Alert.alert('Success', 'Your card has been saved to Payment Methods for future purchases.');
+          }
+        } catch (saveError) {
+          console.error('[PaymentGateway] ⚠️ Error saving card (payment still succeeded):', saveError);
+          // Don't throw - payment succeeded, card save failure shouldn't block the order
+          Alert.alert('Note', 'Payment successful, but card could not be saved. You can add it later in Payment Methods.');
+        }
+      }
+
       setTimeout(() => {
         // Remove only the items that were checked out from the cart
         if (isQuickCheckout) {
@@ -479,6 +514,7 @@ export default function PaymentGatewayScreen({ navigation, route }: Props) {
                             setExpiryDate(card.expiry);
                             setCvv(card.cvc);
                             setCardNumberError(null);
+                            setIsManualEntry(false); // Mark as autofilled, not manual
                           }}
                         >
                           <Text style={styles.testCardBrand}>✓ {card.brand}</Text>
@@ -499,6 +535,7 @@ export default function PaymentGatewayScreen({ navigation, route }: Props) {
                             setExpiryDate(card.expiry);
                             setCvv(card.cvc);
                             setCardNumberError(null);
+                            setIsManualEntry(false); // Mark as autofilled, not manual
                           }}
                         >
                           <Text style={styles.testCardBrand}>✗ {card.errorCode}</Text>
@@ -526,6 +563,7 @@ export default function PaymentGatewayScreen({ navigation, route }: Props) {
                       onChangeText={(text) => {
                         const cleaned = text.replace(/\D/g, '').substring(0, 16);
                         setCardNumber(cleaned);
+                        setIsManualEntry(true); // Mark as manually entered when user types
                         
                         // Real-time validation: validate as soon as card number is complete (16 digits)
                         if (cleaned.length === 16) {
@@ -563,7 +601,10 @@ export default function PaymentGatewayScreen({ navigation, route }: Props) {
                       placeholder="MM/YY"
                       placeholderTextColor="#9CA3AF"
                       value={expiryDate}
-                      onChangeText={(text) => setExpiryDate(formatExpiryDate(text))}
+                      onChangeText={(text) => {
+                        setExpiryDate(formatExpiryDate(text));
+                        setIsManualEntry(true); // Mark as manually entered when user types
+                      }}
                       keyboardType="number-pad"
                       maxLength={5}
                       editable={status !== 'processing'}
@@ -583,6 +624,7 @@ export default function PaymentGatewayScreen({ navigation, route }: Props) {
                         onChangeText={(text) => {
                           const cleaned = text.replace(/\D/g, '').substring(0, 4);
                           setCvv(cleaned);
+                          setIsManualEntry(true); // Mark as manually entered when user types
                         }}
                         keyboardType="number-pad"
                         maxLength={4}
@@ -605,7 +647,10 @@ export default function PaymentGatewayScreen({ navigation, route }: Props) {
                     placeholder="Name on Card"
                     placeholderTextColor="#9CA3AF"
                     value={cardName}
-                    onChangeText={setCardName}
+                    onChangeText={(text) => {
+                      setCardName(text);
+                      setIsManualEntry(true); // Mark as manually entered when user types
+                    }}
                     editable={status !== 'processing'}
                     accessibilityLabel="Cardholder Name Input"
                   />
