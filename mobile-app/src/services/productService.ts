@@ -1347,10 +1347,25 @@ export class ProductService {
 
       // Shipped from filter - requires fetching business profiles separately
       if (filters.shippedFrom) {
-        // Get seller IDs from products (filter out nulls)
-        const sellerIds = products
-          .map(p => p.seller_id)
-          .filter((id): id is string => id !== null && id !== undefined);
+        // Metro Manila cities/municipalities for accurate matching
+        const METRO_MANILA_CITIES = [
+          'manila', 'quezon city', 'makati', 'makati city', 'pasig', 'pasig city',
+          'taguig', 'taguig city', 'mandaluyong', 'mandaluyong city',
+          'parañaque', 'paranaque', 'parañaque city', 'paranaque city',
+          'las piñas', 'las pinas', 'las piñas city', 'las pinas city',
+          'muntinlupa', 'muntinlupa city', 'marikina', 'marikina city',
+          'caloocan', 'caloocan city', 'valenzuela', 'valenzuela city',
+          'navotas', 'navotas city', 'malabon', 'malabon city',
+          'san juan', 'san juan city', 'pasay', 'pasay city',
+          'pateros',
+        ];
+
+        // Deduplicate seller IDs before querying
+        const sellerIds = [...new Set(
+          products
+            .map(p => p.seller_id)
+            .filter((id): id is string => id !== null && id !== undefined)
+        )];
         
         if (sellerIds.length > 0) {
           // Fetch business profiles for these sellers
@@ -1372,13 +1387,18 @@ export class ProductService {
               // All sellers are in Philippines by default
               return true;
             } else if (filters.shippedFrom === 'metro_manila') {
-              // Check if seller is in Metro Manila
               if (!businessProfile) return false;
-              return businessProfile.city?.toLowerCase().includes('manila') ||
-                     businessProfile.province?.toLowerCase().includes('manila');
+              const city = businessProfile.city?.toLowerCase().trim() || '';
+              const province = businessProfile.province?.toLowerCase().trim() || '';
+              // Match by province "Metro Manila" or by known Metro Manila city names
+              return province.includes('metro manila') ||
+                     METRO_MANILA_CITIES.some(mm => city.includes(mm));
             }
             return true;
           });
+        } else {
+          // No seller IDs found — filter out all products
+          products = [];
         }
         console.log('[ProductService] After location filter:', products.length, 'products');
       }

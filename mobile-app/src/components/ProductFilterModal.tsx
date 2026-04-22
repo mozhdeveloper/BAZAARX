@@ -126,58 +126,86 @@ export default function ProductFilterModal({
     brand.name.toLowerCase().includes(brandSearchQuery.toLowerCase())
   );
 
+  // Check if a filter group has active selections
+  const isFilterGroupActive = (category: FilterCategory): boolean => {
+    switch (category) {
+      case 'category': return !!filters.categoryId;
+      case 'price': return filters.priceRange.min !== null || filters.priceRange.max !== null;
+      case 'rating': return filters.minRating !== null;
+      case 'location': return !!filters.shippedFrom;
+      case 'promo': return filters.withVouchers || filters.onSale || filters.freeShipping || filters.preferredSeller || filters.officialStore;
+      case 'brand': return filters.selectedBrands.length > 0;
+      case 'shipping': return filters.standardDelivery || filters.sameDayDelivery || filters.cashOnDelivery || filters.pickupAvailable;
+      default: return false;
+    }
+  };
+
   // Render filter group header
-  const renderFilterHeader = (title: string, category: FilterCategory) => (
-    <TouchableOpacity
-      style={styles.filterHeader}
-      onPress={() => setSelectedFilterGroup(selectedFilterGroup === category ? null : category)}
-    >
-      <Text style={styles.filterTitle}>{title}</Text>
-      <View style={styles.filterHeaderRight}>
-        {selectedFilterGroup === category && (
-          <Text style={styles.clearText} onPress={() => {
-            setSelectedFilterGroup(null);
-            // Reset this specific filter group
-            switch (category) {
-              case 'category':
-                updateFilter('categoryId', null);
-                updateFilter('categoryPath', []);
-                break;
-              case 'price':
-                setTempMinPrice('');
-                setTempMaxPrice('');
-                break;
-              case 'rating':
-                updateFilter('minRating', null);
-                break;
-              case 'location':
-                updateFilter('shippedFrom', null);
-                break;
-              case 'promo':
-                updateFilter('withVouchers', false);
-                updateFilter('onSale', false);
-                updateFilter('freeShipping', false);
-                updateFilter('preferredSeller', false);
-                updateFilter('officialStore', false);
-                break;
-              case 'brand':
-                updateFilter('selectedBrands', []);
-                break;
-              case 'shipping':
-                updateFilter('standardDelivery', false);
-                updateFilter('sameDayDelivery', false);
-                updateFilter('cashOnDelivery', false);
-                updateFilter('pickupAvailable', false);
-                break;
-            }
-          }}>
-            Clear
-          </Text>
-        )}
-        <ChevronRight size={20} color={COLORS.gray400} style={{ marginLeft: 8 }} />
-      </View>
-    </TouchableOpacity>
-  );
+  const renderFilterHeader = (title: string, category: FilterCategory) => {
+    const isActive = isFilterGroupActive(category);
+    const isOpen = selectedFilterGroup === category;
+    return (
+      <TouchableOpacity
+        style={[styles.filterHeader, isActive && styles.filterHeaderActive]}
+        onPress={() => setSelectedFilterGroup(isOpen ? null : category)}
+      >
+        <View style={styles.filterTitleRow}>
+          {isActive && <View style={styles.activeIndicatorDot} />}
+          <Text style={[styles.filterTitle, isActive && styles.filterTitleActive]}>{title}</Text>
+        </View>
+        <View style={styles.filterHeaderRight}>
+          {isActive && (
+            <TouchableOpacity
+              style={styles.clearChip}
+              onPress={() => {
+                setSelectedFilterGroup(null);
+                switch (category) {
+                  case 'category':
+                    updateFilter('categoryId', null);
+                    updateFilter('categoryPath', []);
+                    break;
+                  case 'price':
+                    setTempMinPrice('');
+                    setTempMaxPrice('');
+                    updateFilter('priceRange', { min: null, max: null });
+                    break;
+                  case 'rating':
+                    updateFilter('minRating', null);
+                    break;
+                  case 'location':
+                    updateFilter('shippedFrom', null);
+                    break;
+                  case 'promo':
+                    updateFilter('withVouchers', false);
+                    updateFilter('onSale', false);
+                    updateFilter('freeShipping', false);
+                    updateFilter('preferredSeller', false);
+                    updateFilter('officialStore', false);
+                    break;
+                  case 'brand':
+                    updateFilter('selectedBrands', []);
+                    break;
+                  case 'shipping':
+                    updateFilter('standardDelivery', false);
+                    updateFilter('sameDayDelivery', false);
+                    updateFilter('cashOnDelivery', false);
+                    updateFilter('pickupAvailable', false);
+                    break;
+                }
+              }}
+            >
+              <Text style={styles.clearChipText}>Clear</Text>
+            </TouchableOpacity>
+          )}
+          <ChevronRight
+            size={20}
+            color={isActive ? COLORS.primary : COLORS.gray400}
+            style={[{ marginLeft: 8 }, isOpen && { transform: [{ rotate: '90deg' }] }]}
+          />
+        </View>
+      </TouchableOpacity>
+    );
+  };
 
   // Render category selection
   const renderCategorySection = () => {
@@ -329,7 +357,7 @@ export default function ProductFilterModal({
               styles.optionRow,
               filters.shippedFrom === option.id && styles.optionRowSelected
             ]}
-            onPress={() => updateFilter('shippedFrom', option.id)}
+            onPress={() => updateFilter('shippedFrom', filters.shippedFrom === option.id ? null : option.id)}
           >
             <Text style={[
               styles.optionText,
@@ -583,6 +611,24 @@ const styles = StyleSheet.create({
     borderBottomWidth: 1,
     borderBottomColor: '#F3F4F6',
   },
+  filterHeaderActive: {
+    backgroundColor: `${COLORS.primary}08`,
+    borderRadius: 10,
+    paddingHorizontal: 10,
+    marginHorizontal: -10,
+    borderBottomColor: `${COLORS.primary}20`,
+  },
+  filterTitleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  activeIndicatorDot: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+    backgroundColor: COLORS.primary,
+  },
   filterHeaderRight: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -591,6 +637,20 @@ const styles = StyleSheet.create({
     fontSize: 15,
     fontWeight: '600',
     color: COLORS.textPrimary,
+  },
+  filterTitleActive: {
+    color: COLORS.primary,
+  },
+  clearChip: {
+    backgroundColor: `${COLORS.primary}18`,
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 12,
+  },
+  clearChipText: {
+    fontSize: 12,
+    color: COLORS.primary,
+    fontWeight: '600',
   },
   clearText: {
     fontSize: 13,
