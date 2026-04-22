@@ -574,7 +574,25 @@ export default function CheckoutScreen({ navigation, route }: Props) {
 
   // Helper: resolve display name for a seller group
   const getSellerDisplayName = useCallback((sellerId: string, items: typeof checkoutItems) => {
-    return sellerMetadata[sellerId]?.storeName || items[0]?.seller || 'BazaarX Store';
+    // Get store name from metadata first (most reliable)
+    if (sellerMetadata[sellerId]?.storeName) {
+      return sellerMetadata[sellerId].storeName;
+    }
+    
+    // Fallback: extract from first item's seller property
+    const firstItem = items[0];
+    if (firstItem?.seller) {
+      // Handle case where seller is an object with store_name/seller_name property
+      if (typeof firstItem.seller === 'object' && firstItem.seller !== null) {
+        return (firstItem.seller as any).store_name || (firstItem.seller as any).seller_name || 'Unknown Seller';
+      }
+      // Handle case where seller is already a string
+      if (typeof firstItem.seller === 'string') {
+        return firstItem.seller;
+      }
+    }
+    
+    return 'BazaarX Store';
   }, [sellerMetadata]);
 
   // ---------------------------------------------------------------------------
@@ -617,9 +635,23 @@ export default function CheckoutScreen({ navigation, route }: Props) {
 
         const sellerInputs = Object.entries(groupedCheckoutItems).map(([sellerId, items]) => {
           const meta = sellerMetadata[sellerId];
+          let sellerName = 'Unknown Seller';
+          
+          // Get store name from metadata first
+          if (meta?.storeName) {
+            sellerName = meta.storeName;
+          } else if (items[0]?.seller) {
+            // Handle case where seller is an object
+            if (typeof items[0].seller === 'object' && items[0].seller !== null) {
+              sellerName = (items[0].seller as any).store_name || (items[0].seller as any).seller_name || 'Unknown Seller';
+            } else if (typeof items[0].seller === 'string') {
+              sellerName = items[0].seller;
+            }
+          }
+          
           return {
             sellerId,
-            sellerName: meta?.storeName || items[0]?.seller || 'Unknown Seller',
+            sellerName,
             sellerCoords: meta?.coords || null,
             sellerProvince: meta?.province,
             sellerRegion: meta?.region,
@@ -680,9 +712,23 @@ export default function CheckoutScreen({ navigation, route }: Props) {
 
           const sellerInputs = Object.entries(groupedCheckoutItems).map(([sellerId, items]) => {
             const meta = sellerMetadata[sellerId];
+            let sellerName = 'Unknown Seller';
+            
+            // Get store name from metadata first
+            if (meta?.storeName) {
+              sellerName = meta.storeName;
+            } else if (items[0]?.seller) {
+              // Handle case where seller is an object
+              if (typeof items[0].seller === 'object' && items[0].seller !== null) {
+                sellerName = (items[0].seller as any).store_name || (items[0].seller as any).seller_name || 'Unknown Seller';
+              } else if (typeof items[0].seller === 'string') {
+                sellerName = items[0].seller;
+              }
+            }
+            
             return {
               sellerId,
-              sellerName: meta?.storeName || items[0]?.seller || 'Unknown Seller',
+              sellerName,
               sellerCoords: meta?.coords || null,
               sellerProvince: meta?.province,
               sellerRegion: meta?.region,

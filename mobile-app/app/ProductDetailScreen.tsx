@@ -178,6 +178,12 @@ export default function ProductDetailScreen({ route, navigation }: Props) {
     const loadDiscount = async () => {
       if (product.id) {
         try {
+          // First check if the product already has campaign discount info (e.g., from flash sale)
+          if ((product as any).activeCampaignDiscount) {
+            setActiveCampaignDiscount((product as any).activeCampaignDiscount);
+            return;
+          }
+          // Otherwise fetch from database (regular campaigns)
           const discount = await discountService.getActiveProductDiscount(product.id);
           setActiveCampaignDiscount(discount);
         } catch (e) {
@@ -186,7 +192,7 @@ export default function ProductDetailScreen({ route, navigation }: Props) {
       }
     };
     loadDiscount();
-  }, [product.id]);
+  }, [product.id, product]);
 
   const [relatedProducts, setRelatedProducts] = useState<any[]>([]);
 
@@ -857,14 +863,13 @@ export default function ProductDetailScreen({ route, navigation }: Props) {
       return;
     }
 
-    const discountedPrice = discountService.calculateLineDiscount(product.price || 0, 1, activeCampaignDiscount).discountedUnitPrice;
-
     try {
       // Add to cart with discount info embedded so it persists in the cart
+      // Use the same regularPrice and originalPrice calculated for display
       const addItemResult = await addItem({
         ...product,
-        originalPrice: product.price || 0,
-        price: discountedPrice,
+        originalPrice: originalPrice,
+        price: regularPrice,
         activeCampaignDiscount: activeCampaignDiscount || undefined,
         selectedVariant,
         quantity

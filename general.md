@@ -186,3 +186,169 @@ Payment Method
 
 ---
 
+## Session Log — April 22, 2026 (Continued)
+
+### Flash Sale Discount Percentage Accuracy - Bug Fixes & UX Enhancement
+
+**Status:** ✅ COMPLETE
+
+**Objectives:** 
+1. Fix discount percentage rendering error in checkout screen
+2. Fix flash sale pricing not being applied to cart
+3. Add visual discount percentage badge in cart
+4. Fix discount percentage accuracy in product detail screen
+5. Fix discount percentage display on home page flash sales
+
+---
+
+### Issue 1: React Object-as-Child Rendering Error
+
+**Problem:**
+CheckoutScreen was rendering a seller object directly in a Text component, causing React error: "Objects are not valid as a React child"
+
+**Root Cause:**
+`items[0]?.seller` could be either a string or a full object `{id, avatar_url, owner_name, store_name, ...}`, but code assumed it was always a string.
+
+**Solution:** 
+Added type-safe extraction in `getSellerDisplayName()` function (line 576) and updated seller displays in `sellerInputs` mappings (lines 618, 688):
+```javascript
+typeof seller === 'object' ? seller.store_name : seller
+```
+
+**File Modified:**
+- [mobile-app/app/CheckoutScreen.tsx](mobile-app/app/CheckoutScreen.tsx#L576) — Type-safe seller name extraction
+
+---
+
+### Issue 2: Flash Sale Pricing Not Applied to Cart
+
+**Problem:**
+Products added from global flash sale appeared in cart at full original price, not discounted flash sale price. The discount percentage badge was not showing.
+
+**Root Cause:**
+`getGlobalFlashSaleProducts()` in discountService was not including the `activeCampaignDiscount` object needed for persistence through navigation flow.
+
+**Solution:**
+Enhanced `getGlobalFlashSaleProducts()` to include comprehensive discount object:
+```javascript
+activeCampaignDiscount: discountPct > 0 ? {
+  campaignId: sub.slot_id,
+  campaignName: slot?.name || 'Flash Sale',
+  discountType: 'percentage',
+  discountValue: discountPct,
+  discountedPrice: basePrice,
+  originalPrice: originalPrice,
+  badgeText: `${discountPct}% OFF`,
+  badgeColor: '#FF6A00',
+  endsAt: new Date(slot?.end_time || Date.now())
+} : undefined
+```
+
+**File Modified:**
+- [mobile-app/src/services/discountService.ts](mobile-app/src/services/discountService.ts#L474-L583) — Enhanced getGlobalFlashSaleProducts() with activeCampaignDiscount object
+
+---
+
+### Issue 3: Added Discount Percentage Badge Display in Cart
+
+**Problem:**
+Cart items showed original and discounted prices but no visual indicator of discount percentage (e.g., "30% OFF", "50% OFF").
+
+**Solution:**
+Added discount percentage badge to CartItemRow component:
+- Created `priceWrapper` container for price/original-price alignment
+- Added `discountBadge` component displaying calculated percentage
+- Added new styles: `priceWrapper`, `discountBadge`, `discountBadgeText`
+
+Discount calculation:
+```javascript
+Math.round(((item.originalPrice - item.price) / item.originalPrice) * 100) % OFF
+```
+
+**Files Modified:**
+- [mobile-app/src/components/CartItemRow.tsx](mobile-app/src/components/CartItemRow.tsx#L107-L124) — Added discount badge UI
+- Lines 224-253 — Added discount badge styling (red background, white text)
+
+---
+
+### Issue 4: Discount Percentage Accuracy in Product Detail
+
+**Problem:**
+Discount percentage shown in cart was inaccurate because `handleAddToCart()` was using wrong prices.
+
+**Root Cause:**
+- Line 874 was passing `product.price` (current price) as `originalPrice` instead of the pre-calculated `originalPrice` variable
+- This caused CartItemRow to calculate wrong percentage: `((product.price - discountedPrice) / product.price) * 100`
+
+**Solution:**
+Changed `handleAddToCart()` to use the same prices calculated for display:
+```javascript
+// Before (WRONG):
+originalPrice: product.price || 0,
+price: discountService.calculateLineDiscount(product.price || 0, ...).discountedUnitPrice
+
+// After (CORRECT):
+originalPrice: originalPrice,  // Calculated at line 530
+price: regularPrice,            // Calculated at line 516
+```
+
+**File Modified:**
+- [mobile-app/app/ProductDetailScreen.tsx](mobile-app/app/ProductDetailScreen.tsx#L867-L878) — Fixed prices used when adding to cart
+
+---
+
+### Issue 5: Discount Percentage Display on Home Page Flash Sales
+
+**Problem:**
+Home page flash sale products showed incorrect discount percentages because ProductCard component couldn't find the discount percentage fields and had to calculate from prices (potential rounding differences).
+
+**Root Cause:**
+`getGlobalFlashSaleProducts()` was missing `campaignDiscountType` and `campaignDiscountValue` fields that ProductCard needed for accurate display.
+
+**Solution:**
+Added missing discount fields to flash sale products return object (lines 565-567):
+```javascript
+campaignDiscountType: discountPct > 0 ? 'percentage' : undefined,
+campaignDiscountValue: discountPct > 0 ? discountPct : undefined,
+discountBadgePercent: discountPct > 0 ? discountPct : undefined,
+```
+
+Now ProductCard uses direct values instead of calculating from prices:
+```javascript
+const discountPercent = hasDiscount
+  ? (product.campaignDiscountType === 'percentage' && product.campaignDiscountValue
+    ? Math.round(product.campaignDiscountValue)  // Direct value ✅
+    : Math.round(((originalPrice - regularPrice) / originalPrice) * 100))
+  : 0;
+```
+
+**File Modified:**
+- [mobile-app/src/services/discountService.ts](mobile-app/src/services/discountService.ts#L555-L577) — Added campaignDiscountType, campaignDiscountValue, and discountBadgePercent fields
+
+---
+
+### Summary of Changes
+
+| Issue | File | Lines | Status |
+|-------|------|-------|--------|
+| React object-as-child error | CheckoutScreen.tsx | 576, 618, 688 | ✅ Fixed |
+| Flash sale pricing not applied | discountService.ts | 474-583 | ✅ Fixed |
+| No discount badge in cart | CartItemRow.tsx | 107-124, 224-253 | ✅ Fixed |
+| Inaccurate discount % in cart | ProductDetailScreen.tsx | 867-878 | ✅ Fixed |
+| Wrong discount % on home page | discountService.ts | 565-567 | ✅ Fixed |
+
+**Files Modified:** 4
+- [mobile-app/app/CheckoutScreen.tsx](mobile-app/app/CheckoutScreen.tsx)
+- [mobile-app/app/ProductDetailScreen.tsx](mobile-app/app/ProductDetailScreen.tsx)
+- [mobile-app/src/components/CartItemRow.tsx](mobile-app/src/components/CartItemRow.tsx)
+- [mobile-app/src/services/discountService.ts](mobile-app/src/services/discountService.ts)
+
+**Testing Status:**
+✅ TypeScript compilation: No errors on all changes
+✅ Discount calculation: Verified consistent across all components
+✅ Data flow: Flash sale discounts persist through navigation → product detail → cart
+✅ Visual display: Discount percentages now accurate on home page and in cart
+✅ Mobile app: Ready for device testing
+
+---
+
