@@ -409,3 +409,143 @@ export async function sendWelcomeEmail(params: {
     },
   });
 }
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Return / Refund lifecycle emails
+// ─────────────────────────────────────────────────────────────────────────────
+
+/** Buyer: confirmation that their return request was received. */
+export async function sendReturnRequestedEmail(params: {
+  buyerEmail: string;
+  buyerId: string;
+  orderNumber: string;
+  buyerName: string;
+  returnReason: string;
+  resolutionPath: string;
+}) {
+  return emailService.sendTemplatedEmail({
+    templateSlug: 'return_requested',
+    to: params.buyerEmail,
+    eventType: 'return_requested',
+    recipientId: params.buyerId,
+    variables: {
+      buyer_name: params.buyerName,
+      order_number: params.orderNumber,
+      return_reason: params.returnReason,
+      resolution_path: params.resolutionPath,
+    },
+    metadata: { order_number: params.orderNumber },
+  });
+}
+
+/** Buyer: return was approved, ship the item back. */
+export async function sendReturnApprovedEmail(params: {
+  buyerEmail: string;
+  buyerId: string;
+  orderNumber: string;
+  buyerName: string;
+  returnLabelUrl?: string;
+}) {
+  return emailService.sendTemplatedEmail({
+    templateSlug: 'return_approved',
+    to: params.buyerEmail,
+    eventType: 'return_approved',
+    recipientId: params.buyerId,
+    variables: {
+      buyer_name: params.buyerName,
+      order_number: params.orderNumber,
+      return_label_url: params.returnLabelUrl ?? '',
+    },
+    metadata: { order_number: params.orderNumber },
+  });
+}
+
+/** Buyer: return was rejected. */
+export async function sendReturnRejectedEmail(params: {
+  buyerEmail: string;
+  buyerId: string;
+  orderNumber: string;
+  buyerName: string;
+  rejectReason: string;
+}) {
+  return emailService.sendTemplatedEmail({
+    templateSlug: 'return_rejected',
+    to: params.buyerEmail,
+    eventType: 'return_rejected',
+    recipientId: params.buyerId,
+    variables: {
+      buyer_name: params.buyerName,
+      order_number: params.orderNumber,
+      reject_reason: params.rejectReason,
+    },
+    metadata: { order_number: params.orderNumber },
+  });
+}
+
+/** Buyer: seller sent a counter-offer. */
+export async function sendReturnCounterOfferedEmail(params: {
+  buyerEmail: string;
+  buyerId: string;
+  orderNumber: string;
+  buyerName: string;
+  offerDetails: string;
+}) {
+  return emailService.sendTemplatedEmail({
+    templateSlug: 'return_counter_offered',
+    to: params.buyerEmail,
+    eventType: 'return_counter_offered',
+    recipientId: params.buyerId,
+    variables: {
+      buyer_name: params.buyerName,
+      order_number: params.orderNumber,
+      offer_details: params.offerDetails,
+    },
+    metadata: { order_number: params.orderNumber },
+  });
+}
+
+/** Seller: buyer has shipped the return item — please confirm receipt. */
+export async function sendSellerReturnShippedEmail(params: {
+  sellerEmail: string;
+  sellerId: string;
+  orderNumber: string;
+  sellerName: string;
+  trackingNumber: string;
+}) {
+  return emailService.sendTemplatedEmail({
+    templateSlug: 'seller_return_shipped',
+    to: params.sellerEmail,
+    eventType: 'return_shipped_to_seller',
+    recipientId: params.sellerId,
+    variables: {
+      seller_name: params.sellerName,
+      order_number: params.orderNumber,
+      tracking_number: params.trackingNumber,
+    },
+    metadata: { order_number: params.orderNumber },
+  });
+}
+
+/** Seller: new return request from a buyer. */
+export async function sendSellerReturnRequestEmail(params: {
+  sellerEmail: string;
+  sellerId: string;
+  orderNumber: string;
+  sellerName: string;
+  buyerName: string;
+  returnReason: string;
+}) {
+  return emailService.sendTemplatedEmail({
+    templateSlug: 'seller_return_request',
+    to: params.sellerEmail,
+    eventType: 'seller_return_request',
+    recipientId: params.sellerId,
+    variables: {
+      seller_name: params.sellerName,
+      order_number: params.orderNumber,
+      buyer_name: params.buyerName,
+      return_reason: params.returnReason,
+    },
+    metadata: { order_number: params.orderNumber },
+  });
+}

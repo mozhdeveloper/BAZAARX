@@ -2492,25 +2492,6 @@ export default function CheckoutScreen({ navigation, route }: Props) {
               </View>
 
               <Pressable
-                onPress={() => { }}
-                style={[styles.paymentOption, { opacity: 0.5, backgroundColor: '#F3F4F6' }]}
-              >
-                <View style={styles.radio}>
-                  {paymentMethod === 'gcash' && <View style={styles.radioInner} />}
-                </View>
-                <View style={{ flex: 1 }}>
-                  <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-                    <Text style={[styles.paymentText, { color: '#9CA3AF' }]}>GCash</Text>
-                    <View style={{ backgroundColor: '#E5E7EB', paddingHorizontal: 6, paddingVertical: 2, borderRadius: 4, marginLeft: 8 }}>
-                      <Text style={{ fontSize: 10, fontWeight: '700', color: '#6B7280' }}>COMING SOON</Text>
-                    </View>
-                  </View>
-                  <Text style={styles.paymentSubtext}>Instantly paid online</Text>
-                </View>
-                <Shield size={16} color="#9CA3AF" />
-              </Pressable>
-
-              <Pressable
                 onPress={() => setPaymentMethod('paymongo')}
                 style={[
                   styles.paymentOption,
@@ -2759,7 +2740,49 @@ export default function CheckoutScreen({ navigation, route }: Props) {
                 </View>
               )}
 
+              <Pressable
+                onPress={() => {
+                  if (isGift) {
+                    Alert.alert('Not Available', 'Cash on Delivery is not available for wishlist/registry items.');
+                    return;
+                  }
+                  setPaymentMethod('cod');
+                }}
+                style={[
+                  styles.paymentOption,
+                  paymentMethod === 'cod' && styles.paymentOptionActive,
+                  isGift && { opacity: 0.5, backgroundColor: '#F3F4F6' }
+                ]}
+              >
+                <View style={styles.radio}>
+                  {paymentMethod === 'cod' && <View style={styles.radioInner} />}
+                </View>
+                <View style={{ flex: 1 }}>
+                  <Text style={[styles.paymentText, isGift && { color: '#9CA3AF' }]}>Cash on Delivery</Text>
+                  <Text style={styles.paymentSubtext}>
+                    {isGift ? 'Not available for wishlist items' : 'Pay when you receive'}
+                  </Text>
+                </View>
+              </Pressable>
 
+              <Pressable
+                onPress={() => { }}
+                style={[styles.paymentOption, { opacity: 0.5, backgroundColor: '#F3F4F6' }]}
+              >
+                <View style={styles.radio}>
+                  {paymentMethod === 'gcash' && <View style={styles.radioInner} />}
+                </View>
+                <View style={{ flex: 1 }}>
+                  <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                    <Text style={[styles.paymentText, { color: '#9CA3AF' }]}>GCash</Text>
+                    <View style={{ backgroundColor: '#E5E7EB', paddingHorizontal: 6, paddingVertical: 2, borderRadius: 4, marginLeft: 8 }}>
+                      <Text style={{ fontSize: 10, fontWeight: '700', color: '#6B7280' }}>COMING SOON</Text>
+                    </View>
+                  </View>
+                  <Text style={styles.paymentSubtext}>Instantly paid online</Text>
+                </View>
+                <Shield size={16} color="#9CA3AF" />
+              </Pressable>
 
               <View>
                 <Pressable
@@ -2820,32 +2843,6 @@ export default function CheckoutScreen({ navigation, route }: Props) {
                   </View>
                 )}
               </View>
-
-              <Pressable
-                onPress={() => {
-                  if (isGift) {
-                    Alert.alert('Not Available', 'Cash on Delivery is not available for wishlist/registry items.');
-                    return;
-                  }
-                  setPaymentMethod('cod');
-                }}
-                style={[
-                  styles.paymentOption,
-                  paymentMethod === 'cod' && styles.paymentOptionActive,
-                  isGift && { opacity: 0.5, backgroundColor: '#F3F4F6' }
-                ]}
-              >
-                <View style={styles.radio}>
-                  {paymentMethod === 'cod' && <View style={styles.radioInner} />}
-                </View>
-                <View style={{ flex: 1 }}>
-                  <Text style={[styles.paymentText, isGift && { color: '#9CA3AF' }]}>Cash on Delivery</Text>
-                  <Text style={styles.paymentSubtext}>
-                    {isGift ? 'Not available for wishlist items' : 'Pay when you receive'}
-                  </Text>
-                </View>
-              </Pressable>
-
 
             </View>
 

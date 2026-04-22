@@ -38,6 +38,8 @@ import {
   DialogTitle,
 } from "../components/ui/dialog";
 import { useToast } from "../hooks/use-toast";
+import { ReturnMessageThread } from "../components/returns/ReturnMessageThread";
+import { Textarea } from "../components/ui/textarea";
 
 // ---------------------------------------------------------------------------
 // Status icon helper
@@ -98,10 +100,18 @@ export default function BuyerReturnsListPage() {
   const [filter, setFilter] = useState<FilterTab>("all");
   const [searchQuery, setSearchQuery] = useState("");
 
+  // Messaging thread open state (tracks which return has its thread expanded)
+  const [msgOpenId, setMsgOpenId] = useState<string | null>(null);
+
   // Counter-offer dialog
   const [counterOfferReturn, setCounterOfferReturn] = useState<ReturnRequest | null>(null);
   const [isAccepting, setIsAccepting] = useState(false);
   const [isDeclining, setIsDeclining] = useState(false);
+
+  // Mark-as-shipped dialog (return_required path after seller approval)
+  const [shipReturn, setShipReturn] = useState<ReturnRequest | null>(null);
+  const [shipTracking, setShipTracking] = useState('');
+  const [isShipping, setIsShipping] = useState(false);
 
   // Load returns
   useEffect(() => {
@@ -180,6 +190,28 @@ export default function BuyerReturnsListPage() {
       setReturns((prev) => prev.map((r) => r.id === returnId ? { ...r, status: "escalated" as ReturnStatus } : r));
     } catch (err: any) {
       toast({ title: "Error", description: err.message || "Failed to escalate", variant: "destructive" });
+    }
+  };
+
+  // Mark return as shipped (buyer must enter carrier tracking number)
+  const handleConfirmShipped = async () => {
+    if (!shipReturn) return;
+    const tracking = shipTracking.trim();
+    if (tracking.length < 4) {
+      toast({ title: 'Tracking number required', description: 'Enter the courier tracking number for the return shipment.', variant: 'destructive' });
+      return;
+    }
+    setIsShipping(true);
+    try {
+      await returnService.confirmReturnShipment(shipReturn.id, tracking);
+      toast({ title: 'Return marked as shipped', description: 'The seller will confirm receipt and process your refund.' });
+      setReturns((prev) => prev.map((r) => r.id === shipReturn.id ? { ...r, status: 'return_in_transit' as ReturnStatus, returnTrackingNumber: tracking, buyerShippedAt: new Date().toISOString() } : r));
+      setShipReturn(null);
+      setShipTracking('');
+    } catch (err: any) {
+      toast({ title: 'Error', description: err.message || 'Failed to record shipment', variant: 'destructive' });
+    } finally {
+      setIsShipping(false);
     }
   };
 
@@ -406,6 +438,46 @@ export default function BuyerReturnsListPage() {
                         </div>
                       )}
 
+                      {/* Action: buyer must ship the item back */}
+                      {ret.status === "approved" && ret.resolutionPath === "return_required" && !ret.buyerShippedAt && (
+                        <div className="p-3 rounded-lg bg-amber-50 border border-amber-200 mb-3">
+                          <div className="flex items-start gap-2 mb-2">
+                            <Truck className="w-4 h-4 text-amber-700 flex-shrink-0 mt-0.5" />
+                            <div className="flex-1 min-w-0">
+                              <p className="text-sm font-medium text-amber-900">Ship the item back to complete your refund</p>
+                              {ret.returnLabelUrl && (
+                                <a href={ret.returnLabelUrl} target="_blank" rel="noreferrer" className="text-xs text-amber-700 hover:underline">Download return label</a>
+                              )}
+                            </div>
+                          </div>
+                          <Button
+                            size="sm"
+                            onClick={() => { setShipReturn(ret); setShipTracking(''); }}
+                            className="text-xs h-7 bg-amber-600 hover:bg-amber-700 text-white"
+                          >
+                            <Truck className="w-3 h-3 mr-1" /> Mark as Shipped
+                          </Button>
+                        </div>
+                      )}
+
+                      {/* Message thread toggle */}
+                      <button
+                        onClick={() => setMsgOpenId(msgOpenId === ret.id ? null : ret.id)}
+                        className="text-xs text-[var(--brand-primary)] hover:underline flex items-center gap-1 mb-2"
+                      >
+                        <MessageSquare className="w-3 h-3" />
+                        {msgOpenId === ret.id ? "Hide" : "View"} messages
+                        <ChevronRight className={cn("w-3 h-3 transition-transform", msgOpenId === ret.id && "rotate-90")} />
+                      </button>
+
+                      {msgOpenId === ret.id && (
+                        <ReturnMessageThread
+                          returnId={ret.id}
+                          senderRole="buyer"
+                          className="mb-3"
+                        />
+                      )}
+
                       {/* View details link */}
                       <button
                         onClick={() => navigate(`/order/${ret.orderId}`)}
@@ -463,6 +535,45 @@ export default function BuyerReturnsListPage() {
               className="bg-green-600 hover:bg-green-700 text-white"
             >
               {isAccepting ? "Accepting..." : "Accept Offer"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Mark-as-shipped dialog */}
+      <Dialog open={!!shipReturn} onOpenChange={(open) => { if (!open) { setShipReturn(null); setShipTracking(''); } }}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Mark Return as Shipped</DialogTitle>
+            <DialogDescription>
+              Enter the tracking number from your courier so the seller can confirm receipt and process your refund.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-3">
+            <div>
+              <label className="text-xs font-medium text-gray-700 block mb-1">Carrier Tracking Number</label>
+              <input
+                type="text"
+                value={shipTracking}
+                onChange={(e) => setShipTracking(e.target.value)}
+                placeholder="e.g. JT0123456789PH"
+                className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-orange-100 focus:border-orange-300"
+              />
+            </div>
+            {shipReturn?.returnLabelUrl && (
+              <a href={shipReturn.returnLabelUrl} target="_blank" rel="noreferrer" className="text-xs text-[var(--brand-primary)] hover:underline">
+                Download return shipping label
+              </a>
+            )}
+          </div>
+          <DialogFooter className="gap-2">
+            <Button variant="outline" onClick={() => { setShipReturn(null); setShipTracking(''); }}>Cancel</Button>
+            <Button
+              onClick={handleConfirmShipped}
+              disabled={isShipping || shipTracking.trim().length < 4}
+              className="bg-amber-600 hover:bg-amber-700 text-white"
+            >
+              {isShipping ? 'Saving...' : 'Confirm Shipment'}
             </Button>
           </DialogFooter>
         </DialogContent>

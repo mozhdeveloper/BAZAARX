@@ -3,6 +3,7 @@ import { motion } from 'framer-motion';
 import { Navigate } from 'react-router-dom';
 import { useAdminAuth, useAdminPayouts, Payout } from '../stores/adminStore';
 import AdminSidebar from '../components/AdminSidebar';
+import { useAdminRealtime } from '@/hooks/useAdminRealtime';
 import {
   Search,
   Filter,
@@ -40,6 +41,10 @@ const AdminPayouts: React.FC = () => {
   useEffect(() => {
     loadPayouts();
   }, [loadPayouts]);
+
+  // Live updates: payouts derive from order_items + seller_payout_accounts
+  useAdminRealtime('order_items', loadPayouts, { channelName: 'admin-payouts-items' });
+  useAdminRealtime('seller_payout_accounts', loadPayouts, { channelName: 'admin-payouts-accounts' });
 
   if (!isAuthenticated) {
     return <Navigate to="/admin/login" replace />;

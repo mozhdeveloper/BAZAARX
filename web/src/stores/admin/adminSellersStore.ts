@@ -1173,6 +1173,151 @@ export const useAdminSellers = create<SellersState>()(
         }));
       },
 
+      blacklistSeller: async (id, reason) => {
+        set({ isLoading: true });
+        const nowIso = new Date().toISOString();
+        const adminId = useAdminAuth.getState().user?.id || 'admin';
+
+        if (isSupabaseConfigured()) {
+          try {
+            const { error } = await supabase
+              .from('sellers')
+              .update({
+                approval_status: 'blacklisted',
+                blacklisted_at: nowIso,
+                is_permanently_blacklisted: true,
+                suspension_reason: reason,
+                suspended_at: null,
+                temp_blacklist_until: null,
+              } as any)
+              .eq('id', id);
+
+            if (error) {
+              console.error('Error blacklisting seller:', error);
+              set({ error: 'Failed to blacklist seller', isLoading: false });
+              return;
+            }
+
+            // Best-effort audit log
+            try {
+              await supabase.from('admin_action_log').insert({
+                admin_id: adminId,
+                action: 'seller.blacklist',
+                target_type: 'seller',
+                target_id: id,
+                metadata: { reason },
+              } as any);
+            } catch (logErr) {
+              // table may not exist yet
+            }
+
+            set(state => ({
+              sellers: state.sellers.map(seller =>
+                seller.id === id
+                  ? {
+                    ...seller,
+                    status: 'blacklisted' as const,
+                    blacklistedAt: new Date(),
+                    isPermanentlyBlacklisted: true,
+                    suspendedAt: undefined,
+                    tempBlacklistUntil: undefined,
+                    suspensionReason: reason,
+                  }
+                  : seller
+              ),
+              isLoading: false,
+            }));
+          } catch (error) {
+            console.error('Error blacklisting seller:', error);
+            set({ error: 'Failed to blacklist seller', isLoading: false });
+          }
+          return;
+        }
+
+        // Fallback demo
+        await new Promise(resolve => setTimeout(resolve, 500));
+        set(state => ({
+          sellers: state.sellers.map(seller =>
+            seller.id === id
+              ? { ...seller, status: 'blacklisted' as const, blacklistedAt: new Date(), isPermanentlyBlacklisted: true, suspensionReason: reason }
+              : seller
+          ),
+          isLoading: false,
+        }));
+      },
+
+      reinstateSeller: async (id) => {
+        set({ isLoading: true });
+        const adminId = useAdminAuth.getState().user?.id || 'admin';
+
+        if (isSupabaseConfigured()) {
+          try {
+            const { error } = await supabase
+              .from('sellers')
+              .update({
+                approval_status: 'verified',
+                suspended_at: null,
+                suspension_reason: null,
+                blacklisted_at: null,
+                is_permanently_blacklisted: false,
+                temp_blacklist_until: null,
+                temp_blacklist_count: 0,
+              } as any)
+              .eq('id', id);
+
+            if (error) {
+              console.error('Error reinstating seller:', error);
+              set({ error: 'Failed to reinstate seller', isLoading: false });
+              return;
+            }
+
+            try {
+              await supabase.from('admin_action_log').insert({
+                admin_id: adminId,
+                action: 'seller.reinstate',
+                target_type: 'seller',
+                target_id: id,
+              } as any);
+            } catch (logErr) {
+              // table may not exist yet
+            }
+
+            set(state => ({
+              sellers: state.sellers.map(seller =>
+                seller.id === id
+                  ? {
+                    ...seller,
+                    status: 'approved' as const,
+                    suspendedAt: undefined,
+                    suspensionReason: undefined,
+                    blacklistedAt: undefined,
+                    isPermanentlyBlacklisted: false,
+                    tempBlacklistUntil: undefined,
+                    tempBlacklistCount: 0,
+                  }
+                  : seller
+              ),
+              isLoading: false,
+            }));
+          } catch (error) {
+            console.error('Error reinstating seller:', error);
+            set({ error: 'Failed to reinstate seller', isLoading: false });
+          }
+          return;
+        }
+
+        // Fallback demo
+        await new Promise(resolve => setTimeout(resolve, 500));
+        set(state => ({
+          sellers: state.sellers.map(seller =>
+            seller.id === id
+              ? { ...seller, status: 'approved' as const, suspendedAt: undefined, blacklistedAt: undefined, isPermanentlyBlacklisted: false }
+              : seller
+          ),
+          isLoading: false,
+        }));
+      },
+
       selectSeller: (seller) => set({ selectedSeller: seller }),
 
       addSeller: (seller) => {

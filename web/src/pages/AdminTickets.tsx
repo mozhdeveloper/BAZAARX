@@ -18,6 +18,7 @@ import {
     Store
 } from 'lucide-react';
 import AdminSidebar from '../components/AdminSidebar';
+import { useAdminRealtime } from '@/hooks/useAdminRealtime';
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -44,6 +45,10 @@ export default function AdminTickets() {
     useEffect(() => {
         fetchAllTickets();
     }, [fetchAllTickets]);
+
+    // Live updates: refresh when support_tickets or ticket_messages change
+    useAdminRealtime('support_tickets', fetchAllTickets, { channelName: 'admin-tickets-tickets' });
+    useAdminRealtime('ticket_messages', fetchAllTickets, { channelName: 'admin-tickets-messages' });
 
     // Handle refresh
     const handleRefresh = () => {
