@@ -21,6 +21,7 @@ import {
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   Dimensions,
+  Keyboard,
   NativeScrollEvent,
   NativeSyntheticEvent,
   Pressable,
@@ -734,6 +735,17 @@ export default function HomeScreen({ navigation }: Props) {
     navigation.navigate('ProductDetail', { product });
   }, [navigation, searchQuery, saveRecentSearch]);
 
+  const handleCategoryPress = useCallback((item: Category) => {
+    // Check if this category has subcategories
+    const hasSubcategories = dbCategories.some(c => c.parent_id === item.id);
+    if (hasSubcategories) {
+      navigation.navigate('Categories', { categoryId: item.id });
+    } else {
+      // No subcategories — go directly to ProductListing (same as CategoriesScreen)
+      navigation.navigate('ProductListing', { searchQuery: item.name });
+    }
+  }, [dbCategories, navigation]);
+
   // Memoized scroll handler — avoids re-creating the function on every render
   const handleScroll = useCallback((e: NativeSyntheticEvent<NativeScrollEvent>) => {
     // Removed location row hide/show logic to prevent layout shifts during scrolling
@@ -823,7 +835,7 @@ export default function HomeScreen({ navigation }: Props) {
             </Pressable>
           </View>
           {isSearchFocused && (
-            <Pressable onPress={() => { setIsSearchFocused(false); setSearchQuery(''); }} style={{ paddingLeft: 10 }}>
+            <Pressable onPress={() => { Keyboard.dismiss(); setIsSearchFocused(false); setSearchQuery(''); }} style={{ paddingLeft: 10 }}>
               <Text style={{ color: COLORS.primary, fontWeight: '600' }}>Cancel</Text>
             </Pressable>
             
@@ -1040,7 +1052,7 @@ export default function HomeScreen({ navigation }: Props) {
                 <Pressable
                   key={item.id}
                   style={[styles.categoryGridItem, { width: CATEGORY_ITEM_WIDTH }]}
-                  onPress={() => navigation.navigate('Categories', { categoryId: item.id })}
+                  onPress={() => handleCategoryPress(item)}
                 >
                   <CategoryItem label={item.name} iconValue={item.icon} imageUrl={item.image_url} itemWidth={CATEGORY_ITEM_WIDTH} />
                 </Pressable>
@@ -1274,7 +1286,7 @@ export default function HomeScreen({ navigation }: Props) {
                 <Pressable
                   key={item.id}
                   style={[styles.categoryGridItem, { width: CATEGORY_ITEM_WIDTH }]}
-                  onPress={() => navigation.navigate('Categories', { categoryId: item.id })}
+                  onPress={() => handleCategoryPress(item)}
                 >
                   {/* Change iconName to iconValue here */}
                   <CategoryItem label={item.name} iconValue={item.icon} itemWidth={CATEGORY_ITEM_WIDTH} />
