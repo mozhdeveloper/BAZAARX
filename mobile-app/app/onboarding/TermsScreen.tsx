@@ -60,23 +60,8 @@ export default function TermsScreen({ navigation, route }: Props) {
             throw new Error('Signup session expired. Please sign up again.');
           }
 
-          // PERFORM THE ACTUAL SIGNUP NOW
-          const result = await authService.signUp(signupData.email, signupData.password, {
-            first_name: signupData.firstName,
-            last_name: signupData.lastName,
-            full_name: `${signupData.firstName} ${signupData.lastName}`,
-            phone: signupData.phone,
-            user_type: signupData.user_type || 'buyer',
-            email: signupData.email,
-            password: signupData.password,
-            has_accepted_terms: true, // They just agreed!
-          });
-
-          if (!result?.user) {
-            throw new Error('Failed to create account. Please try again.');
-          }
-
-          navigation.replace('EmailVerification', { email: signupData.email, signupData });
+          // DELAY SIGNUP: Go to Category Selection first
+          navigation.replace('CategoryPreference', { signupData });
         }
       } catch (error: any) {
         Alert.alert('Error', error.message || 'Failed to process request.');

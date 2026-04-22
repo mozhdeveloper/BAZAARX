@@ -101,8 +101,11 @@ export default function EmailVerificationScreen({ navigation, route }: Props) {
         const signupData = route.params?.signupData || useAuthStore.getState().pendingSignupData;
         console.log('[EmailVerification] Navigating to Preference with signupData:', signupData ? 'Exists' : 'MISSING');
 
-        // User is now authenticated - navigate to CategoryPreference
-        navigation.replace('CategoryPreference', { signupData });
+        // User is now authenticated and finished with onboarding - navigate to Home
+        navigation.reset({
+          index: 0,
+          routes: [{ name: 'MainTabs' }],
+        });
       } else if (isManual) {
         Alert.alert(
           'Not Verified Yet',

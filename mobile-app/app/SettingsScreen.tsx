@@ -1,8 +1,10 @@
 import React, { useState } from 'react';
-import { View, Text, ScrollView, Pressable, StyleSheet, Switch, Alert, StatusBar, ActivityIndicator } from 'react-native';
+import { View, Text, ScrollView, Pressable, StyleSheet, Switch, Alert, StatusBar, ActivityIndicator, Modal, Image } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { ArrowLeft, Globe, DollarSign, Moon, Volume2, Download, RefreshCw, Trash2 } from 'lucide-react-native';
+import * as WebBrowser from 'expo-web-browser';
+import * as AuthSession from 'expo-auth-session';
+import { ArrowLeft, Globe, DollarSign, Moon, Volume2, Download, RefreshCw, Trash2, ShieldCheck } from 'lucide-react-native';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import type { RootStackParamList } from '../App';
 import { useAuthStore } from '../src/stores/authStore';
@@ -18,7 +20,107 @@ export default function SettingsScreen({ navigation }: Props) {
   const [soundEffects, setSoundEffects] = useState(true);
   const [autoDownload, setAutoDownload] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
+  const [isGoogleLinked, setIsGoogleLinked] = useState(false);
+  const [isLinkingGoogle, setIsLinkingGoogle] = useState(false);
+  const [showGoogleAlreadyLinkedModal, setShowGoogleAlreadyLinkedModal] = useState(false);
   const insets = useSafeAreaInsets();
+
+  const { user } = useAuthStore();
+
+  // Fetch link status
+  React.useEffect(() => {
+    const fetchLinkStatus = async () => {
+      try {
+        const { data: identityData } = await supabase.auth.getUserIdentities();
+        if (identityData?.identities) {
+          setIsGoogleLinked(identityData.identities.some(id => id.provider === 'google'));
+        }
+      } catch (error) {
+        console.error('Error fetching link status:', error);
+      }
+    };
+    fetchLinkStatus();
+  }, []);
+
+  const handleLinkGoogle = async () => {
+    if (isGoogleLinked) {
+      Alert.alert('Unlink Google', 'Are you sure you want to unlink your Google account?', [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Unlink',
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              setIsLinkingGoogle(true);
+              const { data } = await supabase.auth.getUserIdentities();
+              const googleIdentity = data?.identities?.find(id => id.provider === 'google');
+              if (googleIdentity) {
+                const { error } = await supabase.auth.unlinkIdentity(googleIdentity);
+                if (error) throw error;
+                setIsGoogleLinked(false);
+                Alert.alert('Success', 'Google account unlinked.');
+              }
+            } catch (e) {
+              Alert.alert('Error', e instanceof Error ? e.message : 'Could not unlink account.');
+            } finally {
+              setIsLinkingGoogle(false);
+            }
+          }
+        }
+      ]);
+      return;
+    }
+
+    setIsLinkingGoogle(true);
+    try {
+      const redirectUrl = AuthSession.makeRedirectUri({ path: 'auth/callback' });
+      const { data, error } = await supabase.auth.linkIdentity({
+        provider: 'google',
+        options: {
+          redirectTo: redirectUrl,
+          skipBrowserRedirect: false,
+        }
+      });
+      if (error) {
+        const errorMsg = error.message?.toLowerCase() || '';
+        const isAlreadyLinked =
+          errorMsg.includes('already') ||
+          errorMsg.includes('registered') ||
+          errorMsg.includes('email_exists') ||
+          errorMsg.includes('identity_already_exists') ||
+          errorMsg.includes('is already linked');
+
+        if (isAlreadyLinked) {
+          setShowGoogleAlreadyLinkedModal(true);
+          setIsLinkingGoogle(false);
+          return;
+        }
+        throw error;
+      }
+      if (data?.url) {
+        const result = await WebBrowser.openBrowserAsync(data.url);
+        if (result.type === 'cancel' || result.type === 'dismiss') {
+          setIsLinkingGoogle(false);
+          return;
+        }
+        await new Promise(resolve => setTimeout(resolve, 800));
+        const { data: identityData } = await supabase.auth.getUserIdentities();
+        const linked = identityData?.identities?.some(id => id.provider === 'google') || false;
+        setIsGoogleLinked(linked);
+        if (linked) {
+          await supabase.auth.updateUser({
+            data: { google_explicitly_linked: true }
+          });
+          Alert.alert('Success', 'Google account linked!');
+        }
+      }
+    } catch (e) {
+      console.error('Google link error:', e);
+      Alert.alert('Error', e instanceof Error ? e.message : 'An unexpected error occurred. Please try again.');
+    } finally {
+      setIsLinkingGoogle(false);
+    }
+  };
 
   const promptDeleteAccount = () => {
     Alert.alert(
@@ -111,35 +213,67 @@ export default function SettingsScreen({ navigation }: Props) {
       </LinearGradient>
 
       <ScrollView style={styles.scrollView} contentContainerStyle={styles.scrollContent}>
-        {/* General Settings */}
+        {/* Account Settings */}
         <View style={styles.section}>
-          <Text style={styles.sectionTitle}>General</Text>
-          
+          <Text style={styles.sectionTitle}>Account</Text>
+          <View style={styles.settingCard}>
+            <Pressable style={[styles.settingItem, styles.borderBottom]} onPress={() => navigation.navigate('Addresses')}>
+              <View style={styles.settingLeft}>
+                <View style={[styles.iconContainer, { backgroundColor: '#F3F4F6' }]}>
+                  <Globe size={20} color="#6B7280" />
+                </View>
+                <View style={styles.settingTextContainer}>
+                  <Text style={styles.settingTitle}>Delivery Addresses</Text>
+                  <Text style={styles.settingSubtitle}>Manage where your orders are sent</Text>
+                </View>
+              </View>
+              <ArrowLeft size={18} color="#9CA3AF" style={{ transform: [{ rotate: '180deg' }] }} />
+            </Pressable>
+
+            <Pressable style={styles.settingItem} onPress={() => navigation.navigate('PaymentMethods')}>
+              <View style={styles.settingLeft}>
+                <View style={[styles.iconContainer, { backgroundColor: '#F3F4F6' }]}>
+                  <DollarSign size={20} color="#6B7280" />
+                </View>
+                <View style={styles.settingTextContainer}>
+                  <Text style={styles.settingTitle}>Payment Methods</Text>
+                  <Text style={styles.settingSubtitle}>Your saved cards and wallets</Text>
+                </View>
+              </View>
+              <ArrowLeft size={18} color="#9CA3AF" style={{ transform: [{ rotate: '180deg' }] }} />
+            </Pressable>
+          </View>
+        </View>
+
+        {/* Linked Accounts */}
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>Linked Accounts</Text>
           <View style={styles.settingCard}>
             <View style={styles.settingItem}>
               <View style={styles.settingLeft}>
-                <View style={[styles.iconContainer, { backgroundColor: '#EFF6FF' }]}>
-                  <Globe size={20} color="#3B82F6" />
+                <View style={[styles.iconContainer, { backgroundColor: '#F3F4F6' }]}>
+                  <Image 
+                    source={{ uri: 'https://www.gstatic.com/images/branding/product/2x/googleg_48dp.png' }}
+                    style={{ width: 20, height: 20 }}
+                  />
                 </View>
                 <View style={styles.settingTextContainer}>
-                  <Text style={styles.settingTitle}>Language</Text>
-                  <Text style={styles.settingSubtitle}>English</Text>
+                  <Text style={styles.settingTitle}>Google</Text>
+                  <Text style={styles.settingSubtitle}>
+                    {isGoogleLinked ? 'Connected to Google' : 'Link your Google account'}
+                  </Text>
                 </View>
               </View>
-            </View>
-
-            <View style={styles.divider} />
-
-            <View style={styles.settingItem}>
-              <View style={styles.settingLeft}>
-                <View style={[styles.iconContainer, { backgroundColor: '#DCFCE7' }]}>
-                  <DollarSign size={20} color="#10B981" />
-                </View>
-                <View style={styles.settingTextContainer}>
-                  <Text style={styles.settingTitle}>Currency</Text>
-                  <Text style={styles.settingSubtitle}>PHP (₱)</Text>
-                </View>
-              </View>
+              {isLinkingGoogle ? (
+                <ActivityIndicator size="small" color={COLORS.primary} />
+              ) : (
+                <Switch
+                  value={isGoogleLinked}
+                  onValueChange={handleLinkGoogle}
+                  trackColor={{ false: '#D1D5DB', true: COLORS.success }}
+                  thumbColor="#FFFFFF"
+                />
+              )}
             </View>
           </View>
         </View>
@@ -162,7 +296,7 @@ export default function SettingsScreen({ navigation }: Props) {
               <Switch
                 value={darkMode}
                 onValueChange={setDarkMode}
-                trackColor={{ false: '#D1D5DB', true: '#FB8C00' }} // Warm Orange
+                trackColor={{ false: '#D1D5DB', true: '#FB8C00' }}
                 thumbColor="#FFFFFF"
               />
             </View>
@@ -187,7 +321,7 @@ export default function SettingsScreen({ navigation }: Props) {
               <Switch
                 value={soundEffects}
                 onValueChange={setSoundEffects}
-                trackColor={{ false: '#D1D5DB', true: '#FB8C00' }} // Warm Orange
+                trackColor={{ false: '#D1D5DB', true: '#FB8C00' }}
                 thumbColor="#FFFFFF"
               />
             </View>
@@ -207,7 +341,7 @@ export default function SettingsScreen({ navigation }: Props) {
               <Switch
                 value={autoDownload}
                 onValueChange={setAutoDownload}
-                trackColor={{ false: '#D1D5DB', true: '#FB8C00' }} // Warm Orange
+                trackColor={{ false: '#D1D5DB', true: '#FB8C00' }}
                 thumbColor="#FFFFFF"
               />
             </View>
@@ -273,8 +407,57 @@ export default function SettingsScreen({ navigation }: Props) {
         </View>
       </ScrollView>
 
-      {/* Bottom Navigation */}
-      <BuyerBottomNav />
+      {/* Google Already Linked Modal */}
+      <Modal
+        visible={showGoogleAlreadyLinkedModal}
+        animationType="fade"
+        transparent={true}
+        statusBarTranslucent={true}
+        onRequestClose={() => setShowGoogleAlreadyLinkedModal(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.googleAlreadyLinkedModalContent}>
+            <View style={styles.googleModalIconContainer}>
+              <View style={[styles.googleModalIcon, { backgroundColor: '#FEF3C7' }]}>
+                <Text style={styles.googleModalIconText}>⚠️</Text>
+              </View>
+            </View>
+
+            <Text style={styles.googleModalTitle}>Google Account Already Linked</Text>
+
+            <Text style={styles.googleModalMessage}>
+              This Google account is already linked to another BazaarX account. Please try signing in with a different Google account.
+            </Text>
+
+            <View style={styles.googleModalButtonContainer}>
+              <Pressable
+                style={[styles.googleModalButton, styles.googleModalButtonCancel]}
+                onPress={() => setShowGoogleAlreadyLinkedModal(false)}
+              >
+                <Text style={styles.googleModalButtonTextCancel}>Cancel</Text>
+              </Pressable>
+
+              <Pressable
+                style={[styles.googleModalButton, styles.googleModalButtonRetry]}
+                onPress={async () => {
+                  setShowGoogleAlreadyLinkedModal(false);
+                  await handleLinkGoogle();
+                }}
+                disabled={isLinkingGoogle}
+              >
+                {isLinkingGoogle ? (
+                  <ActivityIndicator color="#FFF" size="small" />
+                ) : (
+                  <Text style={styles.googleModalButtonText}>Try Another Account</Text>
+                )}
+              </Pressable>
+            </View>
+          </View>
+        </View>
+      </Modal>
+
+      {/* Footer Bottom Nav */}
+      <BuyerBottomNav activeTab="Profile" />
     </View>
   );
 }
@@ -331,6 +514,10 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     padding: 16,
   },
+  borderBottom: {
+    borderBottomWidth: 1,
+    borderBottomColor: '#F3F4F6',
+  },
   settingLeft: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -372,11 +559,8 @@ const styles = StyleSheet.create({
     color: COLORS.primary,
     marginBottom: 4,
   },
-  versionText: {
-    fontSize: 13,
-    color: COLORS.textMuted,
-    marginBottom: 8,
-  },
+  versionText: { fontSize: 12, color: COLORS.textMuted, fontWeight: '600' },
+  footerText: { fontSize: 12, color: COLORS.textMuted, fontWeight: '500' },
   copyrightText: {
     fontSize: 12,
     color: COLORS.textMuted,
@@ -384,5 +568,84 @@ const styles = StyleSheet.create({
   dangerCard: {
     borderWidth: 1,
     borderColor: '#FECACA',
+  },
+
+  // Modal Styles
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.5)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  googleAlreadyLinkedModalContent: {
+    backgroundColor: '#FFF',
+    borderRadius: 20,
+    paddingHorizontal: 24,
+    paddingVertical: 28,
+    marginHorizontal: 16,
+    alignItems: 'center',
+    shadowColor: '#000',
+    shadowOpacity: 0.15,
+    shadowRadius: 10,
+    elevation: 10,
+  },
+  googleModalIconContainer: {
+    alignItems: 'center',
+    marginBottom: 16,
+  },
+  googleModalIcon: {
+    width: 72,
+    height: 72,
+    borderRadius: 36,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  googleModalIconText: {
+    fontSize: 36,
+  },
+  googleModalTitle: {
+    fontSize: 18,
+    fontWeight: '800',
+    color: COLORS.textHeadline,
+    marginBottom: 12,
+    textAlign: 'center',
+  },
+  googleModalMessage: {
+    fontSize: 14,
+    fontWeight: '500',
+    color: COLORS.textPrimary,
+    lineHeight: 21,
+    textAlign: 'center',
+    marginBottom: 24,
+  },
+  googleModalButtonContainer: {
+    flexDirection: 'row',
+    gap: 12,
+    width: '100%',
+  },
+  googleModalButton: {
+    flex: 1,
+    paddingVertical: 12,
+    borderRadius: 12,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  googleModalButtonCancel: {
+    backgroundColor: '#F3F4F6',
+    borderWidth: 1,
+    borderColor: '#E5E7EB',
+  },
+  googleModalButtonTextCancel: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: COLORS.textHeadline,
+  },
+  googleModalButtonRetry: {
+    backgroundColor: COLORS.primary,
+  },
+  googleModalButtonText: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#FFF',
   },
 });

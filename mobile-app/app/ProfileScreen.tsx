@@ -1,11 +1,11 @@
 import React, { useEffect, useRef } from 'react';
-import { View, Text, ScrollView, Pressable, StyleSheet, Alert, StatusBar, Modal, TextInput, ActivityIndicator, Image, Animated, Dimensions } from 'react-native';
+import { View, Text, ScrollView, Pressable, StyleSheet, Alert, StatusBar, Modal, TextInput, ActivityIndicator, Image, Animated, Dimensions, KeyboardAvoidingView, Platform } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import * as ImagePicker from 'expo-image-picker';
 import * as WebBrowser from 'expo-web-browser';
 import * as AuthSession from 'expo-auth-session';
-import { User, MapPin, CreditCard, Bell, HelpCircle, Shield, ChevronRight, Store, Star, Package, Heart, Settings, Edit2, Power, X, Camera, RotateCcw, Clock, Gift, Truck, Wallet, MessageSquarePlus, ArrowRight } from 'lucide-react-native';
+import { User, MapPin, CreditCard, Bell, HelpCircle, Shield, ChevronRight, Store, Star, Package, Heart, Settings, Edit2, Power, X, Camera, RotateCcw, Clock, Gift, Truck, Wallet, MessageSquarePlus, ArrowRight, Lock } from 'lucide-react-native';
 import type { CompositeScreenProps } from '@react-navigation/native';
 import type { BottomTabScreenProps } from '@react-navigation/bottom-tabs';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
@@ -45,11 +45,13 @@ export default function ProfileScreen({ navigation }: Props) {
   const [editAvatar, setEditAvatar] = React.useState('');
   const [isSaving, setIsSaving] = React.useState(false);
   const [isSwitching, setIsSwitching] = React.useState(false);
-  const [isGoogleLinked, setIsGoogleLinked] = React.useState(false);
-  const [isLinkingGoogle, setIsLinkingGoogle] = React.useState(false);
-  const [showGoogleAlreadyLinkedModal, setShowGoogleAlreadyLinkedModal] = React.useState(false);
   const avatarBase64Ref = React.useRef<{ base64: string; mimeType: string } | null>(null);
   const slideAnim = useRef(new Animated.Value(Dimensions.get('window').height)).current;
+  
+  // Seller Switch State
+  const [switchModalVisible, setSwitchModalVisible] = React.useState(false);
+  const [switchPassword, setSwitchPassword] = React.useState('');
+  const [isVerifyingPassword, setIsVerifyingPassword] = React.useState(false);
 
   useEffect(() => {
     if (editModalVisible) {
@@ -104,11 +106,8 @@ export default function ProfileScreen({ navigation }: Props) {
           setTotalOrders(count);
         }
 
-        // 3. Fetch Identities for Google link check
-        const { data: identityData } = await supabase.auth.getUserIdentities();
-        if (identityData?.identities) {
-          setIsGoogleLinked(identityData.identities.some(id => id.provider === 'google'));
-        }
+        // 3. Fetch Identities
+        // (Moved to Settings)
       } catch (error) {
         console.error('Error fetching profile data:', error);
       }
@@ -255,7 +254,7 @@ export default function ProfileScreen({ navigation }: Props) {
 
   const profile = {
     firstName: user?.name.split(' ')[0] || 'BazaarX',
-    lastName: user?.name.split(' ').slice(1).join(' ') || 'User',
+    lastName: user?.name.split(' ').length > 1 ? user?.name.split(' ').slice(1).join(' ') : '',
     email: user?.email || 'user@bazaarx.ph',
     phone: user?.phone || 'No phone number',
     memberSince: 'January 2024',
@@ -317,89 +316,7 @@ export default function ProfileScreen({ navigation }: Props) {
     </Pressable>
   );
 
-  const handleLinkGoogle = async () => {
-    if (isGoogleLinked) {
-      Alert.alert('Unlink Google', 'Are you sure you want to unlink your Google account?', [
-        { text: 'Cancel', style: 'cancel' },
-        {
-          text: 'Unlink',
-          style: 'destructive',
-          onPress: async () => {
-            try {
-              setIsLinkingGoogle(true);
-              const { data } = await supabase.auth.getUserIdentities();
-              const googleIdentity = data?.identities?.find(id => id.provider === 'google');
-              if (googleIdentity) {
-                const { error } = await supabase.auth.unlinkIdentity(googleIdentity);
-                if (error) throw error;
-                setIsGoogleLinked(false);
-                Alert.alert('Success', 'Google account unlinked.');
-              }
-            } catch (e) {
-              Alert.alert('Error', e instanceof Error ? e.message : 'Could not unlink account.');
-            } finally {
-              setIsLinkingGoogle(false);
-            }
-          }
-        }
-      ]);
-      return;
-    }
 
-    setIsLinkingGoogle(true);
-    try {
-      const redirectUrl = AuthSession.makeRedirectUri({ path: 'auth/callback' });
-      const { data, error } = await supabase.auth.linkIdentity({
-        provider: 'google',
-        options: {
-          redirectTo: redirectUrl,
-          skipBrowserRedirect: false,
-        }
-      });
-      if (error) {
-        // Check if error is due to Google account already being linked to another user
-        const errorMsg = error.message?.toLowerCase() || '';
-        const isAlreadyLinked =
-          errorMsg.includes('already') ||
-          errorMsg.includes('registered') ||
-          errorMsg.includes('email_exists') ||
-          errorMsg.includes('identity_already_exists') ||
-          errorMsg.includes('is already linked');
-
-        if (isAlreadyLinked) {
-          console.warn('Google account already linked to another user:', error.message);
-          setShowGoogleAlreadyLinkedModal(true);
-          setIsLinkingGoogle(false);
-          return;
-        }
-        throw error;
-      }
-      if (data?.url) {
-        const result = await WebBrowser.openBrowserAsync(data.url);
-        if (result.type === 'cancel' || result.type === 'dismiss') {
-          setIsLinkingGoogle(false);
-          return;
-        }
-        await new Promise(resolve => setTimeout(resolve, 800));
-        const { data: identityData } = await supabase.auth.getUserIdentities();
-        const linked = identityData?.identities?.some(id => id.provider === 'google') || false;
-        setIsGoogleLinked(linked);
-        if (linked) {
-          // Set a metadata flag to mark this as an EXPLICIT link
-          // This prevents the Google Sign-In enforcement policy from unlinking it during next login
-          await supabase.auth.updateUser({
-            data: { google_explicitly_linked: true }
-          });
-          Alert.alert('Success', 'Google account linked!');
-        }
-      }
-    } catch (e) {
-      console.error('Google link error:', e);
-      Alert.alert('Error', e instanceof Error ? e.message : 'An unexpected error occurred. Please try again.');
-    } finally {
-      setIsLinkingGoogle(false);
-    }
-  };
 
   const handleLogout = () => {
     Alert.alert(
@@ -445,10 +362,10 @@ export default function ProfileScreen({ navigation }: Props) {
 
 
   const handleSellerSwitch = async () => {
-    // If we already know they are a seller, just switch
+    // If we already know they are a seller, show the password gate
     if (isSeller) {
-      useAuthStore.getState().switchRole('seller');
-      navigation.navigate('SellerStack');
+      setSwitchModalVisible(true);
+      setSwitchPassword('');
       return;
     }
 
@@ -458,9 +375,9 @@ export default function ProfileScreen({ navigation }: Props) {
       const isActuallySeller = await useAuthStore.getState().checkForSellerAccount();
 
       if (isActuallySeller) {
-        // Role updated in store by checkForSellerAccount, proceed to switch
-        useAuthStore.getState().switchRole('seller');
-        navigation.navigate('SellerStack');
+        // If they just found out they are a seller, show the password gate
+        setSwitchModalVisible(true);
+        setSwitchPassword('');
       } else {
         // Really not a seller, go to registration choice
         navigation.navigate('BecomeSeller');
@@ -474,6 +391,49 @@ export default function ProfileScreen({ navigation }: Props) {
       );
     } finally {
       setIsSwitching(false);
+    }
+  };
+
+  const confirmSellerSwitch = async () => {
+    if (!switchPassword.trim()) {
+      Alert.alert('Error', 'Please enter your seller password');
+      return;
+    }
+
+    setIsVerifyingPassword(true);
+    try {
+      // Verify using the seller credentials — same email, seller-specific password
+      // (set during BecomeSellerScreen via supabase.auth.updateUser or seller/signup.tsx registration)
+      const email = user?.email || '';
+      const { data: authData, error: signInError } = await supabase.auth.signInWithPassword({
+        email,
+        password: switchPassword,
+      });
+
+      if (signInError || !authData.user) {
+        throw new Error('Incorrect seller password. Please use the password you created when registering as a seller.');
+      }
+
+      // Verify the account actually has a seller role in the DB
+      const { data: sellerData, error: sellerError } = await supabase
+        .from('sellers')
+        .select('id, store_name, approval_status')
+        .eq('id', authData.user.id)
+        .single();
+
+      if (sellerError || !sellerData) {
+        throw new Error('No seller profile found for this account.');
+      }
+
+      // Password verified and seller exists — switch role
+      setSwitchModalVisible(false);
+      useAuthStore.getState().switchRole('seller');
+      navigation.navigate('SellerStack');
+
+    } catch (error: any) {
+      Alert.alert('Access Denied', error.message || 'Incorrect seller password');
+    } finally {
+      setIsVerifyingPassword(false);
     }
   };
 
@@ -561,7 +521,7 @@ export default function ProfileScreen({ navigation }: Props) {
               </Pressable>
             </View>
             <View style={styles.headerInfo}>
-              <Text style={[styles.userName, { color: '#FFFFFF' }]}>{profile.firstName} {profile.lastName}</Text>
+              <Text style={[styles.userName, { color: '#FFFFFF' }]}>{`${profile.firstName} ${profile.lastName}`.trim()}</Text>
               {contributorTier !== 'none' && (
                 <View style={{ marginTop: 4, marginBottom: 2 }}>
                   <ContributorBadge tier={contributorTier} size="sm" />
@@ -648,27 +608,7 @@ export default function ProfileScreen({ navigation }: Props) {
                 <ChevronRight size={18} color={COLORS.textMuted} />
               </Pressable>
             ))}
-            <View style={{ borderTopWidth: 1, borderTopColor: '#F9FAFB', paddingVertical: 15 }}>
-              <Pressable
-                style={styles.googleButton}
-                onPress={handleLinkGoogle}
-                disabled={isLinkingGoogle}
-              >
-                {isLinkingGoogle ? (
-                  <ActivityIndicator color="#374151" />
-                ) : (
-                  <>
-                    <Image
-                      source={{ uri: 'https://www.gstatic.com/images/branding/product/2x/googleg_48dp.png' }}
-                      style={styles.googleIcon}
-                    />
-                    <Text style={[styles.googleButtonText, isGoogleLinked && { color: '#059669' }]}>
-                      {isGoogleLinked ? 'Google Account Linked' : 'Link Google Account'}
-                    </Text>
-                  </>
-                )}
-              </Pressable>
-            </View>
+
           </View>
         </View>
 
@@ -788,53 +728,70 @@ export default function ProfileScreen({ navigation }: Props) {
         cancelText="Go back to Home"
       />
 
-      {/* Google Already Linked Modal */}
+
+
+      {/* SELLER SWITCH PASSWORD MODAL */}
       <Modal
-        visible={showGoogleAlreadyLinkedModal}
+        visible={switchModalVisible}
         animationType="fade"
         transparent={true}
         statusBarTranslucent={true}
-        onRequestClose={() => setShowGoogleAlreadyLinkedModal(false)}
+        onRequestClose={() => setSwitchModalVisible(false)}
       >
-        <View style={styles.modalOverlay}>
-          <View style={styles.googleAlreadyLinkedModalContent}>
-            <View style={styles.googleModalIconContainer}>
-              <View style={[styles.googleModalIcon, { backgroundColor: '#FEF3C7' }]}>
-                <Text style={styles.googleModalIconText}>⚠️</Text>
+        <KeyboardAvoidingView 
+          behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+          style={styles.centeredModalOverlay}
+        >
+          <View style={styles.passwordModalContent}>
+            <View style={styles.passwordModalHeader}>
+              <View style={styles.passwordIconContainer}>
+                <Store size={24} color="#D97706" />
+              </View>
+              <Text style={styles.passwordModalTitle}>Switch to Seller Mode</Text>
+              <Text style={styles.passwordModalSubtitle}>Enter the password you set when registering as a seller</Text>
+            </View>
+
+            <View style={styles.passwordInputContainer}>
+              <View style={styles.passwordInputWrapper}>
+                <Lock size={18} color={COLORS.gray400} style={{ marginRight: 12 }} />
+                <TextInput
+                  style={styles.passwordInput}
+                  placeholder="Seller password"
+                  placeholderTextColor={COLORS.gray400}
+                  value={switchPassword}
+                  onChangeText={setSwitchPassword}
+                  secureTextEntry
+                  autoFocus
+                />
               </View>
             </View>
 
-            <Text style={styles.googleModalTitle}>Google Account Already Linked</Text>
-
-            <Text style={styles.googleModalMessage}>
-              This Google account is already linked to another BazaarX account. Please try signing in with a different Google account.
-            </Text>
-
-            <View style={styles.googleModalButtonContainer}>
-              <Pressable
-                style={[styles.googleModalButton, styles.googleModalButtonCancel]}
-                onPress={() => setShowGoogleAlreadyLinkedModal(false)}
+            <View style={styles.passwordModalActions}>
+              <Pressable 
+                style={styles.passwordCancelBtn} 
+                onPress={() => setSwitchModalVisible(false)}
+                disabled={isVerifyingPassword}
               >
-                <Text style={styles.googleModalButtonTextCancel}>Cancel</Text>
+                <Text style={styles.passwordCancelText}>Cancel</Text>
               </Pressable>
-
-              <Pressable
-                style={[styles.googleModalButton, styles.googleModalButtonRetry, { backgroundColor: BRAND_COLOR }]}
-                onPress={async () => {
-                  setShowGoogleAlreadyLinkedModal(false);
-                  await handleLinkGoogle();
-                }}
-                disabled={isLinkingGoogle}
+              
+              <Pressable 
+                style={[styles.passwordConfirmBtn, isVerifyingPassword && styles.disabledBtn]} 
+                onPress={confirmSellerSwitch}
+                disabled={isVerifyingPassword}
               >
-                {isLinkingGoogle ? (
-                  <ActivityIndicator color="#FFF" size="small" />
+                {isVerifyingPassword ? (
+                  <ActivityIndicator color="#FFFFFF" size="small" />
                 ) : (
-                  <Text style={styles.googleModalButtonText}>Try Another Account</Text>
+                  <>
+                    <Text style={styles.passwordConfirmText}>Verify & Switch</Text>
+                    <ArrowRight size={16} color="#FFFFFF" />
+                  </>
                 )}
               </Pressable>
             </View>
           </View>
-        </View>
+        </KeyboardAvoidingView>
       </Modal>
     </View>
   );
@@ -1093,6 +1050,12 @@ const styles = StyleSheet.create({
 
   // Modal Styles (FIXED MISSING PROPERTIES)
   modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'flex-end' },
+  centeredModalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.5)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
   modalContent: { backgroundColor: '#FFF', borderTopLeftRadius: 24, borderTopRightRadius: 24, maxHeight: '90%' },
   modalHeader: {
     flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center',
@@ -1121,77 +1084,95 @@ const styles = StyleSheet.create({
   },
   saveButtonText: { color: '#FFF', fontSize: 16, fontWeight: '700' },
 
-  // Google Already Linked Modal Styles
-  googleAlreadyLinkedModalContent: {
-    backgroundColor: '#FFF',
-    borderRadius: 20,
-    paddingHorizontal: 24,
-    paddingVertical: 28,
-    marginHorizontal: 16,
-    marginVertical: 'auto',
-    alignItems: 'center',
+
+  // Seller Password Modal Styles
+  passwordModalContent: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 24,
+    padding: 24,
+    width: '85%',
     shadowColor: '#000',
-    shadowOpacity: 0.15,
-    shadowRadius: 10,
+    shadowOffset: { width: 0, height: 10 },
+    shadowOpacity: 0.1,
+    shadowRadius: 20,
     elevation: 10,
   },
-  googleModalIconContainer: {
+  passwordModalHeader: {
+    alignItems: 'center',
+    marginBottom: 24,
+  },
+  passwordIconContainer: {
+    width: 56,
+    height: 56,
+    borderRadius: 18,
+    backgroundColor: '#FFFBEB',
+    justifyContent: 'center',
     alignItems: 'center',
     marginBottom: 16,
   },
-  googleModalIcon: {
-    width: 72,
-    height: 72,
-    borderRadius: 36,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  googleModalIconText: {
-    fontSize: 36,
-  },
-  googleModalTitle: {
-    fontSize: 18,
+  passwordModalTitle: {
+    fontSize: 20,
     fontWeight: '800',
     color: COLORS.textHeadline,
-    marginBottom: 12,
+    marginBottom: 4,
+  },
+  passwordModalSubtitle: {
+    fontSize: 14,
+    color: COLORS.textMuted,
     textAlign: 'center',
   },
-  googleModalMessage: {
-    fontSize: 14,
-    fontWeight: '500',
-    color: COLORS.textPrimary,
-    lineHeight: 21,
-    textAlign: 'center',
+  passwordInputContainer: {
     marginBottom: 24,
   },
-  googleModalButtonContainer: {
+  passwordInputWrapper: {
     flexDirection: 'row',
-    gap: 12,
-    width: '100%',
-  },
-  googleModalButton: {
-    flex: 1,
-    paddingVertical: 12,
-    borderRadius: 12,
     alignItems: 'center',
-    justifyContent: 'center',
+    backgroundColor: COLORS.gray100,
+    borderWidth: 1.5,
+    borderColor: COLORS.gray100,
+    borderRadius: 14,
+    paddingHorizontal: 16,
+    height: 52,
   },
-  googleModalButtonCancel: {
-    backgroundColor: '#F3F4F6',
-    borderWidth: 1,
-    borderColor: '#E5E7EB',
-  },
-  googleModalButtonTextCancel: {
-    fontSize: 14,
-    fontWeight: '600',
+  passwordInput: {
+    flex: 1,
+    fontSize: 16,
     color: COLORS.textHeadline,
   },
-  googleModalButtonRetry: {
-    backgroundColor: COLORS.primary,
+  passwordModalActions: {
+    flexDirection: 'row',
+    gap: 12,
   },
-  googleModalButtonText: {
-    fontSize: 14,
+  passwordCancelBtn: {
+    flex: 1,
+    height: 52,
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: COLORS.gray200,
+  },
+  passwordCancelText: {
+    fontSize: 15,
     fontWeight: '600',
-    color: '#FFF',
+    color: COLORS.gray500,
+  },
+  passwordConfirmBtn: {
+    flex: 2,
+    height: 52,
+    backgroundColor: '#D97706',
+    borderRadius: 14,
+    flexDirection: 'row',
+    justifyContent: 'center',
+    alignItems: 'center',
+    gap: 8,
+  },
+  passwordConfirmText: {
+    fontSize: 15,
+    fontWeight: '700',
+    color: '#FFFFFF',
+  },
+  disabledBtn: {
+    opacity: 0.6,
   },
 });

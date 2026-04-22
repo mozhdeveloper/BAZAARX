@@ -7,6 +7,7 @@
 import { supabase, isSupabaseConfigured } from '@/lib/supabase';
 import type { Profile, Buyer, Seller, UserRole, UserRoleRecord, FullProfile } from '@/types/database.types';
 import { generateUUID } from '@/utils/uuid';
+import { getRedirectUri } from '../utils/urlUtils';
 
 // Service-specific types
 export interface SignUpData {
@@ -142,7 +143,7 @@ export class AuthService {
         email,
         password,
         options: {
-          emailRedirectTo: 'exp://192.168.68.140:8081',
+          emailRedirectTo: getRedirectUri(),
           data: {
             ...userData,
             first_name,
@@ -483,7 +484,7 @@ export class AuthService {
       const { data, error } = await supabase.auth.signInWithOAuth({
         provider,
         options: {
-          redirectTo: 'bazaarx://auth/callback',
+          redirectTo: getRedirectUri(),
           queryParams: {
             access_type: 'offline',
             prompt: 'consent',
@@ -735,7 +736,7 @@ export class AuthService {
         type: 'signup',
         email: email,
         options: {
-          emailRedirectTo: 'exp://192.168.68.140:8081',
+          emailRedirectTo: getRedirectUri(),
         }
       });
 
@@ -804,7 +805,7 @@ export class AuthService {
 
     try {
       const { error } = await supabase.auth.resetPasswordForEmail(email, {
-        redirectTo: 'bazaarx://reset-password',
+        redirectTo: getRedirectUri().replace('auth/callback', 'reset-password'),
       });
 
       if (error) throw error;
@@ -1022,7 +1023,7 @@ export class AuthService {
       const { error } = await supabase.auth.signInWithOtp({
         email: email.trim().toLowerCase(),
         options: {
-          emailRedirectTo: 'bazaarx://auth/callback',
+          emailRedirectTo: getRedirectUri(),
         },
       });
 
