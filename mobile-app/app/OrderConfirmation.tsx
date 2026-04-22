@@ -357,7 +357,7 @@ export default function OrderConfirmation({ navigation, route }: Props) {
                   </Text>
                   {formattedDeadline && (
                     <Text style={styles.codDeadline}>
-                      Payment Due: {formattedDeadline}
+                      Estimated Payment Due: {formattedDeadline}
                     </Text>
                   )}
                 </View>
