@@ -253,8 +253,8 @@ export default function ProfileScreen({ navigation }: Props) {
   };
 
   const profile = {
-    firstName: user?.name.split(' ')[0] || 'BazaarX',
-    lastName: user?.name.split(' ').length > 1 ? user?.name.split(' ').slice(1).join(' ') : '',
+    firstName: user?.name?.split(' ')[0] || 'BazaarX',
+    lastName: user?.name && user.name.split(' ').length > 1 ? user.name.split(' ').slice(1).join(' ') : '',
     email: user?.email || 'user@bazaarx.ph',
     phone: user?.phone || 'No phone number',
     memberSince: 'January 2024',
