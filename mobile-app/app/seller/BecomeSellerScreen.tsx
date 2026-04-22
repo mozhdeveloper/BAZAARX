@@ -232,9 +232,10 @@ export default function BecomeSellerScreen() {
 
                     {/* Progress Indicator */}
                     <View style={styles.progressContainer}>
-                        <View style={styles.progressLineBase} />
-                        <View style={[styles.progressLineActive, { width: step === 1 ? '50%' : '100%' }]} />
                         <View style={styles.stepsRow}>
+                            <View style={styles.progressLineBase} />
+                            <View style={[styles.progressLineActive, step >= 2 && { right: 14 }]} />
+                            
                             <View style={[styles.stepDot, step >= 1 && styles.activeDot]}>
                                 {step > 1 ? <Check size={14} color="#FFF" /> : <Text style={styles.stepNum}>1</Text>}
                             </View>
@@ -615,23 +616,29 @@ const styles = StyleSheet.create({
     },
     progressLineBase: {
         position: 'absolute',
-        left: '20%',
-        right: '20%',
+        top: '50%',
+        left: 14,
+        right: 14,
         height: 2,
         backgroundColor: COLORS.gray200,
         zIndex: 0,
+        marginTop: -1,
     },
     progressLineActive: {
         position: 'absolute',
-        left: '20%',
+        top: '50%',
+        left: 14,
         height: 2,
         backgroundColor: COLORS.primary,
         zIndex: 1,
+        marginTop: -1,
     },
     stepsRow: {
         width: '60%',
         flexDirection: 'row',
         justifyContent: 'space-between',
+        alignItems: 'center',
+        position: 'relative',
         zIndex: 2,
     },
     stepDot: {

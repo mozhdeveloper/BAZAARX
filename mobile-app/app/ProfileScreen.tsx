@@ -254,7 +254,7 @@ export default function ProfileScreen({ navigation }: Props) {
 
   const profile = {
     firstName: user?.name.split(' ')[0] || 'BazaarX',
-    lastName: user?.name.split(' ').slice(1).join(' ') || 'User',
+    lastName: user?.name.split(' ').length > 1 ? user?.name.split(' ').slice(1).join(' ') : '',
     email: user?.email || 'user@bazaarx.ph',
     phone: user?.phone || 'No phone number',
     memberSince: 'January 2024',
@@ -521,7 +521,7 @@ export default function ProfileScreen({ navigation }: Props) {
               </Pressable>
             </View>
             <View style={styles.headerInfo}>
-              <Text style={[styles.userName, { color: '#FFFFFF' }]}>{profile.firstName} {profile.lastName}</Text>
+              <Text style={[styles.userName, { color: '#FFFFFF' }]}>{`${profile.firstName} ${profile.lastName}`.trim()}</Text>
               {contributorTier !== 'none' && (
                 <View style={{ marginTop: 4, marginBottom: 2 }}>
                   <ContributorBadge tier={contributorTier} size="sm" />
