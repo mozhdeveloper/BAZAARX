@@ -84,59 +84,75 @@ export default function CategoryPreferenceScreen({ navigation, route }: Props) {
     setIsSaving(true);
 
     try {
-      // 1. Get current user ID
+      // 1. Get current user ID or perform signup
       let { data: { user: currentUser } } = await supabase.auth.getUser();
       let userId = currentUser?.id || useAuthStore.getState().user?.id;
+      let needsEmailVerification = false;
 
-      // Fallback: If no userId found, try one last sync with the store
       if (!userId) {
-        console.log('[CategoryPreference] UserId missing, attempting store sync...');
-        await useAuthStore.getState().checkSession();
-        userId = useAuthStore.getState().user?.id;
+        console.log('[CategoryPreference] No active user found, performing signUp...');
+        
+        // PERFORM THE ACTUAL SIGNUP NOW
+        const result = await authService.signUp(signupData.email, signupData.password, {
+          first_name: signupData.firstName,
+          last_name: signupData.lastName,
+          full_name: `${signupData.firstName} ${signupData.lastName}`,
+          phone: signupData.phone,
+          user_type: signupData.user_type || 'buyer',
+          email: signupData.email,
+          password: signupData.password,
+          has_accepted_terms: true,
+        });
+
+        if (!result?.user) {
+          throw new Error('Failed to create account. Please try again.');
+        }
+
+        userId = result.user.id;
+        needsEmailVerification = true;
       }
 
       if (!userId) {
-        throw new Error('You must be signed in to save preferences.');
+        throw new Error('Failed to resolve user account.');
       }
 
-      // 2. Save interests to existing buyer record
-      console.log('--- FINALIZING ONBOARDING ---');
-      console.log('User ID:', userId);
-      console.log('Selected Categories:', selectedCategories);
-      console.log('Original Signup Info:', signupData);
-
+      // 2. Save interests to buyer record
+      console.log('--- SAVING PREFERENCES ---');
       await authService.updateBuyerPreferences(userId, selectedCategories);
 
-      console.log('--- ONBOARDING DATA SAVED SUCCESSFULLY ---');
-
-      // Update local store with the profile data captured during signup
-      // so it reflects immediately on the Profile screen
+      // Update local store with profile data
       const { updateProfile, checkSession } = useAuthStore.getState();
       updateProfile({
         name: `${signupData.firstName} ${signupData.lastName}`,
         phone: signupData.phone
       });
 
-      // Full sync to get bazaars/bazcoins/etc and verify session is active
-      // MUST be awaited before navigation to ensure user state is populated
-      await checkSession();
-
-      // Setup complete - clear temporary signup data
+      // Clear temporary signup data
       clearPendingSignup();
 
-      // Configure slide animation (right to left) and navigate to home
-      navigation.getParent()?.setOptions({
-        cardStyleInterpolator: CardStyleInterpolators.forHorizontalIOS,
-      });
+      if (needsEmailVerification) {
+        console.log('[CategoryPreference] Account created, navigating to EmailVerification');
+        navigation.replace('EmailVerification', { 
+          email: signupData.email, 
+          signupData 
+        });
+      } else {
+        console.log('[CategoryPreference] Session exists, navigating to Home');
+        // Full sync to get bazaars/bazcoins/etc
+        await checkSession();
+        
+        navigation.getParent()?.setOptions({
+          cardStyleInterpolator: CardStyleInterpolators.forHorizontalIOS,
+        });
 
-      navigation.reset({
-        index: 0,
-        routes: [{ name: 'MainTabs' }],
-      });
-
+        navigation.reset({
+          index: 0,
+          routes: [{ name: 'MainTabs' }],
+        });
+      }
     } catch (error: any) {
-      console.error('Signup Error:', error);
-      Alert.alert('Error', error.message || 'Failed to create account.');
+      console.error('Signup/Onboarding Error:', error);
+      Alert.alert('Error', error.message || 'Failed to complete profile setup.');
     } finally {
       setIsSaving(false);
     }

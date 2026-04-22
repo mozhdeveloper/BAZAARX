@@ -119,7 +119,7 @@ export const useAuthStore = create<AuthState>()(
             // Use first_name + last_name (new schema, no full_name)
             const firstName = profile?.first_name || '';
             const lastName = profile?.last_name || '';
-            const fullName = `${firstName} ${lastName}`.trim() || result.user.email?.split('@')[0] || 'User';
+            const fullName = `${firstName} ${lastName}`.trim() || result.user.user_metadata?.full_name || result.user.user_metadata?.name || result.user.email?.split('@')[0] || 'User';
             // Get avatar from buyer record if available
             const buyer = await authService.getBuyerProfile(result.user.id).catch(() => null);
             
@@ -248,7 +248,7 @@ export const useAuthStore = create<AuthState>()(
             ]);
             const firstName = profile?.first_name || '';
             const lastName = profile?.last_name || '';
-            const fullName = `${firstName} ${lastName}`.trim() || sessionResult.user.email?.split('@')[0] || 'User';
+            const fullName = `${firstName} ${lastName}`.trim() || sessionResult.user.user_metadata?.full_name || sessionResult.user.user_metadata?.name || sessionResult.user.email?.split('@')[0] || 'User';
             const user: User = {
               id: sessionResult.user.id,
               email: sessionResult.user.email || '',
