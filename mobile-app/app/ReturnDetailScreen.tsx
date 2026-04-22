@@ -18,6 +18,7 @@ import { ArrowLeft, CheckCircle, Clock, XCircle, Package, AlertCircle, Truck, Sh
 import { LinearGradient } from 'expo-linear-gradient';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { COLORS } from '../src/constants/theme';
+import { ReturnMessageThread } from '../src/components/returns/ReturnMessageThread';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import type { RootStackParamList } from '../App';
 import {
@@ -159,6 +160,9 @@ export default function ReturnDetailScreen({ route, navigation }: Props) {
   // Mark-as-shipped modal state
   const [shipModalOpen, setShipModalOpen] = useState(false);
   const [shipTracking, setShipTracking] = useState('');
+
+  // Message thread open state
+  const [msgThreadOpen, setMsgThreadOpen] = useState(false);
 
   const handleConfirmShipped = async () => {
     if (!returnRequest) return;
@@ -585,6 +589,27 @@ export default function ReturnDetailScreen({ route, navigation }: Props) {
             </View>
           </View>
         )}
+
+        {/* Message thread */}
+        <View style={[styles.card, { padding: 0 }]}>
+          <Pressable
+            onPress={() => setMsgThreadOpen((v) => !v)}
+            style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', padding: 14 }}
+          >
+            <Text style={{ fontSize: 14, fontWeight: '700', color: COLORS.textHeadline }}>
+              💬  Messages
+            </Text>
+            <Text style={{ fontSize: 12, color: COLORS.textMuted }}>
+              {msgThreadOpen ? 'Hide' : 'Show'}
+            </Text>
+          </Pressable>
+          {msgThreadOpen && (
+            <ReturnMessageThread
+              returnId={returnRequest.id}
+              senderRole="buyer"
+            />
+          )}
+        </View>
 
       </ScrollView>
 
