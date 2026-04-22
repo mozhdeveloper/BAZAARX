@@ -9,6 +9,10 @@ import {
   Image,
   Alert,
   StatusBar,
+  Modal,
+  TextInput,
+  KeyboardAvoidingView,
+  Platform,
 } from 'react-native';
 import { ArrowLeft, CheckCircle, Clock, XCircle, Package, AlertCircle, Truck, ShieldAlert, DollarSign } from 'lucide-react-native';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -143,6 +147,31 @@ export default function ReturnDetailScreen({ route, navigation }: Props) {
         },
       },
     ]);
+  };
+
+  // Mark-as-shipped modal state
+  const [shipModalOpen, setShipModalOpen] = useState(false);
+  const [shipTracking, setShipTracking] = useState('');
+
+  const handleConfirmShipped = async () => {
+    if (!returnRequest) return;
+    const tracking = shipTracking.trim();
+    if (tracking.length < 4) {
+      Alert.alert('Tracking required', 'Please enter the courier tracking number.');
+      return;
+    }
+    setActionLoading(true);
+    try {
+      await returnService.confirmReturnShipment(returnRequest.id, tracking);
+      setShipModalOpen(false);
+      setShipTracking('');
+      loadData();
+      Alert.alert('Shipment recorded', 'The seller will confirm receipt and process your refund.');
+    } catch (err: any) {
+      Alert.alert('Error', err?.message || 'Failed to record shipment.');
+    } finally {
+      setActionLoading(false);
+    }
   };
 
   const Header = () => (
@@ -454,6 +483,28 @@ export default function ReturnDetailScreen({ route, navigation }: Props) {
           </View>
         )}
 
+        {/* Buyer must ship the item back (return_required path) */}
+        {returnRequest.status === 'approved' && returnRequest.resolutionPath === 'return_required' && !returnRequest.buyerShippedAt && (
+          <View style={[styles.card, { backgroundColor: '#FFFBEB', borderColor: '#FDE68A', borderWidth: 1 }]}>
+            <View style={{ flexDirection: 'row', gap: 10, alignItems: 'flex-start' }}>
+              <Truck size={20} color="#D97706" />
+              <View style={{ flex: 1 }}>
+                <Text style={{ fontSize: 14, fontWeight: '700', color: '#92400E', marginBottom: 4 }}>Ship the item back</Text>
+                <Text style={{ fontSize: 12, color: '#92400E', lineHeight: 17 }}>
+                  Send the item back to the seller, then enter the courier tracking number to complete the refund.
+                </Text>
+              </View>
+            </View>
+            <Pressable
+              style={{ marginTop: 12, backgroundColor: '#D97706', paddingVertical: 11, borderRadius: 10, alignItems: 'center' }}
+              onPress={() => { setShipModalOpen(true); setShipTracking(returnRequest.returnTrackingNumber || ''); }}
+              disabled={actionLoading}
+            >
+              <Text style={{ color: '#FFF', fontWeight: '700', fontSize: 13 }}>Mark as Shipped</Text>
+            </Pressable>
+          </View>
+        )}
+
         {/* Seller Response Card - shown when seller has responded */}
         {(returnRequest.sellerNote || returnRequest.rejectedReason) && (
           <View style={[styles.card, { borderColor: returnRequest.status === 'rejected' ? '#FECDD3' : '#FDE68A', borderWidth: 1 }]}>
@@ -511,6 +562,58 @@ export default function ReturnDetailScreen({ route, navigation }: Props) {
         )}
 
       </ScrollView>
+
+      {/* Mark-as-shipped modal */}
+      <Modal
+        visible={shipModalOpen}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setShipModalOpen(false)}
+      >
+        <KeyboardAvoidingView
+          behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+          style={{ flex: 1, justifyContent: 'center', backgroundColor: 'rgba(0,0,0,0.5)', paddingHorizontal: 24 }}
+        >
+          <View style={{ backgroundColor: '#FFF', borderRadius: 16, padding: 20 }}>
+            <Text style={{ fontSize: 17, fontWeight: '700', color: COLORS.textHeadline, marginBottom: 6 }}>Mark Return as Shipped</Text>
+            <Text style={{ fontSize: 13, color: COLORS.textMuted, marginBottom: 16, lineHeight: 18 }}>
+              Enter the courier tracking number so the seller can confirm receipt.
+            </Text>
+            <TextInput
+              value={shipTracking}
+              onChangeText={setShipTracking}
+              placeholder="e.g. JT0123456789PH"
+              placeholderTextColor="#9CA3AF"
+              autoCapitalize="characters"
+              style={{
+                borderWidth: 1, borderColor: '#E5E7EB', borderRadius: 10,
+                paddingHorizontal: 12, paddingVertical: 11, fontSize: 14, color: COLORS.textHeadline,
+                marginBottom: 16,
+              }}
+            />
+            <View style={{ flexDirection: 'row', gap: 10 }}>
+              <Pressable
+                onPress={() => { setShipModalOpen(false); setShipTracking(''); }}
+                style={{ flex: 1, paddingVertical: 11, borderRadius: 10, alignItems: 'center', borderWidth: 1, borderColor: '#E5E7EB' }}
+              >
+                <Text style={{ fontSize: 13, fontWeight: '600', color: COLORS.textHeadline }}>Cancel</Text>
+              </Pressable>
+              <Pressable
+                onPress={handleConfirmShipped}
+                disabled={actionLoading || shipTracking.trim().length < 4}
+                style={{
+                  flex: 1, paddingVertical: 11, borderRadius: 10, alignItems: 'center',
+                  backgroundColor: actionLoading || shipTracking.trim().length < 4 ? '#FCD34D' : '#D97706',
+                }}
+              >
+                <Text style={{ fontSize: 13, fontWeight: '700', color: '#FFF' }}>
+                  {actionLoading ? 'Saving...' : 'Confirm'}
+                </Text>
+              </Pressable>
+            </View>
+          </View>
+        </KeyboardAvoidingView>
+      </Modal>
     </View>
   );
 }

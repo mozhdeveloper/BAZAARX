@@ -616,6 +616,11 @@ class ReturnService {
         // Notify Buyer
         await this.notifyBuyerOfReturnUpdate(orderId, "approved");
       }
+      await this.logAuditAction(
+        isReplacement ? 'return.replacement_approved' : 'return.approved',
+        returnId,
+        { order_id: orderId, return_type: returnData?.return_type }
+      );
     } catch (error: any) {
       console.error("Failed to approve return:", error);
       throw new Error(error.message || "Failed to approve return");
@@ -665,6 +670,7 @@ class ReturnService {
         // Notify Buyer
         await this.notifyBuyerOfReturnUpdate(orderId, "rejected", reason);
       }
+      await this.logAuditAction('return.rejected', returnId, { order_id: orderId, reason });
     } catch (error: any) {
       console.error("Failed to reject return:", error);
       throw new Error(error.message || "Failed to reject return");
@@ -904,6 +910,40 @@ class ReturnService {
 
       // Notify Buyer
       await this.notifyBuyerOfReturnUpdate(ret.order_id, isReplacement ? "approved" : "refunded");
+    }
+    await this.logAuditAction(
+      isReplacement ? 'return.replacement_received' : 'return.refunded',
+      returnId,
+      { order_id: ret?.order_id }
+    );
+  }
+
+  /**
+   * Best-effort write to admin_action_log so that every refund-impacting action
+   * leaves a trail. Silently no-ops if the table doesn't exist or the user
+   * isn't authenticated (the row won't satisfy RLS).
+   */
+  private async logAuditAction(
+    action: string,
+    returnId: string,
+    metadata: Record<string, unknown> = {},
+  ): Promise<void> {
+    try {
+      const { data: userData } = await supabase.auth.getUser();
+      const adminId = userData?.user?.id ?? null;
+      const { error } = await supabase.from('admin_action_log').insert({
+        admin_id: adminId,
+        action,
+        target_type: 'refund_return_period',
+        target_id: returnId,
+        metadata,
+      });
+      // 42P01 = table missing, 42501 = RLS denial: both are non-fatal here.
+      if (error && !['42P01', '42501', 'PGRST205'].includes((error as { code?: string }).code || '')) {
+        console.warn('audit log write failed:', error.message);
+      }
+    } catch (err) {
+      console.warn('audit log write threw:', err);
     }
   }
 
