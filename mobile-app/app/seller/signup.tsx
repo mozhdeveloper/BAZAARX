@@ -27,19 +27,12 @@ export default function SellerSignupScreen() {
     const [showConfirmPassword, setShowConfirmPassword] = useState(false);
     const [acceptedTerms, setAcceptedTerms] = useState(false);
     const [showTermsModal, setShowTermsModal] = useState(false);
-    const [checking, setChecking] = useState(false);
-    const [resendCooldown, setResendCooldown] = useState(0);
-    const intervalRef = useRef<any>(null);
 
     // Validation States
     const [emailStatus, setEmailStatus] = useState<'idle' | 'checking' | 'available' | 'taken'>('idle');
     const [emailMode, setEmailMode] = useState<'new' | 'buyer-only' | 'blocked' | null>(null);
     const [storeStatus, setStoreStatus] = useState<'idle' | 'checking' | 'available' | 'taken'>('idle');
     const [emailMessage, setEmailMessage] = useState('');
-
-    // Verification States
-    const [verificationSent, setVerificationSent] = useState(false);
-    const [pendingEmail, setPendingEmail] = useState('');
 
     const {
         control,
@@ -164,210 +157,61 @@ export default function SellerSignupScreen() {
         return () => clearTimeout(timeoutId);
     }, [trimmedStoreName]);
 
-    // Add polling cleanup
-    useEffect(() => {
-        return () => {
-            if (intervalRef.current) clearInterval(intervalRef.current);
-        };
-    }, []);
-
-    // Cooldown timer logic
-    useEffect(() => {
-        let timer: any;
-        if (resendCooldown > 0) {
-            timer = setInterval(() => {
-                setResendCooldown((prev) => prev - 1);
-            }, 1000);
-        }
-        return () => clearInterval(timer);
-    }, [resendCooldown]);
-
     const handleNextStep = async () => {
         const isValidStep1 = await trigger(['email', 'password', 'confirmPassword']);
-        if (isValidStep1 && emailStatus !== 'taken') {
-            await startVerification();
-        }
-    };
-
-    const startVerification = async () => {
-        setLoading(true);
-        try {
-            const email = watch('email').trim().toLowerCase();
-            const password = watch('password');
-            setPendingEmail(email);
-
-            const status = await authService.getEmailRoleStatus(email);
-            
-            if (status.exists) {
-                // User already exists (likely a buyer)
-                // We check if they are already verified
-                const isVerified = await authService.checkVerificationStatus(email);
-                if (isVerified) {
-                    setStep(3);
-                    return;
-                }
-                // If not verified, resend link
-                await authService.resendVerificationLink(email);
-            } else {
-                // New user - sign up
-                await authService.signUp(email, password, {
-                    user_type: 'buyer', // Default to buyer first, then add seller in step 3
-                    email: email,
-                    password: password,
-                    has_accepted_terms: true,
-                });
-            }
-
-            setVerificationSent(true);
+        if (isValidStep1 && emailStatus !== 'taken' && acceptedTerms) {
             setStep(2);
-            startPolling();
-            setResendCooldown(60);
-        } catch (err: any) {
-            Alert.alert('Error', err.message || 'Failed to start verification.');
-        } finally {
-            setLoading(false);
         }
     };
 
-    const startPolling = () => {
-        if (intervalRef.current) clearInterval(intervalRef.current);
-        intervalRef.current = setInterval(async () => {
-            try {
-                const verified = await authService.checkVerificationStatus(pendingEmail);
-                if (verified) {
-                    stopPolling();
-                    setStep(3);
-                }
-            } catch (e) {
-                console.error('Polling error:', e);
-            }
-        }, 3000);
-    };
-
-    const stopPolling = () => {
-        if (intervalRef.current) {
-            clearInterval(intervalRef.current);
-            intervalRef.current = null;
-        }
-    };
-
-    const checkVerificationManually = async () => {
-        setChecking(true);
-        try {
-            const verified = await authService.checkVerificationStatus(pendingEmail);
-            if (verified) {
-                stopPolling();
-                setStep(3);
-            } else {
-                Alert.alert('Not Verified Yet', 'Please click the link in your email to continue.');
-            }
-        } catch (err: any) {
-            Alert.alert('Error', err.message || 'Failed to check status.');
-        } finally {
-            setChecking(false);
-        }
-    };
-
-    const resendLink = async () => {
-        if (resendCooldown > 0) return;
-        setLoading(true);
-        try {
-            await authService.resendVerificationLink(pendingEmail);
-            setResendCooldown(60);
-            Alert.alert('Link Resent', 'A new confirmation link has been sent to your email.');
-        } catch (err: any) {
-            Alert.alert('Error', err.message || 'Failed to resend link.');
-        } finally {
-            setLoading(false);
-        }
-    };
-
-    const handleFinalSignup = async (formData: SellerSignupFormData) => {
+    const handleSubmitForm = async (formData: SellerSignupFormData) => {
         setLoading(true);
         try {
             const normalizedEmail = formData.email.trim().toLowerCase();
             
-            // Ensure we have a valid session after verification
-            await useAuthStore.getState().checkSession();
-            let currentUser = useAuthStore.getState().user;
+            // Check if email already exists
+            const status = await authService.getEmailRoleStatus(normalizedEmail);
+            
+            const signupData = {
+                firstName: formData.storeName.split(' ')[0],
+                lastName: formData.storeName.split(' ').slice(1).join(' ') || 'Store',
+                email: normalizedEmail,
+                password: formData.password,
+                phone: formData.phone,
+                storeName: formData.storeName,
+                storeAddress: formData.storeAddress,
+                storeDescription: formData.storeDescription,
+                user_type: 'seller' as const
+            };
 
-            // If no session exists (e.g., they verified in a different browser and deep-linking failed),
-            // we attempt a silent login since we have their email and password from the form
-            if (!currentUser) {
-                const { data: signInData, error: signInError } = await supabase.auth.signInWithPassword({
+            // Persist signup data to store to survive deep link redirects
+            useGlobalAuthStore.getState().setPendingSignup(signupData);
+
+            if (status.exists) {
+                // If it already exists (likely buyer), we check if verified
+                const isVerified = await authService.checkVerificationStatus(normalizedEmail);
+                if (isVerified) {
+                    // Navigate to finalizer immediately since already verified
+                    navigation.replace('SellerFinalize');
+                    return;
+                }
+                // Resend link and go to email verification
+                await authService.resendVerificationLink(normalizedEmail);
+            } else {
+                // New user - sign up with Auth
+                await authService.signUp(normalizedEmail, formData.password, {
+                    user_type: 'buyer', // Initialize as buyer in Auth, finalized later
                     email: normalizedEmail,
                     password: formData.password,
+                    has_accepted_terms: true,
                 });
-                
-                if (signInError) throw new Error('Credentials mismatch. Please log in again.');
-                currentUser = {
-                    id: signInData.user.id,
-                    email: signInData.user.email || '',
-                    name: formData.storeName,
-                    roles: ['buyer'] // Default
-                } as any;
             }
 
-            if (!currentUser?.id) throw new Error('Account initialization failed.');
-            const userId = currentUser.id;
-
-            // 1. Create/Ensure Profile data is updated
-            await supabase
-                .from('profiles')
-                .update({
-                    first_name: formData.storeName,
-                    phone: formData.phone,
-                })
-                .eq('id', userId);
-
-            // 2. Add 'seller' role
-            await authService.addUserRole(userId, 'seller');
-
-            // 3. Create or Update Seller core record
-            const { error: sellerError } = await supabase
-                .from('sellers')
-                .upsert({
-                    id: userId,
-                    store_name: formData.storeName,
-                    store_description: formData.storeDescription || '',
-                    approval_status: 'pending',
-                    updated_at: new Date().toISOString()
-                }, { onConflict: 'id' });
-
-            if (sellerError) throw sellerError;
-
-            // 4. Create or Update Seller Business Profile (for address)
-            const { error: bizProfileError } = await supabase
-                .from('seller_business_profiles')
-                .upsert({
-                    seller_id: userId,
-                    address_line_1: formData.storeAddress,
-                    updated_at: new Date().toISOString()
-                }, { onConflict: 'seller_id' });
-
-            if (bizProfileError) throw bizProfileError;
-
-            // 4. Update Global Store & Switch to Seller
-            updateSellerInfo({
-                id: userId,
-                store_name: formData.storeName,
-                email: normalizedEmail,
-                approval_status: 'pending'
-            });
-
-            addRole('seller');
-            switchRole('seller');
-
-            // Sync with Global Auth Store to ensure root navigation respects the role
-            useGlobalAuthStore.getState().addRole('seller');
-            useGlobalAuthStore.getState().switchRole('seller');
-
-            Alert.alert('Success', 'Application submitted! We will review your shop.', [
-                { text: 'OK', onPress: () => navigation.replace('SellerStack') }
-            ]);
+            // Navigate to verification screen
+            navigation.replace('EmailVerification', { email: normalizedEmail, signupData });
         } catch (err: any) {
-            console.error('Final signup error:', err);
-            Alert.alert('Error', err.message || 'Signup completion failed.');
+            console.error('Submit form error:', err);
+            Alert.alert('Error', err.message || 'Signup initialization failed.');
         } finally {
             setLoading(false);
         }
@@ -396,22 +240,18 @@ export default function SellerSignupScreen() {
                     {/* Progress Indicator */}
                     <View style={styles.progressContainer}>
                         <View style={styles.progressLineBase} />
-                        <View style={[styles.progressLineActive, { width: step === 1 ? '0%' : step === 2 ? '50%' : '100%' }]} />
+                        <View style={[styles.progressLineActive, step === 1 ? { width: '0%' } : { right: 40 }]} />
                         <View style={styles.stepsRow}>
                             <View style={[styles.stepDot, step >= 1 && styles.activeDot]}>
                                 {step > 1 ? <Check size={14} color="#FFF" /> : <Text style={styles.stepNum}>1</Text>}
                             </View>
                             <View style={[styles.stepDot, step >= 2 && styles.activeDot]}>
-                                {step > 2 ? <Check size={14} color="#FFF" /> : <Text style={[styles.stepNum, step < 2 && styles.inactiveNum]}>2</Text>}
-                            </View>
-                            <View style={[styles.stepDot, step >= 3 && styles.activeDot]}>
-                                <Text style={[styles.stepNum, step < 3 && styles.inactiveNum]}>3</Text>
+                                <Text style={[styles.stepNum, step < 2 && styles.inactiveNum]}>2</Text>
                             </View>
                         </View>
                         <View style={styles.stepLabels}>
                             <Text style={[styles.stepLabel, step >= 1 && styles.activeLabel]}>Account</Text>
-                            <Text style={[styles.stepLabel, step >= 2 && styles.activeLabel]}>Email</Text>
-                            <Text style={[styles.stepLabel, step >= 3 && styles.activeLabel]}>Store</Text>
+                            <Text style={[styles.stepLabel, step >= 2 && styles.activeLabel]}>Store</Text>
                         </View>
                     </View>
 
@@ -521,99 +361,22 @@ export default function SellerSignupScreen() {
                                     </View>
                                 </View>
 
-                                <Pressable
-                                    style={[
-                                        styles.primaryButton, 
-                                        (loading || emailStatus === 'checking' || emailStatus === 'taken' || !acceptedTerms || !watch('email') || !watch('password') || !watch('confirmPassword')) && styles.buttonDisabled
-                                    ]}
-                                    onPress={handleNextStep}
-                                    disabled={loading || emailStatus === 'checking' || emailStatus === 'taken' || !acceptedTerms || !watch('email') || !watch('password') || !watch('confirmPassword')}
-                                >
-                                    {loading ? <ActivityIndicator color="#FFF" /> : (
-                                        <>
-                                            <Text style={styles.buttonText}>Next: Verify Email</Text>
-                                            <ArrowRight size={20} color="#FFF" />
-                                        </>
-                                    )}
-                                </Pressable>
+                                    <Pressable
+                                        style={[
+                                            styles.primaryButton, 
+                                            (emailStatus === 'checking' || emailStatus === 'taken' || !acceptedTerms || !watch('email') || !watch('password') || !watch('confirmPassword')) && styles.buttonDisabled
+                                        ]}
+                                        onPress={handleNextStep}
+                                        disabled={emailStatus === 'checking' || emailStatus === 'taken' || !acceptedTerms || !watch('email') || !watch('password') || !watch('confirmPassword')}
+                                    >
+                                        <Text style={styles.buttonText}>Next: Store Details</Text>
+                                        <ArrowRight size={20} color="#FFF" />
+                                    </Pressable>
                             </View>
                         </View>
                         
-                        {/* Step 2: Confirmation Link Verification */}
+                        {/* Step 2: Store Details */}
                         <View style={{ display: step === 2 ? 'flex' : 'none' }}>
-                            <View style={styles.stepContent}>
-                                <View style={styles.emailVerifyContainer}>
-                                    <View style={styles.mailIconCircle}>
-                                        <Mail size={48} color="#D97706" />
-                                    </View>
-                                    <Text style={[styles.verifyTitle, { color: COLORS.textHeadline }]}>Confirm Your Email</Text>
-                                    <Text style={[styles.verifySubtitle, { color: COLORS.textMuted }]}>
-                                        We've sent a confirmation link to{'\n'}
-                                        <Text style={{ fontWeight: '700', color: COLORS.textHeadline }}>{pendingEmail}</Text>
-                                    </Text>
-                                    
-                                    <View style={styles.instructionCard}>
-                                        <View style={styles.instructionRow}>
-                                            <View style={styles.instructionDot}>
-                                                <Text style={styles.instructionNum}>1</Text>
-                                            </View>
-                                            <Text style={styles.instructionText}>Check your inbox and spam folder</Text>
-                                        </View>
-                                        <View style={styles.instructionRow}>
-                                            <View style={styles.instructionDot}>
-                                                <Text style={styles.instructionNum}>2</Text>
-                                            </View>
-                                            <Text style={styles.instructionText}>Click the verification link in the email</Text>
-                                        </View>
-                                        <View style={styles.instructionRow}>
-                                            <View style={styles.instructionDot}>
-                                                <Text style={styles.instructionNum}>3</Text>
-                                            </View>
-                                            <Text style={styles.instructionText}>Return here to complete your setup</Text>
-                                        </View>
-                                    </View>
-                                </View>
-
-                                <Pressable
-                                    style={[styles.primaryButton, (checking) && styles.buttonDisabled]}
-                                    onPress={checkVerificationManually}
-                                    disabled={checking}
-                                >
-                                    {checking ? <ActivityIndicator color="#FFF" /> : (
-                                        <>
-                                            <Text style={styles.buttonText}>I've Verified My Email</Text>
-                                            <ArrowRight size={20} color="#FFF" />
-                                        </>
-                                    )}
-                                </Pressable>
-
-                                <View style={styles.resendContainer}>
-                                    <View style={styles.cooldownRow}>
-                                        <Clock size={16} color={COLORS.gray400} />
-                                        <Text style={[styles.resendText, { color: COLORS.textMuted }]}>
-                                            {resendCooldown > 0 
-                                                ? `Resend available in ${resendCooldown}s` 
-                                                : "Didn't receive the link?"}
-                                        </Text>
-                                    </View>
-                                    <Pressable onPress={resendLink} disabled={loading || resendCooldown > 0}>
-                                        <Text style={[styles.resendLink, (loading || resendCooldown > 0) && styles.resendDisabled]}>Resend Link</Text>
-                                    </Pressable>
-                                </View>
-
-                                <Pressable
-                                    style={styles.backBtn}
-                                    onPress={() => {
-                                        stopPolling();
-                                        setStep(1);
-                                    }}
-                                >
-                                    <Text style={styles.backBtnText}>← Back to Account</Text>
-                                </Pressable>
-                            </View>
-                        </View>
-
-                        <View style={{ display: step === 3 ? 'flex' : 'none' }}>
                             <View style={styles.stepContent}>
                                 <View style={styles.inputContainer}>
                                     <Text style={styles.label}>Store Name</Text>
@@ -706,12 +469,12 @@ export default function SellerSignupScreen() {
                                 </View>
 
                                 <View style={styles.buttonRow}>
-                                    <Pressable style={styles.backBtn} onPress={() => setStep(2)}>
+                                    <Pressable style={styles.backBtn} onPress={() => setStep(1)}>
                                         <Text style={styles.backBtnText}>Back</Text>
                                     </Pressable>
                                     <Pressable
                                         style={[styles.primaryButton, { flex: 2 }, (loading || storeStatus === 'checking' || storeStatus === 'taken') && styles.buttonDisabled]}
-                                        onPress={handleSubmit(handleFinalSignup, (errs) => {
+                                        onPress={handleSubmit(handleSubmitForm, (errs) => {
                                             const firstError = Object.values(errs)[0];
                                             if (firstError) {
                                                 Alert.alert('Form Missing Data', firstError.message || 'Please check all fields.');
