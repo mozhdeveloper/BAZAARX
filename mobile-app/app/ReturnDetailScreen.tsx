@@ -42,6 +42,7 @@ const formatReturnType = (t: string | null | undefined): string => {
   const map: Record<string, string> = {
     return_refund: 'Return & Refund',
     refund_only: 'Refund Only',
+    partial_refund: 'Partial Refund (Missing Items)',
     replacement: 'Replacement',
     bazcoin: 'BazCoin Compensation',
   };
@@ -50,9 +51,15 @@ const formatReturnType = (t: string | null | undefined): string => {
 
 const formatReturnReason = (r: string | null | undefined): string => {
   if (!r) return '—';
+  // Strip appended description (stored as "reason - description")
+  const reasonKey = r.split(' - ')[0].trim();
   const map: Record<string, string> = {
-    damaged: 'Damaged',
-    wrong_item: 'Wrong Item',
+    damaged: 'Received Damaged Item',
+    wrong_item: 'Received Incorrect Item',
+    did_not_receive_empty: 'Did Not Receive — Empty Parcel',
+    did_not_receive_not_delivered: 'Did Not Receive — Order Not Delivered',
+    did_not_receive_missing_items: 'Did Not Receive — Missing Item / Incomplete Order',
+    // Legacy backwards-compat
     not_as_described: 'Not as Described',
     defective: 'Defective',
     missing_parts: 'Missing Parts',
@@ -60,7 +67,7 @@ const formatReturnReason = (r: string | null | undefined): string => {
     duplicate_order: 'Duplicate Order',
     other: 'Other',
   };
-  return map[r] || r.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
+  return map[reasonKey] || reasonKey.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
 };
 
 const formatOrderStatus = (s: string | null | undefined): string => {
@@ -364,21 +371,39 @@ export default function ReturnDetailScreen({ route, navigation }: Props) {
           )}
         </View>
 
-        {/* Evidence Photos */}
-        {(returnRequest.evidenceUrls ?? []).length > 0 && (
-          <View style={styles.card}>
-            <Text style={styles.sectionTitle}>Evidence Photos</Text>
-            <ScrollView horizontal showsHorizontalScrollIndicator={false}>
-              {returnRequest.evidenceUrls!.map((url, idx) => (
-                <Image
-                  key={idx}
-                  source={{ uri: url }}
-                  style={{ width: 90, height: 90, borderRadius: 12, marginRight: 10, backgroundColor: '#F3F4F6' }}
-                />
+        {/* Evidence (Photos & Videos) */}
+        {(returnRequest.evidenceUrls ?? []).length > 0 && (() => {
+          const isVideoUrl = (url: string) => /\.(mp4|mov|avi)(\?|$)/i.test(url);
+          const photoUrls = (returnRequest.evidenceUrls ?? []).filter((u) => !isVideoUrl(u));
+          const videoUrls = (returnRequest.evidenceUrls ?? []).filter((u) => isVideoUrl(u));
+          return (
+            <View style={styles.card}>
+              <Text style={styles.sectionTitle}>Evidence</Text>
+              {photoUrls.length > 0 && (
+                <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginBottom: videoUrls.length > 0 ? 12 : 0 }}>
+                  {photoUrls.map((url, idx) => (
+                    <Image
+                      key={idx}
+                      source={{ uri: url }}
+                      style={{ width: 90, height: 90, borderRadius: 12, marginRight: 10, backgroundColor: '#F3F4F6' }}
+                    />
+                  ))}
+                </ScrollView>
+              )}
+              {videoUrls.map((url, idx) => (
+                <View
+                  key={`video-${idx}`}
+                  style={{ flexDirection: 'row', alignItems: 'center', gap: 10, backgroundColor: '#FFF7ED', borderRadius: 10, padding: 10, marginTop: 4 }}
+                >
+                  <Truck size={18} color={COLORS.primary} />
+                  <Text style={{ fontSize: 13, color: '#92400E', fontWeight: '600', flex: 1 }} numberOfLines={1}>
+                    Video {idx + 1}{' '}(unboxing)
+                  </Text>
+                </View>
               ))}
-            </ScrollView>
-          </View>
-        )}
+            </View>
+          );
+        })()}
 
         {/* Counter-Offer Card */}
         {returnRequest.status === 'counter_offered' && returnRequest.counterOfferAmount != null && (
