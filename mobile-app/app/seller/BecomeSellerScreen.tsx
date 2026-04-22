@@ -10,34 +10,63 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { Store, Phone, CheckCircle2, XCircle, ArrowLeft, MapPin, AlignLeft } from 'lucide-react-native';
 import { useNavigation } from '@react-navigation/native';
 import { supabase } from '../../src/lib/supabase';
-import { useSellerStore } from '../../src/stores/sellerStore';
-import { becomeSellerSchema, type BecomeSellerFormData } from '../../src/lib/schemas';
+import { useSellerStore, useAuthStore } from '../../src/stores/sellerStore';
+import { useAuthStore as useGlobalAuthStore } from '../../src/stores/authStore';
+import { becomeSellerTwoStepSchema, type BecomeSellerTwoStepFormData } from '../../src/lib/schemas';
 import { COLORS } from '../../src/constants/theme';
+import { Lock, Eye, EyeOff, Check, ChevronRight, Mail } from 'lucide-react-native';
 
 export default function BecomeSellerScreen() {
     const navigation = useNavigation<any>();
-    const { user, updateSellerInfo, addRole, switchRole } = useSellerStore();
+    const { updateSellerInfo, addRole, switchRole } = useSellerStore();
+    // Bug fix: Read email from the global auth store, not the seller store
+    // (seller store user is null when the user is a buyer becoming a seller)
+    const globalUser = useGlobalAuthStore((s) => s.user);
     const [isLoading, setIsLoading] = useState(false);
     const [storeStatus, setStoreStatus] = useState<'idle' | 'checking' | 'available' | 'taken'>('idle');
+    const [step, setStep] = useState(1);
+    const [showPassword, setShowPassword] = useState(false);
+    const [showConfirmPassword, setShowConfirmPassword] = useState(false);
 
     const {
         control,
         handleSubmit,
         watch,
-        setValue,
-        formState: { errors, isValid },
-    } = useForm<BecomeSellerFormData>({
-        resolver: zodResolver(becomeSellerSchema),
+        trigger,
+        formState: { errors },
+    } = useForm<BecomeSellerTwoStepFormData>({
+        resolver: zodResolver(becomeSellerTwoStepSchema),
         mode: 'onChange',
         defaultValues: {
             storeName: '',
-            phone: user?.phone || '',
+            phone: globalUser?.phone || '',
             storeAddress: '',
             storeDescription: '',
+            password: '',
+            confirmPassword: '',
         },
     });
 
-    const watchedStoreName = watch('storeName');
+    // Watch individual fields for per-step validity instead of relying on isValid
+    const [watchedStoreName, watchedPhone, watchedAddress, watchedPassword, watchedConfirm] =
+        watch(['storeName', 'phone', 'storeAddress', 'password', 'confirmPassword']);
+
+    // Step 1 is ready when required store fields are filled and store name is not taken
+    const isStep1Ready =
+        watchedStoreName?.trim().length >= 3 &&
+        !!watchedPhone &&
+        watchedAddress?.trim().length >= 5 &&
+        storeStatus !== 'taken' &&
+        storeStatus !== 'checking';
+
+    // Step 2 is ready when both password fields are filled and match, with no errors
+    const isStep2Ready =
+        watchedPassword?.length >= 8 &&
+        watchedConfirm?.length >= 1 &&
+        watchedPassword === watchedConfirm &&
+        !errors.password &&
+        !errors.confirmPassword;
+
 
     // --- LIVE STORE NAME CHECK ---
     useEffect(() => {
@@ -66,7 +95,17 @@ export default function BecomeSellerScreen() {
         return () => clearTimeout(timeoutId);
     }, [watchedStoreName]);
 
-    const onSubmit = async (data: BecomeSellerFormData) => {
+    const handleNextStep = async () => {
+        const isStepValid = await trigger(['storeName', 'phone', 'storeAddress']);
+        if (isStepValid && storeStatus !== 'taken' && storeStatus !== 'checking') {
+            setStep(2);
+        } else if (storeStatus === 'taken') {
+            Alert.alert('Store Name Taken', 'Please choose another name for your shop.');
+        }
+    };
+
+    const onSubmit = async (data: BecomeSellerTwoStepFormData) => {
+        console.log('Submitting BecomeSeller form...', data);
         if (storeStatus === 'taken') {
             Alert.alert('Error', 'Store name is already taken');
             return;
@@ -77,12 +116,23 @@ export default function BecomeSellerScreen() {
         try {
             // Get current user directly from Supabase to ensure we have the correct ID
             const { data: { user: authUser }, error: authError } = await supabase.auth.getUser();
-            
+
             if (authError || !authUser) {
                 throw new Error('User session not found. Please login again.');
             }
 
             const userId = authUser.id;
+
+            // Update user password for the "Seller Account Variant"
+            // This sets the separate password for this identity/account
+            const { error: passwordError } = await supabase.auth.updateUser({
+                password: data.password
+            });
+
+            if (passwordError) {
+                console.error('Password update error:', passwordError);
+                throw new Error(`Failed to set seller password: ${passwordError.message}`);
+            }
 
             // 1. Add seller role to user_roles table (new normalized schema)
             const { error: roleError } = await supabase
@@ -113,7 +163,7 @@ export default function BecomeSellerScreen() {
                 id: userId,
                 store_name: data.storeName,
                 store_description: data.storeDescription || null,
-                owner_name: user?.name || null,
+                owner_name: globalUser?.name || null,
                 approval_status: 'pending'
             });
 
@@ -136,9 +186,13 @@ export default function BecomeSellerScreen() {
             addRole('seller');
             switchRole('seller');
 
+            // 6. Sync with Global Auth Store
+            useGlobalAuthStore.getState().addRole('seller');
+            useGlobalAuthStore.getState().switchRole('seller');
+
             Alert.alert(
                 'Success',
-                'Your store has been created!',
+                'Your store has been created and your seller variant is active!',
                 [{ text: 'Go to Dashboard', onPress: () => navigation.replace('SellerStack') }]
             );
 
@@ -162,140 +216,262 @@ export default function BecomeSellerScreen() {
                 >
                     {/* Header */}
                     <View style={styles.header}>
-                        <Pressable style={styles.backButton} onPress={() => navigation.goBack()}>
+                        <Pressable style={styles.backButton} onPress={() => step === 2 ? setStep(1) : navigation.goBack()}>
                             <ArrowLeft size={20} color={COLORS.gray600} />
                         </Pressable>
                         <View style={styles.logoContainer}>
                             <Store size={32} color={COLORS.primary} strokeWidth={2} />
                         </View>
                         <Text style={styles.title}>Setup Your Store</Text>
-                        <Text style={styles.subtitle}>Enter your business details to start selling.</Text>
+                        <Text style={styles.subtitle}>
+                            {step === 1
+                                ? 'Enter your business details to start selling.'
+                                : 'Secure your seller account with a password.'}
+                        </Text>
+                    </View>
+
+                    {/* Progress Indicator */}
+                    <View style={styles.progressContainer}>
+                        <View style={styles.progressLineBase} />
+                        <View style={[styles.progressLineActive, { width: step === 1 ? '50%' : '100%' }]} />
+                        <View style={styles.stepsRow}>
+                            <View style={[styles.stepDot, step >= 1 && styles.activeDot]}>
+                                {step > 1 ? <Check size={14} color="#FFF" /> : <Text style={styles.stepNum}>1</Text>}
+                            </View>
+                            <View style={[styles.stepDot, step >= 2 && styles.activeDot]}>
+                                <Text style={[styles.stepNum, step < 2 && styles.inactiveNum]}>2</Text>
+                            </View>
+                        </View>
+                        <View style={styles.stepLabels}>
+                            <Text style={[styles.stepLabel, step >= 1 && styles.activeLabel]}>Store Details</Text>
+                            <Text style={[styles.stepLabel, step >= 2 && styles.activeLabel]}>Security</Text>
+                        </View>
                     </View>
 
                     {/* Form */}
+                    {/* Form */}
                     <View style={styles.form}>
-                        {/* Store Name */}
-                        <View style={styles.inputContainer}>
-                            <Text style={styles.label}>Store Name</Text>
-                            <Controller
-                                control={control}
-                                name="storeName"
-                                render={({ field: { onChange, onBlur, value } }) => (
-                                    <View style={[
-                                        styles.inputWrapper,
-                                        errors.storeName && styles.inputWrapperError,
-                                        storeStatus === 'taken' && styles.inputWrapperError
-                                    ]}>
-                                        <Store size={18} color={COLORS.gray400} style={styles.inputIcon} />
-                                        <TextInput
-                                            style={styles.input}
-                                            placeholder="Enter your store name"
-                                            placeholderTextColor={COLORS.gray400}
-                                            onBlur={onBlur}
-                                            onChangeText={onChange}
-                                            value={value}
-                                            autoCapitalize="words"
-                                        />
-                                        {storeStatus === 'checking' && <ActivityIndicator size="small" color={COLORS.primary} />}
-                                        {storeStatus === 'available' && <CheckCircle2 size={18} color={COLORS.success} />}
-                                        {storeStatus === 'taken' && <XCircle size={18} color={COLORS.error} />}
-                                    </View>
-                                )}
-                            />
-                            {errors.storeName ? (
-                                <Text style={styles.errorText}>{errors.storeName.message}</Text>
-                            ) : storeStatus === 'taken' ? (
-                                <Text style={styles.errorText}>This store name is already taken</Text>
-                            ) : null}
+                        {/* Step 1: Store Details */}
+                        <View style={{ display: step === 1 ? 'flex' : 'none', gap: 20 }}>
+                            {/* Store Name */}
+                            <View style={styles.inputContainer}>
+                                <Text style={styles.label}>Store Name</Text>
+                                <Controller
+                                    control={control}
+                                    name="storeName"
+                                    render={({ field: { onChange, onBlur, value } }) => (
+                                        <View style={[
+                                            styles.inputWrapper,
+                                            errors.storeName && styles.inputWrapperError,
+                                            storeStatus === 'taken' && styles.inputWrapperError
+                                        ]}>
+                                            <Store size={18} color={COLORS.gray400} style={styles.inputIcon} />
+                                            <TextInput
+                                                style={styles.input}
+                                                placeholder="Enter your store name"
+                                                placeholderTextColor={COLORS.gray400}
+                                                onBlur={onBlur}
+                                                onChangeText={onChange}
+                                                value={value}
+                                                autoCapitalize="words"
+                                            />
+                                            {storeStatus === 'checking' && <ActivityIndicator size="small" color={COLORS.primary} />}
+                                            {storeStatus === 'available' && <CheckCircle2 size={18} color={COLORS.success} />}
+                                            {storeStatus === 'taken' && <XCircle size={18} color={COLORS.error} />}
+                                        </View>
+                                    )}
+                                />
+                                {errors.storeName ? (
+                                    <Text style={styles.errorText}>{errors.storeName.message}</Text>
+                                ) : storeStatus === 'taken' ? (
+                                    <Text style={styles.errorText}>This store name is already taken</Text>
+                                ) : null}
+                            </View>
+
+                            {/* Phone Number */}
+                            <View style={styles.inputContainer}>
+                                <Text style={styles.label}>Phone Number</Text>
+                                <Controller
+                                    control={control}
+                                    name="phone"
+                                    render={({ field: { onChange, onBlur, value } }) => (
+                                        <View style={[styles.inputWrapper, errors.phone && styles.inputWrapperError]}>
+                                            <Phone size={18} color={COLORS.gray400} style={styles.inputIcon} />
+                                            <TextInput
+                                                style={styles.input}
+                                                placeholder="09123456789"
+                                                placeholderTextColor={COLORS.gray400}
+                                                onBlur={onBlur}
+                                                onChangeText={onChange}
+                                                value={value}
+                                                keyboardType="phone-pad"
+                                            />
+                                        </View>
+                                    )}
+                                />
+                                {errors.phone && <Text style={styles.errorText}>{errors.phone.message}</Text>}
+                            </View>
+
+                            {/* Store Address */}
+                            <View style={styles.inputContainer}>
+                                <Text style={styles.label}>Store Address</Text>
+                                <Controller
+                                    control={control}
+                                    name="storeAddress"
+                                    render={({ field: { onChange, onBlur, value } }) => (
+                                        <View style={[styles.inputWrapper, errors.storeAddress && styles.inputWrapperError]}>
+                                            <MapPin size={18} color={COLORS.gray400} style={styles.inputIcon} />
+                                            <TextInput
+                                                style={styles.input}
+                                                placeholder="City, Province"
+                                                placeholderTextColor={COLORS.gray400}
+                                                onBlur={onBlur}
+                                                onChangeText={onChange}
+                                                value={value}
+                                            />
+                                        </View>
+                                    )}
+                                />
+                                {errors.storeAddress && <Text style={styles.errorText}>{errors.storeAddress.message}</Text>}
+                            </View>
+
+                            {/* Store Description */}
+                            <View style={styles.inputContainer}>
+                                <Text style={styles.label}>Store Description</Text>
+                                <Controller
+                                    control={control}
+                                    name="storeDescription"
+                                    render={({ field: { onChange, onBlur, value } }) => (
+                                        <View style={[
+                                            styles.inputWrapper,
+                                            styles.textAreaWrapper,
+                                            errors.storeDescription && styles.inputWrapperError
+                                        ]}>
+                                            <AlignLeft size={18} color={COLORS.gray400} style={[styles.inputIcon, { marginTop: 2 }]} />
+                                            <TextInput
+                                                style={[styles.input, styles.textArea]}
+                                                placeholder="Describe your store and products..."
+                                                placeholderTextColor={COLORS.gray400}
+                                                onBlur={onBlur}
+                                                onChangeText={onChange}
+                                                value={value}
+                                                multiline
+                                                numberOfLines={4}
+                                                textAlignVertical="top"
+                                            />
+                                        </View>
+                                    )}
+                                />
+                            </View>
+
+                            <Pressable
+                                style={[styles.submitButton, (!isStep1Ready || isLoading) && styles.buttonDisabled]}
+                                onPress={handleNextStep}
+                                disabled={!isStep1Ready || isLoading}
+                            >
+                                <Text style={styles.buttonText}>Continue to Security</Text>
+                                <ChevronRight size={20} color="#FFFFFF" />
+                            </Pressable>
                         </View>
 
-                        {/* Phone Number */}
-                        <View style={styles.inputContainer}>
-                            <Text style={styles.label}>Phone Number</Text>
-                            <Controller
-                                control={control}
-                                name="phone"
-                                render={({ field: { onChange, onBlur, value } }) => (
-                                    <View style={[styles.inputWrapper, errors.phone && styles.inputWrapperError]}>
-                                        <Phone size={18} color={COLORS.gray400} style={styles.inputIcon} />
-                                        <TextInput
-                                            style={styles.input}
-                                            placeholder="09123456789"
-                                            placeholderTextColor={COLORS.gray400}
-                                            onBlur={onBlur}
-                                            onChangeText={onChange}
-                                            value={value}
-                                            keyboardType="phone-pad"
-                                        />
-                                    </View>
-                                )}
-                            />
-                            {errors.phone && <Text style={styles.errorText}>{errors.phone.message}</Text>}
-                        </View>
+                        {/* Step 2: Security */}
+                        <View style={{ display: step === 2 ? 'flex' : 'none', gap: 20 }}>
+                            {/* Email — display only, sourced from the global auth session */}
+                            <View style={styles.inputContainer}>
+                                <Text style={styles.label}>Account Email</Text>
+                                <View style={[styles.inputWrapper, styles.disabledInput]}>
+                                    <Mail size={18} color={COLORS.gray400} style={styles.inputIcon} />
+                                    <Text style={[styles.input, styles.emailText]}>
+                                        {globalUser?.email || 'No email found'}
+                                    </Text>
+                                </View>
+                                <Text style={styles.helperText}>Your seller account will be linked to this email.</Text>
+                            </View>
 
-                        {/* Store Address */}
-                        <View style={styles.inputContainer}>
-                            <Text style={styles.label}>Store Address</Text>
-                            <Controller
-                                control={control}
-                                name="storeAddress"
-                                render={({ field: { onChange, onBlur, value } }) => (
-                                    <View style={[styles.inputWrapper, errors.storeAddress && styles.inputWrapperError]}>
-                                        <MapPin size={18} color={COLORS.gray400} style={styles.inputIcon} />
-                                        <TextInput
-                                            style={styles.input}
-                                            placeholder="City, Province"
-                                            placeholderTextColor={COLORS.gray400}
-                                            onBlur={onBlur}
-                                            onChangeText={onChange}
-                                            value={value}
-                                        />
-                                    </View>
-                                )}
-                            />
-                            {errors.storeAddress && <Text style={styles.errorText}>{errors.storeAddress.message}</Text>}
-                        </View>
+                            {/* Password */}
+                            <View style={styles.inputContainer}>
+                                <Text style={styles.label}>Seller Password</Text>
+                                <Controller
+                                    control={control}
+                                    name="password"
+                                    render={({ field: { onChange, onBlur, value } }) => (
+                                        <View style={[styles.inputWrapper, errors.password && styles.inputWrapperError]}>
+                                            <Lock size={18} color={COLORS.gray400} style={styles.inputIcon} />
+                                            <TextInput
+                                                style={styles.input}
+                                                placeholder="Create seller password"
+                                                placeholderTextColor={COLORS.gray400}
+                                                onBlur={onBlur}
+                                                onChangeText={onChange}
+                                                value={value}
+                                                secureTextEntry={!showPassword}
+                                            />
+                                            <Pressable onPress={() => setShowPassword(!showPassword)}>
+                                                {showPassword ? <EyeOff size={18} color={COLORS.gray400} /> : <Eye size={18} color={COLORS.gray400} />}
+                                            </Pressable>
+                                        </View>
+                                    )}
+                                />
+                                {errors.password && <Text style={styles.errorText}>{errors.password.message}</Text>}
+                            </View>
 
-                        {/* Store Description */}
-                        <View style={styles.inputContainer}>
-                            <Text style={styles.label}>Store Description</Text>
-                            <Controller
-                                control={control}
-                                name="storeDescription"
-                                render={({ field: { onChange, onBlur, value } }) => (
-                                    <View style={[
-                                        styles.inputWrapper,
-                                        styles.textAreaWrapper,
-                                        errors.storeDescription && styles.inputWrapperError
-                                    ]}>
-                                        <AlignLeft size={18} color={COLORS.gray400} style={[styles.inputIcon, { marginTop: 2 }]} />
-                                        <TextInput
-                                            style={[styles.input, styles.textArea]}
-                                            placeholder="Describe your store and products..."
-                                            placeholderTextColor={COLORS.gray400}
-                                            onBlur={onBlur}
-                                            onChangeText={onChange}
-                                            value={value}
-                                            multiline
-                                            numberOfLines={4}
-                                            textAlignVertical="top"
-                                        />
-                                    </View>
-                                )}
-                            />
-                        </View>
+                            {/* Confirm Password */}
+                            <View style={styles.inputContainer}>
+                                <Text style={styles.label}>Confirm Password</Text>
+                                <Controller
+                                    control={control}
+                                    name="confirmPassword"
+                                    render={({ field: { onChange, onBlur, value } }) => (
+                                        <View style={[styles.inputWrapper, errors.confirmPassword && styles.inputWrapperError]}>
+                                            <Lock size={18} color={COLORS.gray400} style={styles.inputIcon} />
+                                            <TextInput
+                                                style={styles.input}
+                                                placeholder="Confirm password"
+                                                placeholderTextColor={COLORS.gray400}
+                                                onBlur={onBlur}
+                                                onChangeText={onChange}
+                                                value={value}
+                                                secureTextEntry={!showConfirmPassword}
+                                            />
+                                            <Pressable onPress={() => setShowConfirmPassword(!showConfirmPassword)}>
+                                                {showConfirmPassword ? <EyeOff size={18} color={COLORS.gray400} /> : <Eye size={18} color={COLORS.gray400} />}
+                                            </Pressable>
+                                        </View>
+                                    )}
+                                />
+                                {errors.confirmPassword && <Text style={styles.errorText}>{errors.confirmPassword.message}</Text>}
+                            </View>
 
-                        <Pressable
-                            style={[styles.submitButton, (isLoading || !isValid || storeStatus === 'taken') && styles.buttonDisabled]}
-                            onPress={handleSubmit(onSubmit)}
-                            disabled={isLoading || !isValid || storeStatus === 'taken'}
-                        >
-                            {isLoading ? (
-                                <ActivityIndicator color="#FFFFFF" />
-                            ) : (
-                                <Text style={styles.buttonText}>Activate Seller Account</Text>
-                            )}
-                        </Pressable>
+                            <Pressable
+                                style={[styles.submitButton, (!isStep2Ready || isLoading) && styles.buttonDisabled]}
+                                onPress={handleSubmit(
+                                    onSubmit,
+                                    (errors) => {
+                                        console.log('Form values at failure:', watch());
+                                        console.log('Form validation failed:', errors);
+                                        // Handle cases where some errors might be invisible
+                                        const errorMessages = Object.values(errors)
+                                            .map(err => err?.message)
+                                            .filter(Boolean);
+                                        if (errorMessages.length > 0) {
+                                            Alert.alert('Validation Error', errorMessages[0] as string);
+                                        }
+                                    }
+                                )}
+                                disabled={!isStep2Ready || isLoading}
+                            >
+                                {isLoading ? (
+                                    <ActivityIndicator color="#FFFFFF" />
+                                ) : (
+                                    <Text style={styles.buttonText}>Activate Seller Account</Text>
+                                )}
+                            </Pressable>
+
+                            <Pressable style={styles.backButton2} onPress={() => setStep(1)}>
+                                <ArrowLeft size={16} color={COLORS.gray500} />
+                                <Text style={styles.backButton2Text}>Back to Store Details</Text>
+                            </Pressable>
+                        </View>
                     </View>
                 </ScrollView>
             </KeyboardAvoidingView>
@@ -428,6 +604,106 @@ const styles = StyleSheet.create({
         fontSize: 16,
         fontWeight: '700',
         color: '#FFFFFF',
+    },
+    // Two-step styles
+    progressContainer: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'center',
+        marginBottom: 32,
+        paddingHorizontal: 20,
+    },
+    progressLineBase: {
+        position: 'absolute',
+        left: '20%',
+        right: '20%',
+        height: 2,
+        backgroundColor: COLORS.gray200,
+        zIndex: 0,
+    },
+    progressLineActive: {
+        position: 'absolute',
+        left: '20%',
+        height: 2,
+        backgroundColor: COLORS.primary,
+        zIndex: 1,
+    },
+    stepsRow: {
+        width: '60%',
+        flexDirection: 'row',
+        justifyContent: 'space-between',
+        zIndex: 2,
+    },
+    stepDot: {
+        width: 28,
+        height: 28,
+        borderRadius: 14,
+        backgroundColor: '#FFFFFF',
+        borderWidth: 2,
+        borderColor: COLORS.gray200,
+        alignItems: 'center',
+        justifyContent: 'center',
+    },
+    activeDot: {
+        backgroundColor: COLORS.primary,
+        borderColor: COLORS.primary,
+    },
+    stepNum: {
+        fontSize: 12,
+        fontWeight: '700',
+        color: COLORS.primary,
+    },
+    inactiveNum: {
+        color: COLORS.gray400,
+    },
+    stepLabels: {
+        position: 'absolute',
+        bottom: -20,
+        width: '100%',
+        flexDirection: 'row',
+        justifyContent: 'center',
+        gap: 60,
+    },
+    stepLabel: {
+        fontSize: 11,
+        fontWeight: '600',
+        color: COLORS.gray400,
+    },
+    activeLabel: {
+        color: COLORS.textHeadline,
+    },
+    disabledInput: {
+        backgroundColor: COLORS.gray100,
+        borderColor: COLORS.gray200,
+    },
+    helperText: {
+        fontSize: 12,
+        color: COLORS.textMuted,
+        marginTop: 4,
+        marginLeft: 4,
+    },
+    emailText: {
+        color: COLORS.gray500,
+        fontSize: 15,
+        lineHeight: 52,
+        height: '100%',
+    },
+    backButton2: {
+        marginTop: 16,
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'center',
+        gap: 6,
+        borderWidth: 1.5,
+        borderColor: COLORS.gray200,
+        borderRadius: 14,
+        paddingVertical: 14,
+        backgroundColor: '#FFFFFF',
+    },
+    backButton2Text: {
+        fontSize: 15,
+        fontWeight: '600',
+        color: COLORS.gray500,
     },
 });
 
