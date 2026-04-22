@@ -907,7 +907,7 @@ export default function OrderDetailScreen({ route, navigation }: Props) {
                              </Text>
                              {formattedDeadline && (
                                <Text style={{ fontSize: 12, color: '#92400E', fontWeight: '600' }}>
-                                 Payment Due: {formattedDeadline}
+                                 Estimated Payment Due: {formattedDeadline}
                                </Text>
                              )}
                              {!formattedDeadline && (

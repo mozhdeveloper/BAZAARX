@@ -1383,7 +1383,7 @@ export default function OrderDetailPage() {
                           </p>
                           {formattedDeadline && (
                             <p className="text-sm font-semibold text-orange-900">
-                              Payment Due: {formattedDeadline}
+                              Estimated Payment Due: {formattedDeadline}
                             </p>
                           )}
                         </div>
