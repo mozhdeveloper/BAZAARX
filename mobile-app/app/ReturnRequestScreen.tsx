@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, useCallback } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   View,
   Text,
@@ -13,7 +13,7 @@ import {
   Platform,
   Modal,
   Dimensions,
-  KeyboardAvoidingView,
+  Animated,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import {
@@ -63,19 +63,20 @@ type Props = NativeStackScreenProps<RootStackParamList, 'ReturnRequest'>;
 const { width: SCREEN_W, height: SCREEN_H } = Dimensions.get('window');
 
 // ─── Brand tokens ────────────────────────────────────────────────────────────
-const BRAND       = COLORS.primary;
+const BRAND = COLORS.primary;
 const BRAND_LIGHT = COLORS.primarySoft;
-const BRAND_DARK  = COLORS.primaryHover;
-const BG          = COLORS.background;
-const HEADLINE    = COLORS.textHeadline;
-const BODY        = COLORS.textPrimary;
-const MUTED       = COLORS.textMuted;
-const BORDER      = '#E8DDD1';
-const CARD_BG     = COLORS.surface;
+const BRAND_DARK = COLORS.primaryHover;
+const BG = COLORS.background;
+const HEADLINE = COLORS.textHeadline;
+const BODY = COLORS.textPrimary;
+const MUTED = COLORS.textMuted;
+const BORDER = '#E8DDD1';
+const CARD_BG = COLORS.surface;
 
 // ─── File size limits ────────────────────────────────────────────────────────
-const IMAGE_MAX_BYTES = 5 * 1024 * 1024;
-const VIDEO_MAX_BYTES = 30 * 1024 * 1024;
+const IMAGE_MAX_BYTES = 5 * 1024 * 1024;   // 5 MB
+const VIDEO_MAX_BYTES = 20 * 1024 * 1024;  // 20 MB
+const MAX_MEDIA_FILES = 5;
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 type TopLevelReasonId = 'damaged' | 'wrong_item' | 'item_not_received';
@@ -115,10 +116,10 @@ const EVIDENCE_DESCRIPTIONS: Partial<Record<ReturnReason, string>> = {
 
 // ─── Resolution labels ──────────────────────────────────────────────────────
 const RESOLUTION_LABELS: Record<SvcReturnType, { label: string; description: string }> = {
-  return_refund:  { label: 'Return & Refund',  description: 'Ship the item back and receive a full refund' },
-  refund_only:    { label: 'Refund Only',       description: 'Receive a refund without returning the item' },
-  partial_refund: { label: 'Partial Refund',    description: 'Refund only for the missing items selected' },
-  replacement:    { label: 'Replacement',       description: 'Receive a replacement item instead of a refund' },
+  return_refund: { label: 'Return & Refund', description: 'Ship the item back and receive a full refund' },
+  refund_only: { label: 'Refund Only', description: 'Receive a refund without returning the item' },
+  partial_refund: { label: 'Partial Refund', description: 'Refund only for the missing items selected' },
+  replacement: { label: 'Replacement', description: 'Receive a replacement item instead of a refund' },
 };
 
 // ─── Section badge ──────────────────────────────────────────────────────────
@@ -168,8 +169,11 @@ export default function ReturnRequestScreen({ route, navigation }: Props) {
   const { user } = useAuthStore();
   const createReturnRequest = useReturnStore((s) => s.createReturnRequest);
   const scrollRef = useRef<ScrollView>(null);
+  const scrollCurrentY = useRef(0);
   const descriptionRef = useRef<View>(null);
   const pendingPickerAction = useRef<(() => void) | null>(null);
+  const overlayAnim = useRef(new Animated.Value(0)).current;
+  const sheetAnim = useRef(new Animated.Value(300)).current;
 
   // ── Reason state ─────────
   const [topReason, setTopReason] = useState<TopLevelReasonId | ''>('');
@@ -230,7 +234,7 @@ export default function ReturnRequestScreen({ route, navigation }: Props) {
   useEffect(() => {
     const orderDbId: string | undefined = (order as any).orderId || (order as any).dbId || (order as any).id;
     const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(orderDbId ?? '');
-    if (isUuid && orderDbId) returnService.getReturnWindowDeadline(orderDbId).then(setReturnDeadline).catch(() => {});
+    if (isUuid && orderDbId) returnService.getReturnWindowDeadline(orderDbId).then(setReturnDeadline).catch(() => { });
   }, []);
 
   // ── Reason helpers — preserve user-entered details on toggle ──
@@ -262,12 +266,19 @@ export default function ReturnRequestScreen({ route, navigation }: Props) {
   const pickFromCamera = async () => {
     const { status } = await ImagePicker.requestCameraPermissionsAsync();
     if (status !== 'granted') { Alert.alert('Permission Needed', 'Camera access is required.'); return; }
-    const result = await ImagePicker.launchCameraAsync({ mediaTypes: 'images', quality: 0.8, allowsEditing: true });
+    const result = await ImagePicker.launchCameraAsync({
+      mediaTypes: ['images', 'videos'],
+      quality: 0.8,
+      allowsEditing: false,
+      videoMaxDuration: 30,  // ~30s keeps video well under 20 MB at standard quality
+    });
     if (result.canceled || !result.assets[0]) return;
     const a = result.assets[0];
-    if (a.fileSize && a.fileSize > IMAGE_MAX_BYTES) { Alert.alert('File Too Large', 'Photos must be under 5 MB.'); return; }
-    if (mediaItems.length >= 6) { Alert.alert('Limit Reached', 'Max 6 files.'); return; }
-    setMediaItems((p) => [...p, { uri: a.uri, type: 'image' }]);
+    const isVideo = a.type === 'video' || /\.(mp4|mov|avi)(\?|$)/i.test(a.uri || '');
+    if (!isVideo && a.fileSize && a.fileSize > IMAGE_MAX_BYTES) { Alert.alert('File Too Large', 'Photos must be under 5 MB.'); return; }
+    if (isVideo && a.fileSize && a.fileSize > VIDEO_MAX_BYTES) { Alert.alert('File Too Large', 'Video exceeds 20 MB. Try a shorter recording.'); return; }
+    if (mediaItems.length >= MAX_MEDIA_FILES) { Alert.alert('Limit Reached', `Max ${MAX_MEDIA_FILES} files.`); return; }
+    setMediaItems((p) => [...p, { uri: a.uri, type: isVideo ? 'video' : 'image' }]);
   };
 
   const pickFromLibrary = async () => {
@@ -276,22 +287,55 @@ export default function ReturnRequestScreen({ route, navigation }: Props) {
     const result = await ImagePicker.launchImageLibraryAsync({
       mediaTypes: ['images', 'videos'],
       allowsMultipleSelection: true,
-      selectionLimit: Math.max(1, 6 - mediaItems.length),
+      selectionLimit: Math.max(1, MAX_MEDIA_FILES - mediaItems.length),
       quality: 0.8,
     });
     if (result.canceled || !result.assets?.length) return;
     const newItems: MediaItem[] = [];
+    const skippedImages: string[] = [];
+    const skippedVideos: string[] = [];
     for (const asset of result.assets) {
-      if (mediaItems.length + newItems.length >= 6) break;
+      if (mediaItems.length + newItems.length >= MAX_MEDIA_FILES) break;
       const isVideo = asset.type === 'video' || (asset.uri && /\.(mp4|mov|avi)(\?|$)/i.test(asset.uri));
-      if (!isVideo && asset.fileSize && asset.fileSize > IMAGE_MAX_BYTES) continue;
-      if (isVideo && asset.fileSize && asset.fileSize > VIDEO_MAX_BYTES) continue;
+      if (!isVideo && asset.fileSize && asset.fileSize > IMAGE_MAX_BYTES) {
+        skippedImages.push(asset.fileName || 'photo');
+        continue;
+      }
+      if (isVideo && asset.fileSize && asset.fileSize > VIDEO_MAX_BYTES) {
+        skippedVideos.push(asset.fileName || 'video');
+        continue;
+      }
       newItems.push({ uri: asset.uri, type: isVideo ? 'video' : 'image' });
     }
     if (newItems.length > 0) setMediaItems((p) => [...p, ...newItems]);
+    if (skippedImages.length > 0 || skippedVideos.length > 0) {
+      const lines: string[] = [];
+      if (skippedImages.length > 0) lines.push(`• ${skippedImages.length} photo${skippedImages.length > 1 ? 's' : ''} exceeded 5 MB`);
+      if (skippedVideos.length > 0) lines.push(`• ${skippedVideos.length} video${skippedVideos.length > 1 ? 's' : ''} exceeded 20 MB`);
+      Alert.alert('Some Files Skipped', lines.join('\n') + '\n\nPlease select smaller files.');
+    }
   };
 
-  const showMediaSourcePicker = () => setShowMediaPicker(true);
+  const showMediaSourcePicker = () => {
+    overlayAnim.setValue(0);
+    sheetAnim.setValue(300);
+    setShowMediaPicker(true);
+    Animated.parallel([
+      Animated.timing(overlayAnim, { toValue: 1, duration: 220, useNativeDriver: true }),
+      Animated.spring(sheetAnim, { toValue: 0, useNativeDriver: true, bounciness: 4 }),
+    ]).start();
+  };
+
+  const hideMediaPicker = (callback?: () => void) => {
+    Animated.parallel([
+      Animated.timing(overlayAnim, { toValue: 0, duration: 180, useNativeDriver: true }),
+      Animated.timing(sheetAnim, { toValue: 300, duration: 200, useNativeDriver: true }),
+    ]).start(() => {
+      setShowMediaPicker(false);
+      pendingPickerAction.current = null;
+      if (callback) setTimeout(callback, 600);
+    });
+  };
 
   const removeMediaItem = (uri: string) => setMediaItems((p) => p.filter((m) => m.uri !== uri));
   const toggleMissingItem = (itemId: string) =>
@@ -364,7 +408,7 @@ export default function ReturnRequestScreen({ route, navigation }: Props) {
             orderNumber: (order as any).transactionId || order.id || orderDbId,
             buyerName: user?.name || 'A buyer',
             reason: description.trim() || (effectiveReason as string),
-          }).catch(() => {});
+          }).catch(() => { });
         }
 
         const resPath = computeResolutionPath(effectiveReason as ReturnReason, refundAmount, evidenceUrls.length > 0);
@@ -419,8 +463,17 @@ export default function ReturnRequestScreen({ route, navigation }: Props) {
         </View>
       </View>
 
-      <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : 'height'} keyboardVerticalOffset={Platform.OS === 'ios' ? insets.top + 56 : 0}>
-      <ScrollView ref={scrollRef} style={{ flex: 1 }} contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
+      <ScrollView
+        ref={scrollRef}
+        style={{ flex: 1 }}
+        contentContainerStyle={styles.scrollContent}
+        showsVerticalScrollIndicator={false}
+        keyboardShouldPersistTaps="handled"
+        keyboardDismissMode="interactive"
+        automaticallyAdjustKeyboardInsets={Platform.OS === 'ios'}
+        scrollEventThrottle={16}
+        onScroll={(e) => { scrollCurrentY.current = e.nativeEvent.contentOffset.y; }}
+      >
 
         {/* ── Order preview ─── */}
         {firstItem && (
@@ -523,12 +576,12 @@ export default function ReturnRequestScreen({ route, navigation }: Props) {
                       value={description} onChangeText={setDescription} multiline numberOfLines={4} textAlignVertical="top"
                       onFocus={() => {
                         setTimeout(() => {
-                          descriptionRef.current?.measureLayout(
-                            scrollRef.current?.getInnerViewNode(),
-                            (_x, y) => { scrollRef.current?.scrollTo({ y: Math.max(0, y - 120), animated: true }); },
-                            () => {},
-                          );
-                        }, 250);
+                          descriptionRef.current?.measure((_x, _y, _w, _h, _px, pageY) => {
+                            const headerH = insets.top + 56;
+                            const contentY = pageY + scrollCurrentY.current - headerH;
+                            scrollRef.current?.scrollTo({ y: Math.max(0, contentY - 100), animated: true });
+                          });
+                        }, 300);
                       }} />
                   </View>
                 </>
@@ -583,7 +636,7 @@ export default function ReturnRequestScreen({ route, navigation }: Props) {
                     </ScrollView>
                   )}
 
-                  {mediaItems.length < 6 && (
+                  {mediaItems.length < MAX_MEDIA_FILES && (
                     <Pressable style={styles.addEvidenceBtn} onPress={showMediaSourcePicker}>
                       <Camera size={18} color={MUTED} strokeWidth={1.5} />
                       <Text style={styles.addEvidenceText}>Add Photo / Video</Text>
@@ -715,7 +768,8 @@ export default function ReturnRequestScreen({ route, navigation }: Props) {
                 ))}
                 <View style={styles.ruleBox}>
                   <Text style={styles.ruleTitle}>Important</Text>
-                  <Text style={styles.ruleText}>• You are responsible for arranging and paying for shipment.</Text>
+                  <Text style={styles.ruleText}>• You are responsible for arranging and paying for</Text>
+                  <Text style={styles.ruleText}>shipment.</Text>
                   <Text style={styles.ruleText}>• A valid tracking number is required for processing.</Text>
                   <Text style={styles.ruleText}>• Failure to provide tracking may delay or void the request.</Text>
                 </View>
@@ -726,15 +780,17 @@ export default function ReturnRequestScreen({ route, navigation }: Props) {
 
         {/* ═══ REFUND & SUBMIT (inline) ═══ */}
         <View style={styles.inlineFooter}>
-          <View style={styles.refundRow}>
-            <View>
-              <Text style={styles.refundLabel}>REFUND AMOUNT</Text>
-              <Text style={styles.refundSub}>
-                {returnType === 'replacement' ? 'No refund — item replaced' : returnType === 'partial_refund' ? 'Based on selected missing items' : 'Based on original order total'}
-              </Text>
+          {allowedResolutions.length > 0 && returnType && (
+            <View style={styles.refundRow}>
+              <View>
+                <Text style={styles.refundLabel}>REFUND AMOUNT</Text>
+                <Text style={styles.refundSub}>
+                  {returnType === 'replacement' ? 'No refund — item replaced' : returnType === 'partial_refund' ? 'Based on selected missing items' : 'Based on original order total'}
+                </Text>
+              </View>
+              <Text style={styles.refundAmount}>{returnType === 'replacement' ? '—' : `₱${refundAmount.toLocaleString()}`}</Text>
             </View>
-            <Text style={styles.refundAmount}>{returnType === 'replacement' ? '—' : `₱${refundAmount.toLocaleString()}`}</Text>
-          </View>
+          )}
           <View style={styles.footerBtns}>
             <Pressable style={styles.cancelBtn} onPress={() => navigation.goBack()} disabled={isSubmitting}>
               <Text style={styles.cancelBtnText}>Cancel</Text>
@@ -747,38 +803,43 @@ export default function ReturnRequestScreen({ route, navigation }: Props) {
 
         <View style={{ height: Math.max(insets.bottom, 20) }} />
       </ScrollView>
-      </KeyboardAvoidingView>
 
-      {/* ── Media Source Picker Modal ── */}
+      {/* ── Media Source Picker Modal (two-layer: fade overlay + slide sheet) ── */}
       <Modal
         visible={showMediaPicker}
         transparent
-        animationType="slide"
+        animationType="none"
         statusBarTranslucent
-        onRequestClose={() => setShowMediaPicker(false)}
-        onDismiss={() => { const action = pendingPickerAction.current; pendingPickerAction.current = null; if (action) action(); }}
+        onRequestClose={() => hideMediaPicker()}
       >
-        <Pressable style={mpStyles.overlay} onPress={() => setShowMediaPicker(false)} />
-        <View style={[mpStyles.sheet, { paddingBottom: Math.max(insets.bottom, 16) }]}>
-          <View style={mpStyles.handle} />
-          <Text style={mpStyles.title}>Add Evidence</Text>
-          <View style={mpStyles.options}>
-            <Pressable style={mpStyles.option} onPress={() => { pendingPickerAction.current = pickFromCamera; setShowMediaPicker(false); if (Platform.OS === 'android') setTimeout(pickFromCamera, 400); }}>
-              <View style={mpStyles.optionIcon}><Camera size={22} color={BRAND} strokeWidth={2} /></View>
-              <Text style={mpStyles.optionLabel}>Camera</Text>
-              <Text style={mpStyles.optionHint}>Take a photo now</Text>
-            </Pressable>
-            <View style={mpStyles.optionDivider} />
-            <Pressable style={mpStyles.option} onPress={() => { pendingPickerAction.current = pickFromLibrary; setShowMediaPicker(false); if (Platform.OS === 'android') setTimeout(pickFromLibrary, 400); }}>
-              <View style={mpStyles.optionIcon}><ImagePlus size={22} color={BRAND} strokeWidth={2} /></View>
-              <Text style={mpStyles.optionLabel}>Media Library</Text>
-              <Text style={mpStyles.optionHint}>Pick photos or videos</Text>
+        {/* Fading dark overlay */}
+        <Animated.View style={[mpStyles.overlay, { opacity: overlayAnim }]} pointerEvents="box-none">
+          <Pressable style={StyleSheet.absoluteFill} onPress={() => hideMediaPicker()} />
+        </Animated.View>
+
+        {/* Sliding sheet */}
+        <Animated.View style={[mpStyles.sheetWrapper, { transform: [{ translateY: sheetAnim }] }]}>
+          <View style={[mpStyles.sheet, { paddingBottom: Math.max(insets.bottom, 16) }]}>
+            <View style={mpStyles.handle} />
+            <Text style={mpStyles.title}>Add Evidence</Text>
+            <View style={mpStyles.options}>
+              <Pressable style={mpStyles.option} onPress={() => hideMediaPicker(pickFromCamera)}>
+                <View style={mpStyles.optionIcon}><Camera size={22} color={BRAND} strokeWidth={2} /></View>
+                <Text style={mpStyles.optionLabel}>Camera</Text>
+                <Text style={mpStyles.optionHint}>Photo or video</Text>
+              </Pressable>
+              <View style={mpStyles.optionDivider} />
+              <Pressable style={mpStyles.option} onPress={() => hideMediaPicker(pickFromLibrary)}>
+                <View style={mpStyles.optionIcon}><ImagePlus size={22} color={BRAND} strokeWidth={2} /></View>
+                <Text style={mpStyles.optionLabel}>Media Library</Text>
+                <Text style={mpStyles.optionHint}>Pick photos or videos</Text>
+              </Pressable>
+            </View>
+            <Pressable style={mpStyles.cancelBtn} onPress={() => hideMediaPicker()}>
+              <Text style={mpStyles.cancelText}>Cancel</Text>
             </Pressable>
           </View>
-          <Pressable style={mpStyles.cancelBtn} onPress={() => setShowMediaPicker(false)}>
-            <Text style={mpStyles.cancelText}>Cancel</Text>
-          </Pressable>
-        </View>
+        </Animated.View>
       </Modal>
 
     </View>
@@ -895,9 +956,9 @@ const styles = StyleSheet.create({
   processStepNumText: { fontSize: 10, fontWeight: '700', color: BRAND_DARK },
   processStepText: { fontSize: 12, color: BODY, lineHeight: 18, flex: 1 },
 
-  ruleBox: { backgroundColor: '#FEF3C7', borderRadius: 12, padding: 14, marginTop: 10, borderWidth: 1, borderColor: '#FDE68A' },
+  ruleBox: { backgroundColor: '#FEF3C7', borderRadius: 12, padding: 14, marginTop: 10, borderWidth: 1, borderColor: '#FDE68A', width: '100%' },
   ruleTitle: { fontSize: 12, fontWeight: '700', color: '#92400E', marginBottom: 6 },
-  ruleText: { fontSize: 11, color: '#92400E', lineHeight: 17 },
+  ruleText: { fontSize: 11, color: '#92400E', lineHeight: 17, flexShrink: 1, flexWrap: 'wrap', width: '100%' },
 
   inlineFooter: { backgroundColor: CARD_BG, borderRadius: 16, borderWidth: 1, borderColor: BORDER, paddingHorizontal: 20, paddingVertical: 20, marginTop: 8 },
   refundRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 },
@@ -913,7 +974,8 @@ const styles = StyleSheet.create({
 
 // ── Media Source Picker styles ──
 const mpStyles = StyleSheet.create({
-  overlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.4)' },
+  overlay: { ...StyleSheet.absoluteFillObject, backgroundColor: 'rgba(0,0,0,0.45)' },
+  sheetWrapper: { position: 'absolute', bottom: 0, left: 0, right: 0 },
   sheet: { backgroundColor: CARD_BG, borderTopLeftRadius: 24, borderTopRightRadius: 24, paddingHorizontal: 20, paddingTop: 12 },
   handle: { width: 36, height: 4, borderRadius: 2, backgroundColor: '#D5C9BA', alignSelf: 'center', marginBottom: 16 },
   title: { fontSize: 15, fontWeight: '700', color: HEADLINE, textAlign: 'center', marginBottom: 16 },
