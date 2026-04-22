@@ -106,11 +106,22 @@ export const CartItemRow: React.FC<CartItemRowProps> = React.memo(({
 
         <Pressable onPress={onPress}>
           <View style={styles.priceContainer}>
-            <Text style={[styles.price, (!!item.originalPrice && item.originalPrice > (item.price || 0)) ? { color: '#DC2626' } : null]}>
-              ₱{(item.price ?? 0).toLocaleString()}
-            </Text>
+            <View style={styles.priceWrapper}>
+              <Text style={[styles.price, (!!item.originalPrice && item.originalPrice > (item.price || 0)) ? { color: '#DC2626' } : null]}>
+                ₱{(item.price ?? 0).toLocaleString()}
+              </Text>
+              {!!item.originalPrice && item.originalPrice > (item.price || 0) && (
+                <Text style={styles.originalPrice}>₱{item.originalPrice.toLocaleString()}</Text>
+              )}
+            </View>
+            
+            {/* Discount percentage badge */}
             {!!item.originalPrice && item.originalPrice > (item.price || 0) && (
-              <Text style={styles.originalPrice}>₱{item.originalPrice.toLocaleString()}</Text>
+              <View style={styles.discountBadge}>
+                <Text style={styles.discountBadgeText}>
+                  {Math.round(((item.originalPrice - (item.price || 0)) / item.originalPrice) * 100)}% OFF
+                </Text>
+              </View>
             )}
           </View>
         </Pressable>
@@ -212,9 +223,14 @@ const styles = StyleSheet.create({
 
   priceContainer: {
     flexDirection: 'row',
-    alignItems: 'baseline',
+    alignItems: 'center',
     gap: 8,
     marginVertical: 4,
+  },
+  priceWrapper: {
+    flexDirection: 'row',
+    alignItems: 'baseline',
+    gap: 8,
   },
   price: {
     fontSize: 16,
@@ -226,6 +242,19 @@ const styles = StyleSheet.create({
     color: '#9CA3AF',
     textDecorationLine: 'line-through',
     fontWeight: '400',
+  },
+  discountBadge: {
+    backgroundColor: '#DC2626',
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 4,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  discountBadgeText: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: '#FFF',
   },
   actionBtn: {
     alignSelf: 'flex-end',

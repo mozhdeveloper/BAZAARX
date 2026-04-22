@@ -70,119 +70,200 @@ The following files are local AI standards and are **never committed**:
 
 ## Session Log — April 22, 2026
 
-### Mobile Checkout Payment Method Ordering - UX Reorganization
+### Mobile Checkout Screen Card Input Enhancement
 
 **Status:** ✅ COMPLETE
 
-**Objective:** Fix payment method display ordering on mobile checkout screen so available payment methods appear first, followed by coming soon options.
+**Objective:** Enhance the PayMongo card entry flow on mobile checkout by providing an intuitive "Add Card Details" button when no saved cards exist, with automatic card saving after successful payment.
 
-**Problem Identified:**
+**Problems Identified:**
 
-The payment methods on the mobile checkout screen were displayed in a confusing order that scattered available and coming-soon options:
+1. **Confusing Card Entry Flow**: When users had no saved PayMongo cards, they saw a passive message saying "Enter your card details on the next screen after clicking 'Place Order'" with no clear CTA
+2. **No Card Persistence**: Manually entered cards were not being saved to Payment Methods after successful payment, requiring users to re-enter them for future orders
+3. **Unclear Alert Messages**: Alert for missing saved cards mentioned "Use Different Card" but that button didn't exist from the new flow
+4. **Test Card Handling**: No distinction between test cards (autofilled) and real cards (manually entered), causing test data to be saved
 
-| Position | Method | Status |
-|----------|--------|--------|
-| 1st | GCash | ❌ Coming Soon (disabled) |
-| 2nd | PayMongo | ✅ Available (enabled) |
-| 3rd | Credit/Debit Card | ❌ Coming Soon (disabled) |
-| 4th | Cash on Delivery | ✅ Available (enabled) |
+**Root Causes:**
 
-**UX Problem:**
-- Users see a disabled option first (GCash)
-- Then an enabled option (PayMongo)  
-- Then another disabled option (Credit/Debit Card)
-- Finally the last enabled option (COD)
-- This non-intuitive grouping creates confusion about what payment options are actually available
-
-**Root Cause:**
-Payment method options were rendered in the order they were originally coded, without consideration for grouping available vs. coming soon methods.
+- CheckoutScreen had a passive info box instead of an actionable card entry button
+- PaymentGatewayScreen had no logic to save successfully entered cards to Payment Methods
+- No mechanism to differentiate between autofilled test cards and manually entered real cards
 
 **Solution Implemented:**
 
-Reordered the payment method Pressable components in [mobile-app/app/CheckoutScreen.tsx](mobile-app/app/CheckoutScreen.tsx) (Lines 2490-2850) to the proper sequence:
+### Part 1: Active Card Entry Button in CheckoutScreen
 
-**New Order (Priority):**
+**Problem:** Users with no saved PayMongo cards couldn't easily understand how to add a card
 
-| Position | Method | Status |
-|----------|--------|--------|
-| 1st | **PayMongo** | ✅ Available (enabled) |
-| 2nd | **Cash on Delivery** | ✅ Available (enabled) |
-| 3rd | GCash | ❌ Coming Soon (disabled) |
-| 4th | Credit/Debit Card | ❌ Coming Soon (disabled) |
+**Solution:** Added an "Add Card Details" button with full checkout validation and flow:
 
-**Changes Made:**
+**Changes in [mobile-app/app/CheckoutScreen.tsx](mobile-app/app/CheckoutScreen.tsx):**
 
-1. Moved PayMongo Pressable block to first position (originally at line 2509)
-2. Moved PayMongo conditional form section to stay directly after PayMongo option (originally at line 2523-2765)
-3. Moved COD Pressable block to second position (originally at line 2816)
-4. Moved GCash Pressable block to third position (originally at line 2490)
-5. Moved Credit/Debit Card Pressable block to fourth position (originally at line 2766)
-6. Kept Credit Card saved cards conditional section with its parent (originally at line 2799-2815)
+1. **Updated Alert Message** (Line 2001-2006):
+   - Old: "Please select a saved card or click 'Use Different Card' to enter a new card."
+   - New: "Please click 'Add Card Details' to add a new card, or if you have saved cards, select one above."
+   - Uses proper `Alert` structure with OK button
 
-**What Was Preserved (No Changes to Logic):**
-- ✅ All state management: `paymentMethod`, `setPaymentMethod` unchanged
-- ✅ All event handlers: `onPress` callbacks remain identical
-- ✅ All conditional rendering: `{paymentMethod === 'paymongo' && (...)}`
-- ✅ All styling: Color, opacity, active states untouched
-- ✅ All payment processing logic: Routes to PaymentGateway or OrderConfirmation
-- ✅ All business logic: COD gift blocking, saved card management
-- ✅ Form sections: Stayed attached to their parent options
+2. **Replaced Info Box with Interactive Button** (Lines 2777-2986):
+   - Removed plain text message box
+   - Added gradient info card with CreditCard icon
+   - Created "Add Card Details" Pressable button
+   - Button includes full validation:
+     - ✅ User authentication check
+     - ✅ Delivery address validation
+     - ✅ Seller ID validation
+   - Button creates complete checkout payload with all order details
+   - Calls `processCheckout()` to create the order in database
+   - Navigates to PaymentGateway with `isQuickCheckout: false` flag
 
-**Result:**
+3. **Styling Enhancement**:
+   - LinearGradient background (#E0F2FE to #F0F9FF)
+   - Blue border (1.5px, #0EA5E9)
+   - Informative text: "No Saved Cards Yet"
+   - CreditCard icon for visual clarity
 
-✅ Available payment methods (PayMongo, COD) now appear first and are immediately discoverable
-✅ Coming soon options clearly separated at the bottom
-✅ Much clearer, more intuitive UX flow
-✅ Users can immediately see what payment options are currently usable
-✅ No functionality changes or side effects
-✅ No TypeScript/compilation errors
-✅ Mobile app compiles successfully
+**Files Modified:**
+- [mobile-app/app/CheckoutScreen.tsx](mobile-app/app/CheckoutScreen.tsx#L1998-L2986)
 
-**Visual Comparison:**
+---
 
-**Before (Confusing):**
+### Part 2: Automatic Card Saving in PaymentGatewayScreen
+
+**Problem:** When users entered a new card successfully, it wasn't saved to Payment Methods for future use
+
+**Solution:** Added card persistence logic after successful payment
+
+**Changes in [mobile-app/app/PaymentGatewayScreen.tsx](mobile-app/app/PaymentGatewayScreen.tsx):**
+
+1. **Added Manual Entry Tracking** (Line 77):
+   ```typescript
+   const [isManualEntry, setIsManualEntry] = useState(true);
+   ```
+   - Tracks whether card was manually typed or autofilled from test cards
+   - Defaults to `true` (assumes manual entry)
+
+2. **Test Card Autofill Updates** (Lines 513-514, 533-534):
+   - When user selects a test card (success or error), set `isManualEntry(false)`
+   - Prevents test cards from being saved to Payment Methods
+
+3. **Manual Entry Tracking on User Input** (Lines 563-565, 605-608, 627-630, 650-653):
+   - When user types in card number field: `setIsManualEntry(true)`
+   - When user types in expiry field: `setIsManualEntry(true)`
+   - When user types in CVV field: `setIsManualEntry(true)`
+   - When user types in name field: `setIsManualEntry(true)`
+
+4. **Automatic Card Saving After Payment** (Lines 309-340):
+   - After successful payment, checks if:
+     - `isManualEntry` is true (user typed the card)
+     - `showCardForm` is true (card form was shown)
+     - `cardName !== 'TEST CARD'` (not a test card)
+   - If conditions met:
+     - Retrieves existing saved cards
+     - Determines if this should be default card (`isFirstCard`)
+     - Calls `paymentMethodService.savePaymentMethod()` with:
+       - User ID
+       - Card data (number, name, expiry, CVV)
+       - Default flag
+     - Shows success alert: "Your card has been saved to Payment Methods for future purchases."
+   - If save fails:
+     - Doesn't throw error (payment already succeeded)
+     - Shows info alert: "Payment successful, but card could not be saved. You can add it later in Payment Methods."
+
+**Imports Added:**
+- `useAuthStore` — Get current user
+- `paymentMethodService` — Save card data
+
+**Files Modified:**
+- [mobile-app/app/PaymentGatewayScreen.tsx](mobile-app/app/PaymentGatewayScreen.tsx#L31-L32, L77, L309-L340, L513-L514, L533-L534, L563-L565, L605-L608, L627-L630, L650-L653)
+
+---
+
+### User Experience Flow
+
+**Before:**
 ```
-Payment Method
-─────────────────────────
-⭕ GCash (COMING SOON)
-   Instantly paid online
-
-⬤ PayMongo (selected)
-   Securely pay with card
-
-⭕ Credit/Debit Card (COMING SOON)
-   Instantly paid online
-
-⭕ Cash on Delivery
-   Pay when you receive
+1. User at checkout with no saved cards
+2. Sees message: "Enter your card details on the next screen"
+3. Clicks "Place Order"
+4. PaymentGateway opens with card form
+5. User enters card
+6. Payment succeeds
+7. Card is NOT saved (user must re-enter next time)
 ```
 
-**After (Clear):**
+**After:**
 ```
-Payment Method
-─────────────────────────
-⬤ PayMongo (selected)
-   Securely pay with card
-
-⭕ Cash on Delivery
-   Pay when you receive
-
-⭕ GCash (COMING SOON)
-   Instantly paid online
-
-⭕ Credit/Debit Card (COMING SOON)
-   Instantly paid online
+1. User at checkout with no saved cards
+2. Sees "Add Card Details" button (clear CTA)
+3. Clicks "Add Card Details"
+4. Order created in database
+5. PaymentGateway opens with card form
+6. User enters card (tracked as manual entry)
+7. Payment succeeds
+8. Card automatically saved to Payment Methods
+9. Card available for future orders
 ```
 
-**File Modified:** 1
-- [mobile-app/app/CheckoutScreen.tsx](mobile-app/app/CheckoutScreen.tsx) — Reordered payment method options (Lines 2490-2850)
+**Test Card Scenario:**
+```
+1. User at PaymentGateway card form
+2. Clicks test card shortcut (e.g., "✓ Success")
+3. Card auto-filled (isManualEntry = false)
+4. Payment succeeds
+5. Card is NOT saved (was just for testing)
+6. User sees: "Payment successful"
+```
 
-**Testing Status:**
+---
+
+### What Was Preserved
+
+- ✅ All existing payment flow logic unchanged
+- ✅ All checkout validations intact
+- ✅ All order creation logic preserved
+- ✅ All PayMongo payment processing unchanged
+- ✅ All cart management untouched
+- ✅ All state management for other fields
+- ✅ All TypeScript types and interfaces
+- ✅ All styling for other components
+
+---
+
+### Result
+
+✅ **Clear UX**: Users with no saved cards have obvious "Add Card Details" button instead of confusing message
+✅ **Reduced Friction**: Cards automatically save after successful payment → no re-entry needed
+✅ **Smart Defaults**: First card automatically set as default payment method
+✅ **Test Card Safety**: Test cards never saved (tracked separately from manual entry)
+✅ **Error Resilient**: If card save fails, payment still succeeds
+✅ **User Informed**: Clear alerts about card saving success or issues
+✅ **No Breaking Changes**: All existing payment flows continue to work
+✅ **TypeScript Validated**: No compilation errors
+
+---
+
+### Files Modified
+
+| File | Changes | Status |
+|------|---------|--------|
+| [mobile-app/app/CheckoutScreen.tsx](mobile-app/app/CheckoutScreen.tsx) | Added "Add Card Details" button with full checkout validation (Lines 1998-2006, 2777-2986) | ✅ Complete |
+| [mobile-app/app/PaymentGatewayScreen.tsx](mobile-app/app/PaymentGatewayScreen.tsx) | Added card saving logic + manual entry tracking (Multiple locations) | ✅ Complete |
+
+**Total Files Modified:** 2
+
+---
+
+### Testing Checklist
+
+✅ Checkout validates required fields before "Add Card Details"
+✅ PaymentGateway receives correct order data
+✅ Manual card entry saves after successful payment
+✅ Test card autofill does NOT save
+✅ First card becomes default payment method
+✅ Subsequent cards don't override default
+✅ Card save failure doesn't block order completion
+✅ Alert messages display correctly
 ✅ TypeScript compilation: No errors
-✅ Code review: All state, logic, and handlers preserved
-✅ Mobile app: Ready for visual testing on device
-✅ Payment flows: All payment routing intact
-✅ Conditional rendering: All conditions working as before
 
 ---
 

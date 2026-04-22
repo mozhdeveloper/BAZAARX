@@ -1,0 +1,9 @@
+{
+  "imports": {
+    "std/": "https://deno.land/std@0.177.0/",
+    "@supabase/": "https://esm.sh/@supabase/"
+  },
+  "tasks": {
+    "dev": "deno run --allow-net --allow-env index.ts"
+  }
+}

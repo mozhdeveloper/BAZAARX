@@ -105,7 +105,11 @@ export default function EmailVerificationScreen({ navigation, route }: Props) {
         if (signupData?.user_type === 'seller') {
           navigation.replace('SellerFinalize');
         } else {
-          navigation.replace('CategoryPreference', { signupData });
+          // User is now authenticated and finished with onboarding - navigate to Home
+          navigation.reset({
+            index: 0,
+            routes: [{ name: 'MainTabs' }],
+          });
         }
       } else if (isManual) {
         Alert.alert(

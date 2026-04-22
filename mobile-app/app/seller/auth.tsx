@@ -17,7 +17,7 @@ export default function SellerAuthChoice() {
                 {/* Header with Back Button */}
                 <View style={styles.header}>
                     <Pressable onPress={() => navigation.navigate('Login')} style={styles.backButton}>
-                        <ArrowLeft size={24} color="#1F2937" />
+                        <ArrowLeft size={24} color={COLORS.textHeadline} />
                     </Pressable>
                     <View style={styles.logoRow}>
                         <Image
@@ -31,7 +31,7 @@ export default function SellerAuthChoice() {
                 {/* Hero Section (Replicating Web Left Side) */}
                 <View style={styles.heroSection}>
                     <LinearGradient
-                        colors={['#FFF4EC', '#FFE4D6']}
+                        colors={[COLORS.primarySoft, '#FFE4D6']}
                         style={styles.heroBackground}
                     />
                     <View style={styles.heroContent}>
@@ -57,7 +57,7 @@ export default function SellerAuthChoice() {
                             onPress={() => navigation.navigate('SellerSignup')}
                         >
                             <LinearGradient
-                                colors={['#D97706', '#B45309']}
+                                colors={[COLORS.primary, COLORS.primaryHover]}
                                 style={styles.buttonGradient}
                             >
                                 <View style={styles.buttonIconWrapper}>
@@ -76,14 +76,14 @@ export default function SellerAuthChoice() {
                             style={styles.secondaryButton}
                             onPress={() => navigation.navigate('SellerLogin')}
                         >
-                            <View style={[styles.buttonIconWrapper, { backgroundColor: '#FFF4EC' }]}>
-                                <LogIn size={24} color="#D97706" />
+                            <View style={[styles.buttonIconWrapper, { backgroundColor: COLORS.primarySoft }]}>
+                                <LogIn size={24} color={COLORS.primary} />
                             </View>
                             <View style={styles.buttonTextWrapper}>
-                                <Text style={[styles.buttonTitle, { color: '#1F2937' }]}>Sign in to your account</Text>
+                                <Text style={[styles.buttonTitle, { color: COLORS.textHeadline }]}>Sign in to your account</Text>
                                 <Text style={styles.buttonSubtitleGrey}>Access your store and manage your listing</Text>
                             </View>
-                            <ChevronRight size={20} color="#D1D5DB" />
+                            <ChevronRight size={20} color={COLORS.gray300} />
                         </Pressable>
                     </View>
                 </View>
@@ -95,7 +95,7 @@ export default function SellerAuthChoice() {
 const styles = StyleSheet.create({
     container: {
         flex: 1,
-        backgroundColor: '#FFFFFF',
+        backgroundColor: COLORS.background,
     },
     scrollContent: {
         flexGrow: 1,
@@ -118,12 +118,12 @@ const styles = StyleSheet.create({
     logoSmall: {
         width: 32,
         height: 32,
-        borderRadius: 8,
+        borderRadius: 14,
     },
     brandName: {
         fontSize: 18,
         fontWeight: '700',
-        color: '#1F2937',
+        color: COLORS.textHeadline,
     },
     heroSection: {
         margin: 20,
@@ -145,7 +145,7 @@ const styles = StyleSheet.create({
     },
     quoteMark: {
         fontSize: 60,
-        color: '#D97706',
+        color: COLORS.primary,
         opacity: 0.2,
         position: 'absolute',
         top: 10,
@@ -155,7 +155,7 @@ const styles = StyleSheet.create({
     heroText: {
         fontSize: 22,
         fontWeight: '600',
-        color: '#1F2937',
+        color: COLORS.textHeadline,
         fontStyle: 'italic',
         lineHeight: 32,
         marginTop: 20,
@@ -163,7 +163,7 @@ const styles = StyleSheet.create({
     },
     heroAuthor: {
         fontSize: 14,
-        color: '#6B7280',
+        color: COLORS.textMuted,
         marginTop: 15,
         fontWeight: '500',
     },
@@ -179,13 +179,13 @@ const styles = StyleSheet.create({
     title: {
         fontSize: 28,
         fontWeight: '800',
-        color: '#1F2937',
+        color: COLORS.textHeadline,
         textAlign: 'center',
         marginBottom: 8,
     },
     subtitle: {
         fontSize: 16,
-        color: '#6B7280',
+        color: COLORS.textMuted,
         fontWeight: '500',
         textAlign: 'center',
     },
@@ -193,10 +193,10 @@ const styles = StyleSheet.create({
         gap: 20,
     },
     primaryButton: {
-        borderRadius: 24,
+        borderRadius: 14,
         overflow: 'hidden',
         elevation: 5,
-        shadowColor: '#D97706',
+        shadowColor: COLORS.primary,
         shadowOffset: { width: 0, height: 8 },
         shadowOpacity: 0.3,
         shadowRadius: 12,
@@ -209,7 +209,7 @@ const styles = StyleSheet.create({
     buttonIconWrapper: {
         width: 52,
         height: 52,
-        borderRadius: 16,
+        borderRadius: 14,
         backgroundColor: 'rgba(255,255,255,0.2)',
         alignItems: 'center',
         justifyContent: 'center',
@@ -221,7 +221,7 @@ const styles = StyleSheet.create({
     buttonTitle: {
         fontSize: 18,
         fontWeight: '700',
-        color: '#FFFFFF',
+        color: COLORS.white,
         marginBottom: 4,
     },
     buttonSubtitle: {
@@ -233,10 +233,10 @@ const styles = StyleSheet.create({
         flexDirection: 'row',
         alignItems: 'center',
         padding: 24,
-        backgroundColor: '#FFFFFF',
-        borderRadius: 24,
+        backgroundColor: COLORS.white,
+        borderRadius: 14,
         borderWidth: 2,
-        borderColor: '#F3F4F6',
+        borderColor: COLORS.gray100,
         elevation: 2,
         shadowColor: '#000',
         shadowOffset: { width: 0, height: 4 },
@@ -246,7 +246,7 @@ const styles = StyleSheet.create({
     },
     buttonSubtitleGrey: {
         fontSize: 13,
-        color: '#6B7280',
+        color: COLORS.textMuted,
         fontWeight: '500',
     },
     footer: {
@@ -259,11 +259,11 @@ const styles = StyleSheet.create({
     },
     footerText: {
         fontSize: 15,
-        color: '#6B7280',
+        color: COLORS.textMuted,
         fontWeight: '500',
     },
     footerLink: {
-        color: '#D97706',
+        color: COLORS.primary,
         fontWeight: '700',
     },
 });
