@@ -38,6 +38,8 @@ import {
   DialogTitle,
 } from "../components/ui/dialog";
 import { useToast } from "../hooks/use-toast";
+import { ReturnMessageThread } from "../components/returns/ReturnMessageThread";
+import { Textarea } from "../components/ui/textarea";
 
 // ---------------------------------------------------------------------------
 // Status icon helper
@@ -97,6 +99,9 @@ export default function BuyerReturnsListPage() {
   const [isLoading, setIsLoading] = useState(true);
   const [filter, setFilter] = useState<FilterTab>("all");
   const [searchQuery, setSearchQuery] = useState("");
+
+  // Messaging thread open state (tracks which return has its thread expanded)
+  const [msgOpenId, setMsgOpenId] = useState<string | null>(null);
 
   // Counter-offer dialog
   const [counterOfferReturn, setCounterOfferReturn] = useState<ReturnRequest | null>(null);
@@ -453,6 +458,24 @@ export default function BuyerReturnsListPage() {
                             <Truck className="w-3 h-3 mr-1" /> Mark as Shipped
                           </Button>
                         </div>
+                      )}
+
+                      {/* Message thread toggle */}
+                      <button
+                        onClick={() => setMsgOpenId(msgOpenId === ret.id ? null : ret.id)}
+                        className="text-xs text-[var(--brand-primary)] hover:underline flex items-center gap-1 mb-2"
+                      >
+                        <MessageSquare className="w-3 h-3" />
+                        {msgOpenId === ret.id ? "Hide" : "View"} messages
+                        <ChevronRight className={cn("w-3 h-3 transition-transform", msgOpenId === ret.id && "rotate-90")} />
+                      </button>
+
+                      {msgOpenId === ret.id && (
+                        <ReturnMessageThread
+                          returnId={ret.id}
+                          senderRole="buyer"
+                          className="mb-3"
+                        />
                       )}
 
                       {/* View details link */}

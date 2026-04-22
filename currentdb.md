@@ -485,9 +485,15 @@ CREATE TABLE public.messages (
   message_type USER-DEFINED DEFAULT 'user'::message_type_enum,
   message_content text,
   order_event_type USER-DEFINED,
+  media_url text,
+  media_type text CHECK (media_type IS NULL OR (media_type = ANY (ARRAY['image'::text, 'video'::text, 'document'::text]))),
+  reply_to_message_id uuid,
+  target_seller_id uuid,
   CONSTRAINT messages_pkey PRIMARY KEY (id),
   CONSTRAINT messages_conversation_id_fkey FOREIGN KEY (conversation_id) REFERENCES public.conversations(id),
-  CONSTRAINT messages_sender_id_fkey FOREIGN KEY (sender_id) REFERENCES auth.users(id)
+  CONSTRAINT messages_sender_id_fkey FOREIGN KEY (sender_id) REFERENCES auth.users(id),
+  CONSTRAINT messages_reply_to_message_id_fkey FOREIGN KEY (reply_to_message_id) REFERENCES public.messages(id),
+  CONSTRAINT messages_target_seller_id_fkey FOREIGN KEY (target_seller_id) REFERENCES public.sellers(id)
 );
 CREATE TABLE public.notification_settings (
   id uuid NOT NULL DEFAULT gen_random_uuid(),
@@ -601,12 +607,21 @@ CREATE TABLE public.order_recipients (
 CREATE TABLE public.order_shipments (
   id uuid NOT NULL DEFAULT gen_random_uuid(),
   order_id uuid NOT NULL,
-  status text NOT NULL,
-  shipping_method jsonb,
+  seller_id text NOT NULL,
+  shipping_method text NOT NULL CHECK (shipping_method = ANY (ARRAY['standard'::text, 'economy'::text, 'same_day'::text, 'bulky'::text])),
+  shipping_method_label text NOT NULL,
+  calculated_fee numeric NOT NULL,
+  fee_breakdown jsonb NOT NULL DEFAULT '{}'::jsonb,
+  origin_zone text NOT NULL,
+  destination_zone text NOT NULL,
+  estimated_days_text text NOT NULL,
+  chargeable_weight_kg numeric NOT NULL DEFAULT 0,
   tracking_number text,
+  status text NOT NULL DEFAULT 'pending'::text CHECK (status = ANY (ARRAY['pending'::text, 'shipped'::text, 'in_transit'::text, 'delivered'::text, 'returned'::text])),
   shipped_at timestamp with time zone,
   delivered_at timestamp with time zone,
   created_at timestamp with time zone NOT NULL DEFAULT now(),
+  updated_at timestamp with time zone NOT NULL DEFAULT now(),
   CONSTRAINT order_shipments_pkey PRIMARY KEY (id),
   CONSTRAINT order_shipments_order_id_fkey FOREIGN KEY (order_id) REFERENCES public.orders(id)
 );
@@ -1378,6 +1393,8 @@ CREATE TABLE public.sellers (
   vacation_reason text,
   suspended_at timestamp with time zone,
   suspension_reason text,
+  shipping_origin_lat double precision,
+  shipping_origin_lng double precision,
   CONSTRAINT sellers_pkey PRIMARY KEY (id),
   CONSTRAINT sellers_id_fkey FOREIGN KEY (id) REFERENCES public.profiles(id)
 );
@@ -1402,8 +1419,31 @@ CREATE TABLE public.shipping_addresses (
   first_name text,
   last_name text,
   phone_number text,
+  is_pickup boolean DEFAULT false,
+  is_return boolean DEFAULT false,
   CONSTRAINT shipping_addresses_pkey PRIMARY KEY (id),
   CONSTRAINT shipping_addresses_user_id_fkey FOREIGN KEY (user_id) REFERENCES public.profiles(id)
+);
+CREATE TABLE public.shipping_config (
+  id uuid NOT NULL DEFAULT gen_random_uuid(),
+  volumetric_divisor numeric NOT NULL DEFAULT 3500,
+  per_kg_increment numeric NOT NULL DEFAULT 15,
+  insurance_rate numeric NOT NULL DEFAULT 0.01,
+  free_shipping_threshold numeric NOT NULL DEFAULT 0,
+  bulky_weight_threshold numeric NOT NULL DEFAULT 50,
+  same_day_zones ARRAY NOT NULL DEFAULT '{NCR}'::text[],
+  CONSTRAINT shipping_config_pkey PRIMARY KEY (id)
+);
+CREATE TABLE public.shipping_zones (
+  id uuid NOT NULL DEFAULT gen_random_uuid(),
+  origin_zone text NOT NULL,
+  destination_zone text NOT NULL,
+  shipping_method text NOT NULL,
+  base_rate numeric NOT NULL,
+  odz_fee numeric NOT NULL DEFAULT 0,
+  estimated_days_min integer NOT NULL,
+  estimated_days_max integer NOT NULL,
+  CONSTRAINT shipping_zones_pkey PRIMARY KEY (id)
 );
 CREATE TABLE public.sms_logs (
   id uuid NOT NULL DEFAULT gen_random_uuid(),
@@ -1512,6 +1552,14 @@ CREATE TABLE public.user_roles (
   created_at timestamp with time zone NOT NULL DEFAULT now(),
   CONSTRAINT user_roles_pkey PRIMARY KEY (id),
   CONSTRAINT user_roles_user_id_fkey FOREIGN KEY (user_id) REFERENCES public.profiles(id)
+);
+CREATE TABLE public.verification_codes (
+  id uuid NOT NULL DEFAULT gen_random_uuid(),
+  email text NOT NULL,
+  code text NOT NULL,
+  expires_at timestamp with time zone NOT NULL,
+  created_at timestamp with time zone NOT NULL DEFAULT now(),
+  CONSTRAINT verification_codes_pkey PRIMARY KEY (id)
 );
 CREATE TABLE public.vouchers (
   id uuid NOT NULL DEFAULT gen_random_uuid(),

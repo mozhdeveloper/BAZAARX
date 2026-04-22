@@ -17,7 +17,9 @@ import {
   Package,
   Image as ImageIcon,
   RefreshCw,
+  MessageSquare,
 } from 'lucide-react';
+import { ReturnMessageThread } from '@/components/returns/ReturnMessageThread';
 import { cn } from '@/lib/utils';
 import { SellerSidebar } from '@/components/seller/SellerSidebar';
 import { useAuthStore } from '@/stores/sellerStore';
@@ -52,6 +54,7 @@ export function SellerReturns() {
   const [searchQuery, setSearchQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState<ReturnStatus | 'all'>('all');
   const [selectedRequest, setSelectedRequest] = useState<SellerReturnRequest | null>(null);
+  const [showMsgThread, setShowMsgThread] = useState(false);
   const [counterOfferAmount, setCounterOfferAmount] = useState('');
   const [counterOfferNote, setCounterOfferNote] = useState('');
   const [showCounterOffer, setShowCounterOffer] = useState(false);
@@ -353,7 +356,7 @@ export function SellerReturns() {
           </div>
 
           {/* Detail Dialog */}
-          <Dialog open={!!selectedRequest} onOpenChange={(open) => { if (!open) { setSelectedRequest(null); resetDialogState(); } }}>
+          <Dialog open={!!selectedRequest} onOpenChange={(open) => { if (!open) { setSelectedRequest(null); resetDialogState(); setShowMsgThread(false); } }}>
             <DialogContent className="max-w-3xl max-h-[85vh] overflow-y-auto">
               <DialogHeader>
                 <DialogTitle>Return Request Details</DialogTitle>
@@ -529,6 +532,29 @@ export function SellerReturns() {
                       <p className="text-sm text-red-700 mt-1">{selectedRequest.rejectedReason}</p>
                     </div>
                   )}
+
+                  {/* Message thread */}
+                  <div className="border rounded-lg overflow-hidden">
+                    <button
+                      type="button"
+                      onClick={() => setShowMsgThread((v) => !v)}
+                      className="w-full flex items-center justify-between px-4 py-3 bg-zinc-50 hover:bg-zinc-100 text-sm font-medium text-zinc-700 transition-colors"
+                    >
+                      <span className="flex items-center gap-2">
+                        <MessageSquare className="h-4 w-4" />
+                        Message thread
+                      </span>
+                      <span className="text-xs text-zinc-400">{showMsgThread ? 'Hide' : 'Show'}</span>
+                    </button>
+                    {showMsgThread && (
+                      <div className="p-4">
+                        <ReturnMessageThread
+                          returnId={selectedRequest.id}
+                          senderRole="seller"
+                        />
+                      </div>
+                    )}
+                  </div>
 
                   {/* Counter-offer form */}
                   {showCounterOffer && canTakeAction(selectedRequest.status) && (
