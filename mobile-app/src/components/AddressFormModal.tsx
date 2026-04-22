@@ -30,6 +30,7 @@ import * as Location from 'expo-location';
 import { regions, provinces, cities, barangays } from 'select-philippines-address';
 import { COLORS } from '@/constants/theme';
 import { addressService, type Address } from '@/services/addressService';
+import { useAuthStore } from '@/stores/authStore';
 
 // ---------------------------------------------------------------------------
 // Types
@@ -39,7 +40,7 @@ export interface AddressFormModalProps {
     visible: boolean;
     onClose: () => void;
     onSaved: (address: Address) => void;
-    initialData?: Address | null;
+    initialData?: Partial<Address> | Record<string, any> | null;
     userId: string;
     existingCount?: number;
     /** 'buyer' hides isPickup / isReturn toggles. Default: 'buyer' */
@@ -105,6 +106,9 @@ export default function AddressFormModal({
         barangayCode?: string;
     }>({});
     const [isSaving, setIsSaving] = useState(false);
+    const [savedAddresses, setSavedAddresses] = useState<Address[]>([]);
+    const [selectedSavedAddressId, setSelectedSavedAddressId] = useState<string | null>(null);
+    const [isLoadingSavedData, setIsLoadingSavedData] = useState(false);
 
     // Dropdown state
     const [regionList, setRegionList] = useState<any[]>([]);
@@ -156,17 +160,26 @@ export default function AddressFormModal({
         if (!visible) return;
         if (initialData) {
             // Editing mode — pre-fill with existing address
-            setForm({ ...initialData });
-            setGeoCodes({
-                regionCode: initialData.regionCode,
-                provinceCode: initialData.provinceCode,
-                cityCode: initialData.cityCode,
-                barangayCode: initialData.barangayCode,
+            const initialRecord = initialData as Record<string, any>;
+            const { id: _ignoredId, ...initialWithoutId } = initialRecord;
+
+            setForm({
+                ...makeBlank('', '', '', existingCount === 0),
+                ...initialWithoutId,
+                coordinates: initialWithoutId.coordinates ?? null,
             });
-            if (initialData.coordinates) {
+
+            setSelectedSavedAddressId(typeof initialRecord.id === 'string' ? initialRecord.id : null);
+            setGeoCodes({
+                regionCode: initialRecord.regionCode,
+                provinceCode: initialRecord.provinceCode,
+                cityCode: initialRecord.cityCode,
+                barangayCode: initialRecord.barangayCode,
+            });
+            if (initialRecord.coordinates) {
                 setMapRegion({
-                    latitude: initialData.coordinates.latitude,
-                    longitude: initialData.coordinates.longitude,
+                    latitude: initialRecord.coordinates.latitude,
+                    longitude: initialRecord.coordinates.longitude,
                     latitudeDelta: 0.005,
                     longitudeDelta: 0.005,
                 });
@@ -175,7 +188,13 @@ export default function AddressFormModal({
             }
         } else {
             // Add mode — blank form
-            setForm(makeBlank('', '', '', existingCount === 0));
+            const authUser = useAuthStore.getState().user;
+            const fullName = (authUser?.name || '').trim();
+            const nameParts = fullName.length > 0 ? fullName.split(/\s+/) : [];
+            const firstName = nameParts[0] || '';
+            const lastName = nameParts.slice(1).join(' ');
+            setForm(makeBlank(firstName, lastName, authUser?.phone || '', existingCount === 0));
+            setSelectedSavedAddressId(null);
             setGeoCodes({});
             setProvinceList([]);
             setCityList([]);
@@ -184,6 +203,85 @@ export default function AddressFormModal({
         }
         setOpenDropdown(null);
     }, [visible, initialData]);
+
+    const applySavedAddress = useCallback((address: Address) => {
+        setForm(prev => ({
+            ...prev,
+            label: address.label || prev.label,
+            firstName: address.firstName || prev.firstName,
+            lastName: address.lastName || prev.lastName,
+            phone: address.phone || prev.phone,
+            street: address.street || prev.street,
+            barangay: address.barangay || prev.barangay,
+            city: address.city || prev.city,
+            province: address.province || prev.province,
+            region: address.region || prev.region,
+            zipCode: address.zipCode || prev.zipCode,
+            landmark: address.landmark || prev.landmark,
+            deliveryInstructions: address.deliveryInstructions || prev.deliveryInstructions,
+            addressType: address.addressType || prev.addressType,
+            coordinates: address.coordinates || prev.coordinates,
+        }));
+
+        setGeoCodes({
+            regionCode: address.regionCode,
+            provinceCode: address.provinceCode,
+            cityCode: address.cityCode,
+            barangayCode: address.barangayCode,
+        });
+
+        if (address.coordinates?.latitude != null && address.coordinates?.longitude != null) {
+            setMapRegion({
+                latitude: address.coordinates.latitude,
+                longitude: address.coordinates.longitude,
+                latitudeDelta: 0.005,
+                longitudeDelta: 0.005,
+            });
+        }
+    }, []);
+
+    useEffect(() => {
+        if (!visible || !userId) return;
+
+        const loadSavedData = async () => {
+            setIsLoadingSavedData(true);
+            try {
+                const authUser = useAuthStore.getState().user;
+                const addresses = await addressService.getAddresses(userId);
+                if (!isMounted.current) return;
+
+                setSavedAddresses(addresses || []);
+
+                // Prefill only for add mode; edit mode should keep initialData intact.
+                if (!initialData) {
+                    const defaultAddress = (addresses || []).find(a => a.isDefault) || (addresses || [])[0];
+
+                    if (defaultAddress) {
+                        setSelectedSavedAddressId(defaultAddress.id);
+                        applySavedAddress(defaultAddress);
+                    } else if (authUser) {
+                        const fullName = (authUser.name || '').trim();
+                        const nameParts = fullName.length > 0 ? fullName.split(/\s+/) : [];
+                        const firstName = nameParts[0] || '';
+                        const lastName = nameParts.slice(1).join(' ');
+
+                        setForm(prev => ({
+                            ...prev,
+                            firstName: prev.firstName || firstName,
+                            lastName: prev.lastName || lastName,
+                            phone: prev.phone || authUser.phone || '',
+                        }));
+                    }
+                }
+            } catch (error) {
+                console.error('[AddressFormModal] Failed to load saved profile/address data:', error);
+            } finally {
+                if (isMounted.current) setIsLoadingSavedData(false);
+            }
+        };
+
+        loadSavedData();
+    }, [visible, userId, initialData, applySavedAddress]);
 
     // ---------------------------------------------------------------------------
     // Geocoding helpers
@@ -637,6 +735,13 @@ export default function AddressFormModal({
 
                     <ScrollView contentContainerStyle={{ padding: 20, paddingBottom: 100 }} keyboardShouldPersistTaps="handled">
 
+                        {isLoadingSavedData && (
+                            <View style={s.prefillLoadingRow}>
+                                <ActivityIndicator size="small" color={COLORS.primary} />
+                                <Text style={s.prefillLoadingText}>Loading saved profile and addresses...</Text>
+                            </View>
+                        )}
+
                         {/* Address type selector */}
                         <View style={s.typeRow}>
                             <Pressable
@@ -654,6 +759,35 @@ export default function AddressFormModal({
                                 <Text style={[s.typeOptionText, form.addressType === 'commercial' && s.typeOptionTextActive]}>Commercial</Text>
                             </Pressable>
                         </View>
+
+                        {savedAddresses.length > 0 && (
+                            <View style={{ marginBottom: 14 }}>
+                                <Text style={s.inputLabel}>Saved Addresses</Text>
+                                <ScrollView
+                                    horizontal
+                                    showsHorizontalScrollIndicator={false}
+                                    contentContainerStyle={s.savedAddressRow}
+                                >
+                                    {savedAddresses.map((addr) => {
+                                        const isActive = selectedSavedAddressId === addr.id;
+                                        return (
+                                            <Pressable
+                                                key={addr.id}
+                                                style={[s.savedAddressChip, isActive && s.savedAddressChipActive]}
+                                                onPress={() => {
+                                                    setSelectedSavedAddressId(addr.id);
+                                                    applySavedAddress(addr);
+                                                }}
+                                            >
+                                                <Text style={[s.savedAddressChipText, isActive && s.savedAddressChipTextActive]}>
+                                                    {addr.label || 'Saved Address'}
+                                                </Text>
+                                            </Pressable>
+                                        );
+                                    })}
+                                </ScrollView>
+                            </View>
+                        )}
 
                         {/* Contact info */}
                         <Text style={s.sectionHeader}>Contact Information</Text>
@@ -919,4 +1053,41 @@ const s = StyleSheet.create({
         borderRadius: 12, marginBottom: 10,
     },
     useLocationText: { fontSize: 14, fontWeight: '600', color: COLORS.primary },
+
+    prefillLoadingRow: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 8,
+        marginBottom: 14,
+    },
+    prefillLoadingText: {
+        fontSize: 13,
+        color: '#6B7280',
+        fontWeight: '500',
+    },
+    savedAddressRow: {
+        gap: 8,
+        paddingVertical: 2,
+        paddingRight: 4,
+    },
+    savedAddressChip: {
+        borderWidth: 1,
+        borderColor: '#E5E7EB',
+        backgroundColor: '#FFFFFF',
+        paddingVertical: 8,
+        paddingHorizontal: 12,
+        borderRadius: 999,
+    },
+    savedAddressChipActive: {
+        borderColor: COLORS.primary,
+        backgroundColor: '#FFF7ED',
+    },
+    savedAddressChipText: {
+        fontSize: 12,
+        fontWeight: '600',
+        color: '#374151',
+    },
+    savedAddressChipTextActive: {
+        color: COLORS.primary,
+    },
 });

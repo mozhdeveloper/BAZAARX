@@ -801,9 +801,7 @@ export default function OrdersScreen({ navigation, route }: Props) {
         }
       }}
       onCancel={order.buyerUiStatus === 'pending' ? () => handleCancelOrder(order) : undefined}
-      onEditVariant={order.buyerUiStatus === 'pending' ? () => navigation.navigate('OrderDetail', { order }) : undefined}
-      onEditShipping={order.buyerUiStatus === 'pending' ? () => navigation.navigate('OrderDetail', { order }) : undefined}
-      onEditPayment={order.buyerUiStatus === 'pending' ? () => navigation.navigate('OrderDetail', { order }) : undefined}
+      onEditShipping={order.buyerUiStatus === 'pending' ? () => (navigation as any).navigate('OrderDetail', { order, orderId: order.id, autoOpenAddressModal: true }) : undefined}
       onReceive={order.buyerUiStatus === 'delivered' ? () => handleOrderReceived(order) : undefined}
       onReview={order.buyerUiStatus === 'received' ? () => handleReview(order) : undefined}
       onReturn={(order.buyerUiStatus === 'received') && (Date.now() - new Date((order as any).receivedAt || order.deliveredAt || order.updatedAt || order.createdAt).getTime()) <= 7 * 24 * 60 * 60 * 1000 ? () => navigation.navigate('ReturnRequest', { order }) : undefined}

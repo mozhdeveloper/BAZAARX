@@ -104,78 +104,113 @@ class OrderMutationService {
     orderId,
     updates,
   }: UpdatePendingOrderDetailsInput): Promise<boolean> {
-    if (!isSupabaseConfigured()) {
-      throw new Error('Supabase is not configured');
-    }
-
-    // Query the orders table to verify current shipment status is 'waiting_for_seller' (pending)
-    const { data: orderData, error: fetchError } = await supabase
-      .from('orders')
-      .select('shipment_status')
-      .eq('id', orderId)
-      .single();
-
-    if (fetchError || !orderData) {
-      throw new Error(`Failed to fetch order: ${fetchError?.message || 'Order not found'}`);
-    }
-
-    if (orderData.shipment_status !== 'waiting_for_seller') {
-      throw new Error('Order can no longer be edited.');
-    }
-
-    // Update orders table if shipping address or payment method provided
-    if (updates.shippingAddress || updates.paymentMethod) {
-      const updatePayload: Record<string, unknown> = {};
-
+    try {
+      // 1. Update the Address & Recipient Tables (Normalized Schema)
       if (updates.shippingAddress) {
-        updatePayload.shipping_address = updates.shippingAddress;
+        // Fetch the order to get BOTH the address_id AND recipient_id
+        const { data: orderData, error: orderFetchError } = await supabase
+          .from('orders')
+          .select('address_id, recipient_id')
+          .eq('id', orderId)
+          .single();
+
+        if (orderFetchError) {
+          console.error('Could not find links for order:', orderFetchError);
+          throw new Error('Failed to find linked address or recipient');
+        }
+
+        // 1A. Update the Location (shipping_addresses table)
+        if (orderData.address_id) {
+          const { error: addressUpdateError } = await supabase
+            .from('shipping_addresses')
+            .update({
+              address_line_1: updates.shippingAddress.street || (updates.shippingAddress as any).address,
+              city: updates.shippingAddress.city,
+              province: updates.shippingAddress.province,
+              region: updates.shippingAddress.region || updates.shippingAddress.province,
+              postal_code: updates.shippingAddress.postalCode,
+              barangay: updates.shippingAddress.barangay || null,
+            })
+            .eq('id', orderData.address_id);
+
+          if (addressUpdateError) {
+            console.error('Failed to update location:', addressUpdateError);
+            throw new Error('Failed to update shipping address');
+          }
+        }
+
+        // 1B. Update the Person (order_recipients table)
+        if (orderData.recipient_id) {
+          const { error: recipientUpdateError } = await supabase
+            .from('order_recipients')
+            .update({
+              first_name: updates.shippingAddress.fullName,
+              last_name: '', // Safe default required by schema
+              phone: updates.shippingAddress.phone,
+            })
+            .eq('id', orderData.recipient_id);
+
+          if (recipientUpdateError) {
+            console.error('Failed to update person:', recipientUpdateError);
+            throw new Error('Failed to update recipient details');
+          }
+        }
       }
 
+      // 2. Update regular order details (like payment method)
+      const updatePayload: Record<string, unknown> = {};
       if (updates.paymentMethod) {
         updatePayload.payment_method = updates.paymentMethod;
       }
 
-      const { error: updateError } = await supabase
-        .from('orders')
-        .update(updatePayload)
-        .eq('id', orderId);
+      if (Object.keys(updatePayload).length > 0) {
+        const { error: updateError } = await supabase
+          .from('orders')
+          .update(updatePayload)
+          .eq('id', orderId);
 
-      if (updateError) {
-        console.error('Error updating order details:', updateError);
-        throw new Error('Failed to update order details');
+        if (updateError) {
+          console.error('Error updating order details:', updateError);
+          throw new Error('Failed to update order details');
+        }
       }
-    }
 
-    // Update order_items table if variant updates provided
-    if (updates.updatedVariant && updates.updatedVariant.length > 0) {
-      for (const variant of updates.updatedVariant) {
-        const itemUpdatePayload: Record<string, unknown> = {};
+      // 3. Update order_items table if variant updates provided
+      if (updates.updatedVariant && updates.updatedVariant.length > 0) {
+        for (const variant of updates.updatedVariant) {
+          const itemUpdatePayload: Record<string, unknown> = {};
 
-        if (variant.variantId) {
-          itemUpdatePayload.variant_id = variant.variantId;
-        }
+          if (variant.variantId) {
+            itemUpdatePayload.variant_id = variant.variantId;
+          }
 
-        if (variant.personalized_options) {
-          itemUpdatePayload.personalized_options = variant.personalized_options;
-        }
+          if (variant.personalized_options) {
+            itemUpdatePayload.personalized_options = variant.personalized_options;
+          }
 
-        if (Object.keys(itemUpdatePayload).length > 0) {
-          const { error: itemUpdateError } = await supabase
-            .from('order_items')
-            .update(itemUpdatePayload)
-            .eq('id', variant.itemId)
-            .eq('order_id', orderId);
+          if (Object.keys(itemUpdatePayload).length > 0) {
+            const { error: itemUpdateError } = await supabase
+              .from('order_items')
+              .update(itemUpdatePayload)
+              .eq('id', variant.itemId)
+              .eq('order_id', orderId);
 
-          if (itemUpdateError) {
-            console.error(`Error updating order item ${variant.itemId}:`, itemUpdateError);
-            throw new Error(`Failed to update order item ${variant.itemId}`);
+            if (itemUpdateError) {
+              console.error(`Error updating order item ${variant.itemId}:`, itemUpdateError);
+              throw new Error(`Failed to update order item ${variant.itemId}`);
+            }
           }
         }
       }
-    }
 
-    return true;
+      return true;
+    } catch (error) {
+      console.error('Error in updatePendingOrderDetails:', error);
+      throw error;
+    }
   }
-}
+      }
+    
+  
 
 export const orderMutationService = new OrderMutationService();

@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { View, Text, Pressable, StyleSheet } from 'react-native';
+import { useNavigation } from '@react-navigation/native';
 import { Image } from 'expo-image';
 import { Calendar, MapPin, Eye, Copy, MessageCircle, Star, RotateCcw, ArrowRight, AlertCircle } from 'lucide-react-native';
 import { Order } from '../types';
@@ -11,9 +12,7 @@ interface OrderCardProps {
   onPress: () => void;
   onTrack?: () => void;
   onCancel?: () => void;
-  onEditVariant?: () => void;
   onEditShipping?: () => void;
-  onEditPayment?: () => void;
   onReceive?: () => void;
   onReview?: () => void;
   onReturn?: () => void;
@@ -26,26 +25,33 @@ export const OrderCard: React.FC<OrderCardProps> = React.memo(({
   onPress,
   onTrack,
   onCancel,
-  onEditVariant,
   onEditShipping,
-  onEditPayment,
   onReceive,
   onReview,
   onReturn,
   onBuyAgain,
   onShopPress
 }) => {
+  const navigation = useNavigation<any>();
+
   // Grace Period countdown timer state
   const [timeLeft, setTimeLeft] = useState<number>(0);
 
-  // Grace Period timer effect - 1 minute from order creation
+  const formatGraceTime = (secondsLeft: number) => {
+    const safe = Math.max(0, secondsLeft);
+    const minutes = Math.floor(safe / 60).toString().padStart(2, '0');
+    const seconds = (safe % 60).toString().padStart(2, '0');
+    return `${minutes}:${seconds}`;
+  };
+
+  // Grace Period timer effect - 1 hour from order creation
   useEffect(() => {
     if (!order || order.status !== 'pending') {
       setTimeLeft(0);
       return;
     }
 
-    const expirationTime = new Date(order.createdAt).getTime() + 60000; // 60 seconds from creation
+    const expirationTime = new Date(order.createdAt).getTime() + 3600000; // 60 minutes from creation
 
     const interval = setInterval(() => {
       const now = new Date().getTime();
@@ -249,7 +255,7 @@ export const OrderCard: React.FC<OrderCardProps> = React.memo(({
         <View style={styles.gracePeriodBanner}>
           <AlertCircle size={16} color="#D97706" style={{ marginRight: 8 }} />
           <Text style={styles.gracePeriodText}>
-            Eligible for edits: {Math.floor(timeLeft / 60)}:{(timeLeft % 60).toString().padStart(2, '0')} min
+            Eligible for edits: {formatGraceTime(timeLeft)} min
           </Text>
         </View>
       )}
@@ -264,18 +270,11 @@ export const OrderCard: React.FC<OrderCardProps> = React.memo(({
               </Pressable>
             )}
             {timeLeft > 0 && (
-              <View style={styles.buttonRow}>
-                <Pressable style={[styles.outlineButton, { flex: 1 }]} onPress={onEditVariant || onPress}>
-                  <Text style={styles.outlineButtonText}>Edit Variant</Text>
-                </Pressable>
-                <Pressable style={[styles.outlineButton, { flex: 1 }]} onPress={onEditShipping || onPress}>
-                  <Text style={styles.outlineButtonText}>Edit Shipping</Text>
-                </Pressable>
-              </View>
-            )}
-            {timeLeft > 0 && (
-              <Pressable style={styles.outlineButton} onPress={onEditPayment || onPress}>
-                <Text style={styles.outlineButtonText}>Edit COD / Payment</Text>
+              <Pressable
+                style={styles.outlineButton}
+                onPress={() => onEditShipping ? onEditShipping() : navigation.navigate('OrderDetail', { id: order.id, autoOpenAddressModal: true })}
+              >
+                <Text style={styles.outlineButtonText}>Edit Address</Text>
               </Pressable>
             )}
             <Pressable style={styles.solidButton} onPress={onPress}>
@@ -292,8 +291,14 @@ export const OrderCard: React.FC<OrderCardProps> = React.memo(({
 
         {(buyerUiStatus === 'shipped' || buyerUiStatus === 'delivered') && (
           <View style={{ flexDirection: 'row', gap: 8 }}>
-            <Pressable style={[styles.outlineButton, { flex: 1 }]} onPress={onPress}>
-              <MessageCircle size={14} color="#4B5563" style={{ marginRight: 4 }} />
+            <Pressable
+              style={[
+                styles.outlineButton,
+                { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8 },
+              ]}
+              onPress={onPress}
+            >
+              <MessageCircle size={14} color="#4B5563" />
               <Text style={styles.outlineButtonText}>Chat with Seller</Text>
             </Pressable>
             <Pressable style={[styles.solidButton, { flex: 1 }]} onPress={onPress}>

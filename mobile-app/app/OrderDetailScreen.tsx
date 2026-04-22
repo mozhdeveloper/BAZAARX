@@ -51,6 +51,7 @@ import { orderMutationService } from '../services/orders/orderMutationService';
 import { useAuthStore } from '../src/stores/authStore';
 import { safeImageUri } from '../src/utils/imageUtils';
 import ReviewModal from '../src/components/ReviewModal';
+import AddressFormModal from '../src/components/AddressFormModal';
 import { BuyerBottomNav } from '../src/components/BuyerBottomNav';
 import { reviewService } from '@/services/reviewService';
 import { chatService } from '../src/services/chatService';
@@ -64,6 +65,7 @@ type Props = NativeStackScreenProps<RootStackParamList, 'OrderDetail'>;
 
 export default function OrderDetailScreen({ route, navigation }: Props) {
   const { order } = route.params;
+  const { autoOpenAddressModal } = (route.params as any) || {};
   
   // Comprehensive logging of order object
   console.log('[OrderDetail] Full order object keys:', Object.keys(order || {}).join(', '));
@@ -87,6 +89,7 @@ export default function OrderDetailScreen({ route, navigation }: Props) {
 
   const insets = useSafeAreaInsets();
   const { updateOrderStatus } = useOrderStore();
+  const user = useAuthStore((state: any) => state.user);
   const [showReviewModal, setShowReviewModal] = useState(false);
   const [showChatModal, setShowChatModal] = useState(false);
   const [chatMessage, setChatMessage] = useState('');
@@ -110,9 +113,15 @@ export default function OrderDetailScreen({ route, navigation }: Props) {
   const [selectedPhoto, setSelectedPhoto] = useState<string | null>(null);
   const [showReceiptModal, setShowReceiptModal] = useState(false);
   const [isSubmittingReceipt, setIsSubmittingReceipt] = useState(false);
+  const [isAddressModalVisible, setIsAddressModalVisible] = useState(false);
   const getTransactionByOrderId = usePaymentStore((s) => s.getTransactionByOrderId);
   const fetchTrackingByOrderId = useDeliveryStore((s) => s.fetchTrackingByOrderId);
   const deliveryStoreTracking = useDeliveryStore((s) => s.tracking);
+
+  // Grace Period Edit Eligibility (1-hour window for fresh checkouts)
+  const isEligibleForEdit =
+    order?.status === 'pending' &&
+    new Date().getTime() - new Date(order.createdAt).getTime() < 3600000;
 
   // BX-09-003 — Shipment details (method, fee, ETA) from order_shipments table
   // Fixed to store array of shipments for multi-seller order support
@@ -169,6 +178,16 @@ export default function OrderDetailScreen({ route, navigation }: Props) {
       setDeliveryTracking(deliveryStoreTracking);
     }
   }, [deliveryStoreTracking]);
+
+  useEffect(() => {
+    let isMounted = true;
+    if (autoOpenAddressModal && isEligibleForEdit) {
+      setTimeout(() => {
+        if (isMounted) setIsAddressModalVisible(true);
+      }, 600); // Increased delay for smoother transition
+    }
+    return () => { isMounted = false; };
+  }, [autoOpenAddressModal, isEligibleForEdit]);
 
   // Get seller_id from order items via products
   const getSellerIdFromOrder = useCallback(async (): Promise<string | null> => {
@@ -480,8 +499,6 @@ export default function OrderDetailScreen({ route, navigation }: Props) {
     }
   };
 
-  const { user } = useAuthStore();
-
   const handleCancelOrder = async () => {
     try {
       console.log('Order Object:', order);
@@ -506,8 +523,47 @@ export default function OrderDetailScreen({ route, navigation }: Props) {
     }
   };
 
-  // Grace Period Edit Eligibility (1-minute window for fresh checkouts)
-  const isEligibleForEdit = order?.status === 'pending' && (new Date().getTime() - new Date(order.createdAt).getTime() < 60000);
+  const handleSaveNewAddress = async (modalData: any) => {
+    try {
+      const formattedAddress = {
+        contactPerson: modalData.contactPerson || modalData.fullName || (order.shippingAddress as any)?.contactPerson || (order.shippingAddress as any)?.fullName || 'Buyer',
+        phone: modalData.contactNumber || modalData.phone || order.shippingAddress?.phone || '',
+        address: modalData.street || modalData.address || order.shippingAddress?.address || '',
+        city: modalData.city || order.shippingAddress?.city || '',
+        region: modalData.province || modalData.region || order.shippingAddress?.region || '',
+        postalCode: modalData.zipCode || modalData.postalCode || order.shippingAddress?.postalCode || '',
+        barangay: modalData.barangay || (order.shippingAddress as any)?.barangay || '',
+      };
+
+      const { editPendingOrder } = useOrderStore.getState();
+
+      // Safely extract the true database UUID.
+      // Fallback to order.id just in case it is already a UUID.
+      // Safely extract the true database UUID.
+      // Fallback to order.id just in case it is already a UUID.
+      const trueDatabaseId = (order as any).order_id || (order as any).orderId || (order as any).db_id || order.id;
+
+      // Pass the true UUID to the store
+      await editPendingOrder(trueDatabaseId, { shippingAddress: formattedAddress as any });
+      
+      // INSTANT UI UPDATE: Tell React Navigation to update the current screen's parameters
+      navigation.setParams({
+        order: {
+          ...order,
+          shippingAddress: {
+            ...(order.shippingAddress as any),
+            ...formattedAddress
+          }
+        } as any
+      });
+
+      Alert.alert('Success', 'Order shipping address updated!');
+      setIsAddressModalVisible(false);
+    } catch (error) {
+      console.error('Failed to save address:', error);
+      Alert.alert('Error', 'Could not update the address.');
+    }
+  };
 
   const uiStatus = order.buyerUiStatus || order.status;
 
@@ -554,6 +610,21 @@ export default function OrderDetailScreen({ route, navigation }: Props) {
   };
 
   const StatusIcon = getStatusIcon();
+
+  // Safely extract default user address whether it's an array or a single object
+  const defaultUserAddress = Array.isArray(user?.addresses) 
+    ? user?.addresses.find((a: any) => a.is_default) || user?.addresses[0] 
+    : user?.address;
+
+  const modalInitialData = {
+    contactPerson: defaultUserAddress?.contactPerson || defaultUserAddress?.first_name || (order.shippingAddress as any)?.contactPerson || (order.shippingAddress as any)?.fullName || user?.full_name || '',
+    contactNumber: defaultUserAddress?.contactNumber || defaultUserAddress?.phone || (order.shippingAddress as any)?.contactNumber || (order.shippingAddress as any)?.phone || user?.phone || '',
+    street: defaultUserAddress?.street || (order.shippingAddress as any)?.address || '',
+    city: defaultUserAddress?.city || (order.shippingAddress as any)?.city || '',
+    province: defaultUserAddress?.province || (order.shippingAddress as any)?.region || '',
+    barangay: defaultUserAddress?.barangay || (order.shippingAddress as any)?.barangay || '',
+    zipCode: defaultUserAddress?.zipCode || defaultUserAddress?.zip_code || (order.shippingAddress as any)?.postalCode || '',
+  };
 
   return (
     <View style={styles.container}>
@@ -711,7 +782,7 @@ export default function OrderDetailScreen({ route, navigation }: Props) {
               <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
                 <Text style={styles.metaLabel}>Recipient</Text>
                 {isEligibleForEdit && (
-                  <Pressable onPress={() => Alert.alert('Edit Address', 'Address modal will open here')}>
+                  <Pressable onPress={() => setIsAddressModalVisible(true)}>
                     <Text style={{ fontSize: 13, color: COLORS.primary, fontWeight: '600' }}>Edit</Text>
                   </Pressable>
                 )}
@@ -842,14 +913,6 @@ export default function OrderDetailScreen({ route, navigation }: Props) {
                       </View>
                       <Text style={styles.compactItemPrice}>₱{((item.price || 0) * item.quantity).toLocaleString()}</Text>
                     </Pressable>
-                    {isEligibleForEdit && (
-                      <Pressable 
-                        onPress={() => Alert.alert('Change Variant', 'Variant modal will open here')}
-                        style={{ marginTop: 8, marginLeft: 60 }}
-                      >
-                        <Text style={{ fontSize: 12, color: COLORS.primary, fontWeight: '600' }}>Change Variant</Text>
-                      </Pressable>
-                    )}
                   </View>
                 ))}
               </View>
@@ -1318,6 +1381,15 @@ export default function OrderDetailScreen({ route, navigation }: Props) {
           </KeyboardAvoidingView>
         </SafeAreaView>
       </Modal>
+
+      <AddressFormModal 
+        visible={isAddressModalVisible} 
+        onClose={() => setIsAddressModalVisible(false)} 
+        onSaved={handleSaveNewAddress} 
+        initialData={modalInitialData}
+        userId={user?.id}
+        context="buyer"
+      />
 
     </View>
   );
