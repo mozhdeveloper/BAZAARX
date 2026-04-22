@@ -17,13 +17,13 @@
 
 import React, { useState, useRef, useEffect, useCallback } from 'react';
 import {
-    View, Text, Modal, ScrollView, TextInput, Pressable,
+    View, Text, Modal, ScrollView, TextInput, Pressable, Animated, Easing,
     ActivityIndicator, KeyboardAvoidingView, Platform, StyleSheet, Alert, Keyboard,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import MapView, { Marker, Region, PROVIDER_GOOGLE, PROVIDER_DEFAULT } from 'react-native-maps';
 import {
-    X, ChevronLeft, ChevronDown, ChevronUp,
+    X, ChevronLeft, Search,
     Home, Building2, Move, MapPin, Navigation,
 } from 'lucide-react-native';
 import * as Location from 'expo-location';
@@ -121,27 +121,59 @@ export default function AddressFormModal({
     const [isReverseGeocoding, setIsReverseGeocoding] = useState(false);
     const [isGettingLocation, setIsGettingLocation] = useState(false);
 
+    // Dropdown search + debounce state
+    const [dropdownSearch, setDropdownSearch] = useState('');
+    const [debouncedSearch, setDebouncedSearch] = useState('');
+    const searchTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+    const geocodeTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+    const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
+
+    // Dropdown animation
+    const dropdownOpacity = useRef(new Animated.Value(0)).current;
+    const dropdownSlide = useRef(new Animated.Value(-8)).current;
+
+    useEffect(() => {
+        if (openDropdown) {
+            dropdownOpacity.setValue(0);
+            dropdownSlide.setValue(-8);
+            Animated.parallel([
+                Animated.timing(dropdownOpacity, { toValue: 1, duration: 250, easing: Easing.bezier(0.4, 0, 0.2, 1), useNativeDriver: true }),
+                Animated.timing(dropdownSlide, { toValue: 0, duration: 250, easing: Easing.bezier(0.4, 0, 0.2, 1), useNativeDriver: true }),
+            ]).start();
+        }
+    }, [openDropdown]);
+
+    // Island group mapping for region categorization
+    const LUZON_CODES = new Set(['01', '02', '03', '04', '05', '13', '14', '17']);
+    const VISAYAS_CODES = new Set(['06', '07', '08']);
+    const getIslandGroup = (code: string): string => {
+        if (LUZON_CODES.has(code)) return 'Luzon';
+        if (VISAYAS_CODES.has(code)) return 'Visayas';
+        return 'Mindanao';
+    };
+
     // Phone validation helper
     const PH_PHONE_RE = /^(09|\+639)\d{9}$/;
     const phoneError = form.phone.length > 0 && !PH_PHONE_RE.test(form.phone.trim());
 
     const handlePhoneChange = useCallback((text: string) => {
-        // Allow + only at the start, then digits only
         let cleaned = text.replace(/[^\d+]/g, '');
-        // Ensure + only appears at position 0
         if (cleaned.indexOf('+') > 0) {
             cleaned = cleaned.replace(/\+/g, '');
         }
-        // Max length: +639XXXXXXXXX = 13 chars, 09XXXXXXXXX = 11 chars
         const maxLen = cleaned.startsWith('+') ? 13 : 11;
         cleaned = cleaned.slice(0, maxLen);
         setForm(prev => ({ ...prev, phone: cleaned }));
     }, []);
 
-    // Mount guard
+    // Mount guard + timer cleanup
     useEffect(() => {
         isMounted.current = true;
-        return () => { isMounted.current = false; };
+        return () => {
+            isMounted.current = false;
+            if (searchTimerRef.current) clearTimeout(searchTimerRef.current);
+            if (geocodeTimerRef.current) clearTimeout(geocodeTimerRef.current);
+        };
     }, []);
 
     // Load regions once
@@ -151,11 +183,48 @@ export default function AddressFormModal({
         }
     }, []);
 
+    // Debounce search input for dropdown filtering (300ms)
+    useEffect(() => {
+        if (searchTimerRef.current) clearTimeout(searchTimerRef.current);
+        searchTimerRef.current = setTimeout(() => {
+            setDebouncedSearch(dropdownSearch);
+        }, 300);
+        return () => { if (searchTimerRef.current) clearTimeout(searchTimerRef.current); };
+    }, [dropdownSearch]);
+
+    // Reset search when dropdown type changes
+    useEffect(() => {
+        setDropdownSearch('');
+        setDebouncedSearch('');
+    }, [openDropdown]);
+
+    // Validate — show error when no matches found after debounce
+    useEffect(() => {
+        if (!openDropdown || debouncedSearch.length === 0) {
+            if (openDropdown) {
+                setFieldErrors(prev => { const n = { ...prev }; delete n[openDropdown]; return n; });
+            }
+            return;
+        }
+        const currentList = openDropdown === 'region' ? regionList
+            : openDropdown === 'province' ? provinceList
+                : openDropdown === 'city' ? cityList : barangayList;
+        const hasMatch = currentList.some((item: any) => {
+            const name = item.region_name || item.province_name || item.city_name || item.brgy_name || '';
+            return name.toLowerCase().includes(debouncedSearch.toLowerCase());
+        });
+        setFieldErrors(prev => {
+            const n = { ...prev };
+            if (!hasMatch) n[openDropdown] = 'Location not found';
+            else delete n[openDropdown];
+            return n;
+        });
+    }, [debouncedSearch, openDropdown, regionList, provinceList, cityList, barangayList]);
+
     // Populate form when modal opens
     useEffect(() => {
         if (!visible) return;
         if (initialData) {
-            // Editing mode — pre-fill with existing address
             setForm({ ...initialData });
             setGeoCodes({
                 regionCode: initialData.regionCode,
@@ -174,7 +243,6 @@ export default function AddressFormModal({
                 setMapRegion(DEFAULT_REGION);
             }
         } else {
-            // Add mode — blank form
             setForm(makeBlank('', '', '', existingCount === 0));
             setGeoCodes({});
             setProvinceList([]);
@@ -212,6 +280,13 @@ export default function AddressFormModal({
         }
     };
 
+    const debouncedGeocode = (override?: Partial<Omit<Address, 'id'>>) => {
+        if (geocodeTimerRef.current) clearTimeout(geocodeTimerRef.current);
+        geocodeTimerRef.current = setTimeout(() => {
+            attemptForwardGeocode(override);
+        }, 1000);
+    };
+
     const reverseGeocodeAndFill = async (lat: number, lng: number) => {
         if (!isMounted.current) return;
         setIsReverseGeocoding(true);
@@ -242,7 +317,6 @@ export default function AddressFormModal({
                 coordinates: { latitude: lat, longitude: lng },
             }));
 
-            // Match to PH address API and cascade dropdowns
             let regList = regionList;
             if (regList.length === 0) {
                 regList = await regions();
@@ -361,20 +435,17 @@ export default function AddressFormModal({
             setBarangayList([]);
             return;
         }
-
         if (type === 'province') {
             setForm(prev => ({ ...prev, province: text, city: '', barangay: '', coordinates: null }));
             setGeoCodes(prev => ({ ...prev, provinceCode: undefined, cityCode: undefined, barangayCode: undefined }));
             setBarangayList([]);
             return;
         }
-
         if (type === 'city') {
             setForm(prev => ({ ...prev, city: text, barangay: '', coordinates: null }));
             setGeoCodes(prev => ({ ...prev, cityCode: undefined, barangayCode: undefined }));
             return;
         }
-
         setForm(prev => ({ ...prev, barangay: text }));
         setGeoCodes(prev => ({ ...prev, barangayCode: undefined }));
     }, []);
@@ -416,22 +487,22 @@ export default function AddressFormModal({
         if (!isMounted.current) return;
         setBarangayList(bList);
         setIsLoadingLocation(false);
-        attemptForwardGeocode({ city: name, barangay: '' });
+        debouncedGeocode({ city: name, barangay: '' });
     };
 
     const onBarangayChange = (name: string, brgyCode?: string) => {
         setForm(prev => ({ ...prev, barangay: name }));
         if (brgyCode) setGeoCodes(prev => ({ ...prev, barangayCode: brgyCode }));
         setOpenDropdown(null);
-        attemptForwardGeocode({ barangay: name });
+        debouncedGeocode({ barangay: name });
     };
 
     const onStreetBlur = () => {
-        if (form.street.length > 3) attemptForwardGeocode();
+        if (form.street.length > 3) debouncedGeocode();
     };
 
     // ---------------------------------------------------------------------------
-    // Map confirm — pin → reverse geocode → fill fields
+    // Map confirm
     // ---------------------------------------------------------------------------
 
     const handleConfirmPin = () => {
@@ -443,7 +514,7 @@ export default function AddressFormModal({
     };
 
     // ---------------------------------------------------------------------------
-    // GPS — "Use My Location" with permission prompt
+    // GPS — "Use My Location"
     // ---------------------------------------------------------------------------
 
     const handleUseMyLocation = useCallback(async () => {
@@ -459,21 +530,12 @@ export default function AddressFormModal({
                 );
                 return;
             }
-
             const position = await Location.getCurrentPositionAsync({
-                accuracy: 3 as any, // LocationAccuracy.High = 3; named export missing from installed type defs
+                accuracy: 3 as any,
             });
             const { latitude, longitude } = position.coords;
-
             setForm(prev => ({ ...prev, coordinates: { latitude, longitude } }));
-            setMapRegion({
-                latitude,
-                longitude,
-                latitudeDelta: 0.005,
-                longitudeDelta: 0.005,
-            });
-
-            // Reverse geocode to auto-fill all fields
+            setMapRegion({ latitude, longitude, latitudeDelta: 0.005, longitudeDelta: 0.005 });
             reverseGeocodeAndFill(latitude, longitude);
         } catch (error) {
             console.error('[AddressFormModal] Location error:', error);
@@ -493,6 +555,26 @@ export default function AddressFormModal({
 
     const handleSave = async () => {
         if (!userId) return;
+
+        const errors: Record<string, string> = {};
+        if (!form.firstName?.trim()) errors.firstName = 'First name is required';
+        if (!form.lastName?.trim()) errors.lastName = 'Last name is required';
+        if (!form.phone?.trim()) errors.phone = 'Phone number is required';
+        if (!form.region?.trim()) errors.region = 'Region is required';
+        if (!form.city?.trim()) errors.city = 'City / Municipality is required';
+        if (!form.street?.trim()) errors.street = 'Street / House No. is required';
+        const isNCR = form.region?.toLowerCase().includes('ncr') ||
+            form.region?.toLowerCase().includes('metro manila') ||
+            form.region?.toLowerCase().includes('national capital');
+        if (!isNCR && !form.province?.trim()) errors.province = 'Province is required';
+
+        if (Object.keys(errors).length > 0) {
+            setFieldErrors(errors);
+            Alert.alert('Incomplete Address', 'Please fill in all required fields.');
+            return;
+        }
+        setFieldErrors({});
+
         setIsSaving(true);
         try {
             const payload = {
@@ -529,69 +611,168 @@ export default function AddressFormModal({
         label: string; type: NonNullable<typeof openDropdown>; value: string; list: any[]; disabled?: boolean;
     }) => {
         const isOpen = openDropdown === type;
-        const normalizedQuery = (value || '').trim().toLowerCase();
-        const filtered = list.filter((item: any) => {
-            const name = item.region_name || item.province_name || item.city_name || item.brgy_name || '';
-            return name.toLowerCase().includes(normalizedQuery);
-        });
+        const hasError = !!fieldErrors[type];
 
         return (
-            <View style={{ marginBottom: 12, zIndex: isOpen ? 100 : 1 }}>
+            <View style={{ marginBottom: 12 }}>
                 <Text style={s.inputLabel}>{label}</Text>
-                <View style={[s.dropdownTrigger, disabled && s.dropdownDisabled, isOpen && s.dropdownActive]}>
-                    <TextInput
-                        style={[s.dropdownTextInput, disabled && { color: '#9CA3AF' }]}
-                        placeholder="Select..."
-                        placeholderTextColor="#9CA3AF"
-                        value={value}
-                        editable={!disabled}
-                        onFocus={() => !disabled && setOpenDropdown(type)}
-                        onChangeText={(text) => {
-                            if (!disabled) {
-                                if (openDropdown !== type) setOpenDropdown(type);
-                                handleDropdownFieldChange(type, text);
-                            }
-                        }}
-                    />
-                    <Pressable
-                        onPress={() => !disabled && toggleDropdown(type)}
-                        disabled={disabled}
-                        hitSlop={8}
-                        style={{ paddingVertical: 4, paddingLeft: 8 }}
-                    >
-                        {isLoadingLocation && isOpen
-                            ? <ActivityIndicator size="small" color={COLORS.primary} />
-                            : isOpen
-                                ? <ChevronUp size={20} color={disabled ? '#9CA3AF' : '#4B5563'} />
-                                : <ChevronDown size={20} color={disabled ? '#9CA3AF' : '#4B5563'} />
+                <Pressable
+                    onPress={() => {
+                        if (disabled) return;
+                        if (isOpen) {
+                            setOpenDropdown(null);
+                        } else {
+                            setDropdownSearch('');
+                            setDebouncedSearch('');
+                            setOpenDropdown(type);
                         }
-                    </Pressable>
-                </View>
-                {isOpen && (
-                    <View style={s.dropdownList}>
-                        <ScrollView style={{ maxHeight: 200 }} nestedScrollEnabled keyboardShouldPersistTaps="handled">
-                            {filtered.map((item: any, i: number) => {
-                                const name = item.region_name || item.province_name || item.city_name || item.brgy_name || '';
-                                return (
-                                    <Pressable
-                                        key={`${type}-${i}`}
-                                        style={({ pressed }) => [s.selectItem, pressed && { backgroundColor: '#FFF7ED' }]}
-                                        onPress={() => {
-                                            Keyboard.dismiss();
-                                            if (type === 'region') onRegionChange(item.region_code);
-                                            else if (type === 'province') onProvinceChange(item.province_code);
-                                            else if (type === 'city') onCityChange(item.city_code);
-                                            else onBarangayChange(item.brgy_name, item.brgy_code);
-                                        }}
-                                    >
-                                        <Text style={s.selectItemText}>{name}</Text>
-                                    </Pressable>
-                                );
-                            })}
-                        </ScrollView>
-                    </View>
+                    }}
+                    style={[
+                        s.dropdownTrigger,
+                        disabled && s.dropdownDisabled,
+                        isOpen && s.dropdownTriggerOpen,
+                        hasError && !isOpen && s.dropdownError,
+                    ]}
+                >
+                    <Text
+                        style={[s.dropdownSelectedText, !value && { color: '#9CA3AF' }]}
+                        numberOfLines={1}
+                    >
+                        {value || 'Select...'}
+                    </Text>
+                    {isLoadingLocation && isOpen
+                        ? <ActivityIndicator size="small" color={COLORS.primary} />
+                        : <Search size={18} color={disabled ? '#9CA3AF' : '#6B7280'} />
+                    }
+                </Pressable>
+                {hasError && !isOpen && (
+                    <Text style={s.fieldErrorText}>{fieldErrors[type]}</Text>
                 )}
             </View>
+        );
+    };
+
+    // ---------------------------------------------------------------------------
+    // Dropdown overlay — separate Modal so ScrollView is NOT nested
+    // ---------------------------------------------------------------------------
+
+    const renderDropdownOverlay = () => {
+        if (!openDropdown) return null;
+
+        const type = openDropdown;
+        const labelMap: Record<string, string> = { region: 'Region', province: 'Province', city: 'City / Municipality', barangay: 'Barangay' };
+        const list = type === 'region' ? regionList
+            : type === 'province' ? provinceList
+                : type === 'city' ? cityList : barangayList;
+
+        const normalizedQuery = debouncedSearch.trim().toLowerCase();
+        const filtered = normalizedQuery
+            ? list.filter((item: any) => {
+                const name = item.region_name || item.province_name || item.city_name || item.brgy_name || '';
+                return name.toLowerCase().includes(normalizedQuery);
+            })
+            : list;
+        const maxItems = type === 'barangay' ? 200 : filtered.length;
+        const capped = filtered.slice(0, maxItems);
+        const showSearchHint = type === 'barangay' && list.length > 200 && !dropdownSearch;
+
+        // Build flat data with group headers for regions
+        type ListRow = { _type: 'header'; group: string } | { _type: 'item'; item: any; index: number };
+        const flatData: ListRow[] = type === 'region'
+            ? (['Luzon', 'Visayas', 'Mindanao'] as const).flatMap(group => {
+                const groupItems = capped.filter((item: any) => getIslandGroup(item.region_code) === group);
+                if (groupItems.length === 0) return [];
+                return [
+                    { _type: 'header' as const, group },
+                    ...groupItems.map((item: any, index: number) => ({ _type: 'item' as const, item, index })),
+                ];
+            })
+            : capped.map((item: any, index: number) => ({ _type: 'item' as const, item, index }));
+
+        const closeOverlay = () => {
+            setOpenDropdown(null);
+            setDropdownSearch('');
+            setDebouncedSearch('');
+            Keyboard.dismiss();
+        };
+
+        return (
+            <Modal transparent visible animationType="fade" onRequestClose={closeOverlay}>
+                <Pressable style={s.overlayBackdrop} onPress={closeOverlay}>
+                    <Animated.View
+                        style={[
+                            s.overlayPanel,
+                            { opacity: dropdownOpacity, transform: [{ translateY: dropdownSlide }] },
+                        ]}
+                    >
+                        <Pressable onPress={() => { }} /* prevent backdrop dismiss when tapping panel */>
+                            {/* Header */}
+                            <View style={s.overlayHeader}>
+                                <Text style={s.overlayTitle}>Select {labelMap[type]}</Text>
+                                <Pressable onPress={closeOverlay} style={s.overlayCloseBtn}>
+                                    <X size={20} color="#6B7280" />
+                                </Pressable>
+                            </View>
+
+                            {/* Search */}
+                            <View style={s.overlaySearchWrap}>
+                                <TextInput
+                                    style={s.overlaySearchInput}
+                                    placeholder={`Search ${labelMap[type].toLowerCase()}...`}
+                                    placeholderTextColor="#9CA3AF"
+                                    value={dropdownSearch}
+                                    onChangeText={setDropdownSearch}
+
+                                />
+                            </View>
+
+                            {showSearchHint && (
+                                <Text style={s.dropdownHint}>Showing first 200 — type to narrow</Text>
+                            )}
+
+                            {/* Scrollable list */}
+                            <ScrollView
+                                style={{ maxHeight: 400 }}
+                                keyboardShouldPersistTaps="handled"
+                                bounces={false}
+                                showsVerticalScrollIndicator
+                            >
+                                {flatData.length > 0 ? flatData.map((row, i) => {
+                                    if (row._type === 'header') {
+                                        return (
+                                            <View key={`header-${row.group}`} style={s.groupHeader}>
+                                                <Text style={s.groupHeaderText}>{row.group}</Text>
+                                            </View>
+                                        );
+                                    }
+                                    const name = row.item.region_name || row.item.province_name || row.item.city_name || row.item.brgy_name || '';
+                                    return (
+                                        <Pressable
+                                            key={`${type}-item-${i}`}
+                                            style={({ pressed }) => [s.selectItem, pressed && { backgroundColor: '#FFF7ED' }]}
+                                            onPress={() => {
+                                                Keyboard.dismiss();
+                                                setDropdownSearch('');
+                                                setFieldErrors(prev => { const n = { ...prev }; delete n[type]; return n; });
+                                                if (type === 'region') onRegionChange(row.item.region_code);
+                                                else if (type === 'province') onProvinceChange(row.item.province_code);
+                                                else if (type === 'city') onCityChange(row.item.city_code);
+                                                else onBarangayChange(row.item.brgy_name, row.item.brgy_code);
+                                            }}
+                                        >
+                                            <Text style={s.selectItemText}>{name}</Text>
+                                        </Pressable>
+                                    );
+                                }) : dropdownSearch.length > 0 ? (
+                                    <View style={s.dropdownEmpty}>
+                                        <Text style={s.dropdownEmptyText}>Location not found</Text>
+                                    </View>
+                                ) : null}
+                            </ScrollView>
+                        </Pressable>
+                    </Animated.View>
+                </Pressable>
+            </Modal>
         );
     };
 
@@ -635,8 +816,10 @@ export default function AddressFormModal({
                         </Pressable>
                     </View>
 
-                    <ScrollView contentContainerStyle={{ padding: 20, paddingBottom: 100 }} keyboardShouldPersistTaps="handled">
-
+                    <ScrollView
+                        contentContainerStyle={{ padding: 20, paddingBottom: 100 }}
+                        keyboardShouldPersistTaps="handled"
+                    >
                         {/* Address type selector */}
                         <View style={s.typeRow}>
                             <Pressable
@@ -683,7 +866,7 @@ export default function AddressFormModal({
                         {/* Location details */}
                         <Text style={[s.sectionHeader, { marginTop: 12 }]}>Location Details</Text>
 
-                        {/* Pin Location — placed first so user can auto-fill fields below */}
+                        {/* Pin Location */}
                         <Text style={s.inputLabel}>Pin Location</Text>
 
                         {/* Use My Location button */}
@@ -803,6 +986,9 @@ export default function AddressFormModal({
                         )}
                     </ScrollView>
 
+                    {/* Dropdown results overlay — separate Modal so list scrolls freely */}
+                    {renderDropdownOverlay()}
+
                     {/* Sticky footer */}
                     <View style={s.footer}>
                         <Pressable style={[s.saveBtn, isSaving && { opacity: 0.7 }]} onPress={handleSave} disabled={isSaving}>
@@ -876,13 +1062,44 @@ const s = StyleSheet.create({
     typeOptionText: { fontSize: 14, fontWeight: '600', color: '#6B7280' },
     typeOptionTextActive: { color: '#111827' },
 
-    dropdownTrigger: { height: 44, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', borderWidth: 1, borderColor: '#E5E7EB', borderRadius: 12, paddingHorizontal: 12, backgroundColor: '#FFF' },
-    dropdownActive: { borderColor: COLORS.primary },
+    dropdownTrigger: { height: 48, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', borderWidth: 2, borderColor: '#E5E7EB', borderRadius: 12, paddingHorizontal: 14, backgroundColor: '#FFF' },
+    dropdownTriggerOpen: { borderColor: COLORS.primary },
     dropdownDisabled: { backgroundColor: '#F9FAFB', borderColor: '#F3F4F6' },
-    dropdownTextInput: { fontSize: 14, color: '#1F2937', flex: 1, marginRight: 8, paddingVertical: 0 },
-    dropdownList: { borderWidth: 1, borderColor: '#E5E7EB', borderTopWidth: 0, borderBottomLeftRadius: 12, borderBottomRightRadius: 12, marginTop: -8, marginBottom: 16, backgroundColor: '#FFF', overflow: 'hidden' },
-    selectItem: { paddingVertical: 12, paddingHorizontal: 12, borderBottomWidth: 1, borderBottomColor: '#F3F4F6' },
-    selectItemText: { fontSize: 14, color: '#111827' },
+    dropdownError: { borderColor: '#EF4444' },
+    dropdownTextInput: { fontSize: 15, color: '#1F2937', flex: 1, marginRight: 8, paddingVertical: 0 },
+    dropdownSelectedText: { fontSize: 15, color: '#1F2937', flex: 1 },
+
+    // Overlay panel (separate Modal)
+    overlayBackdrop: { flex: 1, backgroundColor: 'rgba(0,0,0,0.4)', justifyContent: 'center', alignItems: 'center', padding: 24 },
+    overlayPanel: {
+        width: '100%',
+        maxWidth: 440,
+        backgroundColor: '#FFF',
+        borderRadius: 16,
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 12 },
+        shadowOpacity: 0.15,
+        shadowRadius: 24,
+        elevation: 20,
+        overflow: 'hidden',
+    },
+    overlayHeader: {
+        flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
+        paddingHorizontal: 18, paddingVertical: 14, borderBottomWidth: 1, borderBottomColor: '#F3F4F6',
+    },
+    overlayTitle: { fontSize: 17, fontWeight: '700', color: '#1F2937' },
+    overlayCloseBtn: { width: 32, height: 32, borderRadius: 16, backgroundColor: '#F3F4F6', justifyContent: 'center', alignItems: 'center' },
+    overlaySearchWrap: { paddingHorizontal: 14, paddingVertical: 10, borderBottomWidth: 1, borderBottomColor: '#F3F4F6' },
+    overlaySearchInput: { height: 42, borderWidth: 1, borderColor: '#E5E7EB', borderRadius: 10, paddingHorizontal: 14, fontSize: 15, color: '#1F2937', backgroundColor: '#F9FAFB' },
+
+    dropdownHint: { fontSize: 11, color: '#9CA3AF', paddingHorizontal: 14, paddingVertical: 6, backgroundColor: '#F9FAFB' },
+    dropdownEmpty: { minHeight: 80, padding: 20, alignItems: 'center', justifyContent: 'center' },
+    dropdownEmptyText: { fontSize: 15, color: '#9CA3AF', fontStyle: 'italic', textAlign: 'center', width: '100%' },
+    fieldErrorText: { fontSize: 12, color: '#EF4444', marginTop: 4, marginBottom: 4 },
+    groupHeader: { paddingHorizontal: 14, paddingVertical: 8, backgroundColor: '#F3F4F6', borderBottomWidth: 1, borderBottomColor: '#E5E7EB' },
+    groupHeaderText: { fontSize: 12, fontWeight: '700', color: COLORS.primary, textTransform: 'uppercase', letterSpacing: 0.5 },
+    selectItem: { height: 44, justifyContent: 'center', paddingHorizontal: 18, borderBottomWidth: 1, borderBottomColor: '#F3F4F6', backgroundColor: '#FFF' },
+    selectItemText: { fontSize: 15, color: '#374151' },
 
     mapWrapper: { height: 180, borderRadius: 12, overflow: 'hidden', borderWidth: 1, borderColor: '#E5E7EB', marginBottom: 4, backgroundColor: '#F3F4F6' },
     mapPreview: { flex: 1 },
@@ -905,13 +1122,11 @@ const s = StyleSheet.create({
 
     footer: { padding: 16, borderTopWidth: 1, borderTopColor: '#F3F4F6', backgroundColor: '#FFF' },
     saveBtn: { backgroundColor: COLORS.primary, borderRadius: 12, paddingVertical: 14, alignItems: 'center' },
-    saveBtnText: { fontSize: 16, fontWeight: '700', color: '#FFF', padding: -3, paddingLeft: 8, paddingRight: 8},
+    saveBtnText: { fontSize: 16, fontWeight: '700', color: '#FFF', padding: -3, paddingLeft: 8, paddingRight: 8 },
 
-    // Phone validation
     inputError: { borderColor: '#EF4444' },
     fieldError: { fontSize: 12, color: '#EF4444', marginBottom: 12, marginTop: 0 },
 
-    // Use My Location button
     useLocationBtn: {
         flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8,
         paddingVertical: 10, paddingHorizontal: 16,
