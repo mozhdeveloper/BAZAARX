@@ -38,4 +38,5 @@ export type ShopProduct = {
     };
     isVacationMode?: boolean;
     createdAt?: string;
+    lifetimeSold?: number;
 };

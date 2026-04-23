@@ -35,8 +35,11 @@ import VisualSearchModal from "../components/VisualSearchModal";
 import { useToast } from "../hooks/use-toast";
 // Hardcoded imports removed for database parity
 import { categoryService } from "@/services/categoryService";
+import type { Category } from "@/types/database.types";
 import { useBuyerStore } from "../stores/buyerStore";
 import { useProductStore } from "../stores/sellerStore";
+import { productService } from "@/services/productService";
+import { mapDbProductToSellerProduct } from "@/utils/productMapper";
 import { isSupabaseConfigured } from "@/lib/supabase";
 import { discountService } from "@/services/discountService";
 import { featuredProductService, type FeaturedProductWithDetails } from "@/services/featuredProductService";
@@ -73,6 +76,8 @@ const popularTags = [
   "Bag", "Backpack", "Chair", "Clock", "Interior", "Indoor", "Gift", "Accessories", "Fashion", "Simple"
 ];
 
+const SHOP_FETCH_LIMIT = 200;
+
 export default function ShopPage() {
   const navigate = useNavigate();
   const location = useLocation();
@@ -81,13 +86,15 @@ export default function ShopPage() {
   const { addToCart, setQuickOrder, cartItems, profile } = useBuyerStore();
   const { toast } = useToast();
   const { products: sellerProducts, fetchProducts, subscribeToProducts, loading: storeLoading } = useProductStore();
-  const [categories, setCategories] = useState<{ id: string; name: string }[]>([]);
+  const [categories, setCategories] = useState<Category[]>([]);
   const [searchQuery, setSearchQuery] = useState(searchParams.get("q") || "");
   const [selectedCategory, setSelectedCategory] = useState("All Categories");
   const [selectedSkinTypes, setSelectedSkinTypes] = useState<string[]>([]);
   const [selectedSort, setSelectedSort] = useState("default");
   const [isFeaturedView, setIsFeaturedView] = useState(false);
-  const isProductsLoading = storeLoading;
+  const [categoryProducts, setCategoryProducts] = useState<any[]>([]);
+  const [isCategoryLoading, setIsCategoryLoading] = useState(false);
+  const isProductsLoading = storeLoading || isCategoryLoading;
   const shuffledIdsRef = useRef<string[]>([]);
   const [priceRange, setPriceRange] = useState<number[]>([0, 100000]);
   const [minRating, setMinRating] = useState<number>(0);
@@ -153,40 +160,51 @@ export default function ShopPage() {
     // Create a set of active category names for O(1) lookup
     const activeCategoryNames = new Set(categories.map(c => c.name));
 
-    const dbProducts = sellerProducts
-      .filter((p) =>
-        p.approvalStatus === "approved" &&
-        p.isActive
-      )
-      .map((p) => ({
-        id: p.id,
-        name: p.name,
-        price: p.price,
-        originalPrice: p.originalPrice,
-        image: p.images?.[0] || "https://placehold.co/400?text=Product",
-        images: p.images || [],
-        rating: p.rating || 0,
-        sold: p.sales || 0,
-        reviewsCount: p.reviews || 0,
-        category: p.category,
-        seller: p.sellerName || "Verified Seller",
-        sellerId: p.sellerId,
-        isVerified: p.approvalStatus === "approved",
-        location: p.sellerLocation || "Metro Manila",
-        description: p.description,
-        sellerRating: p.sellerRating || 0,
-        sellerVerified: p.approvalStatus === "pending",
-        variantLabel2Values: p.variantLabel2Values || [],
-        variantLabel1Values: p.variantLabel1Values || [],
-        stock: p.stock || 99,
-        variants: p.variants || [],
-        lifetimeSold: (p as any).lifetimeSold || p.sales || 0,
-        isVacationMode: (p as any).isVacationMode || false,
-        createdAt: (p as any).createdAt || "",
-      }));
+    const mapToShopProduct = (p: any): ShopProduct => ({
+      id: p.id,
+      name: p.name,
+      price: p.price,
+      originalPrice: p.originalPrice,
+      image: p.images?.[0] || "https://placehold.co/400?text=Product",
+      images: p.images || [],
+      rating: p.rating || 0,
+      sold: p.sales || 0,
+      reviewsCount: p.reviews || 0,
+      category: p.category,
+      seller: p.sellerName || "Verified Seller",
+      sellerId: p.sellerId,
+      isVerified: p.approvalStatus === "approved",
+      location: p.sellerLocation || "Metro Manila",
+      description: p.description,
+      sellerRating: p.sellerRating || 0,
+      sellerVerified: p.approvalStatus === "pending",
+      variantLabel2Values: p.variantLabel2Values || [],
+      variantLabel1Values: p.variantLabel1Values || [],
+      stock: p.stock || 99,
+      variants: p.variants || [],
+      lifetimeSold: (p as any).lifetimeSold || p.sales || 0,
+      isVacationMode: (p as any).isVacationMode || false,
+      createdAt: (p as any).createdAt || "",
+    });
 
-    return dbProducts;
-  }, [sellerProducts, categories]);
+    // Start with store products (the initial 200-product fetch)
+    const storeProducts = sellerProducts
+      .filter((p) => p.approvalStatus === "approved" && p.isActive)
+      .map(mapToShopProduct);
+
+    // Merge in category-specific products from server-side fetch
+    // These may include products not in the initial store fetch
+    if (categoryProducts.length > 0) {
+      const seenIds = new Set(storeProducts.map(p => p.id));
+      const extraProducts = categoryProducts
+        .map(mapDbProductToSellerProduct)
+        .filter((p: any) => p.approvalStatus === "approved" && p.isActive && !seenIds.has(p.id))
+        .map(mapToShopProduct);
+      return [...storeProducts, ...extraProducts];
+    }
+
+    return storeProducts;
+  }, [sellerProducts, categories, categoryProducts]);
 
   useEffect(() => {
     if (sellerProducts.length > 0 && shuffledIdsRef.current.length === 0) {
@@ -340,9 +358,11 @@ export default function ShopPage() {
 
   useEffect(() => {
     // Fetch initial products - only approved and active products
+    // Use a higher limit to match mobile's SHOP_SCREEN_FETCH_LIMIT (200)
     const filters = {
       isActive: true,
       approvalStatus: 'approved',
+      limit: SHOP_FETCH_LIMIT,
     };
     fetchProducts(filters);
 
@@ -354,6 +374,49 @@ export default function ShopPage() {
       unsubscribe();
     };
   }, []);
+
+  // Fetch category-specific products from server when a category is selected
+  // This matches mobile ShopScreen behavior: server-side filtering by category_id
+  // ensures products are found even if they weren't in the initial 200-product fetch
+  useEffect(() => {
+    if (selectedCategory === "All Categories" || !categories.length) {
+      setCategoryProducts([]);
+      return;
+    }
+
+    const categoryObj = selectedCategory === "Others"
+      ? null
+      : categories.find(c => c.name.toLowerCase() === selectedCategory.toLowerCase());
+
+    if (!categoryObj) {
+      setCategoryProducts([]);
+      return;
+    }
+
+    let cancelled = false;
+    const fetchCategoryProducts = async () => {
+      setIsCategoryLoading(true);
+      try {
+        const results = await productService.getProducts({
+          categoryId: categoryObj.id,
+          isActive: true,
+          approvalStatus: 'approved',
+          limit: SHOP_FETCH_LIMIT,
+        });
+        if (!cancelled) {
+          setCategoryProducts(results || []);
+        }
+      } catch (error) {
+        console.error('[ShopPage] Error fetching category products:', error);
+        if (!cancelled) setCategoryProducts([]);
+      } finally {
+        if (!cancelled) setIsCategoryLoading(false);
+      }
+    };
+
+    fetchCategoryProducts();
+    return () => { cancelled = true; };
+  }, [selectedCategory, categories]);
 
   useEffect(() => {
     const queryParam = searchParams.get("q") || "";
