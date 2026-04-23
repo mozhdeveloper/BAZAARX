@@ -23,6 +23,7 @@ import {
   Pencil,
   Trash2,
   Palmtree,
+  Store,
 } from "lucide-react";
 import {
   Dialog,
@@ -394,6 +395,37 @@ export default function CheckoutPage() {
       return total + (isEligible ? 0 : 100);
     }, 0);
   }, [checkoutItems, activeCampaignDiscounts, appliedVoucher]);
+
+  // Group checkout items by seller ID for display in order summary
+  const groupedCheckoutItems = useMemo(() => {
+    return checkoutItems.reduce((groups, item) => {
+      const sellerId = item.sellerId || item.seller?.id || 'default';
+      if (!groups[sellerId]) groups[sellerId] = [];
+      groups[sellerId].push(item);
+      return groups;
+    }, {} as Record<string, typeof checkoutItems>);
+  }, [checkoutItems]);
+
+  // Helper to get seller display name for grouped items
+  const getSellerDisplayName = useCallback((sellerId: string, items: typeof checkoutItems) => {
+    const firstItem = items[0];
+    
+    if (!firstItem) return 'BazaarX Store';
+
+    // Priority 1: Check if seller is a direct string (store name)
+    if (typeof firstItem.seller === 'string' && firstItem.seller.trim()) {
+      return firstItem.seller;
+    }
+
+    // Priority 2: Check if seller is an object with store_name/seller_name
+    if (firstItem.seller && typeof firstItem.seller === 'object' && firstItem.seller !== null) {
+      const sellerObj = firstItem.seller as any;
+      return sellerObj.store_name || sellerObj.seller_name || sellerObj.name || 'BazaarX Store';
+    }
+
+    return 'BazaarX Store';
+  }, []);
+
   let discount = 0;
 
   // Apply voucher discount after campaign discount
@@ -1255,76 +1287,93 @@ export default function CheckoutPage() {
                 </h3>
 
                 <div className="space-y-3 mb-6">
-                  {checkoutItems.map((item, idx) => {
-                    const variant = item.selectedVariant as any;
-                    const originalUnitPrice = getOriginalUnitPrice(item);
-                    const activeDiscount = activeCampaignDiscounts[item.id] || null;
-                    const calculation = discountService.calculateLineDiscount(originalUnitPrice, item.quantity, activeDiscount);
-                    const discountedUnitPrice = calculation.discountedUnitPrice;
-                    const lineOriginalTotal = originalUnitPrice * item.quantity;
-                    const lineDiscountedTotal = discountedUnitPrice * item.quantity;
-
-                    // Build variant display from available fields - deduplicate redundant values
-                    let variantParts: string[] = [];
-                    if (variant) {
-                      const vName = (variant.variant_name || variant.name || '').trim();
-                      const vSize = (variant.size || variant.option_1_value || '').trim();
-                      const vColor = (variant.color || variant.option_2_value || '').trim();
-
-                      if (vName) variantParts.push(vName);
-
-                      // Only add Size if not already mentioned in variant name
-                      if (vSize && !vName.toLowerCase().includes(vSize.toLowerCase())) {
-                        variantParts.push(`Size: ${vSize}`);
-                      }
-
-                      // Only add Color if not already mentioned and not 'Default'
-                      if (vColor &&
-                        !vName.toLowerCase().includes(vColor.toLowerCase()) &&
-                        vColor.toLowerCase() !== 'default') {
-                        variantParts.push(`Color: ${vColor}`);
-                      }
-
-                      if (variantParts.length === 0) {
-                        if (variant.sku) variantParts.push(`SKU: ${variant.sku}`);
-                        else if (variant.id) variantParts.push(`#${variant.id.slice(0, 8)}`);
-                      }
-                    }
-                    const variantInfo = variantParts.length > 0 ? variantParts.join(' / ') : null;
-
+                  {Object.entries(groupedCheckoutItems).map(([sellerId, sellerItems], groupIdx) => {
+                    const sellerDisplayName = getSellerDisplayName(sellerId, sellerItems);
+                    
                     return (
-                      <div key={`${item.id}-${variant?.id || 'no-variant'}-${idx}`} className="flex items-start gap-3 text-sm">
-                        {/* Product Image */}
-                        <div className="w-12 h-12 rounded-lg border border-gray-100 bg-white overflow-hidden flex-shrink-0 mt-0.5">
-                          <img loading="lazy" 
-                            src={variant?.thumbnail_url || item.image || (item.images && item.images[0])}
-                            alt={item.name}
-                            className="w-full h-full object-contain"
-                          />
+                      <div key={sellerId}>
+                        {/* Seller Header */}
+                        <div className="flex items-center gap-2 mb-3 pb-2 border-b border-gray-200">
+                          <Store className="w-4 h-4 text-gray-600" />
+                          <p className="text-sm font-semibold text-gray-800">{sellerDisplayName}</p>
                         </div>
 
-                        <div className="flex-1 min-w-0">
-                          <p className="text-gray-900 font-medium line-clamp-1">
-                            {item.name}
-                          </p>
-                          <div className="flex flex-col">
-                            {variantInfo && (
-                              <p className="text-xs text-[var(--text-muted)] font-sm mb-1">
-                                {variantInfo}
-                              </p>
-                            )}
-                            <div className="flex items-center gap-2 justify-end">
-                              {originalUnitPrice > discountedUnitPrice && (
-                                <span className="text-xs text-gray-400 line-through">
-                                  ₱{originalUnitPrice.toLocaleString()}
-                                </span>
-                              )}
-                              <p className="text-[var(--brand-primary)] font-bold">
-                                ₱{discountedUnitPrice.toLocaleString()}
-                              </p>
-                              <span className="text-gray-400 text-xs font-medium">x{item.quantity}</span>
-                            </div>
-                          </div>
+                        {/* Seller's Items */}
+                        <div className="space-y-3 mb-4">
+                          {sellerItems.map((item, idx) => {
+                            const variant = item.selectedVariant as any;
+                            const originalUnitPrice = getOriginalUnitPrice(item);
+                            const activeDiscount = activeCampaignDiscounts[item.id] || null;
+                            const calculation = discountService.calculateLineDiscount(originalUnitPrice, item.quantity, activeDiscount);
+                            const discountedUnitPrice = calculation.discountedUnitPrice;
+                            const lineOriginalTotal = originalUnitPrice * item.quantity;
+                            const lineDiscountedTotal = discountedUnitPrice * item.quantity;
+
+                            // Build variant display from available fields - deduplicate redundant values
+                            let variantParts: string[] = [];
+                            if (variant) {
+                              const vName = (variant.variant_name || variant.name || '').trim();
+                              const vSize = (variant.size || variant.option_1_value || '').trim();
+                              const vColor = (variant.color || variant.option_2_value || '').trim();
+
+                              if (vName) variantParts.push(vName);
+
+                              // Only add Size if not already mentioned in variant name
+                              if (vSize && !vName.toLowerCase().includes(vSize.toLowerCase())) {
+                                variantParts.push(`Size: ${vSize}`);
+                              }
+
+                              // Only add Color if not already mentioned and not 'Default'
+                              if (vColor &&
+                                !vName.toLowerCase().includes(vColor.toLowerCase()) &&
+                                vColor.toLowerCase() !== 'default') {
+                                variantParts.push(`Color: ${vColor}`);
+                              }
+
+                              if (variantParts.length === 0) {
+                                if (variant.sku) variantParts.push(`SKU: ${variant.sku}`);
+                                else if (variant.id) variantParts.push(`#${variant.id.slice(0, 8)}`);
+                              }
+                            }
+                            const variantInfo = variantParts.length > 0 ? variantParts.join(' / ') : null;
+
+                            return (
+                              <div key={`${item.id}-${variant?.id || 'no-variant'}-${idx}`} className="flex items-start gap-3 text-sm">
+                                {/* Product Image */}
+                                <div className="w-12 h-12 rounded-lg border border-gray-100 bg-white overflow-hidden flex-shrink-0 mt-0.5">
+                                  <img loading="lazy" 
+                                    src={variant?.thumbnail_url || item.image || (item.images && item.images[0])}
+                                    alt={item.name}
+                                    className="w-full h-full object-contain"
+                                  />
+                                </div>
+
+                                <div className="flex-1 min-w-0">
+                                  <p className="text-gray-900 font-medium line-clamp-1">
+                                    {item.name}
+                                  </p>
+                                  <div className="flex flex-col">
+                                    {variantInfo && (
+                                      <p className="text-xs text-[var(--text-muted)] font-sm mb-1">
+                                        {variantInfo}
+                                      </p>
+                                    )}
+                                    <div className="flex items-center gap-2 justify-end">
+                                      {originalUnitPrice > discountedUnitPrice && (
+                                        <span className="text-xs text-gray-400 line-through">
+                                          ₱{originalUnitPrice.toLocaleString()}
+                                        </span>
+                                      )}
+                                      <p className="text-[var(--brand-primary)] font-bold">
+                                        ₱{discountedUnitPrice.toLocaleString()}
+                                      </p>
+                                      <span className="text-gray-400 text-xs font-medium">x{item.quantity}</span>
+                                    </div>
+                                  </div>
+                                </div>
+                              </div>
+                            );
+                          })}
                         </div>
                       </div>
                     );
