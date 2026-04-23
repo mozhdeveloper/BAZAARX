@@ -192,7 +192,7 @@ export const mapOrderRowToBuyerSnapshot = (order: any): BuyerOrderSnapshot => {
   const orderVoucherRows = Array.isArray(order.order_vouchers) ? order.order_vouchers : [];
 
   const subtotalBeforeDiscount = rawItems.reduce((sum: number, item: any) => {
-    const basePrice = Number(item.price || 0);
+    const basePrice = Number(item.price || item.variant?.price || 0);
     const quantity = Number(item.quantity || 0);
     return sum + (basePrice * quantity);
   }, 0);
@@ -221,7 +221,7 @@ export const mapOrderRowToBuyerSnapshot = (order: any): BuyerOrderSnapshot => {
   }, 0);
 
   const computedTotal = rawItems.reduce((sum: number, item: any) => {
-    const basePrice = Number(item.price || 0);
+    const basePrice = Number(item.price || item.variant?.price || 0);
     const discountPerUnit = Number(item.price_discount || 0);
     const shippingPrice = Number(item.shipping_price || 0);
     const shippingDiscount = Number(item.shipping_discount || 0);
@@ -236,12 +236,19 @@ export const mapOrderRowToBuyerSnapshot = (order: any): BuyerOrderSnapshot => {
     subtotalBeforeDiscount - campaignDiscountTotal - voucherDiscountTotal + shippingTotal,
   );
   const numericTotal = Number(order.total_amount || 0);
+
+  // Important: buyer orders are grouped per seller in UI. In multi-seller checkouts,
+  // `order.total_amount` (and legacy notes total) can represent the whole purchase,
+  // which would duplicate the same grand total across each seller card.
+  // Prefer row-level line-item math so each card shows that seller's own subtotal/total.
   const resolvedTotal =
-    notesPricing?.total != null
-      ? Number(notesPricing.total)
-      : numericTotal > 0
-        ? numericTotal
-        : (computedTotal > 0 ? computedTotal - voucherDiscountTotal : totalBeforeFallback);
+    computedTotal > 0
+      ? computedTotal
+      : notesPricing?.total != null
+        ? Number(notesPricing.total)
+        : numericTotal > 0
+          ? numericTotal
+          : totalBeforeFallback;
 
   return {
     id: order.order_number || order.id,

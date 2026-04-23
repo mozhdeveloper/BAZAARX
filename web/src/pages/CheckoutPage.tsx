@@ -307,6 +307,35 @@ export default function CheckoutPage() {
   const getOriginalUnitPrice = (item: typeof checkoutItems[number]) =>
     Number((item.selectedVariant as any)?.originalPrice ?? item.selectedVariant?.price ?? item.originalPrice ?? item.price ?? 0);
 
+  // ✨ Per-seller subtotal helpers
+  const calculateSellerItemsOriginalPrice = useCallback((sellerId: string) => {
+    const sellerItems = groupedCheckoutItems[sellerId] || [];
+    return sellerItems.reduce((sum, item) => {
+      const originalUnitPrice = getOriginalUnitPrice(item);
+      return sum + (originalUnitPrice * item.quantity);
+    }, 0);
+  }, [groupedCheckoutItems, getOriginalUnitPrice]);
+
+  const calculateSellerCampaignDiscount = useCallback((sellerId: string) => {
+    const sellerItems = groupedCheckoutItems[sellerId] || [];
+    return sellerItems.reduce((sum, item) => {
+      const originalUnitPrice = getOriginalUnitPrice(item);
+      const activeDiscount = activeCampaignDiscounts[item.id] || null;
+      const calculation = discountService.calculateLineDiscount(
+        originalUnitPrice,
+        item.quantity,
+        activeDiscount
+      );
+      return sum + calculation.discountTotal;
+    }, 0);
+  }, [groupedCheckoutItems, activeCampaignDiscounts, getOriginalUnitPrice]);
+
+  const calculateSellerSubtotal = useCallback((sellerId: string) => {
+    const itemsOriginal = calculateSellerItemsOriginalPrice(sellerId);
+    const discount = calculateSellerCampaignDiscount(sellerId);
+    return Math.max(0, itemsOriginal - discount);
+  }, [calculateSellerItemsOriginalPrice, calculateSellerCampaignDiscount]);
+
   const checkoutProductIdsKey = useMemo(() => {
     const ids = [...new Set(checkoutItems.map(item => item.id).filter(Boolean))];
     ids.sort();
@@ -976,9 +1005,18 @@ export default function CheckoutPage() {
         });
       }
 
-      if (firstOrderNumber) {
-        // If there are multiple orders, navigating to the first one is standard,
-        // or you could navigate to a general "Order History" page.
+      // Check if this is a multi-seller order
+      const sellerCount = Object.keys(groupedCheckoutItems).length;
+      const isMultiSeller = sellerCount > 1;
+
+      if (isMultiSeller) {
+        // Multi-seller order → Navigate to My Orders - Pending Section
+        navigate("/orders?tab=Pending", {
+          state: { fromCheckout: true, earnedBazcoins: earnedBazcoins },
+          replace: true,
+        });
+      } else if (firstOrderNumber) {
+        // Single seller order → Navigate to Order Details Page
         navigate(`/order/${firstOrderNumber}`, {
           state: { fromCheckout: true, earnedBazcoins: earnedBazcoins },
           replace: true,
@@ -1524,15 +1562,38 @@ export default function CheckoutPage() {
                           </div>
                         )}
 
-                        {/* Per-seller shipping fee display */}
-                        {perStoreShippingFees[sellerId] !== undefined && (
-                          <div className="flex justify-between items-center text-xs pt-2 border-t border-gray-100">
-                            <span className="text-gray-600">Shipping (this seller):</span>
-                            <span className="font-semibold text-gray-900">
-                              {perStoreShippingFees[sellerId] === 0 ? 'Free' : `₱${perStoreShippingFees[sellerId].toLocaleString()}`}
+                        {/* ✨ Per-seller subtotal breakdown */}
+                        <div className="mt-3 pt-3 border-t border-gray-100 bg-orange-50/30 rounded-lg p-3 space-y-2">
+                          <div className="flex justify-between items-center text-xs">
+                            <span className="text-gray-600">Products:</span>
+                            <span className="font-medium text-gray-900">
+                              ₱{calculateSellerItemsOriginalPrice(sellerId).toLocaleString()}
                             </span>
                           </div>
-                        )}
+                          
+                          {calculateSellerCampaignDiscount(sellerId) > 0 && (
+                            <div className="flex justify-between items-center text-xs">
+                              <span className="text-gray-600">Campaign Discount:</span>
+                              <span className="font-medium text-[var(--brand-primary)]">
+                                -₱{calculateSellerCampaignDiscount(sellerId).toLocaleString()}
+                              </span>
+                            </div>
+                          )}
+                          
+                          <div className="flex justify-between items-center text-xs">
+                            <span className="text-gray-600">Shipping:</span>
+                            <span className="font-medium text-gray-900">
+                              {(perStoreShippingFees[sellerId] || 0) === 0 ? 'Free' : `+₱${(perStoreShippingFees[sellerId] || 0).toLocaleString()}`}
+                            </span>
+                          </div>
+                          
+                          <div className="flex justify-between items-center text-xs font-semibold border-t border-orange-200 pt-2">
+                            <span className="text-gray-700">Seller Total:</span>
+                            <span className="text-[var(--brand-primary)]">
+                              ₱{(calculateSellerSubtotal(sellerId) + (perStoreShippingFees[sellerId] || 0)).toLocaleString()}
+                            </span>
+                          </div>
+                        </div>
                       </div>
                     );
                   })}
