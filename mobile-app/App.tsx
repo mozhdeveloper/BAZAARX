@@ -4,7 +4,7 @@ import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { StatusBar } from 'expo-status-bar';
 import { Home, MessageCircle, ShoppingCart, Store, User } from 'lucide-react-native';
 import React, { useRef } from 'react';
-import { AppState, AppStateStatus, LogBox, Linking } from 'react-native';
+import { AppState, AppStateStatus, LogBox, Linking, Platform } from 'react-native';
 import 'react-native-gesture-handler';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { SafeAreaProvider, useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -335,17 +335,50 @@ export default function App() {
       'Use a development build instead of Expo Go',
     ]);
 
-    // Helper function: Retry exchangeCodeForSession with exponential backoff
-    const exchangeCodeWithRetry = async (deepLinkUrl: string, maxAttempts = 3): Promise<{ success: boolean; error?: string }> => {
+    // Helper function: Process auth deep link with retries and iOS delay
+    const processAuthDeepLink = async (deepLinkUrl: string, maxAttempts = 3): Promise<{ success: boolean; error?: string }> => {
+      // 1. Delay on iOS to allow the networking stack to wake up
+      if (Platform.OS === 'ios') {
+        await new Promise(resolve => setTimeout(resolve, 500));
+      }
+
       for (let attempt = 1; attempt <= maxAttempts; attempt++) {
         try {
-          console.log(`[App] 🔐 Code exchange attempt ${attempt}/${maxAttempts}...`);
-          const { data, error } = await supabase.auth.exchangeCodeForSession(deepLinkUrl);
-          if (error) throw error;
-          console.log('[App] ✅ Session established via code exchange for:', data.user?.email);
-          return { success: true };
+          console.log(`[App] 🔐 Deep link auth attempt ${attempt}/${maxAttempts}...`);
+          
+          if (deepLinkUrl.includes('code=')) {
+            // PKCE Flow
+            const { error } = await supabase.auth.exchangeCodeForSession(deepLinkUrl);
+            if (error) throw error;
+            console.log('[App] ✅ Session established via code exchange.');
+            return { success: true };
+          } else if (deepLinkUrl.includes('access_token=') || deepLinkUrl.includes('refresh_token=')) {
+            // Fragment Flow
+            const parts = deepLinkUrl.includes('#') ? deepLinkUrl.split('#')[1] : deepLinkUrl.split('?')[1];
+            if (!parts) throw new Error('Invalid fragment URL');
+
+            const params: Record<string, string> = {};
+            parts.split('&').forEach(part => {
+              const [key, val] = part.split('=');
+              if (key && val) params[key] = decodeURIComponent(val);
+            });
+
+            if (params.access_token || params.refresh_token) {
+              const { error } = await supabase.auth.setSession({
+                access_token: params.access_token || '',
+                refresh_token: params.refresh_token || '',
+              });
+              if (error) throw error;
+              console.log('[App] ✅ Session established successfully from fragment.');
+              return { success: true };
+            } else {
+              throw new Error('No tokens found in fragment');
+            }
+          }
+          
+          return { success: false, error: 'Unrecognized auth deep link format' };
         } catch (err: any) {
-          logDetailedError(`ExchangeCodeForSession (Attempt ${attempt}/${maxAttempts})`, err, deepLinkUrl);
+          logDetailedError(`AuthDeepLink (Attempt ${attempt}/${maxAttempts})`, err, deepLinkUrl);
 
           // Don't retry on auth/validation errors, only network errors
           const isNetworkError =
@@ -356,10 +389,8 @@ export default function App() {
             err?.name === 'AuthRetryableFetchError';
 
           if (attempt === maxAttempts || !isNetworkError) {
-            // Last attempt or non-retryable error
-            console.error(`[App] ❌ Code exchange failed after ${attempt} attempt(s):`, err?.message);
+            console.error(`[App] ❌ Deep link auth failed after ${attempt} attempt(s):`, err?.message);
 
-            // Run diagnostics on final failure
             if (isNetworkError) {
               console.log('[App] 🔍 Running network diagnostics...');
               const diagnostics = await runFullNetworkDiagnostics();
@@ -371,61 +402,28 @@ export default function App() {
 
             return {
               success: false,
-              error: err?.message || 'Code exchange failed'
+              error: err?.message || 'Deep link auth failed'
             };
           }
 
-          // Wait before retry with exponential backoff: 2s, 4s, 8s
           const waitTime = Math.pow(2, attempt) * 1000;
           console.log(`[App] ⏳ Retrying in ${waitTime / 1000}s...`);
           await new Promise(resolve => setTimeout(resolve, waitTime));
         }
       }
 
-      return { success: false, error: 'Code exchange failed after all retries' };
+      return { success: false, error: 'Deep link auth failed after all retries' };
     };
 
     // Deep link listener for handling OAuth and Email confirmation redirects
     const unsubscribeDeepLink = Linking.addEventListener('url', async ({ url }) => {
       console.log('[App] Deep link received:', url);
 
-      // 1. Handle PKCE Flow (Email Confirmation / OAuth with code)
-      // Matches ?code=... in the query parameters
-      if (url.includes('code=')) {
-        console.log('[App] 🔐 Authenticating via deep link code (PKCE)...');
-        const result = await exchangeCodeWithRetry(url, 3);
+      if (url.includes('code=') || url.includes('access_token=') || url.includes('refresh_token=')) {
+        console.log('[App] 🔐 Processing auth deep link...');
+        const result = await processAuthDeepLink(url, 3);
         if (!result.success) {
-          console.error('[App] ❌ All code exchange attempts failed:', result.error);
-          // Note: Deep link errors are non-blocking — user can retry manually or use resend email
-        }
-        return; // onAuthStateChange will pick up the new session if successful
-      }
-
-      // 2. Handle Legacy Fragment Flow (Implicit OAuth)
-      // Matches #access_token=... in the URL fragment
-      if (url.includes('access_token=') || url.includes('refresh_token=')) {
-        console.log('[App] 🔐 OAuth session detected in URL fragment. Manually setting session...');
-        try {
-          // Standard fragment parsing — handles both # and ? for robustness
-          const parts = url.includes('#') ? url.split('#')[1] : url.split('?')[1];
-          if (!parts) return;
-
-          const params: Record<string, string> = {};
-          parts.split('&').forEach(part => {
-            const [key, val] = part.split('=');
-            if (key && val) params[key] = decodeURIComponent(val);
-          });
-
-          if (params.access_token || params.refresh_token) {
-            const { error } = await supabase.auth.setSession({
-              access_token: params.access_token || '',
-              refresh_token: params.refresh_token || '',
-            });
-            if (error) throw error;
-            console.log('[App] ✅ Session established successfully from fragment.');
-          }
-        } catch (err) {
-          console.error('[App] Failed to handle fragment-based session:', err);
+          console.error('[App] ❌ Deep link auth flow failed:', result.error);
         }
       }
     });

@@ -8,6 +8,10 @@ import { ArrowLeft, Globe, DollarSign, Moon, Volume2, Download, RefreshCw, Trash
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import type { RootStackParamList } from '../App';
 import { useAuthStore } from '../src/stores/authStore';
+import { processAuthSessionResultUrl } from '../src/utils/urlUtils';
+
+WebBrowser.maybeCompleteAuthSession();
+
 import { supabase } from '../src/lib/supabase';
 import { COLORS } from '../src/constants/theme';
 import { BuyerBottomNav } from '../src/components/BuyerBottomNav';
@@ -98,11 +102,16 @@ export default function SettingsScreen({ navigation }: Props) {
         throw error;
       }
       if (data?.url) {
-        const result = await WebBrowser.openBrowserAsync(data.url);
+        const result = await WebBrowser.openAuthSessionAsync(data.url, redirectUrl);
         if (result.type === 'cancel' || result.type === 'dismiss') {
           setIsLinkingGoogle(false);
           return;
         }
+
+        if (result.type === 'success' && result.url) {
+          await processAuthSessionResultUrl(result.url, supabase);
+        }
+
         await new Promise(resolve => setTimeout(resolve, 800));
         const { data: identityData } = await supabase.auth.getUserIdentities();
         const linked = identityData?.identities?.some(id => id.provider === 'google') || false;

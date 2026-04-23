@@ -6,12 +6,12 @@ import { FolderTree, Package, Search, Loader2 } from 'lucide-react';
 import Header from '../components/Header';
 import { BazaarFooter } from '../components/ui/bazaar-footer';
 import { Input } from '../components/ui/input';
-import { supabase, isSupabaseConfigured } from '../lib/supabase';
+import { isSupabaseConfigured } from '../lib/supabase';
 import { useProductStore } from '../stores/sellerStore';
 import { categoryService } from '../services/categoryService';
 
 // ── Types ────────────────────────────────────────────────────────────
-interface Category {
+interface CategoryDisplay {
   id: string;
   name: string;
   description: string;
@@ -33,7 +33,7 @@ const GRADIENT_COLORS = [
 // ── Component ────────────────────────────────────────────────────────
 const CategoriesPage: React.FC = () => {
   const navigate = useNavigate();
-  const [categories, setCategories] = useState<Category[]>([]);
+  const [categories, setCategories] = useState<CategoryDisplay[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
 
@@ -47,11 +47,11 @@ const CategoriesPage: React.FC = () => {
         return;
       }
       try {
-        // Fetch categories
+        // Fetch categories via categoryService (matches mobile's approach)
         const catsData = await categoryService.getActiveCategories();
 
-        // Fetch products (approved & active)
-        await fetchProducts({ isActive: true, approvalStatus: 'approved' });
+        // Fetch products (approved & active) with higher limit to match mobile
+        await fetchProducts({ isActive: true, approvalStatus: 'approved', limit: 200 });
 
         setCategories(catsData.map((row: any) => ({
           id: row.id,
@@ -101,7 +101,7 @@ const CategoriesPage: React.FC = () => {
     // Filter out db 'Others' to avoid duplicates with virtual 'Others' card
     const filteredCats = categories.filter(c => c.name.toLowerCase() !== 'others');
 
-    const catsWithCounts = filteredCats.map(cat => ({
+    const catsWithCounts: CategoryDisplay[] = filteredCats.map(cat => ({
       ...cat,
       productsCount: categoryCountMap.get(cat.name) || 0
     }));
@@ -276,7 +276,7 @@ const CategoriesPage: React.FC = () => {
 
 // ── Category Card ────────────────────────────────────────────────────
 interface CardProps {
-  category: Category;
+  category: CategoryDisplay;
   index: number;
   onClick: (slug: string) => void;
 }
