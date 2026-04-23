@@ -1441,7 +1441,7 @@ export default function OrderDetailPage() {
                             </Button>
                             <Button
                               variant="outline"
-                              onClick={() => navigate(`/order/${order.orderNumber || order.id}/return`)}
+                              onClick={() => navigate(`/order/${encodeURIComponent(orderId!)}/return`)}
                               className="flex-1 bg-[#FFFBEB] border-[#F59E0B] text-[#B45309] hover:text-[var(--brand-accent)] hover:bg-[var(--brand-wash)] hover:border-[var(--brand-accent)] text-sm font-medium px-2"
                             >
                               <RotateCcw className="w-4 h-4 mr-1.5" />
