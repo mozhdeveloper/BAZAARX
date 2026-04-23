@@ -54,7 +54,7 @@ export default function AdminCRM() {
   const { isAuthenticated, admin } = useAdminAuth();
   const {
     segments, segmentsLoading, fetchSegments, createSegment, updateSegment, deleteSegment,
-    campaigns, campaignsLoading, fetchCampaigns, createCampaign, updateCampaign, deleteCampaign,
+    campaigns, campaignsLoading, fetchCampaigns, createCampaign, updateCampaign, deleteCampaign, sendCampaign,
     workflows, workflowsLoading, fetchWorkflows, createWorkflow, updateWorkflow, toggleWorkflow, deleteWorkflow,
     emailTemplates, emailTemplatesLoading, fetchEmailTemplates,
   } = useAdminCRM();
@@ -206,33 +206,28 @@ export default function AdminCRM() {
     <div className="flex h-screen bg-gray-50">
       <AdminSidebar />
       <div className="flex-1 overflow-auto">
-        {/* ── Page Header ── */}
-        <div className="bg-gradient-to-r from-[var(--brand-primary)] to-[var(--brand-accent)] px-8 py-6">
-          <div className="max-w-7xl mx-auto flex items-center justify-between">
+        <div className="max-w-7xl mx-auto px-8 py-8">
+          {/* ── Page Header ── */}
+          <div className="flex justify-between items-center mb-8">
             <div>
-              <h1 className="text-2xl font-bold text-white tracking-tight">CRM &amp; Marketing</h1>
-              <p className="text-amber-100 text-sm mt-0.5">
-                Manage buyer segments, campaigns, and automation workflows.
-              </p>
+              <h1 className="text-3xl font-bold text-[var(--text-headline)] mb-2">CRM &amp; Marketing</h1>
+              <p className="text-[var(--text-muted)]">Manage buyer segments, campaigns, and automation workflows.</p>
             </div>
             <div className="hidden md:flex items-center gap-3">
-              <div className="bg-white/20 rounded-xl px-4 py-2 text-center">
-                <p className="text-xl font-bold text-white">{segments.length}</p>
-                <p className="text-amber-100 text-xs">Segments</p>
+              <div className="border border-gray-200 bg-white rounded-xl px-4 py-2 text-center">
+                <p className="text-xl font-bold text-[var(--text-headline)]">{segments.length}</p>
+                <p className="text-[var(--text-muted)] text-xs">Segments</p>
               </div>
-              <div className="bg-white/20 rounded-xl px-4 py-2 text-center">
-                <p className="text-xl font-bold text-white">{campaigns.length}</p>
-                <p className="text-amber-100 text-xs">Campaigns</p>
+              <div className="border border-gray-200 bg-white rounded-xl px-4 py-2 text-center">
+                <p className="text-xl font-bold text-[var(--text-headline)]">{campaigns.length}</p>
+                <p className="text-[var(--text-muted)] text-xs">Campaigns</p>
               </div>
-              <div className="bg-white/20 rounded-xl px-4 py-2 text-center">
-                <p className="text-xl font-bold text-white">{workflows.filter(w => w.is_enabled).length}</p>
-                <p className="text-amber-100 text-xs">Active Workflows</p>
+              <div className="border border-gray-200 bg-white rounded-xl px-4 py-2 text-center">
+                <p className="text-xl font-bold text-[var(--text-headline)]">{workflows.filter(w => w.is_enabled).length}</p>
+                <p className="text-[var(--text-muted)] text-xs">Active Workflows</p>
               </div>
             </div>
           </div>
-        </div>
-
-        <div className="max-w-7xl mx-auto px-8 py-6">
 
           {/* Tabs */}
           <div className="flex gap-1 mb-6 bg-white rounded-xl border border-gray-200 p-1 w-fit shadow-sm">
@@ -357,6 +352,29 @@ export default function AdminCRM() {
                         <td className="px-6 py-4 text-sm text-center">{c.total_delivered}</td>
                         <td className="px-6 py-4 text-sm text-[var(--text-muted)]">{new Date(c.created_at).toLocaleDateString()}</td>
                         <td className="px-6 py-4 text-right">
+                          {(c.status === 'draft' || c.status === 'scheduled') && (
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              title="Send campaign now"
+                              onClick={async () => {
+                                if (!c.subject || !c.content) {
+                                  alert('Add a subject and content before sending.');
+                                  return;
+                                }
+                                if (!window.confirm(`Queue and send "${c.name}" now?`)) return;
+                                const result = await sendCampaign(c.id);
+                                if (result.success) {
+                                  alert(`Queued ${result.queued} recipient${result.queued === 1 ? '' : 's'} for delivery.`);
+                                  fetchCampaigns();
+                                } else {
+                                  alert(`Send failed: ${result.error || 'Unknown error'}`);
+                                }
+                              }}
+                            >
+                              <Send className="w-4 h-4 text-emerald-600" />
+                            </Button>
+                          )}
                           <Button variant="ghost" size="sm" onClick={() => openCampaignDialog(c)}><Pencil className="w-4 h-4" /></Button>
                           <Button variant="ghost" size="sm" onClick={() => setDeleteConfirm({ type: 'campaign', id: c.id, name: c.name })}><Trash2 className="w-4 h-4 text-red-500" /></Button>
                         </td>

@@ -81,6 +81,10 @@ interface AuthState {
 
   // Session
   checkSession: () => Promise<void>;
+  // True only after checkSession has run at least once this launch.
+  // NOT persisted — always starts false so stale hydrated user data
+  // can never trigger T&C enforcement before a fresh session check.
+  sessionVerified: boolean;
 
   // Pending Signup
   setPendingSignup: (data: PendingSignupData) => void;
@@ -102,6 +106,7 @@ export const useAuthStore = create<AuthState>()(
       loading: false,
       error: null,
       pendingSignupData: null,
+      sessionVerified: false,
 
       signIn: async (email: string, password: string) => {
         set({ loading: true, error: null });
@@ -114,7 +119,7 @@ export const useAuthStore = create<AuthState>()(
             // Use first_name + last_name (new schema, no full_name)
             const firstName = profile?.first_name || '';
             const lastName = profile?.last_name || '';
-            const fullName = `${firstName} ${lastName}`.trim() || result.user.email?.split('@')[0] || 'User';
+            const fullName = `${firstName} ${lastName}`.trim() || result.user.user_metadata?.full_name || result.user.user_metadata?.name || result.user.email?.split('@')[0] || 'User';
             // Get avatar from buyer record if available
             const buyer = await authService.getBuyerProfile(result.user.id).catch(() => null);
             
@@ -143,7 +148,9 @@ export const useAuthStore = create<AuthState>()(
               roles: roles.length > 0 ? roles : ['buyer'],
               paymentMethods,
               bazcoins: buyer?.bazcoins || 0,
-              hasAcceptedTerms: result.user.user_metadata?.has_accepted_terms === true
+              // Only treat as unaccepted if explicitly false (new sign-up mid-flow).
+              // Existing accounts without this metadata field default to accepted.
+              hasAcceptedTerms: result.user.user_metadata?.has_accepted_terms !== false
             };
             // Determine active role from roles
             const isSeller = roles.includes('seller');
@@ -241,7 +248,7 @@ export const useAuthStore = create<AuthState>()(
             ]);
             const firstName = profile?.first_name || '';
             const lastName = profile?.last_name || '';
-            const fullName = `${firstName} ${lastName}`.trim() || sessionResult.user.email?.split('@')[0] || 'User';
+            const fullName = `${firstName} ${lastName}`.trim() || sessionResult.user.user_metadata?.full_name || sessionResult.user.user_metadata?.name || sessionResult.user.email?.split('@')[0] || 'User';
             const user: User = {
               id: sessionResult.user.id,
               email: sessionResult.user.email || '',
@@ -250,7 +257,9 @@ export const useAuthStore = create<AuthState>()(
               avatar: buyer?.avatar_url || undefined,
               roles: roles.length > 0 ? roles : ['buyer'],
               bazcoins: buyer?.bazcoins || 0,
-              hasAcceptedTerms: sessionResult.user.user_metadata?.has_accepted_terms === true
+              // Only treat as unaccepted if explicitly false (new sign-up mid-flow).
+              // Existing accounts without this metadata field default to accepted.
+              hasAcceptedTerms: sessionResult.user.user_metadata?.has_accepted_terms !== false
             };
             const preferences = buyer?.preferences as any;
             const hasOnboarding = !!(preferences?.interests && Array.isArray(preferences.interests) && preferences.interests.length >= 3);
@@ -262,6 +271,7 @@ export const useAuthStore = create<AuthState>()(
               isGuest: false,
               hasCompletedOnboarding: hasOnboarding,
               activeRole: roles.includes('seller') ? 'seller' : 'buyer',
+              sessionVerified: true,
             });
             // Load wishlist from Supabase after session restore
             useWishlistStore.getState().loadWishlist(sessionResult.user.id);
@@ -448,6 +458,12 @@ export const useAuthStore = create<AuthState>()(
     {
       name: 'auth-storage',
       storage: createJSONStorage(() => AsyncStorage),
+      // Exclude sessionVerified — it must always start false on each launch
+      // so stale persisted user data cannot trigger T&C before checkSession runs.
+      partialize: (state) => {
+        const { sessionVerified, ...rest } = state as any;
+        return rest;
+      },
     }
   )
 );

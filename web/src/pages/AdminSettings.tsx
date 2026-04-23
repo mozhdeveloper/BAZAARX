@@ -8,6 +8,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { supabase, isSupabaseConfigured } from '@/lib/supabase';
 import {
   Bell,
   Shield,
@@ -73,14 +74,45 @@ const AdminSettings: React.FC = () => {
   const [settings, setSettings] = useState<AdminSettingsData>(defaultSettings);
 
   useEffect(() => {
-    try {
-      const stored = localStorage.getItem(SETTINGS_KEY);
-      if (stored) {
-        setSettings({ ...defaultSettings, ...JSON.parse(stored) });
+    let cancelled = false;
+    const load = async () => {
+      // Hydrate from localStorage immediately for snappy UI
+      try {
+        const stored = localStorage.getItem(SETTINGS_KEY);
+        if (stored && !cancelled) {
+          setSettings({ ...defaultSettings, ...JSON.parse(stored) });
+        }
+      } catch {
+        // ignore
       }
-    } catch {
-      // Use defaults
-    }
+
+      // Then sync from Supabase (source of truth)
+      if (!isSupabaseConfigured()) return;
+      try {
+        const { data, error } = await supabase
+          .from('admin_settings')
+          .select('data')
+          .eq('id', 'global')
+          .maybeSingle();
+        if (cancelled) return;
+        if (error) {
+          // table may not exist yet — silently fall back
+          if (error.code !== '42P01' && error.code !== 'PGRST205') {
+            console.warn('[AdminSettings] load failed:', error.message);
+          }
+          return;
+        }
+        if (data?.data && typeof data.data === 'object') {
+          const merged = { ...defaultSettings, ...(data.data as Partial<AdminSettingsData>) };
+          setSettings(merged);
+          try { localStorage.setItem(SETTINGS_KEY, JSON.stringify(merged)); } catch { /* ignore */ }
+        }
+      } catch (err) {
+        console.warn('[AdminSettings] load error:', err);
+      }
+    };
+    load();
+    return () => { cancelled = true; };
   }, []);
 
   // Redirect if not authenticated
@@ -96,7 +128,31 @@ const AdminSettings: React.FC = () => {
   const handleSave = async () => {
     setIsSaving(true);
     try {
+      // Always cache locally
       localStorage.setItem(SETTINGS_KEY, JSON.stringify(settings));
+
+      // Persist to Supabase
+      if (isSupabaseConfigured()) {
+        const { data: userResp } = await supabase.auth.getUser();
+        const adminId = userResp?.user?.id ?? null;
+        const { error } = await supabase
+          .from('admin_settings')
+          .upsert({ id: 'global', data: settings, updated_by: adminId } as any, { onConflict: 'id' });
+        if (error && error.code !== '42P01' && error.code !== 'PGRST205') {
+          console.error('[AdminSettings] Supabase save failed:', error);
+          throw error;
+        }
+        // Best-effort audit log
+        try {
+          await supabase.from('admin_action_log').insert({
+            admin_id: adminId,
+            action: 'admin_settings.update',
+            target_type: 'admin_settings',
+            target_id: 'global',
+          } as any);
+        } catch { /* ignore */ }
+      }
+
       setSaveSuccess(true);
       setTimeout(() => setSaveSuccess(false), 3000);
     } catch (err) {

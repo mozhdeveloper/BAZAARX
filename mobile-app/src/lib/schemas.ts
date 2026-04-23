@@ -59,5 +59,24 @@ export const becomeSellerSchema = z.object({
   storeDescription: z.string().optional(),
 });
 
-export type BecomeSellerFormData = z.infer<typeof becomeSellerSchema>;
+export const becomeSellerTwoStepSchema = z.object({
+  storeName: z.string().min(3, 'Store name must be at least 3 characters'),
+  phone: z.string().regex(/^(\+63|0)?9\d{9}$/, 'Please enter a valid PH phone number (e.g. 09123456789)'),
+  storeAddress: z.string().min(5, 'Please enter a valid store address'),
+  storeDescription: z.string().optional(),
+  password: z
+    .string()
+    .min(8, 'Password must be at least 8 characters')
+    .regex(/[A-Z]/, 'Must contain at least one uppercase letter')
+    .regex(/[a-z]/, 'Must contain at least one lowercase letter')
+    .regex(/\d/, 'Must contain at least one number')
+    .regex(/[!@#$%^&*(),.?":{}|<>\-_[\]\\/`~+=;']/, 'Must contain at least one special character')
+    .refine((val) => !/\s/.test(val), 'Password must not contain spaces'),
+  confirmPassword: z.string().min(1, 'Please confirm your password'),
+}).refine((data) => data.password === data.confirmPassword, {
+  message: "Passwords don't match",
+  path: ['confirmPassword'],
+});
+
+export type BecomeSellerTwoStepFormData = z.infer<typeof becomeSellerTwoStepSchema>;
 

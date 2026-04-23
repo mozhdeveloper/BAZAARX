@@ -562,7 +562,21 @@ export class DiscountService {
           campaignName: slot?.name || 'Flash Sale',
           campaignBadgeColor: '#FF6A00',
           campaignEndsAt: slot?.end_time,
+          campaignDiscountType: discountPct > 0 ? 'percentage' : undefined,
+          campaignDiscountValue: discountPct > 0 ? discountPct : undefined,
           discountBadgePercent: discountPct > 0 ? discountPct : undefined,
+          // Include activeCampaignDiscount so ProductDetail can apply it to cart
+          activeCampaignDiscount: discountPct > 0 ? {
+            campaignId: sub.slot_id,
+            campaignName: slot?.name || 'Flash Sale',
+            discountType: 'percentage' as const,
+            discountValue: discountPct,
+            discountedPrice: basePrice,
+            originalPrice: originalPrice,
+            badgeText: `${discountPct}% OFF`,
+            badgeColor: '#FF6A00',
+            endsAt: new Date(slot?.end_time || Date.now())
+          } : undefined,
         };
       });
     } catch (error) {

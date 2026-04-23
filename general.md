@@ -68,418 +68,202 @@ The following files are local AI standards and are **never committed**:
 
 ---
 
-## Session Log — April 21, 2026
+## Session Log — April 22, 2026
 
-### Mobile COD Payment Display & UX Issues - Comprehensive Fix
+### Mobile Checkout Screen Card Input Enhancement
 
 **Status:** ✅ COMPLETE
 
-**Problems Identified & Fixed:**
+**Objective:** Enhance the PayMongo card entry flow on mobile checkout by providing an intuitive "Add Card Details" button when no saved cards exist, with automatic card saving after successful payment.
 
-#### 1. Payment Method Display Shows "cod" Instead of "Cash on Delivery"
-**Severity:** HIGH - User-facing text issue
+**Problems Identified:**
 
-**Location:** `mobile-app/app/OrderConfirmation.tsx`
-- Line 118: Subtitle displaying raw `{order.paymentMethod}` → showed "cod"
-- Line 150: Payment method card displaying raw `{order.paymentMethod}` → showed "cod"
+1. **Confusing Card Entry Flow**: When users had no saved PayMongo cards, they saw a passive message saying "Enter your card details on the next screen after clicking 'Place Order'" with no clear CTA
+2. **No Card Persistence**: Manually entered cards were not being saved to Payment Methods after successful payment, requiring users to re-enter them for future orders
+3. **Unclear Alert Messages**: Alert for missing saved cards mentioned "Use Different Card" but that button didn't exist from the new flow
+4. **Test Card Handling**: No distinction between test cards (autofilled) and real cards (manually entered), causing test data to be saved
 
-**Root Cause:**
-- CheckoutScreen.tsx (line 2156) passed payment method as raw string value `'cod'`
-- OrderConfirmation displayed it without any mapping/transformation
-- OrderDetailScreen had the correct mapping implementation that wasn't replicated
+**Root Causes:**
 
-**Fix Implemented:**
-- Added `getPaymentMethodDisplay()` helper function (Lines 30-47)
-  - Maps `"cod"` → `"Cash on Delivery"`
-  - Maps `"gcash"` → `"GCash"`
-  - Maps `"card"` → `"Card"`
-  - Maps `"paymongo"` → `"PayMongo"`
-  - Handles both string and object payment method formats
-- Updated subtitle to use `{getPaymentMethodDisplay()}`
-- Updated payment method card to use `{getPaymentMethodDisplay()}`
+- CheckoutScreen had a passive info box instead of an actionable card entry button
+- PaymentGatewayScreen had no logic to save successfully entered cards to Payment Methods
+- No mechanism to differentiate between autofilled test cards and manually entered real cards
 
-**Result:** Buyers now see **"Cash on Delivery"** instead of **"cod"** ✅
+**Solution Implemented:**
 
----
+### Part 1: Active Card Entry Button in CheckoutScreen
 
-#### 2. Order Status Hardcoded as "Confirmed" for Pending COD Orders
-**Severity:** MEDIUM-HIGH - Misleading status for delayed payments
+**Problem:** Users with no saved PayMongo cards couldn't easily understand how to add a card
 
-**Location:** `mobile-app/app/OrderConfirmation.tsx` (Line 162)
-- Status was hardcoded as `"Confirmed"` for ALL payment methods
-- For COD orders, it should show `"Pending"` (payment not yet received from buyer)
+**Solution:** Added an "Add Card Details" button with full checkout validation and flow:
 
-**Root Cause:**
-- No dynamic logic to check payment method before displaying status
-- Only hardcoded single status value in badge
+**Changes in [mobile-app/app/CheckoutScreen.tsx](mobile-app/app/CheckoutScreen.tsx):**
 
-**Fix Implemented:**
-- Added `getOrderStatus()` helper function (Lines 49-67)
-  - **COD orders**: Returns "Pending" with yellow badge (#FEF3C7, #92400E)
-  - **Other payment methods**: Returns "Confirmed" with gray badge (#E5E7EB, #374151)
-- Updated status display to use dynamic `getOrderStatus()` function
-- Badge color and text now respond to payment method type
+1. **Updated Alert Message** (Line 2001-2006):
+   - Old: "Please select a saved card or click 'Use Different Card' to enter a new card."
+   - New: "Please click 'Add Card Details' to add a new card, or if you have saved cards, select one above."
+   - Uses proper `Alert` structure with OK button
 
-**Result:**
-- COD orders correctly show **"Pending"** status with yellow badge ✅
-- Online payment orders show **"Confirmed"** status with gray badge ✅
-- Buyer expectations aligned with actual payment status ✅
+2. **Replaced Info Box with Interactive Button** (Lines 2777-2986):
+   - Removed plain text message box
+   - Added gradient info card with CreditCard icon
+   - Created "Add Card Details" Pressable button
+   - Button includes full validation:
+     - ✅ User authentication check
+     - ✅ Delivery address validation
+     - ✅ Seller ID validation
+   - Button creates complete checkout payload with all order details
+   - Calls `processCheckout()` to create the order in database
+   - Navigates to PaymentGateway with `isQuickCheckout: false` flag
 
----
+3. **Styling Enhancement**:
+   - LinearGradient background (#E0F2FE to #F0F9FF)
+   - Blue border (1.5px, #0EA5E9)
+   - Informative text: "No Saved Cards Yet"
+   - CreditCard icon for visual clarity
 
-#### 3. Double Loading UI Message for COD Payments
-**Severity:** MEDIUM - UX issue with misleading loading message
-
-**Location:** `mobile-app/app/CheckoutScreen.tsx` (Line 1960)
-
-**Problem:**
-- `setProcessingMessage('Redirecting to secure payment gateway')` was set at the very beginning of checkout process
-- This message appeared for ALL payment methods, including COD
-- For COD orders, showing "Redirecting to secure payment gateway" is completely misleading
-- Created confusing UX with double loading messages
-
-**Root Cause:**
-- Initial processing message was hardcoded to payment gateway language
-- No differentiation between COD and online payment flows at start
-
-**Fix Implemented:**
-- Changed line 1960 from:
-  ```jsx
-  setProcessingMessage('Redirecting to secure payment gateway');
-  ```
-  to:
-  ```jsx
-  setProcessingMessage('Processing your order...');
-  ```
-
-**Result:**
-- **COD flow**: "Processing your order..." → "Preparing your checkout..." → "Confirming your order..." ✅
-- **Online flow**: "Processing your order..." → "Preparing your checkout..." → "Redirecting to secure payment gateway" ✅
-- No more misleading payment gateway message for COD users ✅
+**Files Modified:**
+- [mobile-app/app/CheckoutScreen.tsx](mobile-app/app/CheckoutScreen.tsx#L1998-L2986)
 
 ---
 
-#### 4. Remove "Pending" Badge from Order Details Page for COD Orders
-**Severity:** LOW - UX/Design cleanup
+### Part 2: Automatic Card Saving in PaymentGatewayScreen
 
-**Location:** `mobile-app/app/OrderDetailScreen.tsx` (Lines 823-843)
+**Problem:** When users entered a new card successfully, it wasn't saved to Payment Methods for future use
 
-**Problem:**
-- Order Details page displayed a yellow "PENDING" badge next to payment method
-- Badge appeared redundantly alongside the instruction message
-- Cleaner design if badge was removed, keeping only instruction message
+**Solution:** Added card persistence logic after successful payment
 
-**Fix Implemented:**
-- Removed the yellow badge wrapper and "PENDING" text display
-- Kept the orange instruction message box ("Payment on Delivery" with delivery instructions)
-- Simplified the payment method row to just show "Cash on Delivery" text
+**Changes in [mobile-app/app/PaymentGatewayScreen.tsx](mobile-app/app/PaymentGatewayScreen.tsx):**
+
+1. **Added Manual Entry Tracking** (Line 77):
+   ```typescript
+   const [isManualEntry, setIsManualEntry] = useState(true);
+   ```
+   - Tracks whether card was manually typed or autofilled from test cards
+   - Defaults to `true` (assumes manual entry)
+
+2. **Test Card Autofill Updates** (Lines 513-514, 533-534):
+   - When user selects a test card (success or error), set `isManualEntry(false)`
+   - Prevents test cards from being saved to Payment Methods
+
+3. **Manual Entry Tracking on User Input** (Lines 563-565, 605-608, 627-630, 650-653):
+   - When user types in card number field: `setIsManualEntry(true)`
+   - When user types in expiry field: `setIsManualEntry(true)`
+   - When user types in CVV field: `setIsManualEntry(true)`
+   - When user types in name field: `setIsManualEntry(true)`
+
+4. **Automatic Card Saving After Payment** (Lines 309-340):
+   - After successful payment, checks if:
+     - `isManualEntry` is true (user typed the card)
+     - `showCardForm` is true (card form was shown)
+     - `cardName !== 'TEST CARD'` (not a test card)
+   - If conditions met:
+     - Retrieves existing saved cards
+     - Determines if this should be default card (`isFirstCard`)
+     - Calls `paymentMethodService.savePaymentMethod()` with:
+       - User ID
+       - Card data (number, name, expiry, CVV)
+       - Default flag
+     - Shows success alert: "Your card has been saved to Payment Methods for future purchases."
+   - If save fails:
+     - Doesn't throw error (payment already succeeded)
+     - Shows info alert: "Payment successful, but card could not be saved. You can add it later in Payment Methods."
+
+**Imports Added:**
+- `useAuthStore` — Get current user
+- `paymentMethodService` — Save card data
+
+**Files Modified:**
+- [mobile-app/app/PaymentGatewayScreen.tsx](mobile-app/app/PaymentGatewayScreen.tsx#L31-L32, L77, L309-L340, L513-L514, L533-L534, L563-L565, L605-L608, L627-L630, L650-L653)
+
+---
+
+### User Experience Flow
 
 **Before:**
-```jsx
-<View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-  <Text style={styles.primaryInfo}>{paymentMethod}</Text>
-  {isCOD && (
-    <View style={{ backgroundColor: '#FEF3C7', ... }}>
-      <Text>PENDING</Text>
-    </View>
-  )}
-</View>
+```
+1. User at checkout with no saved cards
+2. Sees message: "Enter your card details on the next screen"
+3. Clicks "Place Order"
+4. PaymentGateway opens with card form
+5. User enters card
+6. Payment succeeds
+7. Card is NOT saved (user must re-enter next time)
 ```
 
 **After:**
-```jsx
-<Text style={styles.primaryInfo}>{paymentMethod}</Text>
+```
+1. User at checkout with no saved cards
+2. Sees "Add Card Details" button (clear CTA)
+3. Clicks "Add Card Details"
+4. Order created in database
+5. PaymentGateway opens with card form
+6. User enters card (tracked as manual entry)
+7. Payment succeeds
+8. Card automatically saved to Payment Methods
+9. Card available for future orders
 ```
 
-**Result:**
-- ✅ Removed the yellow "PENDING" badge
-- ✅ Kept the orange instruction message box
-- ✅ Cleaner payment method display
-- ✅ More focused UX on the helpful instruction message
+**Test Card Scenario:**
+```
+1. User at PaymentGateway card form
+2. Clicks test card shortcut (e.g., "✓ Success")
+3. Card auto-filled (isManualEntry = false)
+4. Payment succeeds
+5. Card is NOT saved (was just for testing)
+6. User sees: "Payment successful"
+```
 
 ---
 
-### Summary of Changes
+### What Was Preserved
 
-**Files Modified:** 2
-- `mobile-app/app/OrderConfirmation.tsx` — Added helper functions for payment method display and status determination
-- `mobile-app/app/OrderDetailScreen.tsx` — Removed redundant status badge, kept instruction message
-- `mobile-app/app/CheckoutScreen.tsx` — Fixed initial processing message to be generic
-
-**User-Facing Improvements:**
-1. ✅ Correct payment method text ("Cash on Delivery" not "cod")
-2. ✅ Correct order status ("Pending" for COD, "Confirmed" for others)
-3. ✅ Clear loading messages without misleading payment gateway references for COD
-4. ✅ Cleaner Order Details page design with focused instruction messaging
-5. ✅ No compilation errors across all changes
-6. ✅ Consistent implementation patterns across OrderConfirmation and OrderDetailScreen
+- ✅ All existing payment flow logic unchanged
+- ✅ All checkout validations intact
+- ✅ All order creation logic preserved
+- ✅ All PayMongo payment processing unchanged
+- ✅ All cart management untouched
+- ✅ All state management for other fields
+- ✅ All TypeScript types and interfaces
+- ✅ All styling for other components
 
 ---
 
-### Add COD Payment Deadline Display to Mobile Order Details
+### Result
 
-**Status:** ✅ COMPLETE
-
-**Objective:** Display COD (Cash on Delivery) payment deadline based on J&T estimated delivery date in the Items & Payment section of mobile OrderDetailScreen.
-
-**Root Causes Identified & Fixed:**
-
-#### 1. Payment Method Detection Failing in OrderDetailScreen.tsx
-**Severity:** HIGH - Feature completely non-functional
-
-**Location:** `mobile-app/app/OrderDetailScreen.tsx` (Lines 830-880)
-
-**Root Cause:**
-- Code was checking for `.type` property on `order.paymentMethod` (treating it as object)
-- Mobile Order interface defines `paymentMethod: string` (not object with `.type`)
-- This type mismatch caused COD detection to always fail silently
-- Resulted in COD instruction box never rendering
-
-**Fix Implemented:**
-- Enhanced payment method detection to handle both string and object formats:
-  - String format: `"cod"` → directly compare with `.toLowerCase().trim()`
-  - Object format: `{ type: "cod" }` → check `.type` property
-- Added comprehensive logging for debugging payment method flow
-- Added robust null/empty string checks
-- Fallback messages when delivery date not yet available
-
-**Result:** COD orders now properly detected and instruction box renders ✅
+✅ **Clear UX**: Users with no saved cards have obvious "Add Card Details" button instead of confusing message
+✅ **Reduced Friction**: Cards automatically save after successful payment → no re-entry needed
+✅ **Smart Defaults**: First card automatically set as default payment method
+✅ **Test Card Safety**: Test cards never saved (tracked separately from manual entry)
+✅ **Error Resilient**: If card save fails, payment still succeeds
+✅ **User Informed**: Clear alerts about card saving success or issues
+✅ **No Breaking Changes**: All existing payment flows continue to work
+✅ **TypeScript Validated**: No compilation errors
 
 ---
 
-#### 2. HistoryScreen.tsx Hardcoding Payment Method as "Paid"
-**Severity:** HIGH - Payment method always incorrect in History tab
+### Files Modified
 
-**Location:** `mobile-app/app/HistoryScreen.tsx` (Lines 71-113)
+| File | Changes | Status |
+|------|---------|--------|
+| [mobile-app/app/CheckoutScreen.tsx](mobile-app/app/CheckoutScreen.tsx) | Added "Add Card Details" button with full checkout validation (Lines 1998-2006, 2777-2986) | ✅ Complete |
+| [mobile-app/app/PaymentGatewayScreen.tsx](mobile-app/app/PaymentGatewayScreen.tsx) | Added card saving logic + manual entry tracking (Multiple locations) | ✅ Complete |
 
-**Root Cause:**
-- HistoryScreen was hardcoding `paymentMethod: 'Paid'` for ALL orders
-- When users viewed COD orders from History, it showed "Paid" instead of "Cash on Delivery"
-- Prevented COD detection logic from working in OrderDetailScreen
-- Supabase query wasn't fetching payments data
-
-**Fix Implemented:**
-1. Updated Supabase query to include payments data (Line 63):
-   ```jsx
-   payments:order_payments(payment_method, status, created_at)
-   ```
-
-2. Implemented proper payment method extraction (Lines 78-90):
-   ```jsx
-   const getPaymentMethod = (): string => {
-     const paymentData = (order.payments && order.payments.length > 0) ? order.payments[0]?.payment_method : null;
-     if (typeof paymentData === 'string') {
-       return paymentData;
-     }
-     if (typeof paymentData === 'object' && paymentData) {
-       const type = (paymentData as any)?.type;
-       if (type === 'cod') return 'Cash on Delivery';
-       if (type === 'gcash') return 'GCash';
-       if (type === 'card') return 'Card';
-       if (type === 'paymongo') return 'PayMongo';
-       return type || 'Cash on Delivery';
-     }
-     return 'Paid';
-   };
-   ```
-
-3. Updated mapping to use function result (Line 112):
-   ```jsx
-   paymentMethod: getPaymentMethod(),
-   ```
-
-**Result:** History tab now correctly displays payment methods ✅
+**Total Files Modified:** 2
 
 ---
 
-#### 3. Order Interface Missing Payments Property
-**Severity:** MEDIUM - TypeScript compilation error
+### Testing Checklist
 
-**Location:** `mobile-app/src/types/index.ts` (Line 209-214)
-
-**Problem:**
-- Order interface didn't include optional `payments` property
-- Caused TypeScript error when accessing `order.payments` in OrderDetailScreen and HistoryScreen
-
-**Fix Implemented:**
-- Added payments property to Order interface:
-  ```typescript
-  payments?: Array<{
-    payment_method: string | { type: string };
-    status?: string;
-    created_at?: string;
-  }>;
-  ```
-
-**Result:** TypeScript compilation errors resolved ✅
-
----
-
-#### 4. Enhanced Date Formatting for COD Deadline Display
-**Location:** `mobile-app/app/OrderDetailScreen.tsx` (Lines 24-38)
-
-**Implementation:**
-- Already present: `formatDatePH()` utility function converts date strings to Philippine format
-- Handles all input types: string, Date object, null, undefined
-- Returns formatted string like "April 26, 2026"
-- Used in COD instruction box to display payment deadline
-
-**Result:** Dates display correctly in user-friendly format ✅
-
----
-
-### Final Implementation
-
-**User-Facing Feature:**
-- ✅ Payment Method displays correctly: "Cash on Delivery"
-- ✅ COD Instruction Box appears in Items & Payment section:
-  - Title: "💳 Payment on Delivery"
-  - Instructions: "You'll pay the full amount to the delivery driver when they arrive. Please have the exact amount ready."
-  - Deadline: "Payment Due: April 26, 2026" (formatted from J&T ETA)
-  - Fallback: "Delivery date will be updated when J&T booking is confirmed"
-
-**Files Modified:** 4
-- `mobile-app/app/OrderDetailScreen.tsx` — Enhanced payment detection, added COD instruction box
-- `mobile-app/app/HistoryScreen.tsx` — Fixed payment method mapping, added payments query
-- `mobile-app/src/types/index.ts` — Added payments property to Order interface
-
-**Testing Done:**
-✅ Feature displays correctly on mobile app
-✅ Shows formatted deadline date from J&T estimated delivery
-✅ Appears in correct section (Items & Payment)
-✅ No TypeScript compilation errors
-✅ Works for orders viewed from both OrdersScreen and HistoryScreen
-
----
-
-### Mobile Order Card - Delivered Button Overlap Fix
-
-**Status:** ✅ COMPLETE
-
-**Objective:** Fix "Confirm Received" button overlapping with other action buttons in mobile Order Card component when order status is "delivered".
-
-**Problem Identified:**
-The action buttons container in OrderCard was using a horizontal flex layout (`flexDirection: 'row'`), causing buttons to cramp together and overlap when multiple buttons needed to display for the same order status.
-
-**Specific Issue:**
-For "delivered" orders, three action buttons would render in quick succession:
-1. "Chat with Seller" button
-2. "Track" button  
-3. "Confirm Received" button
-
-All three buttons tried to fit in a single horizontal row, causing visual overlap and truncation.
-
-**Root Cause:**
-Location: `mobile-app/src/components/OrderCard.tsx` (Lines 476-484)
-
-```javascript
-actionButtonsContainer: {
-  flexDirection: 'row',        // ← PROBLEM: Forces all buttons into single row
-  justifyContent: 'flex-end',
-  gap: 8,
-  marginTop: 8,
-  paddingTop: 12,
-  borderTopWidth: 1,
-  borderTopColor: '#F3F4F6',
-  alignItems: 'flex-start',    // ← PROBLEM: Top-aligned instead of stretching
-}
-```
-
-**Fix Implemented:**
-Updated the `actionButtonsContainer` styling to use vertical stacking:
-
-```javascript
-actionButtonsContainer: {
-  flexDirection: 'column',     // Changed to column for vertical stacking
-  justifyContent: 'flex-end',
-  gap: 8,
-  marginTop: 8,
-  paddingTop: 12,
-  borderTopWidth: 1,
-  borderTopColor: '#F3F4F6',
-  alignItems: 'stretch',       // Changed to stretch for full-width buttons
-}
-```
-
-**Changes Made:**
-- `flexDirection: 'row'` → `flexDirection: 'column'` (stack buttons vertically instead of horizontally)
-- `alignItems: 'flex-start'` → `alignItems: 'stretch'` (buttons expand to full container width)
-
-**Result:**
-- ✅ Buttons no longer overlap or cramp together
-- ✅ All action buttons remain fully visible and clickable
-- ✅ Improved touch target sizes (full-width buttons)
-- ✅ Better spacing with 8px gap between stacked buttons
-- ✅ Layout adapts to multiple button scenarios (Processing, Shipped/Delivered, Received, etc.)
-
-**Visual Comparison:**
-
-**Before (Overlapping):**
-```
-┌────────────────────────┐
-│ [Chat][Track][Confirm] │ ← All cramped in one row
-└────────────────────────┘
-```
-
-**After (Properly Stacked):**
-```
-┌────────────────────────┐
-│ [Chat with Seller]     │
-│ [Track]                │
-│ [Confirm Received]     │ ← Full-width buttons in column
-└────────────────────────┘
-```
-
-**File Modified:** 1
-- `mobile-app/src/components/OrderCard.tsx` — Updated actionButtonsContainer styles (Lines 476-484)
-
----
-
-### COD Payment Deadline Visibility Fix - Hide on Confirm Received
-
-**Status:** ✅ COMPLETE
-
-**Objective:** Hide COD payment deadline and instruction message once buyer confirms receipt (when order status changes from "delivered" to "received").
-
-**Problem:**
-- COD instruction box was displaying on all order statuses
-- After buyer clicked "Confirm Received", the payment instruction remained visible
-- Message no longer made sense once payment had been collected
-
-**Root Cause:**
-The condition at [OrderDetailScreen.tsx Line 873](mobile-app/app/OrderDetailScreen.tsx#L873) only checked if COD payment method, without checking order status:
-```typescript
-{isCOD && (() => {
-  // Always shows regardless of order status
-})}
-```
-
-**Fix Implemented:**
-Updated condition to also check order status (Line 876):
-```typescript
-{isCOD && (order.buyerUiStatus === 'delivered' || (order.status === 'delivered' && !order.buyerUiStatus)) && (() => {
-  // Only shows when order is in 'delivered' status
-})}
-```
-
-**Result:**
-- ✅ **Delivered Status**: "💳 Payment on Delivery" instruction displays with deadline
-- ✅ **Received Status**: Instruction box DISAPPEARS after buyer confirms receipt
-- ✅ **Reviewed/Final**: Instruction box remains hidden
-- ✅ Matches user expectation (no payment message needed after order already received)
-
-**File Modified:** 1
-- `mobile-app/app/OrderDetailScreen.tsx` — Added status check to COD instruction condition
-
-**Order Status Flow:**
-| Status | COD Box Display | Action |
-|--------|-----------------|--------|
-| pending | Hidden | Awaiting confirmation |
-| processing | Hidden | Being prepared |
-| shipped | Hidden | In transit |
-| delivered | ✅ **VISIBLE** | "Confirm Received" button shows |
-| received | ❌ **HIDDEN** | Buyer confirmed delivery |
-| reviewed | ❌ **HIDDEN** | Order completed |
+✅ Checkout validates required fields before "Add Card Details"
+✅ PaymentGateway receives correct order data
+✅ Manual card entry saves after successful payment
+✅ Test card autofill does NOT save
+✅ First card becomes default payment method
+✅ Subsequent cards don't override default
+✅ Card save failure doesn't block order completion
+✅ Alert messages display correctly
+✅ TypeScript compilation: No errors
 
 ---
 

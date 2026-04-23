@@ -886,7 +886,7 @@ export default function OrderDetailScreen({ route, navigation }: Props) {
                              </Text>
                              {formattedDeadline && (
                                <Text style={{ fontSize: 12, color: '#92400E', fontWeight: '600' }}>
-                                 Payment Due: {formattedDeadline}
+                                 Estimated Payment Due: {formattedDeadline}
                                </Text>
                              )}
                              {!formattedDeadline && (
@@ -1012,7 +1012,7 @@ export default function OrderDetailScreen({ route, navigation }: Props) {
 
         {/* RECEIVED: stacked when Return/Refund visible, side-by-side when not */}
         {order.buyerUiStatus === 'received' && (() => {
-          const withinReturnWindow = (Date.now() - new Date((order as any).deliveredAt || (order as any).updatedAt || order.createdAt).getTime()) <= 7 * 24 * 60 * 60 * 1000;
+          const withinReturnWindow = (Date.now() - new Date((order as any).receivedAt || (order as any).deliveredAt || (order as any).updatedAt || order.createdAt).getTime()) <= 7 * 24 * 60 * 60 * 1000;
           const buyAgainAction = () => {
             if (order.items.length > 0) {
               const addItem = useCartStore.getState().addItem;

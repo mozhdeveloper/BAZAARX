@@ -5,10 +5,11 @@ import type { Database } from '../types/supabase-generated.types';
 const supabaseUrl = process.env.EXPO_PUBLIC_SUPABASE_URL || '';
 const supabaseAnonKey = process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY || '';
 
-// Custom fetch with 30-second timeout (increased from 10s to reduce Network request failed errors in slow connections)
+// Custom fetch with 45-second timeout (increased from 30s for slow networks and code exchange operations)
+// Code exchange may be slower due to email verification processing on Supabase backend
 const fetchWithTimeout = (url: RequestInfo | URL, options?: RequestInit): Promise<Response> => {
   const controller = new AbortController();
-  const timeoutId = setTimeout(() => controller.abort(), 30_000);
+  const timeoutId = setTimeout(() => controller.abort(), 45_000);
   return fetch(url, { ...options, signal: controller.signal }).finally(() => clearTimeout(timeoutId));
 };
 

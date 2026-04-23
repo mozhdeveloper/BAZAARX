@@ -4,6 +4,7 @@ import { Navigate } from "react-router-dom";
 import { useAdminAuth } from "../stores/adminStore";
 import { supabase, isSupabaseConfigured } from "@/lib/supabase";
 import AdminSidebar from "../components/AdminSidebar";
+import { useAdminRealtime } from "@/hooks/useAdminRealtime";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -210,6 +211,9 @@ const AdminReturns: React.FC = () => {
   useEffect(() => {
     loadReturns();
   }, [loadReturns]);
+
+  // Live updates: refresh when refund/return periods change
+  useAdminRealtime('refund_return_periods', loadReturns);
 
   if (!isAuthenticated) return <Navigate to="/admin/login" replace />;
 

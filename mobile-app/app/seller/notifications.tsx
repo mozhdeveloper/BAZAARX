@@ -30,6 +30,7 @@ import {
 } from 'lucide-react-native';
 import { useSellerStore } from '../../src/stores/sellerStore';
 import { notificationService, type Notification } from '../../src/services/notificationService';
+import { pushNotificationService } from '../../src/services/pushNotificationService';
 import SellerDrawer from '../../src/components/SellerDrawer';
 
 const getNotificationStyles = (type: string) => {
@@ -315,6 +316,28 @@ export default function SellerNotificationsScreen() {
         renderItem={renderItem}
         keyExtractor={keyExtractor}
         contentContainerStyle={styles.listContent}
+        ListHeaderComponent={
+          __DEV__ ? (
+            <View style={styles.devPanel}>
+              <Text style={styles.devPanelTitle}>🔔 Push Test (Dev)</Text>
+              <Text style={styles.devPanelHint}>Local notifications — work in Expo Go</Text>
+              {[
+                { label: 'New order',  type: 'seller_order', body: 'You have a new order!', extra: { orderId: 'test-order-id' } },
+                { label: 'Return',     type: 'return',       body: 'A buyer requested a return.' },
+                { label: 'Chat',       type: 'chat',         body: 'You have a new message from a buyer.' },
+                { label: 'Generic',    type: 'system',       body: 'System notification test.' },
+              ].map(({ label, type, body, extra }) => (
+                <Pressable
+                  key={type}
+                  style={({ pressed }) => [styles.devButton, pressed && { opacity: 0.7 }]}
+                  onPress={() => pushNotificationService.testLocalNotification(type, `[TEST] ${label}`, body, extra || {})}
+                >
+                  <Text style={styles.devButtonText}>{label}</Text>
+                </Pressable>
+              ))}
+            </View>
+          ) : null
+        }
         ListEmptyComponent={loading ? <ActivityIndicator size="large" color="#D97706" style={{ marginTop: 40 }} /> : <Text style={styles.emptyText}>No notifications yet.</Text>}
       />
 
@@ -377,4 +400,9 @@ const styles = StyleSheet.create({
   optionItem: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingVertical: 12, borderBottomWidth: 1, borderBottomColor: '#F3F4F6' },
   optionText: { fontSize: 15, color: '#4B5563', fontWeight: '600' },
   optionTextActive: { color: '#D97706', fontWeight: '800' },
+  devPanel: { margin: 12, padding: 12, borderRadius: 12, borderWidth: 1, borderColor: '#FED7AA', backgroundColor: '#FFFBEB' },
+  devPanelTitle: { fontSize: 14, fontWeight: '700', color: '#9A3412', marginBottom: 4 },
+  devPanelHint: { fontSize: 11, color: '#9A3412', marginBottom: 8 },
+  devButton: { paddingVertical: 8, paddingHorizontal: 12, marginTop: 6, borderRadius: 8, backgroundColor: '#FB923C' },
+  devButtonText: { color: '#FFFFFF', fontSize: 13, fontWeight: '600', textAlign: 'center' },
 });

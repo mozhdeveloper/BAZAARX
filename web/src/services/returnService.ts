@@ -5,7 +5,16 @@
  */
 import { supabase, isSupabaseConfigured } from "@/lib/supabase";
 import { notificationService } from "./notificationService";
-import { sendRefundProcessedEmail, sendPartialRefundEmail } from "@/services/transactionalEmails";
+import {
+  sendRefundProcessedEmail,
+  sendPartialRefundEmail,
+  sendReturnRequestedEmail,
+  sendReturnApprovedEmail,
+  sendReturnRejectedEmail,
+  sendReturnCounterOfferedEmail,
+  sendSellerReturnShippedEmail,
+  sendSellerReturnRequestEmail,
+} from "@/services/transactionalEmails";
 import { fetchOrderEmailData } from "@/services/receiptService";
 
 // ---------------------------------------------------------------------------
@@ -409,15 +418,80 @@ class ReturnService {
             ? `${buyerProfile.first_name || ""} ${buyerProfile.last_name || ""}`.trim() || "A buyer"
             : "A buyer";
 
+          const orderNumber = (orderDetails as any)?.order_number ?? "N/A";
+
           for (const sellerId of sellerIds) {
+            // In-app notification
             await notificationService.notifySellerReturnRequest({
               sellerId,
               buyerName,
               orderId: orderDbId,
               returnId: returnData.id,
-              orderNumber: (orderDetails as any)?.order_number ?? "N/A",
+              orderNumber,
               reason: params.reason,
             });
+            // Email — fetch seller profile
+            const { data: sellerProfile } = await supabase
+              .from("profiles")
+              .select("email, first_name, last_name")
+              .eq("id", sellerId)
+              .maybeSingle();
+            if (sellerProfile?.email) {
+              sendSellerReturnRequestEmail({
+                sellerEmail: sellerProfile.email,
+                sellerId,
+                orderNumber,
+                sellerName: `${sellerProfile.first_name ?? ""} ${sellerProfile.last_name ?? ""}`.trim() || "Seller",
+                buyerName,
+                returnReason: params.reason,
+              }).catch(console.error);
+            }
+          }
+
+          // Buyer confirmation email
+          const { data: buyerProfileFull } = await supabase
+            .from("profiles")
+            .select("email")
+            .eq("id", (orderDetails as any)?.buyer_id ?? "")
+            .maybeSingle();
+          if (!buyerProfileFull?.email) {
+            // Fallback: fetch buyer_id from order directly
+            const { data: orderRow } = await supabase
+              .from("orders")
+              .select("buyer_id")
+              .eq("id", orderDbId)
+              .maybeSingle();
+            if (orderRow?.buyer_id) {
+              const { data: bProfile } = await supabase
+                .from("profiles")
+                .select("email")
+                .eq("id", orderRow.buyer_id)
+                .maybeSingle();
+              if (bProfile?.email) {
+                sendReturnRequestedEmail({
+                  buyerEmail: bProfile.email,
+                  buyerId: orderRow.buyer_id,
+                  orderNumber,
+                  buyerName,
+                  returnReason: params.reason,
+                  resolutionPath: returnData.resolution_path ?? "seller_review",
+                }).catch(console.error);
+              }
+            }
+          } else {
+            const { data: orderRow } = await supabase
+              .from("orders")
+              .select("buyer_id")
+              .eq("id", orderDbId)
+              .maybeSingle();
+            sendReturnRequestedEmail({
+              buyerEmail: buyerProfileFull.email,
+              buyerId: orderRow?.buyer_id ?? "",
+              orderNumber,
+              buyerName,
+              returnReason: params.reason,
+              resolutionPath: returnData.resolution_path ?? "seller_review",
+            }).catch(console.error);
           }
         } catch (err) {
           console.warn("[ReturnService] Failed to send return notification:", err);
@@ -616,6 +690,11 @@ class ReturnService {
         // Notify Buyer
         await this.notifyBuyerOfReturnUpdate(orderId, "approved");
       }
+      await this.logAuditAction(
+        isReplacement ? 'return.replacement_approved' : 'return.approved',
+        returnId,
+        { order_id: orderId, return_type: returnData?.return_type }
+      );
     } catch (error: any) {
       console.error("Failed to approve return:", error);
       throw new Error(error.message || "Failed to approve return");
@@ -665,6 +744,7 @@ class ReturnService {
         // Notify Buyer
         await this.notifyBuyerOfReturnUpdate(orderId, "rejected", reason);
       }
+      await this.logAuditAction('return.rejected', returnId, { order_id: orderId, reason });
     } catch (error: any) {
       console.error("Failed to reject return:", error);
       throw new Error(error.message || "Failed to reject return");
@@ -839,6 +919,65 @@ class ReturnService {
         buyer_shipped_at: new Date().toISOString(),
       })
       .eq("id", returnId);
+
+    // Notify seller that item is on its way (non-blocking)
+    (async () => {
+      try {
+        const { data: ret } = await supabase
+          .from("refund_return_periods")
+          .select("order_id")
+          .eq("id", returnId)
+          .maybeSingle();
+        if (!ret?.order_id) return;
+
+        const { data: order } = await supabase
+          .from("orders")
+          .select("order_number, order_items(product:products(seller_id))")
+          .eq("id", ret.order_id)
+          .maybeSingle();
+        if (!order) return;
+
+        const sellerIds = [
+          ...new Set(
+            ((order as any).order_items || [])
+              .map((oi: any) => oi.product?.seller_id)
+              .filter(Boolean) as string[]
+          ),
+        ];
+        for (const sellerId of sellerIds) {
+          // In-app
+          await notificationService.createNotification({
+            userId: sellerId,
+            userType: "seller",
+            type: "return_shipped",
+            title: "Return Item Shipped",
+            message: `Buyer has shipped the return for order #${order.order_number}. Tracking: ${trackingNumber}`,
+            icon: "Package",
+            iconBg: "bg-blue-500",
+            actionUrl: `/seller/returns`,
+            actionData: { returnId, trackingNumber },
+            priority: "high",
+          });
+          // Email
+          const { data: sp } = await supabase
+            .from("profiles")
+            .select("email, first_name, last_name")
+            .eq("id", sellerId)
+            .maybeSingle();
+          if (sp?.email) {
+            sendSellerReturnShippedEmail({
+              sellerEmail: sp.email,
+              sellerId,
+              orderNumber: order.order_number,
+              sellerName: `${sp.first_name ?? ""} ${sp.last_name ?? ""}`.trim() || "Seller",
+              trackingNumber,
+            }).catch(console.error);
+          }
+        }
+      } catch (err) {
+        console.warn("[ReturnService] Failed to notify seller of return shipment:", err);
+      }
+    })();
   }
 
   // ============================================================================
@@ -905,6 +1044,40 @@ class ReturnService {
       // Notify Buyer
       await this.notifyBuyerOfReturnUpdate(ret.order_id, isReplacement ? "approved" : "refunded");
     }
+    await this.logAuditAction(
+      isReplacement ? 'return.replacement_received' : 'return.refunded',
+      returnId,
+      { order_id: ret?.order_id }
+    );
+  }
+
+  /**
+   * Best-effort write to admin_action_log so that every refund-impacting action
+   * leaves a trail. Silently no-ops if the table doesn't exist or the user
+   * isn't authenticated (the row won't satisfy RLS).
+   */
+  private async logAuditAction(
+    action: string,
+    returnId: string,
+    metadata: Record<string, unknown> = {},
+  ): Promise<void> {
+    try {
+      const { data: userData } = await supabase.auth.getUser();
+      const adminId = userData?.user?.id ?? null;
+      const { error } = await supabase.from('admin_action_log').insert({
+        admin_id: adminId,
+        action,
+        target_type: 'refund_return_period',
+        target_id: returnId,
+        metadata,
+      });
+      // 42P01 = table missing, 42501 = RLS denial: both are non-fatal here.
+      if (error && !['42P01', '42501', 'PGRST205'].includes((error as { code?: string }).code || '')) {
+        console.warn('audit log write failed:', error.message);
+      }
+    } catch (err) {
+      console.warn('audit log write threw:', err);
+    }
   }
 
   /**
@@ -919,6 +1092,7 @@ class ReturnService {
         .single();
 
       if (order?.buyer_id) {
+        // In-app notification
         await notificationService.notifyBuyerReturnStatus({
           buyerId: order.buyer_id,
           orderId,
@@ -926,6 +1100,29 @@ class ReturnService {
           status,
           message
         });
+
+        // Transactional email (fire-and-forget)
+        const { data: profile } = await supabase
+          .from("profiles")
+          .select("email, first_name, last_name")
+          .eq("id", order.buyer_id)
+          .maybeSingle();
+        const buyerEmail = profile?.email ?? "";
+        const buyerName = profile
+          ? `${profile.first_name ?? ""} ${profile.last_name ?? ""}`.trim() || "Valued Customer"
+          : "Valued Customer";
+        if (buyerEmail) {
+          const base = { buyerEmail, buyerId: order.buyer_id, orderNumber: order.order_number, buyerName };
+          if (status === "approved") {
+            sendReturnApprovedEmail(base).catch(console.error);
+          } else if (status === "rejected") {
+            sendReturnRejectedEmail({ ...base, rejectReason: message ?? "The seller reviewed your request and was unable to approve it." }).catch(console.error);
+          } else if (status === "counter_offered") {
+            sendReturnCounterOfferedEmail({ ...base, offerDetails: message ?? "The seller has submitted a counter-offer. Log in to review and respond." }).catch(console.error);
+          } else if (status === "refunded") {
+            sendRefundProcessedEmail({ ...base, refundAmount: "", refundMethod: "original payment method" }).catch(console.error);
+          }
+        }
       }
     } catch (err) {
       console.warn("Failed to notify buyer of return update:", err);

@@ -523,7 +523,25 @@ export default function CheckoutScreen({ navigation, route }: Props) {
 
   // Helper: resolve display name for a seller group
   const getSellerDisplayName = useCallback((sellerId: string, items: typeof checkoutItems) => {
-    return sellerMetadata[sellerId]?.storeName || items[0]?.seller || 'BazaarX Store';
+    // Get store name from metadata first (most reliable)
+    if (sellerMetadata[sellerId]?.storeName) {
+      return sellerMetadata[sellerId].storeName;
+    }
+    
+    // Fallback: extract from first item's seller property
+    const firstItem = items[0];
+    if (firstItem?.seller) {
+      // Handle case where seller is an object with store_name/seller_name property
+      if (typeof firstItem.seller === 'object' && firstItem.seller !== null) {
+        return (firstItem.seller as any).store_name || (firstItem.seller as any).seller_name || 'Unknown Seller';
+      }
+      // Handle case where seller is already a string
+      if (typeof firstItem.seller === 'string') {
+        return firstItem.seller;
+      }
+    }
+    
+    return 'BazaarX Store';
   }, [sellerMetadata]);
 
   // ---------------------------------------------------------------------------
@@ -566,9 +584,23 @@ export default function CheckoutScreen({ navigation, route }: Props) {
 
         const sellerInputs = Object.entries(groupedCheckoutItems).map(([sellerId, items]) => {
           const meta = sellerMetadata[sellerId];
+          let sellerName = 'Unknown Seller';
+          
+          // Get store name from metadata first
+          if (meta?.storeName) {
+            sellerName = meta.storeName;
+          } else if (items[0]?.seller) {
+            // Handle case where seller is an object
+            if (typeof items[0].seller === 'object' && items[0].seller !== null) {
+              sellerName = (items[0].seller as any).store_name || (items[0].seller as any).seller_name || 'Unknown Seller';
+            } else if (typeof items[0].seller === 'string') {
+              sellerName = items[0].seller;
+            }
+          }
+          
           return {
             sellerId,
-            sellerName: meta?.storeName || items[0]?.seller || 'Unknown Seller',
+            sellerName,
             sellerCoords: meta?.coords || null,
             sellerProvince: meta?.province,
             sellerRegion: meta?.region,
@@ -629,9 +661,23 @@ export default function CheckoutScreen({ navigation, route }: Props) {
 
           const sellerInputs = Object.entries(groupedCheckoutItems).map(([sellerId, items]) => {
             const meta = sellerMetadata[sellerId];
+            let sellerName = 'Unknown Seller';
+            
+            // Get store name from metadata first
+            if (meta?.storeName) {
+              sellerName = meta.storeName;
+            } else if (items[0]?.seller) {
+              // Handle case where seller is an object
+              if (typeof items[0].seller === 'object' && items[0].seller !== null) {
+                sellerName = (items[0].seller as any).store_name || (items[0].seller as any).seller_name || 'Unknown Seller';
+              } else if (typeof items[0].seller === 'string') {
+                sellerName = items[0].seller;
+              }
+            }
+            
             return {
               sellerId,
-              sellerName: meta?.storeName || items[0]?.seller || 'Unknown Seller',
+              sellerName,
               sellerCoords: meta?.coords || null,
               sellerProvince: meta?.province,
               sellerRegion: meta?.region,
@@ -1225,7 +1271,11 @@ export default function CheckoutScreen({ navigation, route }: Props) {
       // User selected a saved card - will be used instead of card form
     } else if (paymentMethod === 'paymongo' && !selectedPaymentMethodId) {
       // User has no saved cards selected
-      Alert.alert('Payment Method', 'Please select a saved card or click "Use Different Card" to enter a new card.');
+      Alert.alert(
+        'Select or Add a Card',
+        'Please click "Add Card Details" to add a new card, or if you have saved cards, select one above.',
+        [{ text: 'OK' }]
+      );
       return;
     }
 
@@ -1765,25 +1815,6 @@ export default function CheckoutScreen({ navigation, route }: Props) {
               </View>
 
               <Pressable
-                onPress={() => { }}
-                style={[styles.paymentOption, { opacity: 0.5, backgroundColor: '#F3F4F6' }]}
-              >
-                <View style={styles.radio}>
-                  {paymentMethod === 'gcash' && <View style={styles.radioInner} />}
-                </View>
-                <View style={{ flex: 1 }}>
-                  <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-                    <Text style={[styles.paymentText, { color: '#9CA3AF' }]}>GCash</Text>
-                    <View style={{ backgroundColor: '#E5E7EB', paddingHorizontal: 6, paddingVertical: 2, borderRadius: 4, marginLeft: 8 }}>
-                      <Text style={{ fontSize: 10, fontWeight: '700', color: '#6B7280' }}>COMING SOON</Text>
-                    </View>
-                  </View>
-                  <Text style={styles.paymentSubtext}>Instantly paid online</Text>
-                </View>
-                <Shield size={16} color="#9CA3AF" />
-              </Pressable>
-
-              <Pressable
                 onPress={() => setPaymentMethod('paymongo')}
                 style={[
                   styles.paymentOption,
@@ -2021,18 +2052,256 @@ export default function CheckoutScreen({ navigation, route }: Props) {
                     </View>
                   )}
 
-                  {/* No Saved Cards - Show message to use different card */}
+                  {/* No Saved Cards - Show "Add Card Details" button */}
                   {!loadingPaymentMethods && savedPaymentMethods.length === 0 && (
-                    <View style={{ backgroundColor: '#F0F9FF', borderColor: '#0EA5E9', borderWidth: 1, borderRadius: 8, padding: 12, marginVertical: 8 }}>
-                      <Text style={{ fontSize: 13, color: '#0369A1', lineHeight: 20 }}>
-                        Enter your card details on the next screen after clicking "Place Order"
-                      </Text>
+                    <View style={{ marginVertical: 12 }}>
+                      <View style={{ marginBottom: 12, borderRadius: 12, overflow: 'hidden' }}>
+                        <LinearGradient
+                          colors={['#E0F2FE', '#F0F9FF']}
+                          start={{ x: 0, y: 0 }}
+                          end={{ x: 1, y: 1 }}
+                          style={{
+                            borderWidth: 1.5,
+                            borderColor: '#0EA5E9',
+                            borderRadius: 12,
+                            padding: 16,
+                            flexDirection: 'row',
+                            alignItems: 'center',
+                          }}
+                        >
+                          <View style={{ flex: 1 }}>
+                            <Text style={{ fontSize: 13, fontWeight: '600', color: '#0369A1', marginBottom: 6 }}>
+                              No Saved Cards Yet
+                            </Text>
+                            <Text style={{ fontSize: 12, color: '#0369A1', lineHeight: 18, opacity: 0.85 }}>
+                              Add your card securely below. It will be saved to your Payment Methods for future orders.
+                            </Text>
+                          </View>
+                          <CreditCard size={28} color="#0EA5E9" style={{ marginLeft: 12 }} />
+                        </LinearGradient>
+                      </View>
+
+                      {/* Add Card Details Button */}
+                      <Pressable
+                        onPress={async () => {
+                          try {
+                            setIsProcessing(true);
+                            setProcessingMessage('Redirecting to card entry');
+
+                            // Validate required fields before proceeding to payment gateway
+                            if (!user?.id) {
+                              Alert.alert('Error', 'User not authenticated. Please sign in again.');
+                              setIsProcessing(false);
+                              return;
+                            }
+                            
+                            if (!selectedAddress) {
+                              Alert.alert('Error', 'Please select a delivery address');
+                              setIsProcessing(false);
+                              return;
+                            }
+
+                            const sellerId = checkoutItems[0]?.seller_id || checkoutItems[0]?.sellerId;
+                            if (!sellerId) {
+                              Alert.alert('Error', 'No seller found for items. Please try again.');
+                              setIsProcessing(false);
+                              return;
+                            }
+
+                            // Prepare checkout payload with full details
+                            const payload = {
+                              userId: user.id,
+                              items: checkoutItems,
+                              totalAmount: total,
+                              shippingAddress: {
+                                fullName: `${selectedAddress.firstName} ${selectedAddress.lastName}`,
+                                street: selectedAddress.street || '',
+                                barangay: selectedAddress.barangay || '',
+                                city: selectedAddress.city || 'Manila',
+                                province: selectedAddress.province || 'Metro Manila',
+                                region: selectedAddress.region || 'NCR',
+                                postalCode: selectedAddress.zipCode || '0000',
+                                phone: selectedAddress.phone || '',
+                                country: 'Philippines'
+                              },
+                              paymentMethod: 'paymongo',
+                              usedBazcoins: bazcoinDiscount,
+                              earnedBazcoins,
+                              shippingFee,
+                              discount,
+                              voucherId: appliedVoucher?.id || null,
+                              discountAmount: discount,
+                              email: user.email,
+                              campaignDiscountTotal,
+                              campaignDiscounts: checkoutItems
+                                .filter(item => item.campaignDiscount)
+                                .map(item => ({
+                                  campaignId: item.campaignDiscount?.campaignId,
+                                  campaignName: item.campaignDiscount?.campaignName || 'Discount',
+                                  discountAmount: ((item.originalPrice ?? item.price ?? 0) - (item.price ?? 0)) * item.quantity,
+                                  productId: item.id,
+                                  quantity: item.quantity
+                                })),
+                              shippingBreakdown: shippingResults.map(r => {
+                                const methodKey = selectedMethods[r.sellerId];
+                                const method = r.methods.find(m => m.method === methodKey) || r.defaultMethod;
+                                return {
+                                  sellerId: r.sellerId,
+                                  sellerName: r.sellerName,
+                                  method: method?.method ?? 'standard',
+                                  methodLabel: method?.label ?? 'Standard',
+                                  fee: method?.fee ?? 0,
+                                  breakdown: method?.breakdown ?? { baseRate: 0, weightSurcharge: 0, valuationFee: 0, odzFee: 0 },
+                                  estimatedDays: method?.estimatedDays ?? 'N/A',
+                                  originZone: r.originZone,
+                                  destinationZone: r.destinationZone,
+                                };
+                              })
+                            };
+
+                            // Call processCheckout to create the actual order in database
+                            console.log('[Checkout] 🔄 Processing checkout for "Add Card Details" flow...');
+                            const result = await processCheckout(payload);
+
+                            if (!result.success || !result.orderUuids || result.orderUuids.length === 0) {
+                              Alert.alert('Error', 'Failed to create order. Please try again.');
+                              return;
+                            }
+
+                            console.log('[Checkout] ✅ processCheckout result:', {
+                              success: result.success,
+                              orderIds: result.orderIds,
+                              orderUuids: result.orderUuids
+                            });
+
+                            // Now create the serializable order object for navigation
+                            const shippingAddressForOrder: ShippingAddress = {
+                              name: `${selectedAddress.firstName} ${selectedAddress.lastName}`.trim(),
+                              email: user.email,
+                              phone: selectedAddress.phone || '',
+                              address: `${selectedAddress.street || ''}${selectedAddress.barangay ? `, ${selectedAddress.barangay}` : ''}`,
+                              city: selectedAddress.city || 'Manila',
+                              region: selectedAddress.province || selectedAddress.region || 'NCR',
+                              postalCode: selectedAddress.zipCode || '0000',
+                            };
+
+                            const orderObject: Order = {
+                              id: result.orderIds?.[0] || 'ORD-' + Date.now(),
+                              orderId: result.orderUuids?.[0],
+                              buyerId: user.id,
+                              sellerId: sellerId,
+                              transactionId: 'TXN' + Math.random().toString(36).slice(2, 10).toUpperCase(),
+                              items: checkoutItems,
+                              total,
+                              shippingFee,
+                              discount: discount > 0 ? discount : undefined,
+                              voucherInfo: appliedVoucher ? {
+                                code: appliedVoucher.code,
+                                type: appliedVoucher.type,
+                                discountAmount: discount
+                              } : undefined,
+                              status: 'pending',
+                              isPaid: false,
+                              scheduledDate: new Date(Date.now() + 3 * 24 * 60 * 60 * 1000).toLocaleDateString('en-US'),
+                              shippingAddress: shippingAddressForOrder,
+                              paymentMethod: 'paymongo',
+                              createdAt: new Date().toISOString(),
+                            };
+
+                            // Create serializable version for navigation
+                            const serializableOrderForNavigation = {
+                              ...orderObject,
+                              items: (orderObject.items || []).map((item: any) => ({
+                                id: item.id,
+                                name: item.name,
+                                price: item.price,
+                                quantity: item.quantity,
+                                image: item.image,
+                                sellerId: item.sellerId || item.seller_id,
+                                cartItemId: item.cartItemId,
+                                selectedVariant: item.selectedVariant,
+                              }))
+                            };
+
+                            console.log('[Checkout] ✅ Navigating to PaymentGateway with order:', {
+                              orderId: serializableOrderForNavigation?.orderId,
+                              orderTotal: serializableOrderForNavigation?.total,
+                              orderSellerId: serializableOrderForNavigation?.sellerId,
+                              orderBuyerId: serializableOrderForNavigation?.buyerId,
+                            });
+
+                            setProcessingMessage('Opening card entry screen');
+
+                            navigation.navigate('PaymentGateway', { 
+                              paymentMethod: 'paymongo', 
+                              order: serializableOrderForNavigation,
+                              checkoutPayload: payload,
+                              isQuickCheckout: false,
+                              earnedBazcoins,
+                              bazcoinDiscount,
+                              appliedVoucher,
+                              isGift: false,
+                              isAnonymous: false,
+                              recipientId: undefined
+                            } as any);
+                          } catch (error: any) {
+                            setIsProcessing(false);
+                            console.error('[Checkout] ❌ Error in Add Card Details:', error);
+                            Alert.alert('Error', error?.message || 'Failed to process order. Please try again.');
+                          }
+                        }}
+                        style={[styles.useDifferentCardButton, { backgroundColor: COLORS.primary }]}
+                      >
+                        <Text style={[styles.useDifferentCardText, { color: '#FFFFFF' }]}>Add Card Details</Text>
+                      </Pressable>
                     </View>
                   )}
                 </View>
               )}
 
+              <Pressable
+                onPress={() => {
+                  if (isGift) {
+                    Alert.alert('Not Available', 'Cash on Delivery is not available for wishlist/registry items.');
+                    return;
+                  }
+                  setPaymentMethod('cod');
+                }}
+                style={[
+                  styles.paymentOption,
+                  paymentMethod === 'cod' && styles.paymentOptionActive,
+                  isGift && { opacity: 0.5, backgroundColor: '#F3F4F6' }
+                ]}
+              >
+                <View style={styles.radio}>
+                  {paymentMethod === 'cod' && <View style={styles.radioInner} />}
+                </View>
+                <View style={{ flex: 1 }}>
+                  <Text style={[styles.paymentText, isGift && { color: '#9CA3AF' }]}>Cash on Delivery</Text>
+                  <Text style={styles.paymentSubtext}>
+                    {isGift ? 'Not available for wishlist items' : 'Pay when you receive'}
+                  </Text>
+                </View>
+              </Pressable>
 
+              <Pressable
+                onPress={() => { }}
+                style={[styles.paymentOption, { opacity: 0.5, backgroundColor: '#F3F4F6' }]}
+              >
+                <View style={styles.radio}>
+                  {paymentMethod === 'gcash' && <View style={styles.radioInner} />}
+                </View>
+                <View style={{ flex: 1 }}>
+                  <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                    <Text style={[styles.paymentText, { color: '#9CA3AF' }]}>GCash</Text>
+                    <View style={{ backgroundColor: '#E5E7EB', paddingHorizontal: 6, paddingVertical: 2, borderRadius: 4, marginLeft: 8 }}>
+                      <Text style={{ fontSize: 10, fontWeight: '700', color: '#6B7280' }}>COMING SOON</Text>
+                    </View>
+                  </View>
+                  <Text style={styles.paymentSubtext}>Instantly paid online</Text>
+                </View>
+                <Shield size={16} color="#9CA3AF" />
+              </Pressable>
 
               <View>
                 <Pressable
@@ -2093,32 +2362,6 @@ export default function CheckoutScreen({ navigation, route }: Props) {
                   </View>
                 )}
               </View>
-
-              <Pressable
-                onPress={() => {
-                  if (isGift) {
-                    Alert.alert('Not Available', 'Cash on Delivery is not available for wishlist/registry items.');
-                    return;
-                  }
-                  setPaymentMethod('cod');
-                }}
-                style={[
-                  styles.paymentOption,
-                  paymentMethod === 'cod' && styles.paymentOptionActive,
-                  isGift && { opacity: 0.5, backgroundColor: '#F3F4F6' }
-                ]}
-              >
-                <View style={styles.radio}>
-                  {paymentMethod === 'cod' && <View style={styles.radioInner} />}
-                </View>
-                <View style={{ flex: 1 }}>
-                  <Text style={[styles.paymentText, isGift && { color: '#9CA3AF' }]}>Cash on Delivery</Text>
-                  <Text style={styles.paymentSubtext}>
-                    {isGift ? 'Not available for wishlist items' : 'Pay when you receive'}
-                  </Text>
-                </View>
-              </Pressable>
-
 
             </View>
 

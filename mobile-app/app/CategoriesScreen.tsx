@@ -221,14 +221,15 @@ export default function CategoriesScreen({ navigation, route }: Props) {
   );
 
   const handleBackToParent = useCallback(() => {
-    if (selectedParent) {
-      // Go back to main categories
+    if (categoryId) {
+      navigation.goBack();
+    } else {
       setSelectedParent(null);
       setDisplayCategories(allCategories.filter(c => !c.parentId));
       setBreadcrumb([]);
       setSearchQuery('');
     }
-  }, [selectedParent, allCategories]);
+  }, [categoryId, selectedParent, allCategories, navigation]);
 
   const renderItem = useCallback(
     ({ item, index }: { item: Category; index: number }) => (
