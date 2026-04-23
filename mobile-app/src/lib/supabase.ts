@@ -31,7 +31,7 @@ export const supabase = createClient<Database>(supabaseUrl, supabaseAnonKey, {
     storage: AsyncStorage,
     autoRefreshToken: true,
     persistSession: true,
-    detectSessionInUrl: true,  // ✅ CHANGED: Enable OAuth redirect detection
+    detectSessionInUrl: false,  // Disable to avoid conflicts with custom React Native deep link handling
     storageKey: 'supabase.auth.token',
   },
   global: {
