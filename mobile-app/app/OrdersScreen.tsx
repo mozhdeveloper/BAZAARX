@@ -44,20 +44,19 @@ type Props = NativeStackScreenProps<RootStackParamList, 'Orders'>;
 
 const { width } = Dimensions.get('window');
 
-type OrdersTab = 'all' | 'processing' | 'shipped' | 'delivered' | 'received' | 'returned' | 'cancelled';
+type OrdersTab = 'all' | 'pending' | 'processing' | 'shipped' | 'delivered' | 'received' | 'returned' | 'cancelled';
 
 const normalizeInitialTab = (tab?: string): OrdersTab => {
-  const normalized = (tab || 'processing').toLowerCase();
-
-  if (normalized === 'topay') return 'processing';
+  const normalized = (tab || 'pending').toLowerCase();
+  if (normalized === 'topay') return 'pending';
   if (normalized === 'toship') return 'processing';
   if (normalized === 'toreceive') return 'shipped';
   if (normalized === 'toreview') return 'cancelled';
   if (normalized === 'completed') return 'cancelled';
   if (normalized === 'returns') return 'returned';
-
   if (
     normalized === 'all' ||
+    normalized === 'pending' ||
     normalized === 'processing' ||
     normalized === 'shipped' ||
     normalized === 'delivered' ||
@@ -69,7 +68,7 @@ const normalizeInitialTab = (tab?: string): OrdersTab => {
     return normalized as OrdersTab;
   }
 
-  return 'processing';
+  return 'pending';
 };
 
 const mapBuyerUiStatusFromNormalized = (
@@ -78,41 +77,26 @@ const mapBuyerUiStatusFromNormalized = (
   hasCancellationRecord?: boolean,
   isReviewed?: boolean,
   hasReturnRequest?: boolean,
-): 'processing' | 'shipped' | 'delivered' | 'received' | 'returned' | 'cancelled' | 'reviewed' => {
+): 'pending' | 'processing' | 'shipped' | 'delivered' | 'received' | 'returned' | 'cancelled' | 'reviewed' => {
   // If there's a return request (pending, rejected, approved), show in returned tab
   if (hasReturnRequest) return 'returned';
-
   if (isReviewed) return 'reviewed';
 
-  if (shipmentStatus === 'received') {
-    return 'received';
-  }
+  if (shipmentStatus === 'received') return 'received';
+  if (shipmentStatus === 'delivered') return 'delivered';
+  if (shipmentStatus === 'shipped' || shipmentStatus === 'out_for_delivery') return 'shipped';
+  
+  if (shipmentStatus === 'processing' || shipmentStatus === 'ready_to_ship') return 'processing';
+  
+  // This restores the crucial Pending state!
+  if (shipmentStatus === 'waiting_for_seller' || paymentStatus === 'pending_payment' || paymentStatus === 'pending') return 'pending';
 
-  if (shipmentStatus === 'delivered') {
-    return 'delivered';
-  }
-
-  if (shipmentStatus === 'shipped' || shipmentStatus === 'out_for_delivery') {
-    return 'shipped';
-  }
-
-  if (shipmentStatus === 'processing' || shipmentStatus === 'ready_to_ship') {
-    return 'processing';
-  }
-
-  if (shipmentStatus === 'failed_to_deliver') {
-    return 'cancelled';
-  }
-
-  if (shipmentStatus === 'returned') {
+  if (shipmentStatus === 'failed_to_deliver') return 'cancelled';
+  if (shipmentStatus === 'returned' || paymentStatus === 'refunded' || paymentStatus === 'partially_refunded') {
     return hasCancellationRecord ? 'cancelled' : 'returned';
   }
 
-  if (paymentStatus === 'refunded' || paymentStatus === 'partially_refunded') {
-    return hasCancellationRecord ? 'cancelled' : 'returned';
-  }
-
-  return 'processing';
+  return 'pending';
 };
 
 export default function OrdersScreen({ navigation, route }: Props) {
@@ -152,6 +136,9 @@ export default function OrdersScreen({ navigation, route }: Props) {
     try {
       const orderSelectWithShipments = `
           *,
+          recipient:order_recipients (
+            first_name, last_name, phone
+          ),
           address:shipping_addresses!address_id (
             id,
             label,
@@ -200,7 +187,7 @@ export default function OrdersScreen({ navigation, route }: Props) {
           ),
           shipments:order_shipments(*),
           payments:order_payments(payment_method, status, created_at),
-          history:order_status_history(status, created_at)
+          history:order_status_history(status, created_at, note)
         `;
 
       const orderSelectWithoutShipments = `
@@ -252,7 +239,7 @@ export default function OrdersScreen({ navigation, route }: Props) {
             id, status, is_returnable, refund_date
           ),
           payments:order_payments(payment_method, status, created_at),
-          history:order_status_history(status, created_at)
+          history:order_status_history(status, created_at, note)
         `;
 
       const runQuery = (selectClause: string) => {
@@ -401,14 +388,21 @@ export default function OrdersScreen({ navigation, route }: Props) {
             : parseFloat(order.total_amount || '0') || items.reduce((sum: number, i: any) => sum + (i.price * i.quantity), 0) + shippingFee;
 
         // Parse name and phone from address_line_1 which stores "Name, Phone, Street"
+        const linkedRecipient = order.recipient || {};
         const addressLine1 = linkedAddress.address_line_1 || '';
         const addressParts = addressLine1.split(', ');
+        
         let addressName = user.name || 'User';
         let addressPhone = '';
         let addressStreet = addressLine1;
 
-        if (addressParts.length >= 2) {
-          // Check if second part looks like a phone number
+        // 1. Prioritize the actual Recipient table data
+        if (linkedRecipient.first_name || linkedRecipient.last_name || linkedRecipient.phone) {
+          addressName = `${linkedRecipient.first_name || ''} ${linkedRecipient.last_name || ''}`.trim() || user.name || 'Buyer';
+          addressPhone = linkedRecipient.phone || '';
+        } 
+        // 2. Fallback to legacy string-splitting if Recipient table is empty
+        else if (addressParts.length >= 2) {
           const possiblePhone = addressParts[1];
           if (/^\d{10,11}$/.test(possiblePhone?.replace(/\D/g, ''))) {
             addressName = addressParts[0] || user.name || 'User';
@@ -523,6 +517,7 @@ export default function OrdersScreen({ navigation, route }: Props) {
             )[0];
             return latest?.cancelled_at || latest?.created_at || null;
           })(),
+          history: order.history || [], // <--- THE MISSING WIRE!
         } as Order & { review?: any };
       });
       setDbOrders(mapped);
@@ -757,19 +752,26 @@ export default function OrdersScreen({ navigation, route }: Props) {
     const order = cancellingOrder;
     setIsCancellingOrder(true);
     try {
-      await orderMutationService.cancelOrder({
-        orderId: (order as any).orderId || order.id,
-        reason,
-        cancelledBy: user?.id,
+      const realOrderId = (order as any).orderId || order.id;
+
+      // 1. Tell Supabase to cancel the order using the successful endpoint
+      await orderMutationService.updateOrderStatus({
+        orderId: realOrderId,
+        nextStatus: 'cancelled',
+        actorRole: 'buyer',
+        note: reason || 'Cancelled by buyer via app'
       });
 
-      // Note: Don't call updateOrderStatus here - the database is already updated.
-      // loadOrders() will refresh from the database, and the real-time subscription will update badges.
+      // 2. Instantly update the local UI so it jumps to the Cancelled tab
+      setDbOrders(prev => prev.map(o => 
+        (o.id === realOrderId || (o as any).orderId === realOrderId) 
+          ? { ...o, buyerUiStatus: 'cancelled' as any, status: 'cancelled' } 
+          : o
+      ));
 
       setShowCancelModal(false);
       setCancellingOrder(null);
-      Alert.alert('Order Cancelled', 'Your order has been cancelled.');
-      await loadOrders();
+      Alert.alert('Order Cancelled', 'Your order has been successfully cancelled.');
     } catch (e: any) {
       console.error('Error cancelling order:', e);
       Alert.alert('Error', e?.message || 'Failed to cancel order. Please try again.');
@@ -1033,16 +1035,17 @@ export default function OrdersScreen({ navigation, route }: Props) {
         </View>
       </LinearGradient>
 
-      {/* White Tab Bar - Sticky look */}
+     {/* White Tab Bar - Sticky look */}
       <View style={styles.tabsWrapper}>
         <ScrollView
           horizontal
           showsHorizontalScrollIndicator={false}
           contentContainerStyle={styles.tabsContentContainer}
         >
-          {(['all', 'processing', 'shipped', 'delivered', 'received', 'returned', 'cancelled'] as const).map((tab) => {
+          {(['all', 'pending', 'processing', 'shipped', 'delivered', 'received', 'returned', 'cancelled'] as const).map((tab) => {
             const labelMap: Record<string, string> = {
               all: 'All',
+              pending: 'Pending',
               processing: 'Processing',
               shipped: 'Shipped',
               delivered: 'Delivered',
