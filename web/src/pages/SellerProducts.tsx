@@ -64,6 +64,10 @@ import { AttributesTab } from "@/components/seller/products/AttributesTab";
 import { WarrantyTab } from "@/components/seller/products/WarrantyTab";
 import { uploadProductImages, validateImageFile, compressImage } from "@/utils/storage";
 import { categoryService } from "@/services/categoryService";
+import { supabase } from "@/lib/supabase";
+import { useProductQAStore } from "@/stores/productQAStore";
+import { SampleQAResultModal } from "@/components/seller/SampleQAResultModal";
+import { prepareImageForUpload, isAcceptedImageFormat, isHeicFile } from "@/utils/imageConversion";
 
 export function SellerProducts() {
     const [searchQuery, setSearchQuery] = useState("");
@@ -100,6 +104,13 @@ export function SellerProducts() {
             stock: number;
         }>
     >([]);
+    // BX-03-002: Enhanced edit dialog state
+    const [editDescription, setEditDescription] = useState('');
+    const [editImages, setEditImages] = useState<{ id?: string; url: string; isNew?: boolean; file?: File }[]>([]);
+    const [editErrors, setEditErrors] = useState<Record<string, string>>({});
+    const [editSaving, setEditSaving] = useState(false);
+    const [editActiveTab, setEditActiveTab] = useState<'details' | 'images' | 'inventory' | 'warranty'>('details');
+    const [qaResultOpen, setQaResultOpen] = useState(false);
 
     const { seller, logout } = useAuthStore();
     const { products, updateProduct, deleteProduct, bulkAddProducts } =
@@ -224,6 +235,13 @@ export function SellerProducts() {
             price: product.price,
             stock: product.stock,
         });
+        // BX-03-002: Populate description and images
+        setEditDescription((product as any).description || '');
+        setEditImages(
+            (product.images || []).map((url, i) => ({ url, id: `existing-${i}` }))
+        );
+        setEditErrors({});
+        setEditActiveTab('details');
         // Copy warranty data for editing
         setEditWarrantyData({
             hasWarranty: product.hasWarranty || false,
@@ -249,74 +267,166 @@ export function SellerProducts() {
         setIsEditDialogOpen(true);
     }, []);
 
-    const handleSaveEdit = useCallback(async () => {
-        if (editingProduct) {
-            try {
-                // If there are variants, update them via productService
-                if (editVariants.length > 0) {
-                    await productService.updateVariants(
-                        editVariants.map((v) => ({
-                            id: v.id,
-                            price: v.price,
-                            stock: v.stock,
-                        })),
-                    );
-                }
+    // BX-03-002: Validate edit form fields
+    const validateEditForm = useCallback(() => {
+        const errs: Record<string, string> = {};
+        if (!editFormData.name.trim()) errs.name = 'Product name is required.';
+        if (editFormData.price <= 0) errs.price = 'Price must be greater than ₱0.';
+        if (editVariants.length === 0 && editFormData.stock < 0) errs.stock = 'Stock cannot be negative.';
+        if (editVariants.length > 0 && editVariants.some(v => v.price <= 0)) errs.variantPrice = 'All variant prices must be greater than ₱0.';
+        if (editVariants.length > 0 && editVariants.some(v => v.stock < 0)) errs.variantStock = 'Variant stock cannot be negative.';
+        setEditErrors(errs);
+        return Object.keys(errs).length === 0;
+    }, [editFormData, editVariants]);
 
-                // Call the store function to update product name/price
-                await updateProduct(editingProduct.id, {
-                    name: editFormData.name,
-                    price: editFormData.price,
-                    // Only update stock if no variants (otherwise stock is from variants)
-                    stock:
-                        editVariants.length > 0
+    const handleSaveEdit = useCallback(async () => {
+        if (!editingProduct) return;
+
+        // BX-03-002: Validate before saving
+        if (!validateEditForm()) {
+            // Switch to the tab that has errors
+            if (editErrors.name || editErrors.price) setEditActiveTab('details');
+            else if (editErrors.stock) setEditActiveTab('inventory');
+            else if (editErrors.variantPrice || editErrors.variantStock) setEditActiveTab('inventory');
+            return;
+        }
+
+        setEditSaving(true);
+        try {
+            // Capture old values for audit log
+            const oldValues = {
+                name: editingProduct.name,
+                description: (editingProduct as any).description || '',
+                price: editingProduct.price,
+                stock: editingProduct.stock,
+            };
+
+            // If there are variants, update them via productService
+            if (editVariants.length > 0) {
+                await productService.updateVariants(
+                    editVariants.map((v) => ({
+                        id: v.id,
+                        price: v.price,
+                        stock: v.stock,
+                    })),
+                );
+            }
+
+            // Call the store function to update product name/price/description
+            await updateProduct(editingProduct.id, {
+                name: editFormData.name,
+                price: editFormData.price,
+                description: editDescription,
+                // Only update stock if no variants (otherwise stock is from variants)
+                stock:
+                    editVariants.length > 0
+                        ? editVariants.reduce((sum, v) => sum + v.stock, 0)
+                        : editFormData.stock,
+                // Update warranty information
+                hasWarranty: editWarrantyData.hasWarranty,
+                warrantyType: editWarrantyData.hasWarranty ? editWarrantyData.warrantyType : undefined,
+                warrantyDurationMonths: editWarrantyData.hasWarranty && editWarrantyData.warrantyDurationMonths ? parseInt(editWarrantyData.warrantyDurationMonths) : undefined,
+                warrantyProviderName: editWarrantyData.hasWarranty ? editWarrantyData.warrantyProviderName || null : null,
+                warrantyProviderContact: editWarrantyData.hasWarranty ? editWarrantyData.warrantyProviderContact || null : null,
+                warrantyProviderEmail: editWarrantyData.hasWarranty ? editWarrantyData.warrantyProviderEmail || null : null,
+                warrantyTermsUrl: editWarrantyData.hasWarranty ? editWarrantyData.warrantyTermsUrl || null : null,
+                warrantyPolicy: editWarrantyData.hasWarranty ? editWarrantyData.warrantyPolicy || null : null,
+            });
+
+            // BX-03-002: Handle images — delete all existing, upload new files, re-insert
+            try {
+                await productService.deleteProductImages(editingProduct.id);
+                const newFileImages = editImages.filter(img => img.isNew && img.file);
+                const existingUrlImages = editImages.filter(img => !img.isNew);
+                let uploadedUrls: string[] = [];
+                if (newFileImages.length > 0) {
+                    const files = newFileImages.map(img => img.file!)
+                    uploadedUrls = await uploadProductImages(files, editingProduct.id);
+                }
+                const allImages = [
+                    ...existingUrlImages.map((img, i) => ({
+                        image_url: img.url,
+                        is_primary: i === 0 && uploadedUrls.length === 0,
+                        sort_order: i,
+                        product_id: editingProduct.id,
+                    })),
+                    ...uploadedUrls.map((url, i) => ({
+                        image_url: url,
+                        is_primary: existingUrlImages.length === 0 && i === 0,
+                        sort_order: existingUrlImages.length + i,
+                        product_id: editingProduct.id,
+                    })),
+                ];
+                if (allImages.length > 0) {
+                    await productService.addProductImages(editingProduct.id, allImages as any);
+                }
+            } catch (imgErr) {
+                console.warn('Image update partially failed:', imgErr);
+            }
+
+            // BX-03-002: Audit log — insert into admin_audit_logs
+            try {
+                await supabase.from('admin_audit_logs').insert({
+                    admin_id: seller?.id || null,
+                    action: 'product_updated',
+                    target_table: 'products',
+                    target_id: editingProduct.id,
+                    old_values: oldValues,
+                    new_values: {
+                        seller_id: seller?.id,
+                        seller_name: seller?.name,
+                        seller_store_name: seller?.storeName,
+                        name: editFormData.name,
+                        description: editDescription,
+                        price: editFormData.price,
+                        stock: editVariants.length > 0
                             ? editVariants.reduce((sum, v) => sum + v.stock, 0)
                             : editFormData.stock,
-                    // Update warranty information
-                    hasWarranty: editWarrantyData.hasWarranty,
-                    warrantyType: editWarrantyData.hasWarranty ? editWarrantyData.warrantyType : undefined,
-                    warrantyDurationMonths: editWarrantyData.hasWarranty && editWarrantyData.warrantyDurationMonths ? parseInt(editWarrantyData.warrantyDurationMonths) : undefined,
-                    warrantyProviderName: editWarrantyData.hasWarranty ? editWarrantyData.warrantyProviderName || null : null,
-                    warrantyProviderContact: editWarrantyData.hasWarranty ? editWarrantyData.warrantyProviderContact || null : null,
-                    warrantyProviderEmail: editWarrantyData.hasWarranty ? editWarrantyData.warrantyProviderEmail || null : null,
-                    warrantyTermsUrl: editWarrantyData.hasWarranty ? editWarrantyData.warrantyTermsUrl || null : null,
-                    warrantyPolicy: editWarrantyData.hasWarranty ? editWarrantyData.warrantyPolicy || null : null,
+                    },
+                    user_agent: navigator.userAgent,
                 });
-
-                // Refetch products to get updated data
-                if (seller?.id) {
-                    await fetchProducts({ sellerId: seller.id });
-                }
-
-                toast({
-                    title: "Product Updated",
-                    description: `${editFormData.name} has been successfully updated.`,
-                });
-
-                setIsEditDialogOpen(false);
-                setEditingProduct(null);
-                setEditVariants([]);
-                setEditWarrantyData({
-                    hasWarranty: false,
-                    warrantyType: "local_manufacturer",
-                    warrantyDurationMonths: "",
-                    warrantyProviderName: "",
-                    warrantyProviderContact: "",
-                    warrantyProviderEmail: "",
-                    warrantyTermsUrl: "",
-                    warrantyPolicy: "",
-                });
-            } catch (error) {
-                console.error("Error updating product.", error);
-                toast({
-                    title: "Update Failed",
-                    description:
-                        "There was an error updating the product. Please try again.",
-                    variant: "destructive",
-                });
+            } catch (auditErr) {
+                console.warn('Audit log insert failed (non-critical):', auditErr);
             }
+
+            // Refetch products to get updated data
+            if (seller?.id) {
+                await fetchProducts({ sellerId: seller.id });
+            }
+
+            toast({
+                title: "Product Updated",
+                description: `${editFormData.name} has been successfully updated.`,
+            });
+
+            setIsEditDialogOpen(false);
+            setEditingProduct(null);
+            setEditVariants([]);
+            setEditDescription('');
+            setEditImages([]);
+            setEditErrors({});
+            setEditWarrantyData({
+                hasWarranty: false,
+                warrantyType: "local_manufacturer",
+                warrantyDurationMonths: "",
+                warrantyProviderName: "",
+                warrantyProviderContact: "",
+                warrantyProviderEmail: "",
+                warrantyTermsUrl: "",
+                warrantyPolicy: "",
+            });
+        } catch (error) {
+            console.error("Error updating product.", error);
+            toast({
+                title: "Update Failed",
+                description:
+                    "There was an error updating the product. Please try again.",
+                variant: "destructive",
+            });
+        } finally {
+            setEditSaving(false);
         }
-    }, [editingProduct, editVariants, editFormData, editWarrantyData, updateProduct, fetchProducts, seller?.id, toast]);
+    }, [editingProduct, editVariants, editFormData, editDescription, editImages, editWarrantyData, editErrors, validateEditForm, updateProduct, fetchProducts, seller, toast]);
 
     const handleBulkUpload = useCallback(async (products: BulkProductData[]) => {
         try {
@@ -421,7 +531,7 @@ export function SellerProducts() {
                                     >
                                         <div className="relative overflow-hidden">
                                             <div className="absolute inset-0 bg-gradient-to-t from-black/50 to-transparent opacity-0 group-hover:opacity-100 transition-opacity z-10" />
-                                            <img loading="lazy" 
+                                            <img loading="lazy"
                                                 src={product.images[0]}
                                                 alt={product.name}
                                                 className="w-full h-40 object-cover transition-transform duration-700 group-hover:scale-110"
@@ -593,324 +703,305 @@ export function SellerProducts() {
                 </div>
             </div>
 
-            {/* Edit Product Dialog */}
+            {/* Edit Product Dialog — BX-03-002 Enhanced Tabbed Layout */}
             <Dialog open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen}>
-                <DialogContent
-                    className={cn(
-                        "bg-white border-none shadow-2xl scrollbar-hide focus-visible:ring-0 focus:ring-0",
-                        editVariants.length > 0
-                            ? "sm:max-w-[600px]"
-                            : "sm:max-w-[425px]"
-                    )}
-                >
-                    <DialogHeader>
-                        <DialogTitle>Edit Product</DialogTitle>
-                        <DialogDescription>
-                            {editVariants.length > 0
-                                ? "Update product details and manage variant stock/prices."
-                                : "Update product name, price, and stock quantity."}
-                        </DialogDescription>
+                <DialogContent className="sm:max-w-2xl bg-white border-none shadow-2xl rounded-2xl p-0 focus-visible:ring-0 focus:ring-0 overflow-hidden">
+                    <DialogHeader className="p-6 pb-0">
+                        <DialogTitle className="text-xl font-bold">Edit Product</DialogTitle>
+                        <DialogDescription>Update product details, images, inventory, and warranty.</DialogDescription>
                     </DialogHeader>
 
-                    <div className="py-4 space-y-4 max-h-[60vh] overflow-y-auto scrollbar-hide">
-                        <div>
-                            <Label htmlFor="edit-name" className="mb-2 block">
-                                Product Name
-                            </Label>
-                            <Input
-                                id="edit-name"
-                                value={editFormData.name}
-                                onChange={(e) =>
-                                    setEditFormData({
-                                        ...editFormData,
-                                        name: e.target.value,
-                                    })
-                                }
-                                className="w-full focus-visible:ring-0 focus:ring-0 border-gray-100 focus:border-[var(--brand-primary)] transition-all"
-                                placeholder="Enter product name"
-                            />
-                        </div>
-
-                        <div>
-                            <Label htmlFor="edit-price" className="mb-2 block">
-                                Base Price (₱)
-                            </Label>
-                            <Input
-                                id="edit-price"
-                                type="number"
-                                min="0"
-                                step="0.01"
-                                value={editFormData.price}
-                                onChange={(e) =>
-                                    setEditFormData({
-                                        ...editFormData,
-                                        price: parseFloat(e.target.value) || 0,
-                                    })
-                                }
-                                className="w-full focus-visible:ring-0 focus:ring-0 border-gray-100 focus:border-[var(--brand-primary)] transition-all"
-                                placeholder="Enter price"
-                            />
-                        </div>
-
-                        {/* Show variants or simple stock field */}
-                        {editVariants.length > 0 ? (
-                            <div className="border border-gray-100 rounded-xl p-4 bg-white">
-                                <Label className="mb-2 block font-medium">
-                                    Variants ({editVariants.length})
-                                </Label>
-                                <p className="text-xs text-gray-500 mb-3">
-                                    Total Stock:{" "}
-                                    {editVariants.reduce(
-                                        (sum, v) => sum + v.stock,
-                                        0,
+                    {/* Tab Bar */}
+                    <div className="flex border-b border-gray-100 px-6 mt-2">
+                        {(['details', 'images', 'inventory', 'warranty'] as const).map((tab) => {
+                            const hasError = tab === 'details' ? !!(editErrors.name || editErrors.price)
+                                : tab === 'inventory' ? !!(editErrors.stock || editErrors.variantPrice || editErrors.variantStock)
+                                    : false;
+                            return (
+                                <button
+                                    key={tab}
+                                    type="button"
+                                    onClick={() => setEditActiveTab(tab)}
+                                    className={cn(
+                                        "relative px-4 py-2.5 text-sm font-semibold capitalize transition-colors",
+                                        editActiveTab === tab
+                                            ? "text-[var(--brand-primary)]"
+                                            : "text-gray-400 hover:text-gray-600"
                                     )}
-                                </p>
-                                <div className="space-y-3 max-h-56 overflow-y-auto scrollbar-hide">
-                                    {editVariants.map((variant, index) => (
-                                        <div
-                                            key={variant.id}
-                                            className="flex items-center gap-3 p-2 bg-white rounded border"
-                                        >
-                                            <div className="flex-1 min-w-0">
-                                                <p className="font-medium text-sm truncate">
-                                                    {variant.name ||
-                                                        [
-                                                            variant.variantLabel1Value,
-                                                            variant.variantLabel2Value,
-                                                        ]
-                                                            .filter(Boolean)
-                                                            .join(" - ") ||
-                                                        `Variant ${index + 1}`}
-                                                </p>
-                                                <div className="flex gap-1 text-xs text-gray-500">
-                                                    {variant.variantLabel1Value && (
-                                                        <span className="bg-blue-100 text-blue-700 px-1 rounded">
-                                                            {variant.variantLabel1Value}
-                                                        </span>
-                                                    )}
-                                                    {variant.variantLabel2Value && (
-                                                        <span className="bg-purple-100 text-purple-700 px-1 rounded">
-                                                            {variant.variantLabel2Value}
-                                                        </span>
-                                                    )}
-                                                </div>
-                                            </div>
-                                            <div className="flex items-center gap-2">
-                                                <div>
-                                                    <Label className="text-xs text-gray-500">
-                                                        Price
-                                                    </Label>
-                                                    <Input
-                                                        type="number"
-                                                        min="0"
-                                                        value={variant.price}
-                                                        onChange={(e) => {
-                                                            const newVariants =
-                                                                [
-                                                                    ...editVariants,
-                                                                ];
-                                                            newVariants[index] =
-                                                            {
-                                                                ...variant,
-                                                                price:
-                                                                    parseFloat(
-                                                                        e
-                                                                            .target
-                                                                            .value,
-                                                                    ) || 0,
-                                                            };
-                                                            setEditVariants(
-                                                                newVariants,
-                                                            );
-                                                        }}
-                                                        className="w-24 h-9 text-sm focus-visible:ring-0 focus:ring-0 border-gray-100 focus:border-[var(--brand-primary)] transition-all"
-                                                    />
-                                                </div>
-                                                <div>
-                                                    <Label className="text-xs text-gray-500">
-                                                        Stock
-                                                    </Label>
-                                                    <Input
-                                                        type="number"
-                                                        min="0"
-                                                        value={variant.stock}
-                                                        onChange={(e) => {
-                                                            const newVariants =
-                                                                [
-                                                                    ...editVariants,
-                                                                ];
-                                                            newVariants[index] =
-                                                            {
-                                                                ...variant,
-                                                                stock:
-                                                                    parseInt(
-                                                                        e
-                                                                            .target
-                                                                            .value,
-                                                                    ) || 0,
-                                                            };
-                                                            setEditVariants(
-                                                                newVariants,
-                                                            );
-                                                        }}
-                                                        className="w-24 h-9 text-sm focus-visible:ring-0 focus:ring-0 border-gray-100 focus:border-[var(--brand-primary)] transition-all"
-                                                    />
-                                                </div>
-                                            </div>
-                                        </div>
-                                    ))}
-                                </div>
-                            </div>
-                        ) : (
-                            <div>
-                                <Label
-                                    htmlFor="edit-stock"
-                                    className="mb-2 block"
                                 >
-                                    Stock Quantity
-                                </Label>
-                                <Input
-                                    id="edit-stock"
-                                    type="number"
-                                    min="0"
-                                    value={editFormData.stock}
-                                    onChange={(e) =>
-                                        setEditFormData({
-                                            ...editFormData,
-                                            stock:
-                                                parseInt(e.target.value) || 0,
-                                        })
-                                    }
-                                    className="w-full focus-visible:ring-0 focus:ring-0 border-gray-100 focus:border-[var(--brand-primary)] transition-all"
-                                    placeholder="Enter stock quantity"
-                                />
+                                    {tab}
+                                    {hasError && (
+                                        <span className="absolute top-2 right-1 w-2 h-2 bg-red-500 rounded-full" />
+                                    )}
+                                    {editActiveTab === tab && (
+                                        <span className="absolute bottom-0 left-0 right-0 h-0.5 bg-[var(--brand-primary)] rounded-full" />
+                                    )}
+                                </button>
+                            );
+                        })}
+                    </div>
+
+                    {/* Tab Panels */}
+                    <div className="px-6 py-4 max-h-[55vh] overflow-y-auto scrollbar-hide">
+                        {/* === DETAILS TAB === */}
+                        {editActiveTab === 'details' && (
+                            <div className="space-y-4">
+                                <div>
+                                    <Label htmlFor="edit-name" className="mb-1.5 block text-sm font-medium">Product Name</Label>
+                                    <Input
+                                        id="edit-name"
+                                        value={editFormData.name}
+                                        onChange={(e) => { setEditFormData({ ...editFormData, name: e.target.value }); if (editErrors.name) setEditErrors(prev => { const n = { ...prev }; delete n.name; return n; }); }}
+                                        className={cn("w-full h-10 focus-visible:ring-0 border-gray-200 focus:border-[var(--brand-primary)] transition-all", editErrors.name && "border-red-300 focus:border-red-400")}
+                                        placeholder="Enter product name"
+                                    />
+                                    {editErrors.name && <p className="text-xs text-red-500 mt-1">{editErrors.name}</p>}
+                                </div>
+                                <div>
+                                    <div className="flex items-center justify-between mb-1.5">
+                                        <Label htmlFor="edit-description" className="text-sm font-medium">Description</Label>
+                                        <span className={cn("text-xs", editDescription.length > 900 ? "text-amber-500" : "text-gray-400")}>{editDescription.length}/1000</span>
+                                    </div>
+                                    <textarea
+                                        id="edit-description"
+                                        value={editDescription}
+                                        onChange={(e) => { if (e.target.value.length <= 1000) setEditDescription(e.target.value); }}
+                                        rows={4}
+                                        className="w-full rounded-md border border-gray-200 px-3 py-2 text-sm focus:outline-none focus:border-[var(--brand-primary)] transition-all resize-none"
+                                        placeholder="Describe your product..."
+                                    />
+                                </div>
+                                <div>
+                                    <Label htmlFor="edit-price" className="mb-1.5 block text-sm font-medium">Base Price (₱)</Label>
+                                    <Input
+                                        id="edit-price"
+                                        type="number"
+                                        min="0"
+                                        step="0.01"
+                                        value={editFormData.price}
+                                        onChange={(e) => { setEditFormData({ ...editFormData, price: parseFloat(e.target.value) || 0 }); if (editErrors.price) setEditErrors(prev => { const n = { ...prev }; delete n.price; return n; }); }}
+                                        className={cn("w-full h-10 focus-visible:ring-0 border-gray-200 focus:border-[var(--brand-primary)] transition-all", editErrors.price && "border-red-300 focus:border-red-400")}
+                                        placeholder="Enter price"
+                                    />
+                                    {editErrors.price && <p className="text-xs text-red-500 mt-1">{editErrors.price}</p>}
+                                </div>
                             </div>
                         )}
 
-                        {/* Warranty Section */}
-                        <div className="border-t pt-4">
-                            <div className="flex items-center justify-between mb-3">
-                                <div className="flex items-center gap-2">
-                                    <ShieldCheck className="w-4 h-4 text-orange-600" />
-                                    <Label className="text-sm font-semibold">Warranty Information</Label>
-                                </div>
-                                <button
-                                    type="button"
-                                    onClick={() => setEditWarrantyData(prev => ({ ...prev, hasWarranty: !prev.hasWarranty }))}
-                                    className={cn(
-                                        "relative inline-flex h-6 w-10 items-center rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-orange-500 focus:ring-offset-2",
-                                        editWarrantyData.hasWarranty ? "bg-orange-500" : "bg-gray-300"
+                        {/* === IMAGES TAB === */}
+                        {editActiveTab === 'images' && (
+                            <div className="space-y-4">
+                                <p className="text-xs text-gray-500">Upload up to 5 images. First image is the primary photo. PNG and JPEG only.</p>
+                                <div className="grid grid-cols-3 gap-3">
+                                    {editImages.map((img, i) => (
+                                        <div key={img.id || i} className="relative group aspect-square rounded-xl overflow-hidden border-2 border-gray-100 bg-gray-50">
+                                            <img src={img.url} alt={`Product ${i + 1}`} className="w-full h-full object-cover" />
+                                            {i === 0 && (
+                                                <span className="absolute top-1.5 left-1.5 bg-[var(--brand-primary)] text-white text-[9px] font-bold px-1.5 py-0.5 rounded-full uppercase">Primary</span>
+                                            )}
+                                            <button
+                                                type="button"
+                                                onClick={() => setEditImages(prev => prev.filter((_, idx) => idx !== i))}
+                                                className="absolute top-1.5 right-1.5 w-6 h-6 bg-red-500 text-white rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity text-xs font-bold"
+                                            >×</button>
+                                        </div>
+                                    ))}
+                                    {editImages.length < 5 && (
+                                        <label className="aspect-square rounded-xl border-2 border-dashed border-gray-200 bg-gray-50 flex flex-col items-center justify-center cursor-pointer hover:border-[var(--brand-primary)] hover:bg-orange-50/50 transition-all">
+                                            <Plus className="w-6 h-6 text-gray-400 mb-1" />
+                                            <span className="text-xs text-gray-400 font-medium">Add Image</span>
+                                            <input
+                                                type="file"
+                                                accept="image/png,image/jpeg,image/heic,image/heif"
+                                                className="hidden"
+                                                onChange={async (e) => {
+                                                    const file = e.target.files?.[0];
+                                                    if (!file) return;
+                                                    e.target.value = '';
+                                                    try {
+                                                        const prepared = await prepareImageForUpload(file);
+                                                        const url = URL.createObjectURL(prepared);
+                                                        setEditImages(prev => [...prev, { url, isNew: true, file: prepared, id: `new-${Date.now()}` }]);
+                                                    } catch (err: any) {
+                                                        toast({ title: 'Image Error', description: err.message || 'Failed to process image.', variant: 'destructive' });
+                                                    }
+                                                }}
+                                            />
+                                        </label>
                                     )}
-                                >
-                                    <span
-                                        className={cn(
-                                            "inline-block h-4 w-4 transform rounded-full bg-white transition-transform",
-                                            editWarrantyData.hasWarranty ? "translate-x-5" : "translate-x-1"
-                                        )}
-                                    />
-                                </button>
-                            </div>
-
-                            {editWarrantyData.hasWarranty && (
-                                <div className="space-y-3">
-                                    <div>
-                                        <Label htmlFor="edit-warrantyType" className="text-xs text-gray-600">Warranty Type</Label>
-                                        <Select value={editWarrantyData.warrantyType} onValueChange={(val) => setEditWarrantyData(prev => ({ ...prev, warrantyType: val }))}>
-                                            <SelectTrigger className="h-9 text-sm">
-                                                <SelectValue />
-                                            </SelectTrigger>
-                                            <SelectContent>
-                                                <SelectItem value="local_manufacturer">Local Manufacturer</SelectItem>
-                                                <SelectItem value="international_manufacturer">International Manufacturer</SelectItem>
-                                                <SelectItem value="shop_warranty">Shop Warranty</SelectItem>
-                                            </SelectContent>
-                                        </Select>
-                                    </div>
-                                    <div>
-                                        <Label htmlFor="edit-warrantyDurationMonths" className="text-xs text-gray-600">Duration (months)</Label>
-                                        <Input
-                                            id="edit-warrantyDurationMonths"
-                                            type="number"
-                                            min="1"
-                                            value={editWarrantyData.warrantyDurationMonths}
-                                            onChange={(e) => setEditWarrantyData(prev => ({ ...prev, warrantyDurationMonths: e.target.value }))}
-                                            className="h-9 text-sm"
-                                        />
-                                    </div>
-                                    <div>
-                                        <Label htmlFor="edit-warrantyProviderName" className="text-xs text-gray-600">Provider Name</Label>
-                                        <Input
-                                            id="edit-warrantyProviderName"
-                                            value={editWarrantyData.warrantyProviderName}
-                                            onChange={(e) => setEditWarrantyData(prev => ({ ...prev, warrantyProviderName: e.target.value }))}
-                                            className="h-9 text-sm"
-                                        />
-                                    </div>
-                                    <div>
-                                        <Label htmlFor="edit-warrantyProviderContact" className="text-xs text-gray-600">Contact Number</Label>
-                                        <Input
-                                            id="edit-warrantyProviderContact"
-                                            value={editWarrantyData.warrantyProviderContact}
-                                            onChange={(e) => setEditWarrantyData(prev => ({ ...prev, warrantyProviderContact: e.target.value }))}
-                                            className="h-9 text-sm"
-                                        />
-                                    </div>
-                                    <div>
-                                        <Label htmlFor="edit-warrantyProviderEmail" className="text-xs text-gray-600">Email</Label>
-                                        <Input
-                                            id="edit-warrantyProviderEmail"
-                                            type="email"
-                                            value={editWarrantyData.warrantyProviderEmail}
-                                            onChange={(e) => setEditWarrantyData(prev => ({ ...prev, warrantyProviderEmail: e.target.value }))}
-                                            className="h-9 text-sm"
-                                        />
-                                    </div>
                                 </div>
-                            )}
-                        </div>
+                                {editImages.length >= 5 && (
+                                    <p className="text-xs text-amber-600 font-medium">Maximum 5 images reached. Remove an image to add a new one.</p>
+                                )}
+                            </div>
+                        )}
+
+                        {/* === INVENTORY TAB === */}
+                        {editActiveTab === 'inventory' && (
+                            <div className="space-y-4">
+                                {editVariants.length > 0 ? (
+                                    <div className="border border-gray-100 rounded-xl p-4 bg-white">
+                                        <Label className="mb-2 block font-medium">Variants ({editVariants.length})</Label>
+                                        <p className="text-xs text-gray-500 mb-3">Total Stock: {editVariants.reduce((sum, v) => sum + v.stock, 0)}</p>
+                                        {(editErrors.variantPrice || editErrors.variantStock) && (
+                                            <p className="text-xs text-red-500 mb-2">{editErrors.variantPrice || editErrors.variantStock}</p>
+                                        )}
+                                        <div className="space-y-3 max-h-56 overflow-y-auto scrollbar-hide">
+                                            {editVariants.map((variant, index) => (
+                                                <div key={variant.id} className="flex items-center gap-3 p-2 bg-white rounded border">
+                                                    <div className="flex-1 min-w-0">
+                                                        <p className="font-medium text-sm truncate">
+                                                            {variant.name || [variant.variantLabel1Value, variant.variantLabel2Value].filter(Boolean).join(' - ') || `Variant ${index + 1}`}
+                                                        </p>
+                                                        <div className="flex gap-1 text-xs text-gray-500">
+                                                            {variant.variantLabel1Value && <span className="bg-blue-100 text-blue-700 px-1 rounded">{variant.variantLabel1Value}</span>}
+                                                            {variant.variantLabel2Value && <span className="bg-purple-100 text-purple-700 px-1 rounded">{variant.variantLabel2Value}</span>}
+                                                        </div>
+                                                    </div>
+                                                    <div className="flex items-center gap-2">
+                                                        <div>
+                                                            <Label className="text-xs text-gray-500">Price</Label>
+                                                            <Input type="number" min="0" value={variant.price}
+                                                                onChange={(e) => { const nv = [...editVariants]; nv[index] = { ...variant, price: parseFloat(e.target.value) || 0 }; setEditVariants(nv); }}
+                                                                className="w-24 h-9 text-sm focus-visible:ring-0 border-gray-100 focus:border-[var(--brand-primary)] transition-all"
+                                                            />
+                                                        </div>
+                                                        <div>
+                                                            <Label className="text-xs text-gray-500">Stock</Label>
+                                                            <Input type="number" min="0" value={variant.stock}
+                                                                onChange={(e) => { const nv = [...editVariants]; nv[index] = { ...variant, stock: parseInt(e.target.value) || 0 }; setEditVariants(nv); }}
+                                                                className="w-24 h-9 text-sm focus-visible:ring-0 border-gray-100 focus:border-[var(--brand-primary)] transition-all"
+                                                            />
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                            ))}
+                                        </div>
+                                    </div>
+                                ) : (
+                                    <div>
+                                        <Label htmlFor="edit-stock" className="mb-1.5 block text-sm font-medium">Stock Quantity</Label>
+                                        <Input
+                                            id="edit-stock"
+                                            type="number"
+                                            min="0"
+                                            value={editFormData.stock}
+                                            onChange={(e) => { setEditFormData({ ...editFormData, stock: parseInt(e.target.value) || 0 }); if (editErrors.stock) setEditErrors(prev => { const n = { ...prev }; delete n.stock; return n; }); }}
+                                            className={cn("w-full h-10 focus-visible:ring-0 border-gray-200 focus:border-[var(--brand-primary)] transition-all", editErrors.stock && "border-red-300 focus:border-red-400")}
+                                            placeholder="Enter stock quantity"
+                                        />
+                                        {editErrors.stock && <p className="text-xs text-red-500 mt-1">{editErrors.stock}</p>}
+                                    </div>
+                                )}
+                            </div>
+                        )}
+
+                        {/* === WARRANTY TAB === */}
+                        {editActiveTab === 'warranty' && (
+                            <div className="space-y-4">
+                                <div className="flex items-center justify-between">
+                                    <div className="flex items-center gap-2">
+                                        <ShieldCheck className="w-4 h-4 text-orange-600" />
+                                        <Label className="text-sm font-semibold">Warranty Information</Label>
+                                    </div>
+                                    <button
+                                        type="button"
+                                        onClick={() => setEditWarrantyData(prev => ({ ...prev, hasWarranty: !prev.hasWarranty }))}
+                                        className={cn(
+                                            "relative inline-flex h-6 w-10 items-center rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-orange-500 focus:ring-offset-2",
+                                            editWarrantyData.hasWarranty ? "bg-orange-500" : "bg-gray-300"
+                                        )}
+                                    >
+                                        <span className={cn("inline-block h-4 w-4 transform rounded-full bg-white transition-transform", editWarrantyData.hasWarranty ? "translate-x-5" : "translate-x-1")} />
+                                    </button>
+                                </div>
+                                {editWarrantyData.hasWarranty && (
+                                    <div className="space-y-3">
+                                        <div>
+                                            <Label htmlFor="edit-warrantyType" className="text-xs text-gray-600">Warranty Type</Label>
+                                            <Select value={editWarrantyData.warrantyType} onValueChange={(val) => setEditWarrantyData(prev => ({ ...prev, warrantyType: val }))}>
+                                                <SelectTrigger className="h-9 text-sm"><SelectValue /></SelectTrigger>
+                                                <SelectContent>
+                                                    <SelectItem value="local_manufacturer">Local Manufacturer</SelectItem>
+                                                    <SelectItem value="international_manufacturer">International Manufacturer</SelectItem>
+                                                    <SelectItem value="shop_warranty">Shop Warranty</SelectItem>
+                                                </SelectContent>
+                                            </Select>
+                                        </div>
+                                        <div>
+                                            <Label htmlFor="edit-warrantyDurationMonths" className="text-xs text-gray-600">Duration (months)</Label>
+                                            <Input id="edit-warrantyDurationMonths" type="number" min="1" value={editWarrantyData.warrantyDurationMonths}
+                                                onChange={(e) => setEditWarrantyData(prev => ({ ...prev, warrantyDurationMonths: e.target.value }))} className="h-9 text-sm" />
+                                        </div>
+                                        <div>
+                                            <Label htmlFor="edit-warrantyProviderName" className="text-xs text-gray-600">Provider Name</Label>
+                                            <Input id="edit-warrantyProviderName" value={editWarrantyData.warrantyProviderName}
+                                                onChange={(e) => setEditWarrantyData(prev => ({ ...prev, warrantyProviderName: e.target.value }))} className="h-9 text-sm" />
+                                        </div>
+                                        <div>
+                                            <Label htmlFor="edit-warrantyProviderContact" className="text-xs text-gray-600">Contact Number</Label>
+                                            <Input id="edit-warrantyProviderContact" value={editWarrantyData.warrantyProviderContact}
+                                                onChange={(e) => setEditWarrantyData(prev => ({ ...prev, warrantyProviderContact: e.target.value }))} className="h-9 text-sm" />
+                                        </div>
+                                        <div>
+                                            <Label htmlFor="edit-warrantyProviderEmail" className="text-xs text-gray-600">Email</Label>
+                                            <Input id="edit-warrantyProviderEmail" type="email" value={editWarrantyData.warrantyProviderEmail}
+                                                onChange={(e) => setEditWarrantyData(prev => ({ ...prev, warrantyProviderEmail: e.target.value }))} className="h-9 text-sm" />
+                                        </div>
+                                    </div>
+                                )}
+                            </div>
+                        )}
                     </div>
 
-                    <DialogFooter className="gap-2 sm:gap-0 mt-2">
-                        <Button
-                            variant="outline"
-                            onClick={() => {
-                                setIsEditDialogOpen(false);
-                                setEditingProduct(null);
-                                setEditVariants([]);
-                                setEditWarrantyData({
-                                    hasWarranty: false,
-                                    warrantyType: "local_manufacturer",
-                                    warrantyDurationMonths: "",
-                                    warrantyProviderName: "",
-                                    warrantyProviderContact: "",
-                                    warrantyProviderEmail: "",
-                                    warrantyTermsUrl: "",
-                                    warrantyPolicy: "",
-                                });
-                            }}
-                            className="rounded-xl border-[var(--btn-border)] font-bold hover:bg-gray-100 hover:text-[var(--text-headline)] active:scale-95 transition-all h-11"
-                        >
-                            Cancel
-                        </Button>
+                    {/* Footer */}
+                    <div className="flex items-center justify-between border-t border-gray-100 px-6 py-4 bg-gray-50/50">
+                        <div className="flex items-center gap-2">
+                            <Button
+                                variant="outline"
+                                onClick={() => {
+                                    setIsEditDialogOpen(false);
+                                    setEditingProduct(null);
+                                    setEditVariants([]);
+                                    setEditDescription('');
+                                    setEditImages([]);
+                                    setEditErrors({});
+                                    setEditWarrantyData({ hasWarranty: false, warrantyType: "local_manufacturer", warrantyDurationMonths: "", warrantyProviderName: "", warrantyProviderContact: "", warrantyProviderEmail: "", warrantyTermsUrl: "", warrantyPolicy: "" });
+                                }}
+                                className="rounded-xl border-gray-200 font-bold hover:bg-gray-100 active:scale-95 transition-all h-10"
+                            >Cancel</Button>
+                            {/* SAMPLE QA RESULT — Button to open sample QA modal */}
+                            {editingProduct && (
+                                <Button
+                                    variant="outline"
+                                    onClick={() => setQaResultOpen(true)}
+                                    className="rounded-xl border-emerald-200 text-emerald-700 font-bold hover:bg-emerald-50 active:scale-95 transition-all h-10 gap-1.5"
+                                >
+                                    <ShieldCheck className="w-4 h-4" />
+                                    QA Result
+                                </Button>
+                            )}
+                        </div>
                         <Button
                             onClick={handleSaveEdit}
-                            className="bg-[var(--brand-primary)] hover:bg-[var(--brand-accent)] text-white font-bold rounded-xl shadow-lg shadow-orange-500/20 active:scale-95 transition-all px-8 h-11"
-                            disabled={
-                                !editFormData.name.trim() ||
-                                editFormData.price <= 0 ||
-                                (editVariants.length === 0 &&
-                                    editFormData.stock < 0) ||
-                                (editVariants.length > 0 &&
-                                    editVariants.some(
-                                        (v) => v.stock < 0 || v.price < 0,
-                                    ))
-                            }
+                            disabled={editSaving}
+                            className="bg-[var(--brand-primary)] hover:bg-[var(--brand-accent)] text-white font-bold rounded-xl shadow-lg shadow-orange-500/20 active:scale-95 transition-all px-8 h-10 gap-2"
                         >
-                            Save Changes
+                            {editSaving && <span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />}
+                            {editSaving ? 'Saving...' : 'Save Changes'}
                         </Button>
-                    </DialogFooter>
+                    </div>
                 </DialogContent>
             </Dialog>
+
+            {/* SAMPLE QA RESULT — Modal (delete when real QA component is ready) */}
+            <SampleQAResultModal
+                open={qaResultOpen}
+                onOpenChange={setQaResultOpen}
+                productName={editingProduct?.name}
+                sellerName={seller?.storeName || seller?.name}
+            />
+
 
             {/* Bulk Upload Modal */}
             <BulkUploadModal
@@ -1697,7 +1788,7 @@ export function AddProduct() {
                                         const filePreview = imageFiles[0] ? URL.createObjectURL(imageFiles[0]) : null;
                                         const previewSrc = urlPreview || filePreview;
                                         return previewSrc ? (
-                                            <img loading="lazy" 
+                                            <img loading="lazy"
                                                 src={previewSrc}
                                                 alt="Preview"
                                                 className="w-full h-full object-cover"
