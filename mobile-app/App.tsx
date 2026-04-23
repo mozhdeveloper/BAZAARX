@@ -65,6 +65,7 @@ export type RootStackParamList = {
   ResetPassword: undefined;
   SellerLogin: undefined;
   SellerSignup: undefined;
+  SellerFinalize: undefined;
   SellerAuthChoice: undefined;
   BecomeSeller: undefined;
   SellerStack: undefined;
@@ -639,6 +640,11 @@ export default function App() {
               <Stack.Screen
                 name="SellerAuthChoice"
                 getComponent={() => require('./app/seller/auth').default}
+                options={{ animation: 'fade' }}
+              />
+              <Stack.Screen
+                name="SellerFinalize"
+                getComponent={() => require('./app/seller/finalize').default}
                 options={{ animation: 'fade' }}
               />
               <Stack.Screen

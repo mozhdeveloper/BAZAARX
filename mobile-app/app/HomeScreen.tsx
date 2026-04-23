@@ -3,36 +3,36 @@ import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { FlashList } from "@shopify/flash-list";
 import { LinearGradient } from 'expo-linear-gradient';
 import {
-  Bell, Camera,
-  CheckCircle2,
-  ChevronDown,
-  ChevronRight,
-  Clock,
-  Flame,
-  FlaskConical,
-  MapPin,
-  MessageSquare,
-  Package,
-  Plus,
-  Search,
-  Timer,
-  TrendingUp
+    Bell, Camera,
+    CheckCircle2,
+    ChevronDown,
+    ChevronRight,
+    Clock,
+    Flame,
+    FlaskConical,
+    MapPin,
+    MessageSquare,
+    Package,
+    Plus,
+    Search,
+    Timer,
+    TrendingUp
 } from 'lucide-react-native';
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
-  Dimensions,
-  Keyboard,
-  NativeScrollEvent,
-  NativeSyntheticEvent,
-  Pressable,
-  RefreshControl,
-  ScrollView,
-  StatusBar,
-  StyleSheet,
-  Text,
-  TextInput,
-  useWindowDimensions,
-  View
+    Dimensions,
+    Keyboard,
+    NativeScrollEvent,
+    NativeSyntheticEvent,
+    Pressable,
+    RefreshControl,
+    ScrollView,
+    StatusBar,
+    StyleSheet,
+    Text,
+    TextInput,
+    useWindowDimensions,
+    View
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import AIChatModal from '../src/components/AIChatModal';
@@ -324,7 +324,11 @@ export default function HomeScreen({ navigation }: Props) {
       try {
         const results = await productService.getFilteredProducts(query, { limit: 12, offset: 0 });
         if (!active) return;
-        setQuickSearchProducts((results || []).map(normalizeQuickSearchProduct));
+        setQuickSearchProducts((results || []).map(normalizeQuickSearchProduct).filter(p => {
+          const variants = Array.isArray((p as any).variants) ? (p as any).variants : [];
+          if (variants.length > 0) return variants.some((v: any) => Number(v.stock || 0) > 0);
+          return Number(p.stock || 0) > 0;
+        }));
       } catch (error) {
         if (!active) return;
         console.error('[HomeScreen] Quick search error:', error);
@@ -409,7 +413,13 @@ export default function HomeScreen({ navigation }: Props) {
           seller: row.seller?.store_name || row.sellerName || 'Verified Seller',
         } as Product;
       });
-      const uniqueMapped = Array.from(new Map(mapped.map(item => [item.id, item])).values());
+      const uniqueMapped = Array.from(new Map(mapped.map(item => [item.id, item])).values())
+        .filter(p => {
+          // Filter out products with no available stock
+          const variants = Array.isArray((p as any).variants) ? (p as any).variants : [];
+          if (variants.length > 0) return variants.some((v: any) => Number(v.stock || 0) > 0);
+          return Number(p.stock || 0) > 0;
+        });
       setDbProducts(uniqueMapped);
     } else {
       setFetchError((productsResult.reason as any)?.message || 'Failed to load products');

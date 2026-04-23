@@ -99,13 +99,18 @@ export default function EmailVerificationScreen({ navigation, route }: Props) {
         // Retrieve persistent signup data
         // Retrieve signup data from params or persistent store
         const signupData = route.params?.signupData || useAuthStore.getState().pendingSignupData;
-        console.log('[EmailVerification] Navigating to Preference with signupData:', signupData ? 'Exists' : 'MISSING');
+        console.log('[EmailVerification] Navigating to next screen with signupData:', signupData ? 'Exists' : 'MISSING');
 
-        // User is now authenticated and finished with onboarding - navigate to Home
-        navigation.reset({
-          index: 0,
-          routes: [{ name: 'MainTabs' }],
-        });
+        // Check user type and navigate accordingly
+        if (signupData?.user_type === 'seller') {
+          navigation.replace('SellerFinalize');
+        } else {
+          // User is now authenticated and finished with onboarding - navigate to Home
+          navigation.reset({
+            index: 0,
+            routes: [{ name: 'MainTabs' }],
+          });
+        }
       } else if (isManual) {
         Alert.alert(
           'Not Verified Yet',
