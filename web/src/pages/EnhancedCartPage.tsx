@@ -247,7 +247,8 @@ export default function EnhancedCartPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [cartItems, activeCampaignDiscounts]);
 
-  // Compute shipping total based only on selected items (accounting for discounts)
+  // BX-09-001 — Compute estimated shipping total based only on selected items
+  // Note: This is an ESTIMATE using default zone (NCR). Actual shipping will be calculated at checkout based on delivery address.
   const shippingTotal = useMemo(() => {
     return Object.values(groupedCart).reduce((sum, group) => {
       const selectedItems = group.items.filter(i => i.selected);
@@ -257,6 +258,8 @@ export default function EnhancedCartPage() {
       const hasFreeShipping = selectedItems.some(i => i.isFreeShipping);
       const isEligible = hasFreeShipping || subtotal >= 1000;
 
+      // Use new system's default: if eligible for free shipping, 0; otherwise estimate based on default zone
+      // At checkout, this will be recalculated based on actual address
       return sum + (isEligible ? 0 : 100);
     }, 0);
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -743,8 +746,79 @@ export default function EnhancedCartPage() {
                 </div>
               </div>
 
+              {/* Seller-Grouped Order Summary */}
+              <div className="space-y-4 mb-6">
+                {sortedCartGroups.map(([sellerId, group]) => {
+                  const selectedItems = group.items.filter(i => i.selected);
+                  if (selectedItems.length === 0) return null;
+
+                  const sellerSubtotal = selectedItems.reduce((sum, item) => 
+                    sum + getEffectivePrice(item) * item.quantity, 0
+                  );
+                  
+                  // Estimate per-seller shipping using same logic as overall shippingTotal
+                  const hasFreeShipping = selectedItems.some(i => i.isFreeShipping);
+                  const isEligible = hasFreeShipping || sellerSubtotal >= 1000;
+                  const sellerShipping = isEligible ? 0 : 100;
+
+                  return (
+                    <div key={sellerId} className="border border-gray-200 rounded-lg p-3 space-y-2">
+                      {/* Seller Header */}
+                      <div className="flex items-center gap-2 pb-2 border-b border-gray-100">
+                        <Store className="w-4 h-4 text-[var(--brand-primary)]" />
+                        <h4 className="text-xs font-semibold text-gray-900">
+                          {group.seller.name}
+                        </h4>
+                      </div>
+
+                      {/* Seller Items Summary */}
+                      <div className="space-y-1">
+                        {selectedItems.map((item) => (
+                          <div key={`${item.id}-${item.selectedVariant?.id || 'base'}`} className="flex items-start gap-2 text-xs">
+                            <div className="w-8 h-8 rounded border border-gray-100 bg-white overflow-hidden flex-shrink-0">
+                              <img loading="lazy"
+                                src={item.image || (item.images && item.images[0])}
+                                alt={item.name}
+                                className="w-full h-full object-contain"
+                              />
+                            </div>
+                            <div className="flex-1 min-w-0">
+                              <p className="text-gray-900 font-medium line-clamp-1 text-xs">
+                                {item.name}
+                              </p>
+                              <div className="flex items-center gap-1">
+                                <span className="text-[var(--brand-primary)] font-bold text-xs">
+                                  ₱{getEffectivePrice(item).toLocaleString()}
+                                </span>
+                                <span className="text-gray-400 text-xs">x{item.quantity}</span>
+                              </div>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+
+                      {/* Per-Seller Shipping */}
+                      <div className="flex justify-between items-center text-xs pt-2 border-t border-gray-100">
+                        <span className="text-gray-600">Estimated Shipping:</span>
+                        <span className="font-semibold text-gray-900">
+                          {sellerShipping === 0 ? 'Free' : `₱${sellerShipping.toLocaleString()}`}
+                        </span>
+                      </div>
+
+                      {/* Seller Subtotal */}
+                      <div className="flex justify-between items-center text-xs font-semibold pt-1">
+                        <span className="text-gray-700">Subtotal:</span>
+                        <span className="text-[var(--brand-primary)]">
+                          ₱{(sellerSubtotal + sellerShipping).toLocaleString()}
+                        </span>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+
               <div className="space-y-3 mb-6">
-                <div className="flex justify-between text-sm">
+                <div className="flex justify-between text-sm font-semibold">
                   <span>Selected ({selectedCount})</span>
                   <span>
                     ₱
@@ -756,8 +830,8 @@ export default function EnhancedCartPage() {
                   </span>
                 </div>
                 <div className="flex justify-between text-sm">
-                  <span>Shipping</span>
-                  <span>
+                  <span className="text-gray-600">Estimated Shipping:</span>
+                  <span className="text-gray-600">
                     ₱{shippingTotal.toLocaleString()}
                   </span>
                 </div>
