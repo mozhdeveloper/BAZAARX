@@ -15,7 +15,7 @@
  *  context         — 'buyer' | 'seller'; buyer hides isPickup/isReturn toggles
  */
 
-import React, { useState, useRef, useEffect, useCallback } from 'react';
+import React, { useState, useRef, useEffect, useCallback, useMemo } from 'react';
 import {
     View, Text, Modal, ScrollView, TextInput, Pressable, Animated, Easing,
     ActivityIndicator, KeyboardAvoidingView, Platform, StyleSheet, Alert, Keyboard,
@@ -30,6 +30,45 @@ import * as Location from 'expo-location';
 import { regions, provinces, cities, barangays } from 'select-philippines-address';
 import { COLORS } from '@/constants/theme';
 import { addressService, type Address } from '@/services/addressService';
+
+// ---------------------------------------------------------------------------
+// Module-level cache — parsed once, reused for the app session
+// ---------------------------------------------------------------------------
+
+const _provinceCache = new Map<string, any[]>();
+const _cityCache     = new Map<string, any[]>();
+const _barangayCache = new Map<string, any[]>();
+
+const getCachedProvinces = async (regionCode: string): Promise<any[]> => {
+    if (_provinceCache.has(regionCode)) return _provinceCache.get(regionCode)!;
+    const data = await provinces(regionCode);
+    _provinceCache.set(regionCode, data);
+    return data;
+};
+
+const getCachedCities = async (provinceCode: string): Promise<any[]> => {
+    if (_cityCache.has(provinceCode)) return _cityCache.get(provinceCode)!;
+    const data = await cities(provinceCode);
+    _cityCache.set(provinceCode, data);
+    return data;
+};
+
+const getCachedBarangays = async (cityCode: string): Promise<any[]> => {
+    if (_barangayCache.has(cityCode)) return _barangayCache.get(cityCode)!;
+    const data = await barangays(cityCode);
+    _barangayCache.set(cityCode, data);
+    return data;
+};
+
+// Island group lookup — module-level so Sets are never re-created
+const LUZON_CODES   = new Set(['01', '02', '03', '04', '05', '13', '14', '17']);
+const VISAYAS_CODES = new Set(['06', '07', '08']);
+const getIslandGroup = (code: string): string => {
+    if (LUZON_CODES.has(code))   return 'Luzon';
+    if (VISAYAS_CODES.has(code)) return 'Visayas';
+    return 'Mindanao';
+};
+
 
 // ---------------------------------------------------------------------------
 // Types
@@ -143,15 +182,7 @@ export default function AddressFormModal({
         }
     }, [openDropdown]);
 
-    // Island group mapping for region categorization
-    const LUZON_CODES = new Set(['01', '02', '03', '04', '05', '13', '14', '17']);
-    const VISAYAS_CODES = new Set(['06', '07', '08']);
-    const getIslandGroup = (code: string): string => {
-        if (LUZON_CODES.has(code)) return 'Luzon';
-        if (VISAYAS_CODES.has(code)) return 'Visayas';
-        return 'Mindanao';
-    };
-
+    // Island group mapping for region categorization — use module-level constants
     // Phone validation helper
     const PH_PHONE_RE = /^(09|\+639)\d{9}$/;
     const phoneError = form.phone.length > 0 && !PH_PHONE_RE.test(form.phone.trim());
@@ -456,7 +487,7 @@ export default function AddressFormModal({
         setGeoCodes({ regionCode: code });
         setOpenDropdown(null);
         setIsLoadingLocation(true);
-        const provs = await provinces(code);
+        const provs = await getCachedProvinces(code);
         if (!isMounted.current) return;
         setProvinceList(provs);
         setCityList([]);
@@ -470,7 +501,7 @@ export default function AddressFormModal({
         setGeoCodes(prev => ({ ...prev, provinceCode: code, cityCode: undefined, barangayCode: undefined }));
         setOpenDropdown(null);
         setIsLoadingLocation(true);
-        const cts = await cities(code);
+        const cts = await getCachedCities(code);
         if (!isMounted.current) return;
         setCityList(cts);
         setBarangayList([]);
@@ -483,7 +514,7 @@ export default function AddressFormModal({
         setGeoCodes(prev => ({ ...prev, cityCode: code, barangayCode: undefined }));
         setOpenDropdown(null);
         setIsLoadingLocation(true);
-        const bList = await barangays(code);
+        const bList = await getCachedBarangays(code);
         if (!isMounted.current) return;
         setBarangayList(bList);
         setIsLoadingLocation(false);
