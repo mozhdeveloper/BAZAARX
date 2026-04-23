@@ -12,6 +12,7 @@ import {
   ActivityIndicator,
   Linking,
   Dimensions,
+  AppState,
 } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { ArrowLeft, Mail, ArrowRight, Clock, ExternalLink, CheckCircle2 } from 'lucide-react-native';
@@ -87,6 +88,11 @@ export default function EmailVerificationScreen({ navigation, route }: Props) {
   }, [resendCooldown]);
 
   const checkStatus = async (isManual = false) => {
+    // Prevent automatic polling when app is in the background
+    if (!isManual && AppState.currentState !== 'active') {
+      return;
+    }
+
     if (isManual) setChecking(true);
     try {
       const isVerified = await authService.checkVerificationStatus(email);

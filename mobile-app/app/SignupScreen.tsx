@@ -27,6 +27,11 @@ import { COLORS } from '../src/constants/theme';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import type { RootStackParamList } from '../App';
 import { useAuthStore } from '../src/stores/authStore';
+import { getRedirectUri, processAuthSessionResultUrl } from '../src/utils/urlUtils';
+
+WebBrowser.maybeCompleteAuthSession();
+
+
 
 type Props = NativeStackScreenProps<RootStackParamList, 'Signup'>;
 
@@ -146,9 +151,11 @@ export default function SignupScreen({ navigation }: Props) {
         try {
             console.log('[SignupScreen] Starting Google Sign-In...');
 
+            const redirectUrl = getRedirectUri();
             const { data, error } = await supabase.auth.signInWithOAuth({
                 provider: 'google',
                 options: {
+                    redirectTo: redirectUrl,
                     skipBrowserRedirect: false,
                 },
             });
@@ -165,35 +172,51 @@ export default function SignupScreen({ navigation }: Props) {
                 return;
             }
 
-            const result = await WebBrowser.openBrowserAsync(data.url);
-
-            if (result.type === 'cancel' || result.type === 'dismiss') {
-                setIsGoogleLoading(false);
-                return;
-            }
-
-            // Wait for auth state change
-            const authStatePromise = new Promise<void>((resolve, reject) => {
-                let timeout = setTimeout(() => {
-                    reject(new Error('Auth state change timeout'));
-                }, 30000);
-
-                const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
-                    if (event === 'SIGNED_IN' && session?.user) {
-                        clearTimeout(timeout);
-                        subscription.unsubscribe();
-                        resolve();
-                    }
-                });
-            });
+            const result = await WebBrowser.openAuthSessionAsync(data.url, redirectUrl);
 
             try {
-                await authStatePromise;
-                
-                const { data: sessionData } = await supabase.auth.getSession();
-                const userId = sessionData.session?.user?.id;
+                if (result.type === 'cancel' || result.type === 'dismiss') {
+                    setIsGoogleLoading(false);
+                    return;
+                }
 
-                if (userId) {
+                // Process the URL returned by openAuthSessionAsync on iOS
+                if (result.type === 'success' && result.url) {
+                    console.log('[SignupScreen] Manual URL processing from AuthSession result...');
+                    await processAuthSessionResultUrl(result.url, supabase);
+                }
+
+                // Wait for session - check immediately, then wait briefly if needed
+                console.log('[SignupScreen] Checking for established session...');
+                let session: any = null;
+                const { data: initialCheck } = await supabase.auth.getSession();
+                session = initialCheck.session;
+
+                if (!session) {
+                    console.log('[SignupScreen] Session not found immediately, waiting for auth event (max 5s)...');
+                    try {
+                        await new Promise<void>((resolve, reject) => {
+                            const timeout = setTimeout(() => reject(new Error('timeout')), 5000);
+                            const { data: { subscription } } = supabase.auth.onAuthStateChange((event, s) => {
+                                if (event === 'SIGNED_IN' && s) {
+                                    session = s;
+                                    clearTimeout(timeout);
+                                    subscription.unsubscribe();
+                                    resolve();
+                                }
+                            });
+                        });
+                    } catch (e) {
+                        console.log('[SignupScreen] Event wait timed out, performing final check...');
+                        const { data: finalCheck } = await supabase.auth.getSession();
+                        session = finalCheck.session;
+                    }
+                }
+
+                if (session) {
+                    console.log('[SignupScreen] ✅ Session confirmed. Processing success logic...');
+                    const userId = session.user.id;
+
                     // POLICY ENFORCEMENT: Check for unauthorized Google linking
                     const { data: identityData } = await supabase.auth.getUserIdentities();
                     const identities = identityData?.identities || [];
@@ -201,7 +224,7 @@ export default function SignupScreen({ navigation }: Props) {
                     const googleIdentity = identities.find(id => id.provider === 'google');
 
                     if (emailIdentity && googleIdentity) {
-                        const isExplicitlyLinked = !!sessionData.session?.user.user_metadata?.google_explicitly_linked;
+                        const isExplicitlyLinked = !!session.user.user_metadata?.google_explicitly_linked;
                         const linkAgeMs = Date.now() - new Date(googleIdentity.created_at || Date.now()).getTime();
                         if (!isExplicitlyLinked && linkAgeMs < 300000) {
                             console.log('[SignupScreen] 🛡️ Google Link Policy Blocked');
@@ -214,79 +237,33 @@ export default function SignupScreen({ navigation }: Props) {
                     }
 
                     const isComplete = await authService.isOnboardingComplete(userId);
-                    if (isComplete) {
-                        Alert.alert('Notice', 'User has already been registered, redirecting to homepage.');
-                        navigation.replace('MainTabs', { screen: 'Home' });
-                    } else {
-                        navigation.replace('Terms', { 
-                            signupData: { 
-                                email: sessionData.session?.user?.email || '',
-                                firstName: sessionData.session?.user?.user_metadata?.first_name || 
-                                          sessionData.session?.user?.user_metadata?.full_name?.split(' ')[0] || '',
-                                lastName: sessionData.session?.user?.user_metadata?.last_name || 
-                                         sessionData.session?.user?.user_metadata?.full_name?.split(' ').slice(1).join(' ') || '',
-                                phone: sessionData.session?.user?.phone || '',
-                                user_type: 'buyer'
-                            } 
-                        });
-                    }
-                } else {
-                    navigation.replace('MainTabs', { screen: 'Home' });
-                }
-            } catch (authError) {
-                console.error('[SignupScreen] Auth state error:', authError);
-                
-                // Double-check session
-                const { data: finalCheck } = await supabase.auth.getSession();
-                if (finalCheck.session?.user) {
-                    console.log('[SignupScreen] ⚠️ Session EXISTS but event timeout. Navigating anyway...');
-                    const userId = finalCheck.session.user.id;
-                    const isComplete = await authService.isOnboardingComplete(userId);
                     
                     const signupData = { 
-                        email: finalCheck.session.user.email || '',
-                        firstName: finalCheck.session.user.user_metadata?.first_name || 
-                                  finalCheck.session.user.user_metadata?.full_name?.split(' ')[0] || '',
-                        lastName: finalCheck.session.user.user_metadata?.last_name || 
-                                 finalCheck.session.user.user_metadata?.full_name?.split(' ').slice(1).join(' ') || '',
-                        phone: finalCheck.session.user.phone || '',
+                        email: session.user.email || '',
+                        firstName: session.user.user_metadata?.first_name || 
+                                  session.user.user_metadata?.full_name?.split(' ')[0] || '',
+                        lastName: session.user.user_metadata?.last_name || 
+                                 session.user.user_metadata?.full_name?.split(' ').slice(1).join(' ') || '',
+                        phone: session.user.phone || '',
                         user_type: 'buyer' as const
                     };
 
                     // Persist to store so CategoryPreference screen can find it
                     useAuthStore.getState().setPendingSignup(signupData);
 
-                    if (userId) {
-                        // POLICY ENFORCEMENT: Check for unauthorized Google linking
-                        const { data: identityData } = await supabase.auth.getUserIdentities();
-                        const identities = identityData?.identities || [];
-                        const emailIdentity = identities.find(id => id.provider === 'email');
-                        const googleIdentity = identities.find(id => id.provider === 'google');
-
-                        if (emailIdentity && googleIdentity) {
-                            const isExplicitlyLinked = !!finalCheck.session.user.user_metadata?.google_explicitly_linked;
-                            const linkAgeMs = Date.now() - new Date(googleIdentity.created_at || Date.now()).getTime();
-                            if (!isExplicitlyLinked && linkAgeMs < 300000) {
-                                console.log('[SignupScreen] 🛡️ Google Link Policy Blocked (Recovery)');
-                                await supabase.auth.unlinkIdentity(googleIdentity);
-                                await useAuthStore.getState().signOut();
-                                Alert.alert('Security Notice', 'This Google account is not yet linked. Please use email/password.');
-                                setIsGoogleLoading(false);
-                                return;
-                            }
-                        }
-
-                        if (isComplete) {
-                            Alert.alert('Notice', 'User has already been registered, redirecting to homepage.');
-                            navigation.replace('MainTabs', { screen: 'Home' });
-                        } else {
-                            navigation.replace('Terms', { signupData });
-                        }
+                    if (isComplete) {
+                        Alert.alert('Notice', 'User has already been registered, redirecting to homepage.');
+                        navigation.replace('MainTabs', { screen: 'Home' });
+                    } else {
+                        navigation.replace('Terms', { signupData });
                     }
-                    return;
+                } else {
+                    Alert.alert('Sign-In Incomplete', 'We were unable to complete the sign-in process. Please try again.');
+                    setIsGoogleLoading(false);
                 }
-
-                Alert.alert('Sign-In Incomplete', 'We were unable to complete the sign-in process. Please try again.');
+            } catch (authError) {
+                console.error('[SignupScreen] Auth process error:', authError);
+                Alert.alert('Error', 'An unexpected error occurred during sign-in.');
                 setIsGoogleLoading(false);
             }
         } catch (error) {
