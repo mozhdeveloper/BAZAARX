@@ -43,6 +43,9 @@ export interface PendingSignupData {
   phone: string;
   password?: string;
   user_type?: 'buyer' | 'seller';
+  storeName?: string;
+  storeAddress?: string;
+  storeDescription?: string;
 }
 
 interface AuthState {
@@ -87,7 +90,7 @@ interface AuthState {
   sessionVerified: boolean;
 
   // Pending Signup
-  setPendingSignup: (data: PendingSignupData) => void;
+  setPendingSignup: (data: PendingSignupData | null) => void;
   clearPendingSignup: () => void;
 
   // Deprecated
@@ -417,7 +420,7 @@ export const useAuthStore = create<AuthState>()(
         });
       },
 
-      setPendingSignup: (data: PendingSignupData) => {
+      setPendingSignup: (data: PendingSignupData | null) => {
         set({ pendingSignupData: data });
       },
 
