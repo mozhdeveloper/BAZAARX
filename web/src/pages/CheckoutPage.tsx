@@ -23,6 +23,9 @@ import {
   Pencil,
   Trash2,
   Palmtree,
+  Store,
+  Truck,
+  AlertCircle,
 } from "lucide-react";
 import {
   Dialog,
@@ -40,11 +43,15 @@ import { Address, useBuyerStore } from "../stores/buyerStore";
 import { Button } from "../components/ui/button";
 import Header from "../components/Header";
 import { BazaarFooter } from "../components/ui/bazaar-footer";
+import { ShippingMethodPicker } from "../components/ShippingMethodPicker";
 import { cn } from "@/lib/utils";
 import { Badge } from "@/components/ui/badge";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
-import { AddressModal } from "@/components/profile/AddressModal"; import type { ActiveDiscount } from "@/types/discount";
+import { AddressModal } from "@/components/profile/AddressModal";
+import { calculateShippingForSellers } from "@/services/shippingService";
+import type { SellerShippingResult, ShippingMethodOption } from "@/types/shipping.types";
+import type { ActiveDiscount } from "@/types/discount";
 
 interface CheckoutFormData {
   fullName: string;
@@ -167,25 +174,87 @@ export default function CheckoutPage() {
   const [vacationSellers, setVacationSellers] = useState<string[]>([]);
   const hasVacationSeller = vacationSellers.length > 0;
 
+  // BX-09-001 — Seller metadata for shipping zone detection
+  const [sellerMetadata, setSellerMetadata] = useState<Record<string, {
+    id: string;
+    storeName: string;
+    coords: { latitude: number; longitude: number } | null;
+    province: string | null;
+    region: string | null;
+  }>>({});
+
+  // BX-09-001 — Async shipping calculation state
+  const [shippingResults, setShippingResults] = useState<SellerShippingResult[]>([]);
+  const [isCalculatingShipping, setIsCalculatingShipping] = useState(false);
+  const [selectedMethods, setSelectedMethods] = useState<Record<string, string>>({});
+  const shippingTimerRef = React.useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // BX-09-001 — Group items by seller ID
+  const groupedCheckoutItems = useMemo(() => {
+    return checkoutItems.reduce((groups, item) => {
+      const sellerId = item.sellerId || item.seller?.id || 'default';
+      if (!groups[sellerId]) groups[sellerId] = [];
+      groups[sellerId].push(item);
+      return groups;
+    }, {} as Record<string, typeof checkoutItems>);
+  }, [checkoutItems]);
+
+  // Helper: resolve display name for a seller group
+  const getSellerDisplayName = useCallback((sellerId: string, items: typeof checkoutItems) => {
+    if (sellerMetadata[sellerId]?.storeName) {
+      return sellerMetadata[sellerId].storeName;
+    }
+    const firstItem = items[0];
+    if (firstItem?.seller) {
+      if (typeof firstItem.seller === 'object' && firstItem.seller !== null) {
+        return (firstItem.seller as any).store_name || (firstItem.seller as any).seller_name || 'Unknown Seller';
+      }
+      if (typeof firstItem.seller === 'string') {
+        return firstItem.seller;
+      }
+    }
+    return 'BazaarX Store';
+  }, [sellerMetadata]);
+
+  // Fetch seller metadata (vacation check + shipping origin)
   useEffect(() => {
-    const checkVacationSellers = async () => {
-      const sellerIds = [...new Set(checkoutItems.map(item => item.sellerId).filter(Boolean))];
+    const fetchSellerData = async () => {
+      const sellerIds = [...new Set(checkoutItems.map(item => item.sellerId || item.seller?.id).filter(Boolean))];
       if (sellerIds.length === 0) {
         setVacationSellers([]);
+        setSellerMetadata({});
         return;
       }
 
       const { data } = await supabase
         .from('sellers')
-        .select('id, store_name, is_vacation_mode')
-        .in('id', sellerIds)
-        .eq('is_vacation_mode', true);
+        .select('id, store_name, is_vacation_mode, shipping_origin_lat, shipping_origin_lng, business_profile:seller_business_profiles(city, province)')
+        .in('id', sellerIds);
 
-      const vacationSellerNames = ((data as any[]) || []).map(s => s.store_name || 'Unknown Seller');
+      // Set vacation sellers
+      const vacationSellerNames = ((data as any[]) || [])
+        .filter((s: any) => s.is_vacation_mode)
+        .map((s: any) => s.store_name || 'Unknown Seller');
       setVacationSellers(vacationSellerNames);
+
+      // Set seller metadata for shipping
+      const meta: typeof sellerMetadata = {};
+      for (const s of (data as any[]) || []) {
+        const bp = Array.isArray(s.business_profile) ? s.business_profile[0] : s.business_profile;
+        meta[s.id] = {
+          id: s.id,
+          storeName: s.store_name || 'Unknown Seller',
+          coords: s.shipping_origin_lat && s.shipping_origin_lng
+            ? { latitude: s.shipping_origin_lat, longitude: s.shipping_origin_lng }
+            : null,
+          province: bp?.province || null,
+          region: null,
+        };
+      }
+      setSellerMetadata(meta);
     };
 
-    checkVacationSellers();
+    fetchSellerData();
   }, [checkoutItems]);
 
   // Bazcoins Logic
@@ -369,31 +438,124 @@ export default function CheckoutPage() {
   const subtotalAfterCampaign = Math.max(0, originalSubtotal - campaignDiscountTotal);
   const earnedBazcoins = Math.floor(subtotalAfterCampaign / 10);
 
-  // Per-seller shipping logic consistent with EnhancedCartPage
+  // BX-09-001 — Debounced shipping recalculation
+  useEffect(() => {
+    if (shippingTimerRef.current) clearTimeout(shippingTimerRef.current);
+
+    if (!confirmedAddress) {
+      setShippingResults([]);
+      setIsCalculatingShipping(false);
+      return;
+    }
+
+    const sellerIds = Object.keys(groupedCheckoutItems);
+    if (sellerIds.length === 0) {
+      setShippingResults([]);
+      setIsCalculatingShipping(false);
+      return;
+    }
+
+    setIsCalculatingShipping(true);
+
+    // Debounce 300ms
+    shippingTimerRef.current = setTimeout(async () => {
+      try {
+        const buyerCoords = (confirmedAddress.coordinates as any)?.latitude
+          ? { latitude: (confirmedAddress.coordinates as any).latitude, longitude: (confirmedAddress.coordinates as any).longitude }
+          : null;
+
+        const sellerInputs = Object.entries(groupedCheckoutItems).map(([sellerId, items]) => {
+          const meta = sellerMetadata[sellerId];
+          return {
+            sellerId,
+            sellerName: getSellerDisplayName(sellerId, items),
+            sellerCoords: meta?.coords || null,
+            sellerProvince: meta?.province,
+            sellerRegion: meta?.region,
+            items,
+          };
+        });
+
+        const results = await calculateShippingForSellers(
+          sellerInputs,
+          buyerCoords,
+          confirmedAddress.province,
+          confirmedAddress.region
+        );
+
+        setShippingResults(results);
+
+        // Auto-select defaults
+        setSelectedMethods(prev => {
+          const updated = { ...prev };
+          for (const r of results) {
+            if (!updated[r.sellerId] && r.defaultMethod) {
+              updated[r.sellerId] = r.defaultMethod.method;
+            } else if (updated[r.sellerId] && !r.methods.find(m => m.method === updated[r.sellerId])) {
+              updated[r.sellerId] = r.defaultMethod?.method ?? '';
+            }
+          }
+          return updated;
+        });
+      } catch (err) {
+        console.error('[Checkout] Shipping calculation failed:', err);
+      } finally {
+        setIsCalculatingShipping(false);
+      }
+    }, 300);
+
+    return () => { if (shippingTimerRef.current) clearTimeout(shippingTimerRef.current); };
+  }, [confirmedAddress, groupedCheckoutItems, sellerMetadata, getSellerDisplayName]);
+
+  // BX-09-001 — Retry shipping calculation
+  const retryShipping = useCallback(() => {
+    setShippingResults([]);
+    setIsCalculatingShipping(true);
+    if (shippingTimerRef.current) clearTimeout(shippingTimerRef.current);
+    shippingTimerRef.current = setTimeout(() => {
+      setShippingResults([]);
+      setIsCalculatingShipping(true);
+    }, 100);
+  }, []);
+
+  // BX-09-001 — Per-store shipping fees (with fallback to estimate if not calculated yet)
+  const perStoreShippingFees = useMemo(() => {
+    const fees: Record<string, number> = {};
+    
+    for (const result of shippingResults) {
+      const selectedMethod = selectedMethods[result.sellerId];
+      const method = result.methods.find(m => m.method === selectedMethod) || result.defaultMethod;
+      fees[result.sellerId] = method?.fee ?? 0;
+    }
+    
+    // For sellers without shipping results yet, use fallback estimate
+    // (same logic as cart: free if eligible, ₱100 otherwise)
+    for (const sellerId of Object.keys(groupedCheckoutItems)) {
+      if (!(sellerId in fees)) {
+        // Fallback: check if eligible for free shipping
+        const items = groupedCheckoutItems[sellerId];
+        const subtotal = items.reduce((sum, item) => {
+          const originalUnitPrice = getOriginalUnitPrice(item);
+          const activeDiscount = activeCampaignDiscounts[item.id] || null;
+          const { discountedUnitPrice } = discountService.calculateLineDiscount(originalUnitPrice, item.quantity, activeDiscount);
+          return sum + (discountedUnitPrice * item.quantity);
+        }, 0);
+        const hasFreeShippingItem = items.some(i => i.isFreeShipping);
+        const isEligible = hasFreeShippingItem || subtotal >= 1000;
+        fees[sellerId] = isEligible ? 0 : 100;
+      }
+    }
+    return fees;
+  }, [shippingResults, selectedMethods, groupedCheckoutItems, activeCampaignDiscounts, getOriginalUnitPrice]);
+
+  // Per-seller shipping logic - now uses dynamic calculation
   const shippingFee = useMemo(() => {
     // If a free shipping voucher is applied, return 0 immediately
     if (appliedVoucher?.type === "shipping") return 0;
 
-    const sellers: Record<string, { subtotal: number; hasFreeShippingItem: boolean }> = {};
-
-    checkoutItems.forEach(item => {
-      const sellerId = item.sellerId || item.seller?.id || 'default';
-      const originalPrice = getOriginalUnitPrice(item);
-      const activeDiscount = activeCampaignDiscounts[item.id] || null;
-      const { discountedUnitPrice } = discountService.calculateLineDiscount(originalPrice, 1, activeDiscount);
-
-      if (!sellers[sellerId]) {
-        sellers[sellerId] = { subtotal: 0, hasFreeShippingItem: false };
-      }
-      sellers[sellerId].subtotal += discountedUnitPrice * item.quantity;
-      if (item.isFreeShipping) sellers[sellerId].hasFreeShippingItem = true;
-    });
-
-    return Object.values(sellers).reduce((total, seller) => {
-      const isEligible = seller.hasFreeShippingItem || seller.subtotal >= 1000;
-      return total + (isEligible ? 0 : 100);
-    }, 0);
-  }, [checkoutItems, activeCampaignDiscounts, appliedVoucher]);
+    // Sum all per-store shipping fees
+    return Object.values(perStoreShippingFees).reduce((sum, fee) => sum + fee, 0);
+  }, [perStoreShippingFees, appliedVoucher]);
   let discount = 0;
 
   // Apply voucher discount after campaign discount
@@ -660,6 +822,7 @@ export default function CheckoutPage() {
         // since we are adapting from BuyerStore structure
         id: item.id, // This is Product ID in BuyerStore
         product_id: item.id,
+        name: item.name, // REQUIRED: For stock validation error messages
         cart_id: '', // Not needed for our new cleanup logic
         quantity: item.quantity,
         selected_variant: item.selectedVariant ? {
@@ -684,6 +847,15 @@ export default function CheckoutPage() {
         notes: item.notes || null
       }));
 
+      // BX-09-001 — Map shipping selections to order_shipments format
+      const shippingBreakdown = shippingResults.map(result => ({
+        seller_id: result.sellerId,
+        shipping_method: selectedMethods[result.sellerId] || result.defaultMethod?.method || 'standard',
+        calculated_fee: perStoreShippingFees[result.sellerId] ?? 0,
+        zone: result.zone,
+        estimated_days: result.methods.find(m => m.method === selectedMethods[result.sellerId])?.estimatedDays || 3,
+      }));
+
       const payload = {
         userId: profile.id,
         items: payloadItems as any[], // Casting to match service expectation
@@ -705,6 +877,8 @@ export default function CheckoutPage() {
         email: profile.email,
         voucherId: appliedVoucher?.id ?? null,
         selectedAddressId: selectedAddress?.id ?? null,
+        // BX-09-001 — Add per-seller shipping breakdown
+        shippingBreakdown: shippingBreakdown,
         // Add card details if card payment method is selected
         ...(formData.paymentMethod === 'card' && {
           cardDetails: {
@@ -1254,78 +1428,111 @@ export default function CheckoutPage() {
                   Order Summary
                 </h3>
 
-                <div className="space-y-3 mb-6">
-                  {checkoutItems.map((item, idx) => {
-                    const variant = item.selectedVariant as any;
-                    const originalUnitPrice = getOriginalUnitPrice(item);
-                    const activeDiscount = activeCampaignDiscounts[item.id] || null;
-                    const calculation = discountService.calculateLineDiscount(originalUnitPrice, item.quantity, activeDiscount);
-                    const discountedUnitPrice = calculation.discountedUnitPrice;
-                    const lineOriginalTotal = originalUnitPrice * item.quantity;
-                    const lineDiscountedTotal = discountedUnitPrice * item.quantity;
-
-                    // Build variant display from available fields - deduplicate redundant values
-                    let variantParts: string[] = [];
-                    if (variant) {
-                      const vName = (variant.variant_name || variant.name || '').trim();
-                      const vSize = (variant.size || variant.option_1_value || '').trim();
-                      const vColor = (variant.color || variant.option_2_value || '').trim();
-
-                      if (vName) variantParts.push(vName);
-
-                      // Only add Size if not already mentioned in variant name
-                      if (vSize && !vName.toLowerCase().includes(vSize.toLowerCase())) {
-                        variantParts.push(`Size: ${vSize}`);
-                      }
-
-                      // Only add Color if not already mentioned and not 'Default'
-                      if (vColor &&
-                        !vName.toLowerCase().includes(vColor.toLowerCase()) &&
-                        vColor.toLowerCase() !== 'default') {
-                        variantParts.push(`Color: ${vColor}`);
-                      }
-
-                      if (variantParts.length === 0) {
-                        if (variant.sku) variantParts.push(`SKU: ${variant.sku}`);
-                        else if (variant.id) variantParts.push(`#${variant.id.slice(0, 8)}`);
-                      }
-                    }
-                    const variantInfo = variantParts.length > 0 ? variantParts.join(' / ') : null;
+                {/* BX-09-001 — Seller-grouped items with per-seller shipping */}
+                <div className="space-y-4 mb-6">
+                  {Object.entries(groupedCheckoutItems).map(([sellerId, items]) => {
+                    const result = shippingResults.find(r => r.sellerId === sellerId);
+                    const selectedMethod = selectedMethods[sellerId];
 
                     return (
-                      <div key={`${item.id}-${variant?.id || 'no-variant'}-${idx}`} className="flex items-start gap-3 text-sm">
-                        {/* Product Image */}
-                        <div className="w-12 h-12 rounded-lg border border-gray-100 bg-white overflow-hidden flex-shrink-0 mt-0.5">
-                          <img loading="lazy" 
-                            src={variant?.thumbnail_url || item.image || (item.images && item.images[0])}
-                            alt={item.name}
-                            className="w-full h-full object-contain"
-                          />
+                      <div key={sellerId} className="border border-gray-200 rounded-lg p-4 space-y-3">
+                        {/* Seller Header */}
+                        <div className="flex items-center gap-2 pb-3 border-b border-gray-100">
+                          <Store className="w-4 h-4 text-[var(--brand-primary)]" />
+                          <h4 className="text-sm font-semibold text-gray-900">
+                            {getSellerDisplayName(sellerId, items)}
+                          </h4>
                         </div>
 
-                        <div className="flex-1 min-w-0">
-                          <p className="text-gray-900 font-medium line-clamp-1">
-                            {item.name}
-                          </p>
-                          <div className="flex flex-col">
-                            {variantInfo && (
-                              <p className="text-xs text-[var(--text-muted)] font-sm mb-1">
-                                {variantInfo}
-                              </p>
-                            )}
-                            <div className="flex items-center gap-2 justify-end">
-                              {originalUnitPrice > discountedUnitPrice && (
-                                <span className="text-xs text-gray-400 line-through">
-                                  ₱{originalUnitPrice.toLocaleString()}
-                                </span>
-                              )}
-                              <p className="text-[var(--brand-primary)] font-bold">
-                                ₱{discountedUnitPrice.toLocaleString()}
-                              </p>
-                              <span className="text-gray-400 text-xs font-medium">x{item.quantity}</span>
-                            </div>
-                          </div>
+                        {/* Seller Items */}
+                        <div className="space-y-2">
+                          {items.map((item, idx) => {
+                            const variant = item.selectedVariant as any;
+                            const originalUnitPrice = getOriginalUnitPrice(item);
+                            const activeDiscount = activeCampaignDiscounts[item.id] || null;
+                            const calculation = discountService.calculateLineDiscount(originalUnitPrice, item.quantity, activeDiscount);
+                            const discountedUnitPrice = calculation.discountedUnitPrice;
+
+                            // Build variant display from available fields
+                            let variantParts: string[] = [];
+                            if (variant) {
+                              const vName = (variant.variant_name || variant.name || '').trim();
+                              const vSize = (variant.size || variant.option_1_value || '').trim();
+                              const vColor = (variant.color || variant.option_2_value || '').trim();
+
+                              if (vName) variantParts.push(vName);
+                              if (vSize && !vName.toLowerCase().includes(vSize.toLowerCase())) {
+                                variantParts.push(`Size: ${vSize}`);
+                              }
+                              if (vColor && !vName.toLowerCase().includes(vColor.toLowerCase()) && vColor.toLowerCase() !== 'default') {
+                                variantParts.push(`Color: ${vColor}`);
+                              }
+                              if (variantParts.length === 0) {
+                                if (variant.sku) variantParts.push(`SKU: ${variant.sku}`);
+                                else if (variant.id) variantParts.push(`#${variant.id.slice(0, 8)}`);
+                              }
+                            }
+                            const variantInfo = variantParts.length > 0 ? variantParts.join(' / ') : null;
+
+                            return (
+                              <div key={`${item.id}-${variant?.id || 'no-variant'}-${idx}`} className="flex items-start gap-2 text-xs">
+                                <div className="w-10 h-10 rounded border border-gray-100 bg-white overflow-hidden flex-shrink-0">
+                                  <img loading="lazy" 
+                                    src={variant?.thumbnail_url || item.image || (item.images && item.images[0])}
+                                    alt={item.name}
+                                    className="w-full h-full object-contain"
+                                  />
+                                </div>
+                                <div className="flex-1 min-w-0">
+                                  <p className="text-gray-900 font-medium line-clamp-1 text-xs">
+                                    {item.name}
+                                  </p>
+                                  {variantInfo && (
+                                    <p className="text-gray-500 text-xs mb-0.5">
+                                      {variantInfo}
+                                    </p>
+                                  )}
+                                  <div className="flex items-center gap-1">
+                                    {originalUnitPrice > discountedUnitPrice && (
+                                      <span className="text-gray-400 line-through text-xs">
+                                        ₱{originalUnitPrice.toLocaleString()}
+                                      </span>
+                                    )}
+                                    <p className="text-[var(--brand-primary)] font-bold text-xs">
+                                      ₱{discountedUnitPrice.toLocaleString()}
+                                    </p>
+                                    <span className="text-gray-400 text-xs">x{item.quantity}</span>
+                                  </div>
+                                </div>
+                              </div>
+                            );
+                          })}
                         </div>
+
+                        {/* Shipping Method Picker */}
+                        {result && (
+                          <div className="mt-3 pt-3 border-t border-gray-100">
+                            <ShippingMethodPicker
+                              methods={result.methods}
+                              selectedMethod={selectedMethod}
+                              onSelectMethod={(method) => setSelectedMethods(prev => ({ ...prev, [sellerId]: method }))}
+                              isLoading={isCalculatingShipping}
+                              error={result.error}
+                              warning={result.warning}
+                              onRetry={retryShipping}
+                            />
+                          </div>
+                        )}
+
+                        {/* Per-seller shipping fee display */}
+                        {perStoreShippingFees[sellerId] !== undefined && (
+                          <div className="flex justify-between items-center text-xs pt-2 border-t border-gray-100">
+                            <span className="text-gray-600">Shipping (this seller):</span>
+                            <span className="font-semibold text-gray-900">
+                              {perStoreShippingFees[sellerId] === 0 ? 'Free' : `₱${perStoreShippingFees[sellerId].toLocaleString()}`}
+                            </span>
+                          </div>
+                        )}
                       </div>
                     );
                   })}

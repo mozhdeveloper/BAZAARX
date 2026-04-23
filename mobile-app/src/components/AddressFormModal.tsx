@@ -70,6 +70,11 @@ const getIslandGroup = (code: string): string => {
 };
 
 
+// NCR is province-less in PSGC — we treat "Metro Manila" as a synthetic province
+const NCR_REGION_CODE    = '13';
+const METRO_MANILA_LABEL = 'Metro Manila';
+const isNCR = (code: string) => code === NCR_REGION_CODE;
+
 // ---------------------------------------------------------------------------
 // Types
 // ---------------------------------------------------------------------------
@@ -383,9 +388,12 @@ export default function AddressFormModal({
                 matchedRegion.region_code === '13';
 
             if (isMetroManila) {
+                // Auto-fill "Metro Manila" as province for NCR
+                setForm(prev => ({ ...prev, province: METRO_MANILA_LABEL }));
+
                 let allCities: any[] = [];
                 for (const prov of provList) {
-                    const pc = await cities(prov.province_code);
+                    const pc = await getCachedCities(prov.province_code);
                     allCities = [...allCities, ...pc];
                 }
                 if (!isMounted.current) return;
@@ -398,7 +406,7 @@ export default function AddressFormModal({
                 if (matchedCity) {
                     newCodes.cityCode = matchedCity.city_code;
                     setForm(prev => ({ ...prev, city: matchedCity.city_name }));
-                    const bList = await barangays(matchedCity.city_code);
+                    const bList = await getCachedBarangays(matchedCity.city_code);
                     if (!isMounted.current) return;
                     setBarangayList(bList);
                     const matchedBrgy = bList.find((b: any) => {
@@ -483,15 +491,32 @@ export default function AddressFormModal({
 
     const onRegionChange = async (code: string) => {
         const name = regionList.find((r: any) => r.region_code === code)?.region_name || '';
-        setForm(prev => ({ ...prev, region: name, province: '', city: '', barangay: '', coordinates: null }));
-        setGeoCodes({ regionCode: code });
         setOpenDropdown(null);
         setIsLoadingLocation(true);
-        const provs = await getCachedProvinces(code);
-        if (!isMounted.current) return;
-        setProvinceList(provs);
-        setCityList([]);
-        setBarangayList([]);
+
+        if (isNCR(code)) {
+            // For NCR, skip province entirely — auto-set "Metro Manila" and load all cities
+            const provs = await getCachedProvinces(code);
+            const allCities: any[] = [];
+            for (const prov of provs) {
+                const pc = await getCachedCities(prov.province_code);
+                allCities.push(...pc);
+            }
+            if (!isMounted.current) return;
+            setForm(prev => ({ ...prev, region: name, province: METRO_MANILA_LABEL, city: '', barangay: '', coordinates: null }));
+            setGeoCodes({ regionCode: code });
+            setProvinceList(provs);
+            setCityList(allCities);
+            setBarangayList([]);
+        } else {
+            const provs = await getCachedProvinces(code);
+            if (!isMounted.current) return;
+            setForm(prev => ({ ...prev, region: name, province: '', city: '', barangay: '', coordinates: null }));
+            setGeoCodes({ regionCode: code });
+            setProvinceList(provs);
+            setCityList([]);
+            setBarangayList([]);
+        }
         setIsLoadingLocation(false);
     };
 
@@ -953,13 +978,28 @@ export default function AddressFormModal({
                         <TextInput value={form.label} onChangeText={t => setForm(prev => ({ ...prev, label: t }))} style={s.input} placeholder="Home, Office..." />
 
                         {renderDropdown({ label: 'Region', type: 'region', value: form.region, list: regionList })}
-                        {renderDropdown({ label: 'Province', type: 'province', value: form.province, list: provinceList, disabled: !form.region })}
+
+                        {/* Province — auto-locked to "Metro Manila" for NCR */}
+                        {geoCodes.regionCode === NCR_REGION_CODE ? (
+                            <View style={{ marginBottom: 12 }}>
+                                <Text style={s.inputLabel}>Province</Text>
+                                <View style={[s.dropdownTrigger, s.dropdownDisabled]}>
+                                    <Text style={[s.dropdownSelectedText, { color: '#6B7280' }]} numberOfLines={1}>
+                                        Metro Manila
+                                    </Text>
+                                    <MapPin size={16} color="#9CA3AF" />
+                                </View>
+                            </View>
+                        ) : (
+                            renderDropdown({ label: 'Province', type: 'province', value: form.province, list: provinceList, disabled: !form.region })
+                        )}
+
                         {renderDropdown({
                             label: 'City / Municipality',
                             type: 'city',
                             value: form.city,
                             list: cityList,
-                            disabled: !form.province && !form.region?.toLowerCase().includes('ncr') && !form.region?.toLowerCase().includes('metro manila'),
+                            disabled: !form.province && geoCodes.regionCode !== NCR_REGION_CODE,
                         })}
                         {renderDropdown({ label: 'Barangay', type: 'barangay', value: form.barangay, list: barangayList, disabled: !form.city })}
 
