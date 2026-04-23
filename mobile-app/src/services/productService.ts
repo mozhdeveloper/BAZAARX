@@ -284,7 +284,8 @@ export class ProductService {
       });
 
       // Transform products
-      const result = products.map(p => this.transformProduct(p, soldCountsMap.get(p.id) || 0));
+      const result = products.map(p => this.transformProduct(p, soldCountsMap.get(p.id) || 0))
+        .filter(p => this.hasAvailableStock(p));
 
       console.log('[ProductService] Final search result count:', result.length);
 
@@ -435,7 +436,8 @@ export class ProductService {
       });
 
       // Transform to add legacy compatibility fields
-      const result = data?.map(p => this.transformProduct(p, soldCountsMap.get(p.id) || 0)) || [];
+      const result = (data?.map(p => this.transformProduct(p, soldCountsMap.get(p.id) || 0)) || [])
+        .filter(p => this.hasAvailableStock(p));
 
       // Store in cache
       this.setCache(cacheKey, result);
@@ -445,6 +447,22 @@ export class ProductService {
       console.error('Error fetching products:', error);
       throw new Error('Failed to fetch products. Please try again later.');
     }
+  }
+
+  /**
+   * Check if a product has available stock.
+   * A product is in stock if:
+   * - It has variants and at least one variant has stock > 0, OR
+   * - It has no variants and its own stock > 0
+   * Products with zero total stock are considered out of stock.
+   */
+  private hasAvailableStock(product: any): boolean {
+    const variants = product.variants || [];
+    if (variants.length > 0) {
+      return variants.some((v: any) => Number(v.stock || 0) > 0);
+    }
+    // No variants — check product-level stock
+    return Number(product.stock || 0) > 0;
   }
 
   /**
@@ -1421,7 +1439,8 @@ export class ProductService {
       });
 
       // Transform products
-      const result = products.map(p => this.transformProduct(p, soldCountsMap.get(p.id) || 0));
+      const result = products.map(p => this.transformProduct(p, soldCountsMap.get(p.id) || 0))
+        .filter(p => this.hasAvailableStock(p));
 
       // Phase 5: Client-side sorting for fields that require calculation
       if (filters.sortBy === 'best-selling') {

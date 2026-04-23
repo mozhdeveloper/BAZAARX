@@ -7,18 +7,18 @@ import { FlashList } from "@shopify/flash-list";
 import { Bell, Camera, Check, ChevronDown, MapPin, Search, SlidersHorizontal, Star, X } from 'lucide-react-native';
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
-  ActivityIndicator,
-  Dimensions,
-  Keyboard,
-  Modal,
-  Pressable,
-  RefreshControl,
-  ScrollView,
-  StatusBar,
-  StyleSheet,
-  Text,
-  TextInput,
-  View
+    ActivityIndicator,
+    Dimensions,
+    Keyboard,
+    Modal,
+    Pressable,
+    RefreshControl,
+    ScrollView,
+    StatusBar,
+    StyleSheet,
+    Text,
+    TextInput,
+    View
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import type { RootStackParamList, TabParamList } from '../App';
@@ -309,7 +309,13 @@ import type { Product } from '../src/types';
 
           if (productsResult.status === 'fulfilled') {
             const mapped: Product[] = (productsResult.value || []).map((row: any) => normalizeProductForShop(row));
-            const uniqueMapped = Array.from(new Map(mapped.map((item) => [item.id, item])).values());
+            const uniqueMapped = Array.from(new Map(mapped.map((item) => [item.id, item])).values())
+              .filter(p => {
+                // Filter out products with no available stock
+                const variants = Array.isArray((p as any).variants) ? (p as any).variants : [];
+                if (variants.length > 0) return variants.some((v: any) => Number(v.stock || 0) > 0);
+                return Number(p.stock || 0) > 0;
+              });
             setDbProducts(uniqueMapped);
           } else {
             console.error('[ShopScreen] Failed loading products:', productsResult.reason);
@@ -355,7 +361,13 @@ import type { Product } from '../src/types';
 
         if (productsResult.status === 'fulfilled') {
           const mapped: Product[] = (productsResult.value || []).map((row: any) => normalizeProductForShop(row));
-          const uniqueMapped = Array.from(new Map(mapped.map((item) => [item.id, item])).values());
+          const uniqueMapped = Array.from(new Map(mapped.map((item) => [item.id, item])).values())
+            .filter(p => {
+              // Filter out products with no available stock
+              const variants = Array.isArray((p as any).variants) ? (p as any).variants : [];
+              if (variants.length > 0) return variants.some((v: any) => Number(v.stock || 0) > 0);
+              return Number(p.stock || 0) > 0;
+            });
           setDbProducts(uniqueMapped);
 
           if (uniqueMapped.length > 0) {
@@ -584,7 +596,12 @@ import type { Product } from '../src/types';
           });
 
           const mapped: Product[] = (results || []).map((row: any) => normalizeProductForShop(row));
-          const uniqueMapped = Array.from(new Map(mapped.map((item) => [item.id, item])).values());
+          const uniqueMapped = Array.from(new Map(mapped.map((item) => [item.id, item])).values())
+            .filter(p => {
+              const variants = Array.isArray((p as any).variants) ? (p as any).variants : [];
+              if (variants.length > 0) return variants.some((v: any) => Number(v.stock || 0) > 0);
+              return Number(p.stock || 0) > 0;
+            });
           setCategoryProducts(uniqueMapped);
         } catch (error) {
           console.error('[ShopScreen] Error fetching category products:', error);
@@ -695,6 +712,13 @@ import type { Product } from '../src/types';
           break;
         }
       }
+
+      // Final safety: filter out products with no available stock
+      filtered = filtered.filter(p => {
+        const variants = Array.isArray((p as any).variants) ? (p as any).variants : [];
+        if (variants.length > 0) return variants.some((v: any) => Number(v.stock || 0) > 0);
+        return Number(p.stock || 0) > 0;
+      });
 
       return filtered;
     }, [dbProducts, categoryProducts, searchQuery, selectedCategory, selectedSort, isFeaturedView, minPrice, maxPrice, categoryChips, featuredProducts, boostedProducts]);
