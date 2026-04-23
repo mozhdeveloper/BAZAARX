@@ -68,177 +68,107 @@ The following files are local AI standards and are **never committed**:
 
 ---
 
-## Session Log — April 22, 2026
+## Session Log — April 23, 2026
 
-### Mobile Checkout Screen Card Input Enhancement
+### Web Shipping Logistics Implementation
 
 **Status:** ✅ COMPLETE
 
-**Objective:** Enhance the PayMongo card entry flow on mobile checkout by providing an intuitive "Add Card Details" button when no saved cards exist, with automatic card saving after successful payment.
+**Objective:** Implement comprehensive shipping logistics on the web platform with method selection, service integration, and carrier support.
 
-**Problems Identified:**
+**Changes Implemented:**
 
-1. **Confusing Card Entry Flow**: When users had no saved PayMongo cards, they saw a passive message saying "Enter your card details on the next screen after clicking 'Place Order'" with no clear CTA
-2. **No Card Persistence**: Manually entered cards were not being saved to Payment Methods after successful payment, requiring users to re-enter them for future orders
-3. **Unclear Alert Messages**: Alert for missing saved cards mentioned "Use Different Card" but that button didn't exist from the new flow
-4. **Test Card Handling**: No distinction between test cards (autofilled) and real cards (manually entered), causing test data to be saved
+### 1. ShippingMethodPicker Component
 
-**Root Causes:**
+**New File:** [web/src/components/ShippingMethodPicker.tsx](web/src/components/ShippingMethodPicker.tsx)
 
-- CheckoutScreen had a passive info box instead of an actionable card entry button
-- PaymentGatewayScreen had no logic to save successfully entered cards to Payment Methods
-- No mechanism to differentiate between autofilled test cards and manually entered real cards
+- User-friendly component for selecting shipping methods
+- Displays available shipping options with delivery estimates
+- Shows shipping costs and carriers
+- Integrates with checkout flow
+- TypeScript typed for safety
+- Responsive design for web layout
 
-**Solution Implemented:**
+### 2. Shipping Service Layer
 
-### Part 1: Active Card Entry Button in CheckoutScreen
+**New File:** [web/src/services/shippingService.ts](web/src/services/shippingService.ts)
 
-**Problem:** Users with no saved PayMongo cards couldn't easily understand how to add a card
+- Handles order processing with shipping details
+- Manages shipping method selection and validation
+- Integrates with carrier APIs
+- Provides shipping quote calculations
+- Manages shipment tracking
+- Error handling for shipping operations
 
-**Solution:** Added an "Add Card Details" button with full checkout validation and flow:
+### 3. Shipping Types Definition
 
-**Changes in [mobile-app/app/CheckoutScreen.tsx](mobile-app/app/CheckoutScreen.tsx):**
+**New File:** [web/src/types/shipping.types.ts](web/src/types/shipping.types.ts)
 
-1. **Updated Alert Message** (Line 2001-2006):
-   - Old: "Please select a saved card or click 'Use Different Card' to enter a new card."
-   - New: "Please click 'Add Card Details' to add a new card, or if you have saved cards, select one above."
-   - Uses proper `Alert` structure with OK button
+- Complete TypeScript interfaces for shipping
+- Defines shipping methods structure
+- Carrier information types
+- Shipment tracking types
+- Delivery estimation types
+- Request/response interfaces
 
-2. **Replaced Info Box with Interactive Button** (Lines 2777-2986):
-   - Removed plain text message box
-   - Added gradient info card with CreditCard icon
-   - Created "Add Card Details" Pressable button
-   - Button includes full validation:
-     - ✅ User authentication check
-     - ✅ Delivery address validation
-     - ✅ Seller ID validation
-   - Button creates complete checkout payload with all order details
-   - Calls `processCheckout()` to create the order in database
-   - Navigates to PaymentGateway with `isQuickCheckout: false` flag
+### 4. CheckoutPage Integration
 
-3. **Styling Enhancement**:
-   - LinearGradient background (#E0F2FE to #F0F9FF)
-   - Blue border (1.5px, #0EA5E9)
-   - Informative text: "No Saved Cards Yet"
-   - CreditCard icon for visual clarity
+**Modified:** [web/src/pages/CheckoutPage.tsx](web/src/pages/CheckoutPage.tsx)
 
-**Files Modified:**
-- [mobile-app/app/CheckoutScreen.tsx](mobile-app/app/CheckoutScreen.tsx#L1998-L2986)
+- Integrated ShippingMethodPicker component
+- Added shipping method selection flow
+- Updated checkout validation to include shipping
+- Added shipping costs to order summary
+- Maintains grouped multi-seller display
+- Preserves existing pricing and discount logic
 
----
+### 5. EnhancedCartPage Updates
 
-### Part 2: Automatic Card Saving in PaymentGatewayScreen
+**Modified:** [web/src/pages/EnhancedCartPage.tsx](web/src/pages/EnhancedCartPage.tsx)
 
-**Problem:** When users entered a new card successfully, it wasn't saved to Payment Methods for future use
+- Updated with shipping logistics support
+- Added shipping preview in cart summary
+- Integrated shipping service calls
+- Updated cart state for shipping data
+- Maintains existing cart functionality
 
-**Solution:** Added card persistence logic after successful payment
+### 6. CheckoutService Enhancement
 
-**Changes in [mobile-app/app/PaymentGatewayScreen.tsx](mobile-app/app/PaymentGatewayScreen.tsx):**
+**Modified:** [web/src/services/checkoutService.ts](web/src/services/checkoutService.ts)
 
-1. **Added Manual Entry Tracking** (Line 77):
-   ```typescript
-   const [isManualEntry, setIsManualEntry] = useState(true);
-   ```
-   - Tracks whether card was manually typed or autofilled from test cards
-   - Defaults to `true` (assumes manual entry)
-
-2. **Test Card Autofill Updates** (Lines 513-514, 533-534):
-   - When user selects a test card (success or error), set `isManualEntry(false)`
-   - Prevents test cards from being saved to Payment Methods
-
-3. **Manual Entry Tracking on User Input** (Lines 563-565, 605-608, 627-630, 650-653):
-   - When user types in card number field: `setIsManualEntry(true)`
-   - When user types in expiry field: `setIsManualEntry(true)`
-   - When user types in CVV field: `setIsManualEntry(true)`
-   - When user types in name field: `setIsManualEntry(true)`
-
-4. **Automatic Card Saving After Payment** (Lines 309-340):
-   - After successful payment, checks if:
-     - `isManualEntry` is true (user typed the card)
-     - `showCardForm` is true (card form was shown)
-     - `cardName !== 'TEST CARD'` (not a test card)
-   - If conditions met:
-     - Retrieves existing saved cards
-     - Determines if this should be default card (`isFirstCard`)
-     - Calls `paymentMethodService.savePaymentMethod()` with:
-       - User ID
-       - Card data (number, name, expiry, CVV)
-       - Default flag
-     - Shows success alert: "Your card has been saved to Payment Methods for future purchases."
-   - If save fails:
-     - Doesn't throw error (payment already succeeded)
-     - Shows info alert: "Payment successful, but card could not be saved. You can add it later in Payment Methods."
-
-**Imports Added:**
-- `useAuthStore` — Get current user
-- `paymentMethodService` — Save card data
-
-**Files Modified:**
-- [mobile-app/app/PaymentGatewayScreen.tsx](mobile-app/app/PaymentGatewayScreen.tsx#L31-L32, L77, L309-L340, L513-L514, L533-L534, L563-L565, L605-L608, L627-L630, L650-L653)
+- Added shipping validation logic
+- Integrated shipping data into order creation
+- Enhanced checkout flow with shipping steps
+- Added shipping error handling
+- Maintains backward compatibility
 
 ---
 
-### User Experience Flow
+### Key Features Implemented
 
-**Before:**
-```
-1. User at checkout with no saved cards
-2. Sees message: "Enter your card details on the next screen"
-3. Clicks "Place Order"
-4. PaymentGateway opens with card form
-5. User enters card
-6. Payment succeeds
-7. Card is NOT saved (user must re-enter next time)
-```
-
-**After:**
-```
-1. User at checkout with no saved cards
-2. Sees "Add Card Details" button (clear CTA)
-3. Clicks "Add Card Details"
-4. Order created in database
-5. PaymentGateway opens with card form
-6. User enters card (tracked as manual entry)
-7. Payment succeeds
-8. Card automatically saved to Payment Methods
-9. Card available for future orders
-```
-
-**Test Card Scenario:**
-```
-1. User at PaymentGateway card form
-2. Clicks test card shortcut (e.g., "✓ Success")
-3. Card auto-filled (isManualEntry = false)
-4. Payment succeeds
-5. Card is NOT saved (was just for testing)
-6. User sees: "Payment successful"
-```
+✅ **Multiple Shipping Methods**: Support for various carriers and delivery options
+✅ **Method Selection UI**: Intuitive picker component for users to choose preferred shipping
+✅ **Service Integration**: Complete backend integration for shipping operations
+✅ **Type Safety**: Comprehensive TypeScript types for all shipping data
+✅ **Cost Calculation**: Automatic shipping cost computation
+✅ **Delivery Estimates**: Display estimated delivery dates
+✅ **Cart Integration**: Shipping preview in cart summary
+✅ **Checkout Flow**: Seamless shipping selection during checkout
+✅ **Error Handling**: Robust error management for shipping failures
+✅ **Multi-Seller Support**: Shipping handles multiple sellers in same order
 
 ---
 
 ### What Was Preserved
 
-- ✅ All existing payment flow logic unchanged
-- ✅ All checkout validations intact
-- ✅ All order creation logic preserved
-- ✅ All PayMongo payment processing unchanged
-- ✅ All cart management untouched
-- ✅ All state management for other fields
-- ✅ All TypeScript types and interfaces
-- ✅ All styling for other components
-
----
-
-### Result
-
-✅ **Clear UX**: Users with no saved cards have obvious "Add Card Details" button instead of confusing message
-✅ **Reduced Friction**: Cards automatically save after successful payment → no re-entry needed
-✅ **Smart Defaults**: First card automatically set as default payment method
-✅ **Test Card Safety**: Test cards never saved (tracked separately from manual entry)
-✅ **Error Resilient**: If card save fails, payment still succeeds
-✅ **User Informed**: Clear alerts about card saving success or issues
-✅ **No Breaking Changes**: All existing payment flows continue to work
-✅ **TypeScript Validated**: No compilation errors
+- ✅ Existing checkout validation logic
+- ✅ Multi-seller grouping in order summary
+- ✅ All pricing and discount calculations
+- ✅ Cart management functionality
+- ✅ Payment processing flow
+- ✅ Order creation workflow
+- ✅ TypeScript compilation integrity
+- ✅ Web app styling and layout
 
 ---
 
@@ -246,24 +176,32 @@ The following files are local AI standards and are **never committed**:
 
 | File | Changes | Status |
 |------|---------|--------|
-| [mobile-app/app/CheckoutScreen.tsx](mobile-app/app/CheckoutScreen.tsx) | Added "Add Card Details" button with full checkout validation (Lines 1998-2006, 2777-2986) | ✅ Complete |
-| [mobile-app/app/PaymentGatewayScreen.tsx](mobile-app/app/PaymentGatewayScreen.tsx) | Added card saving logic + manual entry tracking (Multiple locations) | ✅ Complete |
+| [web/src/components/ShippingMethodPicker.tsx](web/src/components/ShippingMethodPicker.tsx) | New component for shipping method selection | ✅ Created |
+| [web/src/services/shippingService.ts](web/src/services/shippingService.ts) | New service for shipping operations | ✅ Created |
+| [web/src/types/shipping.types.ts](web/src/types/shipping.types.ts) | New types for shipping data structures | ✅ Created |
+| [web/src/pages/CheckoutPage.tsx](web/src/pages/CheckoutPage.tsx) | Integrated shipping method picker and flow | ✅ Modified |
+| [web/src/pages/EnhancedCartPage.tsx](web/src/pages/EnhancedCartPage.tsx) | Added shipping logistics support | ✅ Modified |
+| [web/src/services/checkoutService.ts](web/src/services/checkoutService.ts) | Added shipping validation and handling | ✅ Modified |
 
-**Total Files Modified:** 2
+**Total Files Modified:** 6
+**New Files Created:** 3
+**Total Insertions:** 1005
+**Total Deletions:** 104
 
 ---
 
 ### Testing Checklist
 
-✅ Checkout validates required fields before "Add Card Details"
-✅ PaymentGateway receives correct order data
-✅ Manual card entry saves after successful payment
-✅ Test card autofill does NOT save
-✅ First card becomes default payment method
-✅ Subsequent cards don't override default
-✅ Card save failure doesn't block order completion
-✅ Alert messages display correctly
+✅ Shipping method selection works in CheckoutPage
+✅ ShippingMethodPicker component renders correctly
+✅ Shipping costs display in order summary
+✅ Checkout validation includes shipping requirements
+✅ Multiple shipping methods available to users
+✅ Carrier integration functional
+✅ Delivery estimates display correctly
+✅ Multi-seller orders handle shipping per seller
 ✅ TypeScript compilation: No errors
+✅ Cart displays shipping preview
 
 ---
 
