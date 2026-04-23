@@ -1,9 +1,12 @@
 // categoryService.ts
 import { supabase } from "@/lib/supabase";
+import { isSupabaseConfigured } from "@/lib/supabase";
 import type { Category } from "@/types/database.types"; 
 
 export class CategoryService {
     private static instance: CategoryService;
+    private activeCategoriesCache: { data: Category[] | null; timestamp: number } = { data: null, timestamp: 0 };
+    private static CACHE_TTL = 5 * 60 * 1000; // 5 minutes
 
     private constructor() {}
 
@@ -14,15 +17,23 @@ export class CategoryService {
         return CategoryService.instance;
     }
 
-    // For Sellers & Buyers: Only fetches active categories
-    async getActiveCategories() {
+    // For Sellers & Buyers: Only fetches active categories (with in-memory cache, matching mobile)
+    async getActiveCategories(): Promise<Category[]> {
+        if (!isSupabaseConfigured()) return [];
+
+        const now = Date.now();
+        if (this.activeCategoriesCache.data && (now - this.activeCategoriesCache.timestamp) < CategoryService.CACHE_TTL) {
+            return this.activeCategoriesCache.data;
+        }
+
         const { data, error } = await supabase
             .from("categories")
-            .select("id, name, slug, parent_id, icon, image_url, sort_order, is_active")
+            .select("id, name, slug, description, parent_id, is_active, sort_order, icon, image_url, created_at, updated_at")
             .eq('is_active', true)
             .order("sort_order", { ascending: true });
 
         if (error) throw error;
+        this.activeCategoriesCache = { data: data || [], timestamp: now };
         return data || [];
     }
 
