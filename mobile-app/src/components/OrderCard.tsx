@@ -1,7 +1,8 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { View, Text, Pressable, StyleSheet } from 'react-native';
+import { useNavigation } from '@react-navigation/native';
 import { Image } from 'expo-image';
-import { Calendar, MapPin, Eye, Copy, MessageCircle, Star, RotateCcw, ArrowRight } from 'lucide-react-native';
+import { Calendar, MapPin, Eye, Copy, MessageCircle, Star, RotateCcw, ArrowRight, AlertCircle } from 'lucide-react-native';
 import { Order } from '../types';
 import * as Clipboard from 'expo-clipboard';
 import { COLORS } from '../constants/theme';
@@ -11,6 +12,7 @@ interface OrderCardProps {
   onPress: () => void;
   onTrack?: () => void;
   onCancel?: () => void;
+  onEditShipping?: () => void;
   onReceive?: () => void;
   onReview?: () => void;
   onReturn?: () => void;
@@ -23,14 +25,68 @@ export const OrderCard: React.FC<OrderCardProps> = React.memo(({
   onPress,
   onTrack,
   onCancel,
+  onEditShipping,
   onReceive,
   onReview,
   onReturn,
   onBuyAgain,
   onShopPress
 }) => {
+  const navigation = useNavigation<any>();
+
+  // Grace Period countdown timer state
+  const [timeLeft, setTimeLeft] = useState<number>(0);
+
+  const formatGraceTime = (secondsLeft: number) => {
+    const safe = Math.max(0, secondsLeft);
+    const minutes = Math.floor(safe / 60).toString().padStart(2, '0');
+    const seconds = (safe % 60).toString().padStart(2, '0');
+    return `${minutes}:${seconds}`;
+  };
+
+  // Grace Period timer effect - 1 hour from order creation
+  useEffect(() => {
+    const resolvedUiStatus = String(order?.buyerUiStatus || order?.status || 'pending').toLowerCase();
+    
+    // Only run timer for pending or processing
+    if (!['pending', 'processing'].includes(resolvedUiStatus)) {
+      setTimeLeft(0);
+      return;
+    }
+
+    // Bulletproof Date Parsing (Fixes Checkout NaN bug)
+    const rawDate = order?.createdAt || (order as any)?.created_at;
+    let orderTime = new Date().getTime();
+    
+    if (rawDate) {
+      const d = new Date(rawDate);
+      if (!isNaN(d.getTime())) {
+        orderTime = d.getTime();
+      } else {
+        const safeStr = String(rawDate).replace(' ', 'T');
+        const d2 = new Date(safeStr);
+        if (!isNaN(d2.getTime())) orderTime = d2.getTime();
+      }
+    }
+
+    const expirationTime = orderTime + 3600000; // 60 minutes from creation
+
+    const updateTimer = () => {
+      const now = new Date().getTime();
+      const remaining = Math.max(0, Math.floor((expirationTime - now) / 1000));
+      setTimeLeft(remaining);
+      if (remaining === 0) clearInterval(interval);
+    };
+
+    updateTimer(); // Initial call
+    const interval = setInterval(updateTimer, 1000);
+    return () => clearInterval(interval);
+  }, [order]);
+
   const buyerUiStatus = order.buyerUiStatus || (
-    order.status === 'processing'
+    order.status === 'pending'
+      ? 'pending'
+      : order.status === 'processing'
       ? 'processing'
       : order.status === 'shipped'
         ? 'shipped'
@@ -38,11 +94,13 @@ export const OrderCard: React.FC<OrderCardProps> = React.memo(({
           ? (order as any).shipment_status === 'received' ? 'received' : 'delivered'
           : order.status === 'cancelled'
             ? 'cancelled'
-            : 'processing'
+            : 'pending'
   );
 
   const getStatusColor = () => {
     switch (buyerUiStatus) {
+      case 'pending':
+        return '#F59E0B'; // Bright Amber/Orange
       case 'processing':
         return '#3B82F6'; // Blue
       case 'shipped':
@@ -52,18 +110,20 @@ export const OrderCard: React.FC<OrderCardProps> = React.memo(({
       case 'received':
         return '#3B82F6'; // Blue
       case 'reviewed':
-        return '#16A34A';
+        return '#16A34A'; // Dark Green
       case 'returned':
-        return '#F97316';
+        return '#F97316'; // Orange
       case 'cancelled':
         return '#EF4444'; // Red
       default:
-        return '#6B7280';
+        return '#6B7280'; // Gray
     }
   };
 
   const getStatusText = () => {
     switch (buyerUiStatus) {
+      case 'pending':
+        return 'Pending';
       case 'processing':
         return 'Processing';
       case 'shipped':
@@ -79,7 +139,8 @@ export const OrderCard: React.FC<OrderCardProps> = React.memo(({
       case 'cancelled':
         return 'Cancelled';
       default:
-        return buyerUiStatus;
+        // Capitalize fallback statuses elegantly
+        return String(buyerUiStatus).charAt(0).toUpperCase() + String(buyerUiStatus).slice(1);
     }
   };
 
@@ -211,25 +272,53 @@ export const OrderCard: React.FC<OrderCardProps> = React.memo(({
         </View>
       </Pressable>
 
+     {/* Grace Period Warning Banner */}
+      {timeLeft > 0 && ['pending', 'processing'].includes(buyerUiStatus) && (
+        <View style={styles.gracePeriodBanner}>
+          <AlertCircle size={16} color="#D97706" style={{ marginRight: 8 }} />
+          <Text style={styles.gracePeriodText}>
+            Eligible for edits: {formatGraceTime(timeLeft)} min
+          </Text>
+        </View>
+      )}
+
       {/* Action Buttons */}
       <View style={styles.actionButtonsContainer}>
-        {buyerUiStatus === 'processing' && (
-          <>
-            {onCancel && (
-              <Pressable style={styles.outlineButton} onPress={onCancel}>
-                <Text style={styles.outlineButtonText}>Cancel Order</Text>
+        {['pending', 'processing'].includes(buyerUiStatus) && (() => {
+          // Check if address was already edited
+          const hasEditedAddress = Array.isArray((order as any).history) && (order as any).history.some((h: any) => h.note === 'Address Updated');
+          return (
+            <>
+              {buyerUiStatus === 'pending' && onCancel && (
+                <Pressable style={styles.outlineButton} onPress={onCancel}>
+                  <Text style={styles.outlineButtonText}>Cancel Order</Text>
+                </Pressable>
+              )}
+              {timeLeft > 0 && !hasEditedAddress && (
+                <Pressable
+                  style={styles.outlineButton}
+                  onPress={() => onEditShipping ? onEditShipping() : navigation.navigate('OrderDetail', { order: order, autoOpenAddressModal: true })}
+                >
+                  <Text style={styles.outlineButtonText}>Edit Address</Text>
+                </Pressable>
+              )}
+              <Pressable style={styles.solidButton} onPress={onPress}>
+                <Text style={styles.solidButtonText}>View Details</Text>
               </Pressable>
-            )}
-            <Pressable style={styles.solidButton} onPress={onPress}>
-              <Text style={styles.solidButtonText}>View Details</Text>
-            </Pressable>
-          </>
-        )}
+            </>
+          );
+        })()}
 
         {(buyerUiStatus === 'shipped' || buyerUiStatus === 'delivered') && (
           <View style={{ flexDirection: 'row', gap: 8 }}>
-            <Pressable style={[styles.outlineButton, { flex: 1 }]} onPress={onPress}>
-              <MessageCircle size={14} color="#4B5563" style={{ marginRight: 4 }} />
+            <Pressable
+              style={[
+                styles.outlineButton,
+                { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8 },
+              ]}
+              onPress={onPress}
+            >
+              <MessageCircle size={14} color="#4B5563" />
               <Text style={styles.outlineButtonText}>Chat with Seller</Text>
             </Pressable>
             <Pressable style={[styles.solidButton, { flex: 1 }]} onPress={onPress}>
@@ -581,5 +670,23 @@ const styles = StyleSheet.create({
     color: '#4B5563',
     fontStyle: 'italic',
     lineHeight: 18,
+  },
+  gracePeriodBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#FFFBEB',
+    borderLeftWidth: 4,
+    borderLeftColor: '#D97706',
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    borderRadius: 8,
+    marginBottom: 12,
+    marginTop: 8,
+  },
+  gracePeriodText: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: '#B45309',
+    flex: 1,
   },
 });
