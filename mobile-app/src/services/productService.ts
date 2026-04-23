@@ -1189,6 +1189,7 @@ export class ProductService {
         `)
         .is('deleted_at', null)
         .is('disabled_at', null)
+        .eq('approval_status', 'approved')
         .eq('category.is_active', true);
 
       // Phase 2: Apply filters
@@ -1525,6 +1526,7 @@ export class ProductService {
             .from('products')
             .select('*', { count: 'exact', head: true })
             .eq('category_id', cat.id)
+            .eq('approval_status', 'approved')
             .is('deleted_at', null)
             .is('disabled_at', null);
 
