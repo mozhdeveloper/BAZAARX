@@ -3,16 +3,16 @@ import { FlashList } from '@shopify/flash-list';
 import { ArrowLeft, ChevronDown, Search, SlidersHorizontal, X } from 'lucide-react-native';
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import {
-  ActivityIndicator,
-  Dimensions,
-  Pressable,
-  RefreshControl,
-  ScrollView,
-  StatusBar,
-  StyleSheet,
-  Text,
-  TextInput,
-  View,
+    ActivityIndicator,
+    Dimensions,
+    Pressable,
+    RefreshControl,
+    ScrollView,
+    StatusBar,
+    StyleSheet,
+    Text,
+    TextInput,
+    View,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import type { RootStackParamList } from '../App';
@@ -325,13 +325,22 @@ export default function ProductListingScreen({ navigation, route }: Props) {
           };
         };
 
-        const catProds = (categoryResults || []).map(normalizeProd);
+        const catProds = (categoryResults || []).map(normalizeProd).filter(p => {
+          const variants = Array.isArray((p as any).variants) ? (p as any).variants : [];
+          if (variants.length > 0) return variants.some((v: any) => Number(v.stock || 0) > 0);
+          return Number((p as any).stock || 0) > 0;
+        });
         const catProdIds = new Set(catProds.map(p => p.id));
 
         // Related = text search results that are NOT in the category
         const relProds = (relatedResults || [])
           .map(normalizeProd)
-          .filter(p => !catProdIds.has(p.id));
+          .filter(p => !catProdIds.has(p.id))
+          .filter(p => {
+            const variants = Array.isArray((p as any).variants) ? (p as any).variants : [];
+            if (variants.length > 0) return variants.some((v: any) => Number(v.stock || 0) > 0);
+            return Number((p as any).stock || 0) > 0;
+          });
 
         setMatchedCategory(matched.name);
         setCategoryProducts(catProds);
@@ -376,6 +385,10 @@ export default function ProductListingScreen({ navigation, route }: Props) {
             seller: row.seller?.store_name || row.sellerName || 'Verified Seller',
             isFreeShipping: !!(row.is_free_shipping ?? row.isFreeShipping),
           };
+        }).filter(p => {
+          const variants = Array.isArray((p as any).variants) ? (p as any).variants : [];
+          if (variants.length > 0) return variants.some((v: any) => Number(v.stock || 0) > 0);
+          return Number((p as any).stock || 0) > 0;
         });
 
         if (reset) {
