@@ -72,7 +72,7 @@ export const CartItemRow: React.FC<CartItemRowProps> = React.memo(({
 
   return (
     <View style={styles.container}>
-      <Pressable onPress={onPress}>
+      <Pressable onPress={onPress} style={{ opacity: isOutOfStock ? 0.5 : 1 }}>
         <View>
           <Image source={{ uri: safeImageUri(item.image) }} style={styles.image} contentFit="cover" cachePolicy="memory-disk" transition={150} />
           {(isOutOfStock || isLowStock) && (
@@ -86,20 +86,21 @@ export const CartItemRow: React.FC<CartItemRowProps> = React.memo(({
       </Pressable>
 
       <View style={styles.infoContainer}>
-        <Pressable onPress={onPress}>
-          <Text style={styles.name} numberOfLines={2}>{item.name}</Text>
-        </Pressable>
+        <View style={{ opacity: isOutOfStock ? 0.5 : 1 }}>
+          <Pressable onPress={onPress}>
+            <Text style={styles.name} numberOfLines={2}>{item.name}</Text>
+          </Pressable>
 
-        {/* Tappable dropdown chip — only when in stock */}
-        {!isOutOfStock && variantParts.length > 0 && (
+        {/* Variant chip — always show so user knows what went out of stock */}
+        {variantParts.length > 0 && (
           <Pressable
             onPress={onEdit}
-            disabled={!onEdit}
+            disabled={!onEdit || isOutOfStock}
             style={({ pressed }) => ({ flexDirection: 'row', alignItems: 'center', marginBottom: 4, opacity: pressed ? 0.7 : 1 })}
           >
             <View style={styles.variantChip}>
               <Text style={styles.variantChipText}>{variantParts.join(' · ')}</Text>
-              {onEdit && <ChevronDown size={12} color="#6B7280" style={{ marginLeft: 4 }} />}
+              {!isOutOfStock && onEdit && <ChevronDown size={12} color="#6B7280" style={{ marginLeft: 4 }} />}
             </View>
           </Pressable>
         )}
@@ -122,9 +123,11 @@ export const CartItemRow: React.FC<CartItemRowProps> = React.memo(({
                   {Math.round(((item.originalPrice - (item.price || 0)) / item.originalPrice) * 100)}% OFF
                 </Text>
               </View>
-            )}
+           )}
           </View>
         </Pressable>
+      </View> 
+      {/* Closes the opacity wrapper so buttons below stay 100% visible */}
 
         {/* Quantity stepper — only when in stock */}
         {!isOutOfStock && (
