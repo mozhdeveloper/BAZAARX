@@ -356,15 +356,28 @@ export class CheckoutService {
                         };
                     });
 
-                    // Stock deductions — use stock already fetched in Phase 1 (no re-fetch)
+                    // Stock deductions — atomic RPC (race-safe, writes inventory_movements ledger).
+                    // Falls back to legacy non-atomic update only if RPC is unavailable.
                     const stockUpdates = sellerLinePricing
                         .filter(lp => (lp.item as any).resolved_variant_id)
-                        .map(lp => {
+                        .map(async lp => {
                             const variantId = (lp.item as any).resolved_variant_id as string;
-                            const currentStock = resolvedStockMap.get(variantId) ?? lp.quantity;
-                            return supabase.from('product_variants')
-                                .update({ stock: Math.max(0, currentStock - lp.quantity) })
-                                .eq('id', variantId);
+                            const { error: rpcErr } = await supabase.rpc('decrement_stock_atomic', {
+                                p_variant_id: variantId,
+                                p_qty: lp.quantity,
+                                p_order_id: orderData.id,
+                                p_reason: 'order',
+                                p_actor_id: userId,
+                                p_notes: null,
+                            });
+                            if (rpcErr) {
+                                console.warn('[Checkout] decrement_stock_atomic failed, falling back to direct update:', rpcErr.message);
+                                const currentStock = resolvedStockMap.get(variantId) ?? lp.quantity;
+                                return supabase.from('product_variants')
+                                    .update({ stock: Math.max(0, currentStock - lp.quantity) })
+                                    .eq('id', variantId);
+                            }
+                            return { error: null } as any;
                         });
 
                     // Campaign discount rows
@@ -381,18 +394,92 @@ export class CheckoutService {
                         )]
                         : [];
 
-                    // Fire all per-order writes in parallel
-                    await Promise.all([
-                        supabase.from('payment_transactions').insert({
+                    // Fire per-order writes in parallel.
+                    // Note: payment record goes to order_payments (canonical 1-per-order).
+                    // payment_transactions is for gateway tracking only and is written by
+                    // payMongoService when a gateway is actually invoked (see migration 043c).
+                    //
+                    // ORPHAN-ORDER GUARD (migration 046, 2026-04-24):
+                    // The orders row above auto-commits before this Promise.all. If order_items
+                    // insert fails (RLS, materialized-view trigger, network, etc.) we MUST roll
+                    // back the orders row, otherwise we create an orphan order (54 historical
+                    // orphans were cleaned up in migration 046). The DB-side trigger
+                    // trg_enforce_paid_order_has_items is the structural backstop, but app-side
+                    // rollback removes the orphan immediately so it never appears in dashboards.
+                    const [paymentResult, itemsResult] = await Promise.all([
+                        supabase.from('order_payments').insert({
                             order_id: orderData.id,
-                            payment_method: paymentMethod,
+                            payment_method: { type: paymentMethod },
                             amount: sellerPricingSummary.total,
                             status: 'pending',
+                            created_at: new Date().toISOString(),
                         }),
                         supabase.from('order_items').insert(orderItemsData),
                         ...stockUpdates,
                         ...discountInserts,
                     ]);
+
+                    const itemsFailed = !!itemsResult?.error;
+                    const paymentFailed = !!paymentResult?.error;
+                    if (itemsFailed || paymentFailed) {
+                        // Roll back the just-created orders row to avoid an orphan order.
+                        // Best-effort: if the rollback itself fails (FK from another concurrent
+                        // write, RLS), the DB trigger still prevents the order from ever being
+                        // marked paid. We log loudly either way.
+                        console.error('[Checkout] Rolling back orders row', orderData.id, {
+                            paymentError: paymentResult?.error?.message,
+                            itemsError: itemsResult?.error?.message,
+                        });
+                        const { error: rollbackErr } = await supabase
+                            .from('orders')
+                            .delete()
+                            .eq('id', orderData.id);
+                        if (rollbackErr) {
+                            console.error('[Checkout] Orphan rollback FAILED — manual cleanup needed for order', orderData.id, rollbackErr);
+                        }
+                        if (itemsFailed) throw itemsResult.error;
+                        throw paymentResult.error;
+                    }
+
+                    // BX-09-002 — Persist per-seller shipment record (parity with mobile checkout).
+                    // order_shipments is the canonical 1-per-(order,seller) shipment row used by
+                    // seller dashboards, buyer tracking, and the deliveryService.bookDelivery flow.
+                    // Without this row, deliveryService later tries to INSERT one with an incomplete
+                    // shape (missing required NOT NULL columns) and silently fails — which is what
+                    // caused the 81 historical orders that had a delivery_booking but no
+                    // order_shipments row.
+                    const sellerBreakdownRaw = (payload.shippingBreakdown || []).find(
+                        (sb: any) => String(sb?.seller_id || sb?.sellerId || '') === sellerId
+                    ) as any;
+                    if (sellerBreakdownRaw) {
+                        const shippingMethod = String(sellerBreakdownRaw.shipping_method || sellerBreakdownRaw.method || 'standard');
+                        const { error: shipErr } = await supabase
+                            .from('order_shipments')
+                            .insert({
+                                order_id: orderData.id,
+                                seller_id: sellerId,
+                                shipping_method: shippingMethod,
+                                shipping_method_label: String(
+                                    sellerBreakdownRaw.shipping_method_label
+                                    || sellerBreakdownRaw.methodLabel
+                                    || shippingMethod
+                                ),
+                                calculated_fee: Number(sellerBreakdownRaw.calculated_fee ?? sellerBreakdownRaw.fee ?? sellerShipping ?? 0),
+                                fee_breakdown: sellerBreakdownRaw.breakdown || sellerBreakdownRaw.fee_breakdown || {},
+                                origin_zone: String(sellerBreakdownRaw.originZone || sellerBreakdownRaw.origin_zone || sellerBreakdownRaw.zone || 'unknown'),
+                                destination_zone: String(sellerBreakdownRaw.destinationZone || sellerBreakdownRaw.destination_zone || sellerBreakdownRaw.zone || 'unknown'),
+                                estimated_days_text: String(sellerBreakdownRaw.estimatedDays || sellerBreakdownRaw.estimated_days_text || sellerBreakdownRaw.estimated_days || '3-5 days'),
+                                chargeable_weight_kg: Number(sellerBreakdownRaw.chargeable_weight_kg || 0),
+                                tracking_number: null,
+                                status: 'pending',
+                            });
+                        if (shipErr) {
+                            // Non-fatal: shipment record can be reconciled later. Log loudly so it's caught.
+                            console.warn(`[Checkout] order_shipments insert failed for seller ${sellerId}:`, shipErr.message);
+                        }
+                    } else {
+                        console.warn(`[Checkout] No shippingBreakdown for seller ${sellerId} — skipping order_shipments insert`);
+                    }
 
                     // Seller notification (fire-and-forget, never blocks checkout)
                     const sellerTotal = sellerPricingSummary.total;

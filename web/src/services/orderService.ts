@@ -726,7 +726,8 @@ export class OrderService {
 
             console.log(`[OrderService] Verification - Created ${count} order items:`, verifyItems);
 
-            // Insert payment record with method
+            // Insert payment record (canonical: order_payments, see migration 043c).
+            // POS = OFFLINE order, no gateway involved, so no payment_transactions row.
             const paymentMethodValue = paymentMethod || 'cash';
             const paymentMethodLabel = {
                 cash: 'Cash',
@@ -736,17 +737,17 @@ export class OrderService {
             }[paymentMethodValue] || 'Cash';
 
             const { error: paymentError } = await supabase
-                .from("payment_transactions")
+                .from("order_payments")
                 .insert({
                     order_id: orderId,
-                    payment_method: paymentMethodValue,
+                    payment_method: { type: paymentMethodValue, label: paymentMethodLabel },
                     amount: total,
                     status: 'completed',
-                    processed_at: new Date().toISOString(),
+                    payment_date: new Date().toISOString(),
                 });
 
             if (paymentError) {
-                console.warn("Failed to insert order payment record:", paymentError);
+                console.warn("Failed to insert order_payments record:", paymentError);
                 // Don't fail the order, payment record is supplementary
             }
 
@@ -760,15 +761,23 @@ export class OrderService {
 
                 if (variants && variants.length > 0) {
                     const variant = variants[0];
-                    const newStock = Math.max(
-                        0,
-                        (variant.stock || 0) - item.quantity,
-                    );
-
-                    await supabase
-                        .from("product_variants")
-                        .update({ stock: newStock })
-                        .eq("id", variant.id);
+                    // Atomic, race-safe decrement (POS sale). Falls back if RPC unavailable.
+                    const { error: rpcErr } = await supabase.rpc('decrement_stock_atomic', {
+                        p_variant_id: variant.id,
+                        p_qty: item.quantity,
+                        p_order_id: orderId,
+                        p_reason: 'pos_sale',
+                        p_actor_id: sellerId,
+                        p_notes: null,
+                    });
+                    if (rpcErr) {
+                        console.warn('[POS] decrement_stock_atomic failed, falling back:', rpcErr.message);
+                        const newStock = Math.max(0, (variant.stock || 0) - item.quantity);
+                        await supabase
+                            .from("product_variants")
+                            .update({ stock: newStock })
+                            .eq("id", variant.id);
+                    }
                 }
             }
 

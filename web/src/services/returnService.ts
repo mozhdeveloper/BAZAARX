@@ -450,7 +450,17 @@ class ReturnService {
         .select()
         .single();
 
-      if (returnError) throw returnError;
+      if (returnError) {
+        // Migration 043a added UNIQUE(order_id) on refund_return_periods.
+        // Translate the 23505 unique_violation to the same friendly error the
+        // app-side pre-check raises, so a race condition (concurrent submissions
+        // or a network retry that already succeeded server-side) returns a
+        // user-friendly message instead of a raw 500.
+        if ((returnError as any)?.code === "23505") {
+          throw new Error("A return request already exists for this order");
+        }
+        throw returnError;
+      }
 
       // Update order
       const orderUpdate: Record<string, any> = {
