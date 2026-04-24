@@ -192,12 +192,12 @@ const AdminPayouts: React.FC = () => {
                   <tr>
                     <th className="px-6 py-3 w-10">
                     </th>
-                    <th className="px-6 py-3 text-sm font-medium text-[var-(--text-secondary)]">Reference / Date</th>
-                    <th className="px-6 py-3 text-sm font-medium text-[var-(--text-secondary)]">Seller</th>
-                    <th className="px-6 py-3 text-sm font-medium text-[var-(--text-secondary)]">Amount</th>
-                    <th className="px-6 py-3 text-sm font-medium text-[var-(--text-secondary)]">Bank Details</th>
-                    <th className="px-6 py-3 text-sm font-medium text-[var-(--text-secondary)]">Status</th>
-                    <th className="px-6 py-3 text-sm font-medium text-[var-(--text-secondary)] text-right">Actions</th>
+                    <th className="px-6 py-3 text-sm font-medium text-[var(--text-secondary)]">Reference / Date</th>
+                    <th className="px-6 py-3 text-sm font-medium text-[var(--text-secondary)]">Seller</th>
+                    <th className="px-6 py-3 text-sm font-medium text-[var(--text-secondary)]">Amount</th>
+                    <th className="px-6 py-3 text-sm font-medium text-[var(--text-secondary)]">Bank Details</th>
+                    <th className="px-6 py-3 text-sm font-medium text-[var(--text-secondary)]">Status</th>
+                    <th className="px-6 py-3 text-sm font-medium text-[var(--text-secondary)] text-right">Actions</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-200">

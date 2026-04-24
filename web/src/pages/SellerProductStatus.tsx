@@ -248,7 +248,7 @@ const SellerProductStatus = () => {
       .slice(0, 24);
 
     const base = safeName || 'BATCH';
-    const stamp = new Date().toISOString().replace(/[-:T.Z]/g, '').slice(0, 14);
+    const stamp = new Date().toISOString().replace(/:|-|T|\.|Z/g, '').slice(0, 14);
     return `BATCH-${base}-${stamp}`;
   };
 
@@ -706,7 +706,7 @@ const SellerProductStatus = () => {
 
     const productIds = selectedProduct.split(',');
     try {
-      const batchId = productIds.length > 1 ? `BATCH-${new Date().toISOString().replace(/[-:T.Z]/g, '').slice(0, 14)}-${Math.random().toString(36).substring(2, 6).toUpperCase()}` : undefined;
+      const batchId = productIds.length > 1 ? `BATCH-${new Date().toISOString().replace(/:|-|T|\.|Z/g, '').slice(0, 14)}-${Math.random().toString(36).substring(2, 6).toUpperCase()}` : undefined;
 
       // 1. Move to WAITING_FOR_SAMPLE state if not already there
       if (selectedProductStatus === 'PENDING_DIGITAL_REVIEW' || selectedProductStatus === 'accepted' || selectedProductStatus === 'ACCEPTED' || !selectedProductStatus) {
