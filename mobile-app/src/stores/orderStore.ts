@@ -40,6 +40,7 @@ interface OrderStore {
   ) => Promise<POSOrderCreateResult>;
   markOrderAsShipped: (orderId: string, trackingNumber: string) => Promise<void>;
   markOrderAsDelivered: (orderId: string) => Promise<void>;
+  editPendingOrder: (orderId: string, updates: { shippingAddress?: ShippingAddress; paymentMethod?: string; updatedVariant?: any }) => Promise<void>;
 
   // Checkout Context — prefetched seller metadata from Edge Function
   checkoutSellerMetadata: Record<string, any>;
@@ -414,7 +415,9 @@ export const useOrderStore = create<OrderStore>()(
           items: validatedItems,
           total: total + shippingFee,
           shippingFee,
-          status: isPaidOrder ? 'processing' : 'pending', // Paid orders start as 'processing', COD as 'pending'
+          // New checkout lifecycle always starts in pending until seller confirmation.
+          status: 'pending',
+          buyerUiStatus: 'pending',
           isPaid: isPaidOrder,
           scheduledDate,
           shippingAddress,
@@ -466,7 +469,7 @@ export const useOrderStore = create<OrderStore>()(
             price: item.price ?? 0,
           })),
           total: newOrder.total,
-          status: isPaidOrder ? 'confirmed' : 'pending',
+          status: 'pending',
           paymentStatus: isPaidOrder ? 'paid' : 'pending',
           orderDate: newOrder.createdAt,
           type: 'ONLINE',
@@ -578,14 +581,7 @@ export const useOrderStore = create<OrderStore>()(
           throw new Error('Order not found');
         }
 
-        const previous = { ...target };
         const actualOrderId = target.id;
-
-        set((state) => ({
-          sellerOrders: state.sellerOrders.map((order) =>
-            order.id === actualOrderId ? { ...order, status } : order,
-          ),
-        }));
 
         try {
           const session = await authService.getSession();
@@ -639,11 +635,34 @@ export const useOrderStore = create<OrderStore>()(
                     : 'cancelled';
 
           set((state) => ({
+            sellerOrders: state.sellerOrders.map((order) =>
+              order.id === actualOrderId
+                ? {
+                  ...order,
+                  status,
+                  ...(status === 'shipped' ? { shipmentStatusRaw: 'shipped', shippedAt: new Date().toISOString() } : {}),
+                  ...(status === 'delivered' ? { shipmentStatusRaw: 'delivered', deliveredAt: new Date().toISOString() } : {}),
+                }
+                : order,
+            ),
+          }));
+
+          set((state) => ({
             orders: state.orders.map((order) =>
               order.transactionId === target.orderNumber || order.orderId === actualOrderId
                 ? {
                   ...order,
                   status: buyerStatus as Order['status'],
+                  buyerUiStatus:
+                    buyerStatus === 'pending'
+                      ? 'pending'
+                      : buyerStatus === 'processing'
+                        ? 'processing'
+                        : buyerStatus === 'shipped'
+                          ? 'shipped'
+                          : buyerStatus === 'delivered'
+                            ? 'delivered'
+                            : 'cancelled',
                   deliveryDate:
                     buyerStatus === 'delivered'
                       ? new Date().toLocaleDateString('en-US', {
@@ -658,11 +677,6 @@ export const useOrderStore = create<OrderStore>()(
           }));
         } catch (error) {
           console.error('[OrderStore] Failed to update order status:', error);
-          set((state) => ({
-            sellerOrders: state.sellerOrders.map((order) =>
-              order.id === actualOrderId ? previous : order,
-            ),
-          }));
           throw error;
         }
       },
@@ -715,27 +729,12 @@ export const useOrderStore = create<OrderStore>()(
           throw new Error('Order not found');
         }
 
-        const previous = { ...target };
         const actualOrderId = target.id;
         const nextTracking = trackingNumber.trim().toUpperCase();
 
         if (!nextTracking) {
           throw new Error('Tracking number is required');
         }
-
-        set((state) => ({
-          sellerOrders: state.sellerOrders.map((order) =>
-            order.id === actualOrderId
-              ? {
-                ...order,
-                status: 'shipped',
-                trackingNumber: nextTracking,
-                shipmentStatusRaw: 'shipped',
-                shippedAt: new Date().toISOString(),
-              }
-              : order,
-          ),
-        }));
 
         // Get seller ID from the seller profile store (sellers table ID)
         // Lazy require breaks the sellerStore <-> orderStore require cycle.
@@ -772,23 +771,33 @@ export const useOrderStore = create<OrderStore>()(
               });
             }).catch(() => {});
           }
-        } catch (error) {
-          console.error('[OrderStore] Failed to mark as shipped:', error);
+
+          const shippedAt = new Date().toISOString();
           set((state) => ({
             sellerOrders: state.sellerOrders.map((order) =>
-              order.id === actualOrderId ? previous : order,
+              order.id === actualOrderId
+                ? {
+                  ...order,
+                  status: 'shipped',
+                  trackingNumber: nextTracking,
+                  shipmentStatusRaw: 'shipped',
+                  shippedAt,
+                }
+                : order,
             ),
           }));
+
+          set((state) => ({
+            orders: state.orders.map((order) =>
+              order.transactionId === target.orderNumber || order.orderId === actualOrderId
+                ? { ...order, status: 'shipped', buyerUiStatus: 'shipped', trackingNumber: nextTracking, shippedAt }
+                : order,
+            ),
+          }));
+        } catch (error) {
+          console.error('[OrderStore] Failed to mark as shipped:', error);
           throw error;
         }
-
-        set((state) => ({
-          orders: state.orders.map((order) =>
-            order.transactionId === target.orderNumber || order.orderId === actualOrderId
-              ? { ...order, status: 'shipped', trackingNumber: nextTracking }
-              : order,
-          ),
-        }));
       },
 
       // ============================================
@@ -833,21 +842,7 @@ export const useOrderStore = create<OrderStore>()(
           throw new Error('Order not found');
         }
 
-        const previous = { ...target };
         const actualOrderId = target.id;
-
-        set((state) => ({
-          sellerOrders: state.sellerOrders.map((order) =>
-            order.id === actualOrderId
-              ? {
-                ...order,
-                status: 'delivered',
-                shipmentStatusRaw: 'delivered',
-                deliveredAt: new Date().toISOString(),
-              }
-              : order,
-          ),
-        }));
 
         // Get seller ID from the seller profile store (sellers table ID)
         // Lazy require breaks the sellerStore <-> orderStore require cycle.
@@ -878,32 +873,117 @@ export const useOrderStore = create<OrderStore>()(
               });
             }).catch(() => {});
           }
-        } catch (error) {
-          console.error('[OrderStore] Failed to mark as delivered:', error);
+
+          const deliveredAtIso = new Date().toISOString();
           set((state) => ({
             sellerOrders: state.sellerOrders.map((order) =>
-              order.id === actualOrderId ? previous : order,
+              order.id === actualOrderId
+                ? {
+                  ...order,
+                  status: 'delivered',
+                  shipmentStatusRaw: 'delivered',
+                  deliveredAt: deliveredAtIso,
+                }
+                : order,
             ),
           }));
+
+          set((state) => ({
+            orders: state.orders.map((order) =>
+              order.transactionId === target.orderNumber || order.orderId === actualOrderId
+                ? {
+                  ...order,
+                  status: 'delivered',
+                  buyerUiStatus: 'delivered',
+                  deliveredAt: deliveredAtIso,
+                  deliveryDate: new Date().toLocaleDateString('en-US', {
+                    month: '2-digit',
+                    day: '2-digit',
+                    year: 'numeric',
+                  }),
+                }
+                : order,
+            ),
+          }));
+        } catch (error) {
+          console.error('[OrderStore] Failed to mark as delivered:', error);
           throw error;
         }
-
-        set((state) => ({
-          orders: state.orders.map((order) =>
-            order.transactionId === target.orderNumber || order.orderId === actualOrderId
-              ? {
-                ...order,
-                status: 'delivered',
-                deliveryDate: new Date().toLocaleDateString('en-US', {
-                  month: '2-digit',
-                  day: '2-digit',
-                  year: 'numeric',
-                }),
-              }
-              : order,
-          ),
-        }));
       },
+
+      editPendingOrder: async (orderId, updates) => {
+        try {
+          // Call the mutation service to update in the database
+          await orderMutationService.updatePendingOrderDetails({
+            orderId,
+            updates: {
+              shippingAddress: updates.shippingAddress
+                ? {
+                    fullName: updates.shippingAddress.name,
+                    street: updates.shippingAddress.address,
+                    city: updates.shippingAddress.city,
+                    province: updates.shippingAddress.region,
+                    region: updates.shippingAddress.region,
+                    postalCode: updates.shippingAddress.postalCode,
+                    phone: updates.shippingAddress.phone,
+                  }
+                : undefined,
+              paymentMethod: updates.paymentMethod,
+              updatedVariant: updates.updatedVariant,
+            },
+          });
+
+          // Update buyer orders and seller orders in real-time
+          set((state) => ({
+            orders: state.orders.map((order) =>
+              order.id === orderId || order.orderId === orderId
+                ? {
+                    ...order,
+                    ...(updates.shippingAddress && { shippingAddress: updates.shippingAddress }),
+                    ...(updates.paymentMethod && { paymentMethod: updates.paymentMethod }),
+                    ...(updates.updatedVariant && {
+                      items: order.items.map((item) => {
+                        const variantUpdate = updates.updatedVariant?.find(
+                          (v: any) => v.itemId === item.id
+                        );
+                        if (variantUpdate) {
+                          return {
+                            ...item,
+                            ...(variantUpdate.variantId !== undefined && { variantId: variantUpdate.variantId }),
+                          };
+                        }
+                        return item;
+                      }),
+                    }),
+                  }
+                : order
+            ),
+            sellerOrders: state.sellerOrders.map((order) =>
+              order.id === orderId || order.orderId === orderId
+                ? {
+                    ...order,
+                    ...(updates.shippingAddress && {
+                      shippingAddress: {
+                        fullName: updates.shippingAddress.name,
+                        street: updates.shippingAddress.address,
+                        barangay: (updates.shippingAddress as any).barangay,
+                        city: updates.shippingAddress.city,
+                        province: updates.shippingAddress.region,
+                        region: updates.shippingAddress.region,
+                        postalCode: updates.shippingAddress.postalCode,
+                        phone: updates.shippingAddress.phone,
+                      } as any,
+                    }),
+                  }
+                : order
+            ),
+          }));
+        } catch (error) {
+          console.error('[OrderStore] Failed to edit pending order:', error);
+          throw error;
+        }
+      },
+
       reset: () => {
         set({
           orders: [],

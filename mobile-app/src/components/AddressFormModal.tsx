@@ -15,65 +15,22 @@
  *  context         — 'buyer' | 'seller'; buyer hides isPickup/isReturn toggles
  */
 
-import React, { useState, useRef, useEffect, useCallback, useMemo } from 'react';
+import React, { useState, useRef, useEffect, useCallback } from 'react';
 import {
-    View, Text, Modal, ScrollView, TextInput, Pressable, Animated, Easing,
+    View, Text, Modal, ScrollView, TextInput, Pressable,
     ActivityIndicator, KeyboardAvoidingView, Platform, StyleSheet, Alert, Keyboard,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import MapView, { Marker, Region, PROVIDER_GOOGLE, PROVIDER_DEFAULT } from 'react-native-maps';
 import {
-    X, ChevronLeft, Search,
+    X, ChevronLeft, ChevronDown, ChevronUp,
     Home, Building2, Move, MapPin, Navigation,
 } from 'lucide-react-native';
 import * as Location from 'expo-location';
 import { regions, provinces, cities, barangays } from 'select-philippines-address';
 import { COLORS } from '@/constants/theme';
 import { addressService, type Address } from '@/services/addressService';
-
-// ---------------------------------------------------------------------------
-// Module-level cache — parsed once, reused for the app session
-// ---------------------------------------------------------------------------
-
-const _provinceCache = new Map<string, any[]>();
-const _cityCache     = new Map<string, any[]>();
-const _barangayCache = new Map<string, any[]>();
-
-const getCachedProvinces = async (regionCode: string): Promise<any[]> => {
-    if (_provinceCache.has(regionCode)) return _provinceCache.get(regionCode)!;
-    const data = await provinces(regionCode);
-    _provinceCache.set(regionCode, data);
-    return data;
-};
-
-const getCachedCities = async (provinceCode: string): Promise<any[]> => {
-    if (_cityCache.has(provinceCode)) return _cityCache.get(provinceCode)!;
-    const data = await cities(provinceCode);
-    _cityCache.set(provinceCode, data);
-    return data;
-};
-
-const getCachedBarangays = async (cityCode: string): Promise<any[]> => {
-    if (_barangayCache.has(cityCode)) return _barangayCache.get(cityCode)!;
-    const data = await barangays(cityCode);
-    _barangayCache.set(cityCode, data);
-    return data;
-};
-
-// Island group lookup — module-level so Sets are never re-created
-const LUZON_CODES   = new Set(['01', '02', '03', '04', '05', '13', '14', '17']);
-const VISAYAS_CODES = new Set(['06', '07', '08']);
-const getIslandGroup = (code: string): string => {
-    if (LUZON_CODES.has(code))   return 'Luzon';
-    if (VISAYAS_CODES.has(code)) return 'Visayas';
-    return 'Mindanao';
-};
-
-
-// NCR is province-less in PSGC — we treat "Metro Manila" as a synthetic province
-const NCR_REGION_CODE    = '13';
-const METRO_MANILA_LABEL = 'Metro Manila';
-const isNCR = (code: string) => code === NCR_REGION_CODE;
+import { useAuthStore } from '@/stores/authStore';
 
 // ---------------------------------------------------------------------------
 // Types
@@ -83,11 +40,14 @@ export interface AddressFormModalProps {
     visible: boolean;
     onClose: () => void;
     onSaved: (address: Address) => void;
-    initialData?: Address | null;
+    initialData?: Partial<Address> | Record<string, any> | null;
     userId: string;
     existingCount?: number;
     /** 'buyer' hides isPickup / isReturn toggles. Default: 'buyer' */
     context?: 'buyer' | 'seller';
+    readOnly?: boolean;
+    lockName?: boolean; // NEW: Locks only the name fields post-checkout
+    isOrderEdit?: boolean; // NEW: Bypasses DB save and duplicate checks
 }
 
 const DEFAULT_REGION: Region = {
@@ -134,6 +94,9 @@ export default function AddressFormModal({
     userId,
     existingCount = 0,
     context = 'buyer',
+    readOnly = false,
+    lockName = false,
+    isOrderEdit = false, // ADD THIS
 }: AddressFormModalProps) {
     const insets = useSafeAreaInsets();
     const isMounted = useRef(true);
@@ -149,6 +112,9 @@ export default function AddressFormModal({
         barangayCode?: string;
     }>({});
     const [isSaving, setIsSaving] = useState(false);
+    const [savedAddresses, setSavedAddresses] = useState<Address[]>([]);
+    const [selectedSavedAddressId, setSelectedSavedAddressId] = useState<string | null>(null);
+    const [isLoadingSavedData, setIsLoadingSavedData] = useState(false);
 
     // Dropdown state
     const [regionList, setRegionList] = useState<any[]>([]);
@@ -165,51 +131,27 @@ export default function AddressFormModal({
     const [isReverseGeocoding, setIsReverseGeocoding] = useState(false);
     const [isGettingLocation, setIsGettingLocation] = useState(false);
 
-    // Dropdown search + debounce state
-    const [dropdownSearch, setDropdownSearch] = useState('');
-    const [debouncedSearch, setDebouncedSearch] = useState('');
-    const searchTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-    const geocodeTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-    const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
-
-    // Dropdown animation
-    const dropdownOpacity = useRef(new Animated.Value(0)).current;
-    const dropdownSlide = useRef(new Animated.Value(-8)).current;
-
-    useEffect(() => {
-        if (openDropdown) {
-            dropdownOpacity.setValue(0);
-            dropdownSlide.setValue(-8);
-            Animated.parallel([
-                Animated.timing(dropdownOpacity, { toValue: 1, duration: 250, easing: Easing.bezier(0.4, 0, 0.2, 1), useNativeDriver: true }),
-                Animated.timing(dropdownSlide, { toValue: 0, duration: 250, easing: Easing.bezier(0.4, 0, 0.2, 1), useNativeDriver: true }),
-            ]).start();
-        }
-    }, [openDropdown]);
-
-    // Island group mapping for region categorization — use module-level constants
     // Phone validation helper
     const PH_PHONE_RE = /^(09|\+639)\d{9}$/;
     const phoneError = form.phone.length > 0 && !PH_PHONE_RE.test(form.phone.trim());
 
     const handlePhoneChange = useCallback((text: string) => {
+        // Allow + only at the start, then digits only
         let cleaned = text.replace(/[^\d+]/g, '');
+        // Ensure + only appears at position 0
         if (cleaned.indexOf('+') > 0) {
             cleaned = cleaned.replace(/\+/g, '');
         }
+        // Max length: +639XXXXXXXXX = 13 chars, 09XXXXXXXXX = 11 chars
         const maxLen = cleaned.startsWith('+') ? 13 : 11;
         cleaned = cleaned.slice(0, maxLen);
         setForm(prev => ({ ...prev, phone: cleaned }));
     }, []);
 
-    // Mount guard + timer cleanup
+    // Mount guard
     useEffect(() => {
         isMounted.current = true;
-        return () => {
-            isMounted.current = false;
-            if (searchTimerRef.current) clearTimeout(searchTimerRef.current);
-            if (geocodeTimerRef.current) clearTimeout(geocodeTimerRef.current);
-        };
+        return () => { isMounted.current = false; };
     }, []);
 
     // Load regions once
@@ -219,59 +161,31 @@ export default function AddressFormModal({
         }
     }, []);
 
-    // Debounce search input for dropdown filtering (300ms)
-    useEffect(() => {
-        if (searchTimerRef.current) clearTimeout(searchTimerRef.current);
-        searchTimerRef.current = setTimeout(() => {
-            setDebouncedSearch(dropdownSearch);
-        }, 300);
-        return () => { if (searchTimerRef.current) clearTimeout(searchTimerRef.current); };
-    }, [dropdownSearch]);
-
-    // Reset search when dropdown type changes
-    useEffect(() => {
-        setDropdownSearch('');
-        setDebouncedSearch('');
-    }, [openDropdown]);
-
-    // Validate — show error when no matches found after debounce
-    useEffect(() => {
-        if (!openDropdown || debouncedSearch.length === 0) {
-            if (openDropdown) {
-                setFieldErrors(prev => { const n = { ...prev }; delete n[openDropdown]; return n; });
-            }
-            return;
-        }
-        const currentList = openDropdown === 'region' ? regionList
-            : openDropdown === 'province' ? provinceList
-                : openDropdown === 'city' ? cityList : barangayList;
-        const hasMatch = currentList.some((item: any) => {
-            const name = item.region_name || item.province_name || item.city_name || item.brgy_name || '';
-            return name.toLowerCase().includes(debouncedSearch.toLowerCase());
-        });
-        setFieldErrors(prev => {
-            const n = { ...prev };
-            if (!hasMatch) n[openDropdown] = 'Location not found';
-            else delete n[openDropdown];
-            return n;
-        });
-    }, [debouncedSearch, openDropdown, regionList, provinceList, cityList, barangayList]);
-
     // Populate form when modal opens
     useEffect(() => {
         if (!visible) return;
         if (initialData) {
-            setForm({ ...initialData });
-            setGeoCodes({
-                regionCode: initialData.regionCode,
-                provinceCode: initialData.provinceCode,
-                cityCode: initialData.cityCode,
-                barangayCode: initialData.barangayCode,
+            // Editing mode — pre-fill with existing address
+            const initialRecord = initialData as Record<string, any>;
+            const { id: _ignoredId, ...initialWithoutId } = initialRecord;
+
+            setForm({
+                ...makeBlank('', '', '', existingCount === 0),
+                ...initialWithoutId,
+                coordinates: initialWithoutId.coordinates ?? null,
             });
-            if (initialData.coordinates) {
+
+            setSelectedSavedAddressId(typeof initialRecord.id === 'string' ? initialRecord.id : null);
+            setGeoCodes({
+                regionCode: initialRecord.regionCode,
+                provinceCode: initialRecord.provinceCode,
+                cityCode: initialRecord.cityCode,
+                barangayCode: initialRecord.barangayCode,
+            });
+            if (initialRecord.coordinates) {
                 setMapRegion({
-                    latitude: initialData.coordinates.latitude,
-                    longitude: initialData.coordinates.longitude,
+                    latitude: initialRecord.coordinates.latitude,
+                    longitude: initialRecord.coordinates.longitude,
                     latitudeDelta: 0.005,
                     longitudeDelta: 0.005,
                 });
@@ -279,7 +193,14 @@ export default function AddressFormModal({
                 setMapRegion(DEFAULT_REGION);
             }
         } else {
-            setForm(makeBlank('', '', '', existingCount === 0));
+            // Add mode — blank form
+            const authUser = useAuthStore.getState().user;
+            const fullName = (authUser?.name || '').trim();
+            const nameParts = fullName.length > 0 ? fullName.split(/\s+/) : [];
+            const firstName = nameParts[0] || '';
+            const lastName = nameParts.slice(1).join(' ');
+            setForm(makeBlank(firstName, lastName, authUser?.phone || '', existingCount === 0));
+            setSelectedSavedAddressId(null);
             setGeoCodes({});
             setProvinceList([]);
             setCityList([]);
@@ -288,6 +209,85 @@ export default function AddressFormModal({
         }
         setOpenDropdown(null);
     }, [visible, initialData]);
+
+    const applySavedAddress = useCallback((address: Address) => {
+        setForm(prev => ({
+            ...prev,
+            label: address.label || prev.label,
+            firstName: address.firstName || prev.firstName,
+            lastName: address.lastName || prev.lastName,
+            phone: address.phone || prev.phone,
+            street: address.street || prev.street,
+            barangay: address.barangay || prev.barangay,
+            city: address.city || prev.city,
+            province: address.province || prev.province,
+            region: address.region || prev.region,
+            zipCode: address.zipCode || prev.zipCode,
+            landmark: address.landmark || prev.landmark,
+            deliveryInstructions: address.deliveryInstructions || prev.deliveryInstructions,
+            addressType: address.addressType || prev.addressType,
+            coordinates: address.coordinates || prev.coordinates,
+        }));
+
+        setGeoCodes({
+            regionCode: address.regionCode,
+            provinceCode: address.provinceCode,
+            cityCode: address.cityCode,
+            barangayCode: address.barangayCode,
+        });
+
+        if (address.coordinates?.latitude != null && address.coordinates?.longitude != null) {
+            setMapRegion({
+                latitude: address.coordinates.latitude,
+                longitude: address.coordinates.longitude,
+                latitudeDelta: 0.005,
+                longitudeDelta: 0.005,
+            });
+        }
+    }, []);
+
+    useEffect(() => {
+        if (!visible || !userId) return;
+
+        const loadSavedData = async () => {
+            setIsLoadingSavedData(true);
+            try {
+                const authUser = useAuthStore.getState().user;
+                const addresses = await addressService.getAddresses(userId);
+                if (!isMounted.current) return;
+
+                setSavedAddresses(addresses || []);
+
+                // Prefill only for add mode; edit mode should keep initialData intact.
+                if (!initialData) {
+                    const defaultAddress = (addresses || []).find(a => a.isDefault) || (addresses || [])[0];
+
+                    if (defaultAddress) {
+                        setSelectedSavedAddressId(defaultAddress.id);
+                        applySavedAddress(defaultAddress);
+                    } else if (authUser) {
+                        const fullName = (authUser.name || '').trim();
+                        const nameParts = fullName.length > 0 ? fullName.split(/\s+/) : [];
+                        const firstName = nameParts[0] || '';
+                        const lastName = nameParts.slice(1).join(' ');
+
+                        setForm(prev => ({
+                            ...prev,
+                            firstName: prev.firstName || firstName,
+                            lastName: prev.lastName || lastName,
+                            phone: prev.phone || authUser.phone || '',
+                        }));
+                    }
+                }
+            } catch (error) {
+                console.error('[AddressFormModal] Failed to load saved profile/address data:', error);
+            } finally {
+                if (isMounted.current) setIsLoadingSavedData(false);
+            }
+        };
+
+        loadSavedData();
+    }, [visible, userId, initialData, applySavedAddress]);
 
     // ---------------------------------------------------------------------------
     // Geocoding helpers
@@ -314,13 +314,6 @@ export default function AddressFormModal({
         } catch { /* silent */ } finally {
             if (isMounted.current) setIsGeocoding(false);
         }
-    };
-
-    const debouncedGeocode = (override?: Partial<Omit<Address, 'id'>>) => {
-        if (geocodeTimerRef.current) clearTimeout(geocodeTimerRef.current);
-        geocodeTimerRef.current = setTimeout(() => {
-            attemptForwardGeocode(override);
-        }, 1000);
     };
 
     const reverseGeocodeAndFill = async (lat: number, lng: number) => {
@@ -353,6 +346,7 @@ export default function AddressFormModal({
                 coordinates: { latitude: lat, longitude: lng },
             }));
 
+            // Match to PH address API and cascade dropdowns
             let regList = regionList;
             if (regList.length === 0) {
                 regList = await regions();
@@ -388,12 +382,9 @@ export default function AddressFormModal({
                 matchedRegion.region_code === '13';
 
             if (isMetroManila) {
-                // Auto-fill "Metro Manila" as province for NCR
-                setForm(prev => ({ ...prev, province: METRO_MANILA_LABEL }));
-
                 let allCities: any[] = [];
                 for (const prov of provList) {
-                    const pc = await getCachedCities(prov.province_code);
+                    const pc = await cities(prov.province_code);
                     allCities = [...allCities, ...pc];
                 }
                 if (!isMounted.current) return;
@@ -406,7 +397,7 @@ export default function AddressFormModal({
                 if (matchedCity) {
                     newCodes.cityCode = matchedCity.city_code;
                     setForm(prev => ({ ...prev, city: matchedCity.city_name }));
-                    const bList = await getCachedBarangays(matchedCity.city_code);
+                    const bList = await barangays(matchedCity.city_code);
                     if (!isMounted.current) return;
                     setBarangayList(bList);
                     const matchedBrgy = bList.find((b: any) => {
@@ -474,49 +465,35 @@ export default function AddressFormModal({
             setBarangayList([]);
             return;
         }
+
         if (type === 'province') {
             setForm(prev => ({ ...prev, province: text, city: '', barangay: '', coordinates: null }));
             setGeoCodes(prev => ({ ...prev, provinceCode: undefined, cityCode: undefined, barangayCode: undefined }));
             setBarangayList([]);
             return;
         }
+
         if (type === 'city') {
             setForm(prev => ({ ...prev, city: text, barangay: '', coordinates: null }));
             setGeoCodes(prev => ({ ...prev, cityCode: undefined, barangayCode: undefined }));
             return;
         }
+
         setForm(prev => ({ ...prev, barangay: text }));
         setGeoCodes(prev => ({ ...prev, barangayCode: undefined }));
     }, []);
 
     const onRegionChange = async (code: string) => {
         const name = regionList.find((r: any) => r.region_code === code)?.region_name || '';
+        setForm(prev => ({ ...prev, region: name, province: '', city: '', barangay: '', coordinates: null }));
+        setGeoCodes({ regionCode: code });
         setOpenDropdown(null);
         setIsLoadingLocation(true);
-
-        if (isNCR(code)) {
-            // For NCR, skip province entirely — auto-set "Metro Manila" and load all cities
-            const provs = await getCachedProvinces(code);
-            const allCities: any[] = [];
-            for (const prov of provs) {
-                const pc = await getCachedCities(prov.province_code);
-                allCities.push(...pc);
-            }
-            if (!isMounted.current) return;
-            setForm(prev => ({ ...prev, region: name, province: METRO_MANILA_LABEL, city: '', barangay: '', coordinates: null }));
-            setGeoCodes({ regionCode: code });
-            setProvinceList(provs);
-            setCityList(allCities);
-            setBarangayList([]);
-        } else {
-            const provs = await getCachedProvinces(code);
-            if (!isMounted.current) return;
-            setForm(prev => ({ ...prev, region: name, province: '', city: '', barangay: '', coordinates: null }));
-            setGeoCodes({ regionCode: code });
-            setProvinceList(provs);
-            setCityList([]);
-            setBarangayList([]);
-        }
+        const provs = await provinces(code);
+        if (!isMounted.current) return;
+        setProvinceList(provs);
+        setCityList([]);
+        setBarangayList([]);
         setIsLoadingLocation(false);
     };
 
@@ -526,7 +503,7 @@ export default function AddressFormModal({
         setGeoCodes(prev => ({ ...prev, provinceCode: code, cityCode: undefined, barangayCode: undefined }));
         setOpenDropdown(null);
         setIsLoadingLocation(true);
-        const cts = await getCachedCities(code);
+        const cts = await cities(code);
         if (!isMounted.current) return;
         setCityList(cts);
         setBarangayList([]);
@@ -539,26 +516,26 @@ export default function AddressFormModal({
         setGeoCodes(prev => ({ ...prev, cityCode: code, barangayCode: undefined }));
         setOpenDropdown(null);
         setIsLoadingLocation(true);
-        const bList = await getCachedBarangays(code);
+        const bList = await barangays(code);
         if (!isMounted.current) return;
         setBarangayList(bList);
         setIsLoadingLocation(false);
-        debouncedGeocode({ city: name, barangay: '' });
+        attemptForwardGeocode({ city: name, barangay: '' });
     };
 
     const onBarangayChange = (name: string, brgyCode?: string) => {
         setForm(prev => ({ ...prev, barangay: name }));
         if (brgyCode) setGeoCodes(prev => ({ ...prev, barangayCode: brgyCode }));
         setOpenDropdown(null);
-        debouncedGeocode({ barangay: name });
+        attemptForwardGeocode({ barangay: name });
     };
 
     const onStreetBlur = () => {
-        if (form.street.length > 3) debouncedGeocode();
+        if (form.street.length > 3) attemptForwardGeocode();
     };
 
     // ---------------------------------------------------------------------------
-    // Map confirm
+    // Map confirm — pin → reverse geocode → fill fields
     // ---------------------------------------------------------------------------
 
     const handleConfirmPin = () => {
@@ -570,7 +547,7 @@ export default function AddressFormModal({
     };
 
     // ---------------------------------------------------------------------------
-    // GPS — "Use My Location"
+    // GPS — "Use My Location" with permission prompt
     // ---------------------------------------------------------------------------
 
     const handleUseMyLocation = useCallback(async () => {
@@ -586,12 +563,21 @@ export default function AddressFormModal({
                 );
                 return;
             }
+
             const position = await Location.getCurrentPositionAsync({
-                accuracy: 3 as any,
+                accuracy: 3 as any, // LocationAccuracy.High = 3; named export missing from installed type defs
             });
             const { latitude, longitude } = position.coords;
+
             setForm(prev => ({ ...prev, coordinates: { latitude, longitude } }));
-            setMapRegion({ latitude, longitude, latitudeDelta: 0.005, longitudeDelta: 0.005 });
+            setMapRegion({
+                latitude,
+                longitude,
+                latitudeDelta: 0.005,
+                longitudeDelta: 0.005,
+            });
+
+            // Reverse geocode to auto-fill all fields
             reverseGeocodeAndFill(latitude, longitude);
         } catch (error) {
             console.error('[AddressFormModal] Location error:', error);
@@ -612,26 +598,54 @@ export default function AddressFormModal({
     const handleSave = async () => {
         if (!userId) return;
 
-        const errors: Record<string, string> = {};
-        if (!form.firstName?.trim()) errors.firstName = 'First name is required';
-        if (!form.lastName?.trim()) errors.lastName = 'Last name is required';
-        if (!form.phone?.trim()) errors.phone = 'Phone number is required';
-        if (!form.region?.trim()) errors.region = 'Region is required';
-        if (!form.city?.trim()) errors.city = 'City / Municipality is required';
-        if (!form.street?.trim()) errors.street = 'Street / House No. is required';
-        const isNCR = form.region?.toLowerCase().includes('ncr') ||
-            form.region?.toLowerCase().includes('metro manila') ||
-            form.region?.toLowerCase().includes('national capital');
-        if (!isNCR && !form.province?.trim()) errors.province = 'Province is required';
-
-        if (Object.keys(errors).length > 0) {
-            setFieldErrors(errors);
-            Alert.alert('Incomplete Address', 'Please fill in all required fields.');
+        // --- QUICK-FILL BYPASS ---
+        // If editing an order, just pass the form data back to the order and close.
+        // Do NOT save it to the global address book to avoid duplicate errors!
+        if (isOrderEdit) {
+            onSaved(form as Address);
+            onClose();
             return;
         }
-        setFieldErrors({});
+
+        // --- UX SECURITY: DUPLICATE CHECKS ---
+        const normalize = (s?: string) => (s || '').trim().toLowerCase().replace(/[^a-z0-9]/g, '');
+        
+        // 1. Duplicate Label Check
+        if (form.label && form.label.trim().length > 0) {
+            const normalizedInputLabel = form.label.trim().toLowerCase();
+            const isDuplicateLabel = savedAddresses.some(addr => {
+                if (initialData?.id && addr.id === initialData.id) return false; // Ignore if editing self
+                if (selectedSavedAddressId && addr.id === selectedSavedAddressId) return false; // Ignore if using this exact saved address
+                return addr.label?.trim().toLowerCase() === normalizedInputLabel;
+            });
+
+            if (isDuplicateLabel) {
+                Alert.alert('Label Already Exists', `You already have a saved address with the label "${form.label.trim()}". Please choose a different name.`);
+                return;
+            }
+        }
+
+        // 2. Duplicate Location Check (Street + Barangay + City)
+        const currentLocStr = normalize(form.street) + normalize(form.barangay) + normalize(form.city);
+        if (currentLocStr.length > 0) {
+            const duplicateLocation = savedAddresses.find(addr => {
+                if (initialData?.id && addr.id === initialData.id) return false; // Ignore if editing self
+                if (selectedSavedAddressId && addr.id === selectedSavedAddressId) return false; // Ignore if using this exact saved address
+                const addrLocStr = normalize(addr.street) + normalize(addr.barangay) + normalize(addr.city);
+                return addrLocStr === currentLocStr;
+            });
+
+            if (duplicateLocation) {
+                Alert.alert(
+                    'Address Already Exists', 
+                    `This exact location is already saved in your profile${duplicateLocation.label ? ` under the label "${duplicateLocation.label}"` : ''}. Please use that saved address instead to avoid duplicates.`
+                );
+                return;
+            }
+        }
 
         setIsSaving(true);
+        // ... rest of the save payload ...
         try {
             const payload = {
                 ...form,
@@ -667,168 +681,69 @@ export default function AddressFormModal({
         label: string; type: NonNullable<typeof openDropdown>; value: string; list: any[]; disabled?: boolean;
     }) => {
         const isOpen = openDropdown === type;
-        const hasError = !!fieldErrors[type];
+        const normalizedQuery = (value || '').trim().toLowerCase();
+        const filtered = list.filter((item: any) => {
+            const name = item.region_name || item.province_name || item.city_name || item.brgy_name || '';
+            return name.toLowerCase().includes(normalizedQuery);
+        });
 
         return (
-            <View style={{ marginBottom: 12 }}>
+            <View style={{ marginBottom: 12, zIndex: isOpen ? 100 : 1 }}>
                 <Text style={s.inputLabel}>{label}</Text>
-                <Pressable
-                    onPress={() => {
-                        if (disabled) return;
-                        if (isOpen) {
-                            setOpenDropdown(null);
-                        } else {
-                            setDropdownSearch('');
-                            setDebouncedSearch('');
-                            setOpenDropdown(type);
-                        }
-                    }}
-                    style={[
-                        s.dropdownTrigger,
-                        disabled && s.dropdownDisabled,
-                        isOpen && s.dropdownTriggerOpen,
-                        hasError && !isOpen && s.dropdownError,
-                    ]}
-                >
-                    <Text
-                        style={[s.dropdownSelectedText, !value && { color: '#9CA3AF' }]}
-                        numberOfLines={1}
+                <View style={[s.dropdownTrigger, disabled && s.dropdownDisabled, isOpen && s.dropdownActive]}>
+                    <TextInput
+                        style={[s.dropdownTextInput, disabled && { color: '#9CA3AF' }]}
+                        placeholder="Select..."
+                        placeholderTextColor="#9CA3AF"
+                        value={value}
+                        editable={!disabled}
+                        onFocus={() => !disabled && setOpenDropdown(type)}
+                        onChangeText={(text) => {
+                            if (!disabled) {
+                                if (openDropdown !== type) setOpenDropdown(type);
+                                handleDropdownFieldChange(type, text);
+                            }
+                        }}
+                    />
+                    <Pressable
+                        onPress={() => !disabled && toggleDropdown(type)}
+                        disabled={disabled}
+                        hitSlop={8}
+                        style={{ paddingVertical: 4, paddingLeft: 8 }}
                     >
-                        {value || 'Select...'}
-                    </Text>
-                    {isLoadingLocation && isOpen
-                        ? <ActivityIndicator size="small" color={COLORS.primary} />
-                        : <Search size={18} color={disabled ? '#9CA3AF' : '#6B7280'} />
-                    }
-                </Pressable>
-                {hasError && !isOpen && (
-                    <Text style={s.fieldErrorText}>{fieldErrors[type]}</Text>
+                        {isLoadingLocation && isOpen
+                            ? <ActivityIndicator size="small" color={COLORS.primary} />
+                            : isOpen
+                                ? <ChevronUp size={20} color={disabled ? '#9CA3AF' : '#4B5563'} />
+                                : <ChevronDown size={20} color={disabled ? '#9CA3AF' : '#4B5563'} />
+                        }
+                    </Pressable>
+                </View>
+                {isOpen && (
+                    <View style={s.dropdownList}>
+                        <ScrollView style={{ maxHeight: 200 }} nestedScrollEnabled keyboardShouldPersistTaps="handled">
+                            {filtered.map((item: any, i: number) => {
+                                const name = item.region_name || item.province_name || item.city_name || item.brgy_name || '';
+                                return (
+                                    <Pressable
+                                        key={`${type}-${i}`}
+                                        style={({ pressed }) => [s.selectItem, pressed && { backgroundColor: '#FFF7ED' }]}
+                                        onPress={() => {
+                                            Keyboard.dismiss();
+                                            if (type === 'region') onRegionChange(item.region_code);
+                                            else if (type === 'province') onProvinceChange(item.province_code);
+                                            else if (type === 'city') onCityChange(item.city_code);
+                                            else onBarangayChange(item.brgy_name, item.brgy_code);
+                                        }}
+                                    >
+                                        <Text style={s.selectItemText}>{name}</Text>
+                                    </Pressable>
+                                );
+                            })}
+                        </ScrollView>
+                    </View>
                 )}
             </View>
-        );
-    };
-
-    // ---------------------------------------------------------------------------
-    // Dropdown overlay — separate Modal so ScrollView is NOT nested
-    // ---------------------------------------------------------------------------
-
-    const renderDropdownOverlay = () => {
-        if (!openDropdown) return null;
-
-        const type = openDropdown;
-        const labelMap: Record<string, string> = { region: 'Region', province: 'Province', city: 'City / Municipality', barangay: 'Barangay' };
-        const list = type === 'region' ? regionList
-            : type === 'province' ? provinceList
-                : type === 'city' ? cityList : barangayList;
-
-        const normalizedQuery = debouncedSearch.trim().toLowerCase();
-        const filtered = normalizedQuery
-            ? list.filter((item: any) => {
-                const name = item.region_name || item.province_name || item.city_name || item.brgy_name || '';
-                return name.toLowerCase().includes(normalizedQuery);
-            })
-            : list;
-        const maxItems = type === 'barangay' ? 200 : filtered.length;
-        const capped = filtered.slice(0, maxItems);
-        const showSearchHint = type === 'barangay' && list.length > 200 && !dropdownSearch;
-
-        // Build flat data with group headers for regions
-        type ListRow = { _type: 'header'; group: string } | { _type: 'item'; item: any; index: number };
-        const flatData: ListRow[] = type === 'region'
-            ? (['Luzon', 'Visayas', 'Mindanao'] as const).flatMap(group => {
-                const groupItems = capped.filter((item: any) => getIslandGroup(item.region_code) === group);
-                if (groupItems.length === 0) return [];
-                return [
-                    { _type: 'header' as const, group },
-                    ...groupItems.map((item: any, index: number) => ({ _type: 'item' as const, item, index })),
-                ];
-            })
-            : capped.map((item: any, index: number) => ({ _type: 'item' as const, item, index }));
-
-        const closeOverlay = () => {
-            setOpenDropdown(null);
-            setDropdownSearch('');
-            setDebouncedSearch('');
-            Keyboard.dismiss();
-        };
-
-        return (
-            <Modal transparent visible animationType="fade" onRequestClose={closeOverlay}>
-                <Pressable style={s.overlayBackdrop} onPress={closeOverlay}>
-                    <Animated.View
-                        style={[
-                            s.overlayPanel,
-                            { opacity: dropdownOpacity, transform: [{ translateY: dropdownSlide }] },
-                        ]}
-                    >
-                        <Pressable onPress={() => { }} /* prevent backdrop dismiss when tapping panel */>
-                            {/* Header */}
-                            <View style={s.overlayHeader}>
-                                <Text style={s.overlayTitle}>Select {labelMap[type]}</Text>
-                                <Pressable onPress={closeOverlay} style={s.overlayCloseBtn}>
-                                    <X size={20} color="#6B7280" />
-                                </Pressable>
-                            </View>
-
-                            {/* Search */}
-                            <View style={s.overlaySearchWrap}>
-                                <TextInput
-                                    style={s.overlaySearchInput}
-                                    placeholder={`Search ${labelMap[type].toLowerCase()}...`}
-                                    placeholderTextColor="#9CA3AF"
-                                    value={dropdownSearch}
-                                    onChangeText={setDropdownSearch}
-
-                                />
-                            </View>
-
-                            {showSearchHint && (
-                                <Text style={s.dropdownHint}>Showing first 200 — type to narrow</Text>
-                            )}
-
-                            {/* Scrollable list */}
-                            <ScrollView
-                                style={{ maxHeight: 400 }}
-                                keyboardShouldPersistTaps="handled"
-                                bounces={false}
-                                showsVerticalScrollIndicator
-                            >
-                                {flatData.length > 0 ? flatData.map((row, i) => {
-                                    if (row._type === 'header') {
-                                        return (
-                                            <View key={`header-${row.group}`} style={s.groupHeader}>
-                                                <Text style={s.groupHeaderText}>{row.group}</Text>
-                                            </View>
-                                        );
-                                    }
-                                    const name = row.item.region_name || row.item.province_name || row.item.city_name || row.item.brgy_name || '';
-                                    return (
-                                        <Pressable
-                                            key={`${type}-item-${i}`}
-                                            style={({ pressed }) => [s.selectItem, pressed && { backgroundColor: '#FFF7ED' }]}
-                                            onPress={() => {
-                                                Keyboard.dismiss();
-                                                setDropdownSearch('');
-                                                setFieldErrors(prev => { const n = { ...prev }; delete n[type]; return n; });
-                                                if (type === 'region') onRegionChange(row.item.region_code);
-                                                else if (type === 'province') onProvinceChange(row.item.province_code);
-                                                else if (type === 'city') onCityChange(row.item.city_code);
-                                                else onBarangayChange(row.item.brgy_name, row.item.brgy_code);
-                                            }}
-                                        >
-                                            <Text style={s.selectItemText}>{name}</Text>
-                                        </Pressable>
-                                    );
-                                }) : dropdownSearch.length > 0 ? (
-                                    <View style={s.dropdownEmpty}>
-                                        <Text style={s.dropdownEmptyText}>Location not found</Text>
-                                    </View>
-                                ) : null}
-                            </ScrollView>
-                        </Pressable>
-                    </Animated.View>
-                </Pressable>
-            </Modal>
         );
     };
 
@@ -872,91 +787,154 @@ export default function AddressFormModal({
                         </Pressable>
                     </View>
 
-                    <ScrollView
-                        contentContainerStyle={{ padding: 20, paddingBottom: 100 }}
-                        keyboardShouldPersistTaps="handled"
-                    >
+                    <ScrollView contentContainerStyle={{ padding: 20, paddingBottom: 100 }} keyboardShouldPersistTaps="handled">
+
+                        {isLoadingSavedData && (
+                            <View style={s.prefillLoadingRow}>
+                                <ActivityIndicator size="small" color={COLORS.primary} />
+                                <Text style={s.prefillLoadingText}>Loading saved profile and addresses...</Text>
+                            </View>
+                        )}
+
                         {/* Address type selector */}
-                        <View style={s.typeRow}>
-                            <Pressable
-                                style={[s.typeOption, form.addressType === 'residential' && s.typeOptionActive]}
-                                onPress={() => setForm(prev => ({ ...prev, addressType: 'residential' }))}
-                            >
-                                <Home size={16} color={form.addressType === 'residential' ? COLORS.primary : '#6B7280'} />
-                                <Text style={[s.typeOptionText, form.addressType === 'residential' && s.typeOptionTextActive]}>Residential</Text>
-                            </Pressable>
-                            <Pressable
-                                style={[s.typeOption, form.addressType === 'commercial' && s.typeOptionActive]}
-                                onPress={() => setForm(prev => ({ ...prev, addressType: 'commercial' }))}
-                            >
-                                <Building2 size={16} color={form.addressType === 'commercial' ? COLORS.primary : '#6B7280'} />
-                                <Text style={[s.typeOptionText, form.addressType === 'commercial' && s.typeOptionTextActive]}>Commercial</Text>
-                            </Pressable>
-                        </View>
+                        {!readOnly ? (
+                            <View style={s.typeRow}>
+                                <Pressable
+                                    style={[s.typeOption, form.addressType === 'residential' && s.typeOptionActive]}
+                                    onPress={() => setForm(prev => ({ ...prev, addressType: 'residential' }))}
+                                >
+                                    <Home size={16} color={form.addressType === 'residential' ? COLORS.primary : '#6B7280'} />
+                                    <Text style={[s.typeOptionText, form.addressType === 'residential' && s.typeOptionTextActive]}>Residential</Text>
+                                </Pressable>
+                                <Pressable
+                                    style={[s.typeOption, form.addressType === 'commercial' && s.typeOptionActive]}
+                                    onPress={() => setForm(prev => ({ ...prev, addressType: 'commercial' }))}
+                                >
+                                    <Building2 size={16} color={form.addressType === 'commercial' ? COLORS.primary : '#6B7280'} />
+                                    <Text style={[s.typeOptionText, form.addressType === 'commercial' && s.typeOptionTextActive]}>Commercial</Text>
+                                </Pressable>
+                            </View>
+                        ) : (
+                           <Text style={[s.inputLabel, { color: COLORS.primary, marginBottom: 16 }]}>
+                               Address Type: {form.addressType === 'residential' ? 'Residential' : 'Commercial'}
+                           </Text>
+                        )}
+
+                        {!readOnly && savedAddresses.length > 0 && (
+                            <View style={{ marginBottom: 14 }}>
+                                <Text style={s.inputLabel}>Saved Addresses</Text>
+                                <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={s.savedAddressRow}>
+                                    {savedAddresses.map((addr) => {
+                                        const isActive = selectedSavedAddressId === addr.id;
+                                        return (
+                                            <Pressable
+                                                key={addr.id}
+                                                style={[s.savedAddressChip, isActive && s.savedAddressChipActive]}
+                                                onPress={() => {
+                                                    if (isActive) {
+                                                        setSelectedSavedAddressId(null);
+                                                        if (initialData) {
+                                                            const initialRecord = initialData as Record<string, any>;
+                                                            const { id: _ignoredId, ...initialWithoutId } = initialRecord;
+                                                            setForm({
+                                                                ...makeBlank('', '', '', existingCount === 0),
+                                                                ...initialWithoutId,
+                                                                coordinates: initialWithoutId.coordinates ?? null,
+                                                            });
+                                                            setGeoCodes({
+                                                                regionCode: initialRecord.regionCode,
+                                                                provinceCode: initialRecord.provinceCode,
+                                                                cityCode: initialRecord.cityCode,
+                                                                barangayCode: initialRecord.barangayCode,
+                                                            });
+                                                        } else {
+                                                            const authUser = useAuthStore.getState().user;
+                                                            const fullName = (authUser?.name || '').trim();
+                                                            const nameParts = fullName.length > 0 ? fullName.split(/\s+/) : [];
+                                                            setForm(makeBlank(nameParts[0] || '', nameParts.slice(1).join(' '), authUser?.phone || '', existingCount === 0));
+                                                            setGeoCodes({});
+                                                        }
+                                                    } else {
+                                                        setSelectedSavedAddressId(addr.id);
+                                                        applySavedAddress(addr);
+                                                    }
+                                                }}
+                                            >
+                                                <Text style={[s.savedAddressChipText, isActive && s.savedAddressChipTextActive]}>
+                                                    {addr.label || 'Saved Address'}
+                                                </Text>
+                                            </Pressable>
+                                        );
+                                    })}
+                                </ScrollView>
+                            </View>
+                        )}
 
                         {/* Contact info */}
                         <Text style={s.sectionHeader}>Contact Information</Text>
                         <View style={{ flexDirection: 'row', gap: 12 }}>
                             <View style={{ flex: 1 }}>
                                 <Text style={s.inputLabel}>First Name</Text>
-                                <TextInput value={form.firstName} onChangeText={t => setForm(prev => ({ ...prev, firstName: t }))} style={s.input} placeholder="John" />
+                                <TextInput editable={!readOnly} value={form.firstName} onChangeText={t => setForm(prev => ({ ...prev, firstName: t }))} style={[s.input, readOnly && { backgroundColor: '#F9FAFB', color: '#6B7280' }]} placeholder="John" />
                             </View>
                             <View style={{ flex: 1 }}>
                                 <Text style={s.inputLabel}>Last Name</Text>
-                                <TextInput value={form.lastName} onChangeText={t => setForm(prev => ({ ...prev, lastName: t }))} style={s.input} placeholder="Doe" />
+                                <TextInput editable={!readOnly} value={form.lastName} onChangeText={t => setForm(prev => ({ ...prev, lastName: t }))} style={[s.input, readOnly && { backgroundColor: '#F9FAFB', color: '#6B7280' }]} placeholder="Doe" />
                             </View>
                         </View>
                         <Text style={s.inputLabel}>Phone Number</Text>
                         <TextInput
+                            editable={!readOnly}
                             value={form.phone}
                             onChangeText={handlePhoneChange}
-                            style={[s.input, phoneError && s.inputError, { marginBottom: phoneError ? 4 : 16 }]}
+                            style={[s.input, phoneError && s.inputError, { marginBottom: phoneError ? 4 : 16 }, readOnly && { backgroundColor: '#F9FAFB', color: '#6B7280' }]}
                             placeholder="09XXXXXXXXX"
                             keyboardType="phone-pad"
                             maxLength={13}
                         />
-                        {phoneError && (
+                        {phoneError && !readOnly && (
                             <Text style={s.fieldError}>Enter a valid PH number (09XXXXXXXXX or +639XXXXXXXXX)</Text>
                         )}
 
                         {/* Location details */}
                         <Text style={[s.sectionHeader, { marginTop: 12 }]}>Location Details</Text>
 
-                        {/* Pin Location */}
-                        <Text style={s.inputLabel}>Pin Location</Text>
-
-                        {/* Use My Location button */}
-                        <Pressable
-                            style={[s.useLocationBtn, isGettingLocation && { opacity: 0.7 }]}
-                            onPress={handleUseMyLocation}
-                            disabled={isGettingLocation}
-                        >
-                            {isGettingLocation ? (
-                                <>
-                                    <ActivityIndicator size="small" color={COLORS.primary} />
-                                    <Text style={s.useLocationText}>Getting your location…</Text>
-                                </>
-                            ) : (
-                                <>
-                                    <Navigation size={16} color={COLORS.primary} />
-                                    <Text style={s.useLocationText}>Use My Current Location</Text>
-                                </>
-                            )}
-                        </Pressable>
+                        {!readOnly && (
+                            <>
+                                <Text style={s.inputLabel}>Pin Location</Text>
+                                <Pressable
+                                    style={[s.useLocationBtn, isGettingLocation && { opacity: 0.7 }]}
+                                    onPress={handleUseMyLocation}
+                                    disabled={isGettingLocation}
+                                >
+                                    {isGettingLocation ? (
+                                        <>
+                                            <ActivityIndicator size="small" color={COLORS.primary} />
+                                            <Text style={s.useLocationText}>Getting your location…</Text>
+                                        </>
+                                    ) : (
+                                        <>
+                                            <Navigation size={16} color={COLORS.primary} />
+                                            <Text style={s.useLocationText}>Use My Current Location</Text>
+                                        </>
+                                    )}
+                                </Pressable>
+                            </>
+                        )}
 
                         <View style={s.mapWrapper}>
                             <MapView
                                 provider={Platform.OS === 'android' ? PROVIDER_GOOGLE : PROVIDER_DEFAULT}
                                 style={s.mapPreview}
                                 region={mapRegion}
-                                scrollEnabled={false}
-                                zoomEnabled={false}
+                                scrollEnabled={true} // Allows user to pan/drag the map
+                                zoomEnabled={true}   // Allows user to pinch-to-zoom
                                 rotateEnabled={false}
                                 pitchEnabled={false}
                             >
                                 {form.coordinates && <Marker coordinate={form.coordinates} />}
                             </MapView>
-
+                            
                             {(isGeocoding || isReverseGeocoding) && (
                                 <View style={s.mapLoadingOverlay}>
                                     <ActivityIndicator color={COLORS.primary} />
@@ -966,76 +944,67 @@ export default function AddressFormModal({
                                 </View>
                             )}
 
-                            <View style={s.mapOverlay}>
-                                <Pressable style={s.adjustPinBtn} onPress={() => setShowMapModal(true)}>
-                                    <Move size={14} color="#FFF" />
-                                    <Text style={s.adjustPinText}>Adjust Pin</Text>
-                                </Pressable>
-                            </View>
+                            {!readOnly && (
+                                <View style={s.mapOverlay}>
+                                    <Pressable style={s.adjustPinBtn} onPress={() => setShowMapModal(true)}>
+                                        <Move size={14} color="#FFF" />
+                                        <Text style={s.adjustPinText}>Adjust Pin</Text>
+                                    </Pressable>
+                                </View>
+                            )}
                         </View>
 
                         <Text style={[s.inputLabel, { marginTop: 12 }]}>Label</Text>
-                        <TextInput value={form.label} onChangeText={t => setForm(prev => ({ ...prev, label: t }))} style={s.input} placeholder="Home, Office..." />
+                        <TextInput editable={!readOnly} value={form.label} onChangeText={t => setForm(prev => ({ ...prev, label: t }))} style={[s.input, readOnly && { backgroundColor: '#F9FAFB', color: '#6B7280' }]} placeholder="Home, Office..." />
 
-                        {renderDropdown({ label: 'Region', type: 'region', value: form.region, list: regionList })}
-
-                        {/* Province — auto-locked to "Metro Manila" for NCR */}
-                        {geoCodes.regionCode === NCR_REGION_CODE ? (
-                            <View style={{ marginBottom: 12 }}>
-                                <Text style={s.inputLabel}>Province</Text>
-                                <View style={[s.dropdownTrigger, s.dropdownDisabled]}>
-                                    <Text style={[s.dropdownSelectedText, { color: '#6B7280' }]} numberOfLines={1}>
-                                        Metro Manila
-                                    </Text>
-                                    <MapPin size={16} color="#9CA3AF" />
-                                </View>
-                            </View>
-                        ) : (
-                            renderDropdown({ label: 'Province', type: 'province', value: form.province, list: provinceList, disabled: !form.region })
-                        )}
-
+                        {renderDropdown({ label: 'Region', type: 'region', value: form.region, list: regionList, disabled: readOnly })}
+                        {renderDropdown({ label: 'Province', type: 'province', value: form.province, list: provinceList, disabled: readOnly || !form.region })}
                         {renderDropdown({
                             label: 'City / Municipality',
                             type: 'city',
                             value: form.city,
                             list: cityList,
-                            disabled: !form.province && geoCodes.regionCode !== NCR_REGION_CODE,
+                            disabled: readOnly || (!form.province && !form.region?.toLowerCase().includes('ncr') && !form.region?.toLowerCase().includes('metro manila')),
                         })}
-                        {renderDropdown({ label: 'Barangay', type: 'barangay', value: form.barangay, list: barangayList, disabled: !form.city })}
+                        {renderDropdown({ label: 'Barangay', type: 'barangay', value: form.barangay, list: barangayList, disabled: readOnly || !form.city })}
 
                         <Text style={s.inputLabel}>Street / House No.</Text>
                         <TextInput
+                            editable={!readOnly}
                             value={form.street}
                             onChangeText={t => setForm(prev => ({ ...prev, street: t }))}
                             onEndEditing={onStreetBlur}
-                            style={s.input}
+                            style={[s.input, readOnly && { backgroundColor: '#F9FAFB', color: '#6B7280' }]}
                             placeholder="123 Acacia St."
                         />
 
                         {/* Optional fields */}
                         <Text style={[s.inputLabel, { marginTop: 12 }]}>Landmark (Optional)</Text>
-                        <TextInput value={form.landmark || ''} onChangeText={t => setForm(prev => ({ ...prev, landmark: t }))} style={s.input} placeholder="Near 7-Eleven, Colored gate" />
+                        <TextInput editable={!readOnly} value={form.landmark || ''} onChangeText={t => setForm(prev => ({ ...prev, landmark: t }))} style={[s.input, readOnly && { backgroundColor: '#F9FAFB', color: '#6B7280' }]} placeholder="Near 7-Eleven, Colored gate" />
 
                         <Text style={s.inputLabel}>Delivery Instructions (Optional)</Text>
                         <TextInput
+                            editable={!readOnly}
                             value={form.deliveryInstructions || ''}
                             onChangeText={t => setForm(prev => ({ ...prev, deliveryInstructions: t }))}
-                            style={[s.input, { height: 80, textAlignVertical: 'top', paddingTop: 10 }]}
+                            style={[s.input, { height: 80, textAlignVertical: 'top', paddingTop: 10 }, readOnly && { backgroundColor: '#F9FAFB', color: '#6B7280' }]}
                             placeholder="Leave at front desk..."
                             multiline
                         />
 
                         <Text style={s.inputLabel}>Postal Code</Text>
-                        <TextInput value={form.zipCode} onChangeText={t => setForm(prev => ({ ...prev, zipCode: t }))} style={s.input} placeholder="1000" keyboardType="number-pad" />
+                        <TextInput editable={!readOnly} value={form.zipCode} onChangeText={t => setForm(prev => ({ ...prev, zipCode: t }))} style={[s.input, readOnly && { backgroundColor: '#F9FAFB', color: '#6B7280' }]} placeholder="1000" keyboardType="number-pad" />
 
                         {/* Toggles */}
-                        <Toggle
-                            value={form.isDefault}
-                            onToggle={() => setForm(prev => ({ ...prev, isDefault: !prev.isDefault }))}
-                            label="Set as default delivery address"
-                        />
+                        {!readOnly && (
+                            <Toggle
+                                value={form.isDefault}
+                                onToggle={() => setForm(prev => ({ ...prev, isDefault: !prev.isDefault }))}
+                                label="Set as default delivery address"
+                            />
+                        )}
 
-                        {context === 'seller' && (
+                        {!readOnly && context === 'seller' && (
                             <>
                                 <View style={{ height: 8 }} />
                                 <Toggle
@@ -1057,17 +1026,25 @@ export default function AddressFormModal({
                         )}
                     </ScrollView>
 
-                    {/* Dropdown results overlay — separate Modal so list scrolls freely */}
-                    {renderDropdownOverlay()}
-
                     {/* Sticky footer */}
                     <View style={s.footer}>
-                        <Pressable style={[s.saveBtn, isSaving && { opacity: 0.7 }]} onPress={handleSave} disabled={isSaving}>
-                            {isSaving
-                                ? <ActivityIndicator color="#FFF" />
-                                : <Text style={s.saveBtnText}>{initialData ? 'Save Changes' : 'Add Address'}</Text>
-                            }
-                        </Pressable>
+                        {!readOnly && context === 'buyer' && initialData && (
+                             <Text style={{ fontSize: 12, color: '#D97706', textAlign: 'center', marginBottom: 8, fontStyle: 'italic' }}>
+                                 Note: Delivery address can only be changed once per order.
+                             </Text>
+                        )}
+                        {readOnly ? (
+                            <Pressable style={[s.saveBtn, { backgroundColor: '#4B5563' }]} onPress={onClose}>
+                                <Text style={s.saveBtnText}>Close Details</Text>
+                            </Pressable>
+                        ) : (
+                            <Pressable style={[s.saveBtn, isSaving && { opacity: 0.7 }]} onPress={handleSave} disabled={isSaving}>
+                                {isSaving
+                                    ? <ActivityIndicator color="#FFF" />
+                                    : <Text style={s.saveBtnText}>{initialData ? 'Save Changes' : 'Add Address'}</Text>
+                                }
+                            </Pressable>
+                        )}
                     </View>
                 </KeyboardAvoidingView>
             </Modal>
@@ -1133,44 +1110,13 @@ const s = StyleSheet.create({
     typeOptionText: { fontSize: 14, fontWeight: '600', color: '#6B7280' },
     typeOptionTextActive: { color: '#111827' },
 
-    dropdownTrigger: { height: 48, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', borderWidth: 2, borderColor: '#E5E7EB', borderRadius: 12, paddingHorizontal: 14, backgroundColor: '#FFF' },
-    dropdownTriggerOpen: { borderColor: COLORS.primary },
+    dropdownTrigger: { height: 44, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', borderWidth: 1, borderColor: '#E5E7EB', borderRadius: 12, paddingHorizontal: 12, backgroundColor: '#FFF' },
+    dropdownActive: { borderColor: COLORS.primary },
     dropdownDisabled: { backgroundColor: '#F9FAFB', borderColor: '#F3F4F6' },
-    dropdownError: { borderColor: '#EF4444' },
-    dropdownTextInput: { fontSize: 15, color: '#1F2937', flex: 1, marginRight: 8, paddingVertical: 0 },
-    dropdownSelectedText: { fontSize: 15, color: '#1F2937', flex: 1 },
-
-    // Overlay panel (separate Modal)
-    overlayBackdrop: { flex: 1, backgroundColor: 'rgba(0,0,0,0.4)', justifyContent: 'center', alignItems: 'center', padding: 24 },
-    overlayPanel: {
-        width: '100%',
-        maxWidth: 440,
-        backgroundColor: '#FFF',
-        borderRadius: 16,
-        shadowColor: '#000',
-        shadowOffset: { width: 0, height: 12 },
-        shadowOpacity: 0.15,
-        shadowRadius: 24,
-        elevation: 20,
-        overflow: 'hidden',
-    },
-    overlayHeader: {
-        flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
-        paddingHorizontal: 18, paddingVertical: 14, borderBottomWidth: 1, borderBottomColor: '#F3F4F6',
-    },
-    overlayTitle: { fontSize: 17, fontWeight: '700', color: '#1F2937' },
-    overlayCloseBtn: { width: 32, height: 32, borderRadius: 16, backgroundColor: '#F3F4F6', justifyContent: 'center', alignItems: 'center' },
-    overlaySearchWrap: { paddingHorizontal: 14, paddingVertical: 10, borderBottomWidth: 1, borderBottomColor: '#F3F4F6' },
-    overlaySearchInput: { height: 42, borderWidth: 1, borderColor: '#E5E7EB', borderRadius: 10, paddingHorizontal: 14, fontSize: 15, color: '#1F2937', backgroundColor: '#F9FAFB' },
-
-    dropdownHint: { fontSize: 11, color: '#9CA3AF', paddingHorizontal: 14, paddingVertical: 6, backgroundColor: '#F9FAFB' },
-    dropdownEmpty: { minHeight: 80, padding: 20, alignItems: 'center', justifyContent: 'center' },
-    dropdownEmptyText: { fontSize: 15, color: '#9CA3AF', fontStyle: 'italic', textAlign: 'center', width: '100%' },
-    fieldErrorText: { fontSize: 12, color: '#EF4444', marginTop: 4, marginBottom: 4 },
-    groupHeader: { paddingHorizontal: 14, paddingVertical: 8, backgroundColor: '#F3F4F6', borderBottomWidth: 1, borderBottomColor: '#E5E7EB' },
-    groupHeaderText: { fontSize: 12, fontWeight: '700', color: COLORS.primary, textTransform: 'uppercase', letterSpacing: 0.5 },
-    selectItem: { height: 44, justifyContent: 'center', paddingHorizontal: 18, borderBottomWidth: 1, borderBottomColor: '#F3F4F6', backgroundColor: '#FFF' },
-    selectItemText: { fontSize: 15, color: '#374151' },
+    dropdownTextInput: { fontSize: 14, color: '#1F2937', flex: 1, marginRight: 8, paddingVertical: 0 },
+    dropdownList: { borderWidth: 1, borderColor: '#E5E7EB', borderTopWidth: 0, borderBottomLeftRadius: 12, borderBottomRightRadius: 12, marginTop: -8, marginBottom: 16, backgroundColor: '#FFF', overflow: 'hidden' },
+    selectItem: { paddingVertical: 12, paddingHorizontal: 12, borderBottomWidth: 1, borderBottomColor: '#F3F4F6' },
+    selectItemText: { fontSize: 14, color: '#111827' },
 
     mapWrapper: { height: 180, borderRadius: 12, overflow: 'hidden', borderWidth: 1, borderColor: '#E5E7EB', marginBottom: 4, backgroundColor: '#F3F4F6' },
     mapPreview: { flex: 1 },
@@ -1193,11 +1139,13 @@ const s = StyleSheet.create({
 
     footer: { padding: 16, borderTopWidth: 1, borderTopColor: '#F3F4F6', backgroundColor: '#FFF' },
     saveBtn: { backgroundColor: COLORS.primary, borderRadius: 12, paddingVertical: 14, alignItems: 'center' },
-    saveBtnText: { fontSize: 16, fontWeight: '700', color: '#FFF', padding: -3, paddingLeft: 8, paddingRight: 8 },
+    saveBtnText: { fontSize: 16, fontWeight: '700', color: '#FFF', padding: -3, paddingLeft: 8, paddingRight: 8},
 
+    // Phone validation
     inputError: { borderColor: '#EF4444' },
     fieldError: { fontSize: 12, color: '#EF4444', marginBottom: 12, marginTop: 0 },
 
+    // Use My Location button
     useLocationBtn: {
         flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8,
         paddingVertical: 10, paddingHorizontal: 16,
@@ -1205,4 +1153,43 @@ const s = StyleSheet.create({
         borderRadius: 12, marginBottom: 10,
     },
     useLocationText: { fontSize: 14, fontWeight: '600', color: COLORS.primary },
-});
+
+    prefillLoadingRow: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 8,
+        marginBottom: 14,
+    },
+    prefillLoadingText: {
+        fontSize: 13,
+        color: '#6B7280',
+        fontWeight: '500',
+    },
+    savedAddressRow: {
+        gap: 8,
+        paddingVertical: 2,
+        paddingRight: 4,
+    },
+    savedAddressChip: {
+        borderWidth: 1,
+        borderColor: '#E5E7EB',
+        backgroundColor: '#FFFFFF',
+        paddingVertical: 8,
+        paddingHorizontal: 12,
+        borderRadius: 999,
+    },
+    savedAddressChipActive: {
+        borderColor: COLORS.primary,
+        backgroundColor: '#FFF7ED',
+    },
+    savedAddressChipText: {
+        fontSize: 12,
+        fontWeight: '600',
+        color: '#374151',
+    },
+    savedAddressChipTextActive: {
+        color: COLORS.primary,
+    },
+}); 
+
+
