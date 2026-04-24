@@ -500,7 +500,9 @@ export class CheckoutService {
                     });
                 } catch (payErr: any) {
                     console.error('Payment initiation failed:', payErr);
-                    // Orders are created but payment failed to initiate — leave as pending_payment
+                    // Surface gateway payment failures so checkout stops instead of
+                    // proceeding as if the payment succeeded.
+                    throw new Error(payErr?.message || 'Payment failed to initiate.');
                 }
             }
 
