@@ -1200,15 +1200,15 @@ export const useAdminSellers = create<SellersState>()(
 
             // Best-effort audit log
             try {
-              await supabase.from('admin_action_log').insert({
+              await supabase.from('admin_audit_logs').insert({
                 admin_id: adminId,
                 action: 'seller.blacklist',
-                target_type: 'seller',
+                target_table: 'sellers',
                 target_id: id,
-                metadata: { reason },
-              } as any);
+                new_values: { reason },
+              });
             } catch (logErr) {
-              // table may not exist yet
+              // non-fatal audit log
             }
 
             set(state => ({
@@ -1272,14 +1272,14 @@ export const useAdminSellers = create<SellersState>()(
             }
 
             try {
-              await supabase.from('admin_action_log').insert({
+              await supabase.from('admin_audit_logs').insert({
                 admin_id: adminId,
                 action: 'seller.reinstate',
-                target_type: 'seller',
+                target_table: 'sellers',
                 target_id: id,
-              } as any);
+              });
             } catch (logErr) {
-              // table may not exist yet
+              // non-fatal audit log
             }
 
             set(state => ({
