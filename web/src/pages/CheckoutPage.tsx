@@ -6,6 +6,7 @@ import { checkoutService } from "@/services/checkoutService"; // Import checkout
 import { discountService } from "@/services/discountService";
 import { paymentService } from "@/services/paymentService";
 import { BASIC_TEST_CARDS, THREE_DS_TEST_CARDS, SCENARIO_TEST_CARDS, getTestCardByNumber } from "@/constants/testCards";
+import { validateTestCard } from "@/utils/testCardValidator";
 import {
   ArrowLeft,
   ChevronLeft,
@@ -749,6 +750,24 @@ export default function CheckoutPage() {
         }
         if (!formData.cvv?.trim()) {
           newErrors.cvv = "CVV is required";
+        }
+
+        const testCardValidation = validateTestCard(
+          sanitizedCardNumber,
+          formData.expiryDate || '',
+          formData.cvv || ''
+        );
+
+        if (testCardValidation.isTestCard && testCardValidation.shouldDecline) {
+          const declineMessage = testCardValidation.errorMessage || 'This card cannot be used.';
+
+          if (testCardValidation.errorCode === 'card_expired') {
+            newErrors.expiryDate = declineMessage;
+          } else if (testCardValidation.errorCode === 'cvc_invalid') {
+            newErrors.cvv = declineMessage;
+          } else {
+            newErrors.cardNumber = declineMessage;
+          }
         }
       }
     } else if (formData.paymentMethod === "gcash") {
