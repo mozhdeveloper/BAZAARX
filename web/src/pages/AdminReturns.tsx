@@ -70,6 +70,7 @@ interface AdminReturn {
   escalated_at: string | null;
   resolved_at: string | null;
   resolved_by: string | null;
+  resolution_source: string | null;
   return_tracking_number: string | null;
   created_at: string;
 }
@@ -189,6 +190,7 @@ const AdminReturns: React.FC = () => {
           escalated_at: row.escalated_at,
           resolved_at: row.resolved_at,
           resolved_by: row.resolved_by,
+          resolution_source: row.resolution_source ?? null,
           return_tracking_number: row.return_tracking_number,
           created_at: row.created_at,
         };
@@ -251,7 +253,7 @@ const AdminReturns: React.FC = () => {
           status: "approved",
           ...(isReplacement ? {} : { refund_date: now }),
           resolved_at: now,
-          resolved_by: "admin",
+          resolution_source: "admin",
           seller_note: adminNote || (isReplacement ? "Replacement approved by admin" : "Approved by admin"),
         })
         .eq("id", selectedReturn.id);
@@ -308,7 +310,7 @@ const AdminReturns: React.FC = () => {
           status: "rejected",
           rejected_reason: adminNote || "Rejected by admin",
           resolved_at: now,
-          resolved_by: "admin",
+          resolution_source: "admin",
         })
         .eq("id", selectedReturn.id);
 
@@ -348,7 +350,7 @@ const AdminReturns: React.FC = () => {
           status: "approved",
           refund_date: now,
           resolved_at: now,
-          resolved_by: "admin",
+          resolution_source: "admin",
           seller_note: `BazCoin compensation: ${totalBazcoins} coins (${refundAmt} + ${bonusAmt} bonus). ${adminNote}`.trim(),
         })
         .eq("id", selectedReturn.id);
@@ -822,7 +824,7 @@ const AdminReturns: React.FC = () => {
                 </div>
                 <div className="p-2 bg-gray-50 rounded">
                   <p className="text-[10px] text-gray-400">By</p>
-                  <p className="text-xs font-medium">{selectedReturn.resolved_by || "—"}</p>
+                  <p className="text-xs font-medium">{selectedReturn.resolution_source || selectedReturn.resolved_by || "—"}</p>
                 </div>
               </div>
             </div>

@@ -1652,18 +1652,18 @@ export class OrderService {
                         is_returnable: false,
                         rejected_reason: "Order cancelled by seller",
                         resolved_at: now,
-                        resolved_by: "seller",
+                        resolution_source: "seller",
                     })
                     .eq("order_id", orderId)
                     .in("status", ["pending", "seller_review", "counter_offered", "escalated"])
-                    .is("resolved_by", null);
+                    .is("resolution_source", null);
                 // Attribute any already-closed returns that are missing a resolver
                 await supabase
                     .from("refund_return_periods")
-                    .update({ resolved_by: "seller", resolved_at: now })
+                    .update({ resolution_source: "seller", resolved_at: now })
                     .eq("order_id", orderId)
                     .in("status", ["approved", "refunded", "return_in_transit", "return_received", "rejected"])
-                    .is("resolved_by", null);
+                    .is("resolution_source", null);
             }
 
             const sellerId =

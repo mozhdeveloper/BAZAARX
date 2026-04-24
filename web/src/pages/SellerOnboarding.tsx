@@ -243,16 +243,18 @@ export function SellerOnboarding() {
 
       if (bpError) throw bpError;
 
-      // 3. Upsert payout account (seller_payout_accounts)
+      // 3. Upsert payout settings (canonical table; `seller_payout_accounts`
+      //    is now a view that doesn't support ON CONFLICT — migration 040).
       if (formData.bankName || formData.accountName || formData.accountNumber) {
         const { error: payoutError } = await supabase
-          .from('seller_payout_accounts')
+          .from('seller_payout_settings')
           .upsert({
             seller_id: sellerId,
+            payout_method: 'bank_transfer',
             bank_name: formData.bankName,
-            account_name: formData.accountName,
-            account_number: formData.accountNumber,
-          } as any);
+            bank_account_name: formData.accountName,
+            bank_account_number: formData.accountNumber,
+          } as any, { onConflict: 'seller_id' });
 
         if (payoutError) console.warn('Payout account save error:', payoutError);
       }

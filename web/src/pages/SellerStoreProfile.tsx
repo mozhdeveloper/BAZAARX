@@ -1197,14 +1197,18 @@ export function SellerStoreProfile() {
     try {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const supabaseClient: any = supabase;
+      // Write to canonical `seller_payout_settings`; the legacy
+      // `seller_payout_accounts` is a view (migration 040) and does not
+      // support INSERT … ON CONFLICT.
       const { error } = await supabaseClient
-        .from("seller_payout_accounts")
+        .from("seller_payout_settings")
         .upsert(
           {
             seller_id: seller.id,
+            payout_method: "bank_transfer",
             bank_name: bankingForm.bankName,
-            account_name: bankingForm.accountName,
-            account_number: bankingForm.accountNumber,
+            bank_account_name: bankingForm.accountName,
+            bank_account_number: bankingForm.accountNumber,
             updated_at: new Date().toISOString(),
           },
           {

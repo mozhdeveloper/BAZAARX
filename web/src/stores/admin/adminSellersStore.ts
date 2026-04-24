@@ -34,7 +34,7 @@ export const useAdminSellers = create<SellersState>()(
                 blacklisted_at, suspended_at, suspension_reason,
                 profiles:profiles!sellers_id_fkey(id, first_name, last_name, email),
                 business_profile:seller_business_profiles(seller_id, business_type, address_line_1, city, province, postal_code),
-                payout_account:seller_payout_accounts(seller_id, account_name, bank_name, account_number),
+                payout_account:seller_payout_settings(seller_id, bank_account_name, bank_name, bank_account_number),
                 verification_documents:seller_verification_documents(seller_id, business_permit_url, valid_id_url, proof_of_address_url, dti_registration_url, tax_id_url),
                 tier:seller_tiers(tier_level, bypasses_assessment)
               `)
@@ -114,7 +114,7 @@ export const useAdminSellers = create<SellersState>()(
               const profileRaw = seller.profiles || seller.profile || null;
               const profile = Array.isArray(profileRaw) ? profileRaw[0] : profileRaw;
               const businessProfile = seller.business_profile || seller.seller_business_profiles || {};
-              const payoutAccount = seller.payout_account || seller.seller_payout_accounts || {};
+              const payoutAccount = seller.payout_account || seller.seller_payout_settings || seller.seller_payout_accounts || {};
               const embeddedVerificationDocuments =
                 seller.verification_documents || seller.seller_verification_documents || null;
               const verificationDocuments = Array.isArray(embeddedVerificationDocuments)
@@ -254,8 +254,8 @@ export const useAdminSellers = create<SellersState>()(
                 postalCode,
                 address: fullAddress || 'Address not provided',
                 bankName: seller.bank_name || payoutAccount.bank_name || 'Not provided',
-                accountName: seller.account_name || payoutAccount.account_name || 'Not provided',
-                accountNumber: seller.account_number || payoutAccount.account_number || 'Not provided',
+                accountName: seller.account_name || payoutAccount.bank_account_name || payoutAccount.account_name || 'Not provided',
+                accountNumber: seller.account_number || payoutAccount.bank_account_number || payoutAccount.account_number || 'Not provided',
                 status,
                 documents,
                 metrics: {
@@ -509,7 +509,7 @@ export const useAdminSellers = create<SellersState>()(
         set({ isLoading: true, error: null });
         const now = new Date();
         const nowIso = now.toISOString();
-        const adminId = useAdminAuth.getState().user?.id || 'admin';
+        const adminId = useAdminAuth.getState().user?.id || null;
 
         if (isSupabaseConfigured()) {
           try {
@@ -633,7 +633,7 @@ export const useAdminSellers = create<SellersState>()(
         set({ isLoading: true, error: null });
         const now = new Date();
         const nowIso = now.toISOString();
-        const adminId = useAdminAuth.getState().user?.id || 'admin';
+        const adminId = useAdminAuth.getState().user?.id || null;
         const normalizedReason = reason?.trim();
         const rejectionDescription = normalizedReason || 'Your seller verification submission was rejected.';
 
@@ -827,7 +827,7 @@ export const useAdminSellers = create<SellersState>()(
         set({ isLoading: true, error: null });
         const now = new Date();
         const nowIso = now.toISOString();
-        const adminId = useAdminAuth.getState().user?.id || 'admin';
+        const adminId = useAdminAuth.getState().user?.id || null;
         const selectedItems = payload.items.filter((item) => Boolean(item.documentField));
 
         if (selectedItems.length === 0) {
@@ -1176,7 +1176,7 @@ export const useAdminSellers = create<SellersState>()(
       blacklistSeller: async (id, reason) => {
         set({ isLoading: true });
         const nowIso = new Date().toISOString();
-        const adminId = useAdminAuth.getState().user?.id || 'admin';
+        const adminId = useAdminAuth.getState().user?.id || null;
 
         if (isSupabaseConfigured()) {
           try {
@@ -1248,7 +1248,7 @@ export const useAdminSellers = create<SellersState>()(
 
       reinstateSeller: async (id) => {
         set({ isLoading: true });
-        const adminId = useAdminAuth.getState().user?.id || 'admin';
+        const adminId = useAdminAuth.getState().user?.id || null;
 
         if (isSupabaseConfigured()) {
           try {

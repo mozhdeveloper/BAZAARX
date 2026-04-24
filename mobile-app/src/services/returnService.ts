@@ -399,7 +399,9 @@ class ReturnService {
     if (isInstant) {
       insertPayload.refund_date = new Date().toISOString();
       insertPayload.resolved_at = new Date().toISOString();
-      insertPayload.resolved_by = 'system';
+      // resolved_by is uuid (admin id) per migration 039; the actor type is
+      // stored in resolution_source ('system' | 'seller' | 'buyer' | 'admin').
+      insertPayload.resolution_source = 'system';
     }
 
     const { data: returnData, error: returnError } = await supabase
@@ -651,7 +653,7 @@ class ReturnService {
         status: 'approved',
         ...(isReplacement ? {} : { refund_date: now }),
         resolved_at: now,
-        resolved_by: 'seller',
+        resolution_source: 'seller',
       })
       .eq('id', returnId);
 
@@ -708,7 +710,7 @@ class ReturnService {
         is_returnable: false,
         rejected_reason: reason || null,
         resolved_at: new Date().toISOString(),
-        resolved_by: 'seller',
+        resolution_source: 'seller',
       })
       .eq('id', returnId);
 
@@ -808,7 +810,7 @@ class ReturnService {
         refund_amount: ret?.counter_offer_amount,
         refund_date: new Date().toISOString(),
         resolved_at: new Date().toISOString(),
-        resolved_by: 'buyer',
+        resolution_source: 'buyer',
       })
       .eq('id', returnId);
 
@@ -948,7 +950,7 @@ class ReturnService {
         return_received_at: now,
         ...(isReplacement ? {} : { refund_date: now }),
         resolved_at: now,
-        resolved_by: 'seller',
+        resolution_source: 'seller',
       })
       .eq('id', returnId);
 

@@ -976,18 +976,21 @@ export const useAuthStore = create<AuthStore>()(
             if (sellerUpdateError) throw sellerUpdateError;
           }
 
-          // Banking fields belong to seller_payout_accounts table.
+          // Banking fields → canonical `seller_payout_settings` table.
+          // Legacy `seller_payout_accounts` is now a view (migration 040)
+          // that doesn't support INSERT … ON CONFLICT.
           let hasPayoutField = false;
           const payoutUpdates: Record<string, any> = {
             seller_id: currentUserId,
+            payout_method: 'bank_transfer',
           };
 
           if (incoming.accountName !== undefined || incoming.payout_account?.account_name !== undefined) {
-            payoutUpdates.account_name = incoming.accountName ?? incoming.payout_account?.account_name ?? '';
+            payoutUpdates.bank_account_name = incoming.accountName ?? incoming.payout_account?.account_name ?? '';
             hasPayoutField = true;
           }
           if (incoming.accountNumber !== undefined || incoming.payout_account?.account_number !== undefined) {
-            payoutUpdates.account_number = incoming.accountNumber ?? incoming.payout_account?.account_number ?? '';
+            payoutUpdates.bank_account_number = incoming.accountNumber ?? incoming.payout_account?.account_number ?? '';
             hasPayoutField = true;
           }
           if (incoming.bankName !== undefined || incoming.payout_account?.bank_name !== undefined) {
@@ -997,7 +1000,7 @@ export const useAuthStore = create<AuthStore>()(
 
           if (hasPayoutField) {
             const { error: payoutUpdateError } = await supabase
-              .from('seller_payout_accounts')
+              .from('seller_payout_settings')
               .upsert(payoutUpdates as any, { onConflict: 'seller_id' });
 
             if (payoutUpdateError) throw payoutUpdateError;

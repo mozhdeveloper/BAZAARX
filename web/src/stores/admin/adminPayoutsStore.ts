@@ -34,16 +34,17 @@ export const useAdminPayouts = create<PayoutsState>((set) => ({
 
       if (itemsError) throw itemsError;
 
-      // Get seller payout accounts
+      // Get seller payout accounts (canonical table; the legacy
+      // `seller_payout_accounts` name is now a view — see migration 040).
       const { data: payoutAccounts } = await supabase
-        .from('seller_payout_accounts')
-        .select('seller_id, bank_name, account_name, account_number');
+        .from('seller_payout_settings')
+        .select('seller_id, bank_name, bank_account_name, bank_account_number');
 
       const accountMap = new Map<string, { bankName: string; accountNumber: string }>();
       for (const acc of (payoutAccounts || [])) {
         accountMap.set(acc.seller_id, {
           bankName: acc.bank_name || 'Not set',
-          accountNumber: acc.account_number || 'N/A',
+          accountNumber: acc.bank_account_number || 'N/A',
         });
       }
 

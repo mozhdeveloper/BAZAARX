@@ -87,6 +87,7 @@ export interface BuyerReturnRequestSnapshot {
   submittedAt: Date;
   status: 'pending' | 'seller_review' | 'counter_offered' | 'approved' | 'rejected' | 'escalated' | 'return_in_transit' | 'return_received' | 'refunded';
   resolvedBy?: string;
+  resolutionSource?: string;
   rejectedReason?: string | null;
   description?: string | null;
   evidenceUrls?: string[];

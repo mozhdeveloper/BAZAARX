@@ -183,6 +183,7 @@ export interface ReturnRequest {
   escalatedAt: string | null;
   resolvedAt: string | null;
   resolvedBy: string | null;
+  resolutionSource: string | null;
   returnLabelUrl: string | null;
   returnTrackingNumber: string | null;
   buyerShippedAt: string | null;
@@ -346,6 +347,7 @@ class ReturnService {
       escalatedAt: row.escalated_at || null,
       resolvedAt: row.resolved_at || null,
       resolvedBy: row.resolved_by || null,
+      resolutionSource: row.resolution_source || null,
       returnLabelUrl: row.return_label_url || null,
       returnTrackingNumber: row.return_tracking_number || null,
       buyerShippedAt: row.buyer_shipped_at || null,
@@ -723,7 +725,7 @@ class ReturnService {
           status: "approved",
           ...(isReplacement ? {} : { refund_date: now }),
           resolved_at: now,
-          resolved_by: "seller",
+          resolution_source: "seller",
         })
         .eq("id", returnId);
       if (refundError) throw refundError;
@@ -798,7 +800,7 @@ class ReturnService {
           is_returnable: false,
           rejected_reason: reason || null,
           resolved_at: new Date().toISOString(),
-          resolved_by: "seller",
+          resolution_source: "seller",
         })
         .eq("id", returnId);
       if (refundError) throw refundError;
@@ -882,7 +884,7 @@ class ReturnService {
         refund_amount: ret?.counter_offer_amount,
         refund_date: now,
         resolved_at: now,
-        resolved_by: "buyer",
+        resolution_source: "buyer",
       })
       .eq("id", returnId);
 
@@ -1078,7 +1080,7 @@ class ReturnService {
         return_received_at: now,
         ...(isReplacement ? {} : { refund_date: now }),
         resolved_at: now,
-        resolved_by: "seller",
+        resolution_source: "seller",
       })
       .eq("id", returnId);
 
