@@ -150,8 +150,14 @@ export class PayMongoGatewayService {
       console.log(`✔️ Validation result:`, validation);
 
       if (!validation.isTestCard) {
-        // Not a test card, proceed normally
-        console.log('✅ Not a test card, proceeding with PayMongo');
+        console.log('🚫 Non-test card rejected: only PayMongo test cards are allowed in this environment');
+
+        await this.updateTransactionStatus(transactionId, 'failed', {
+          failureReason: 'Only PayMongo test cards are accepted in this environment.',
+          errorCode: 'test_card_required',
+        });
+
+        throw new Error('Only PayMongo test cards are accepted in this environment.');
       } else if (validation.shouldDecline) {
         // Test card that should decline
         console.log(`🚫 Test card should decline: ${validation.errorCode}`, validation.errorMessage);
