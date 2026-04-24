@@ -11,7 +11,11 @@ export const mapNormalizedToBuyerUiStatus = (
     return 'reviewed';
   }
 
-  if (shipmentStatus === 'delivered' || shipmentStatus === 'received') {
+  if (shipmentStatus === 'received') {
+    return 'received';
+  }
+
+  if (shipmentStatus === 'delivered') {
     return 'delivered';
   }
 
@@ -20,7 +24,11 @@ export const mapNormalizedToBuyerUiStatus = (
   }
 
   if (shipmentStatus === 'processing' || shipmentStatus === 'ready_to_ship') {
-    return 'confirmed';
+    return 'processing';
+  }
+
+  if (shipmentStatus === 'waiting_for_seller') {
+    return 'pending';
   }
 
   if (shipmentStatus === 'failed_to_deliver') {

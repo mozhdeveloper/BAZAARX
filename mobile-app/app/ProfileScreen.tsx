@@ -556,7 +556,7 @@ export default function ProfileScreen({ navigation }: Props) {
             <View style={styles.purchasesGrid}>
               {[
                 { label: 'Pending', tab: 'pending', icon: Wallet },
-                { label: 'Processing', tab: 'confirmed', icon: Package },
+                { label: 'Processing', tab: 'processing', icon: Package },
                 { label: 'Shipped', tab: 'shipped', icon: Truck },
                 { label: 'Delivered', tab: 'delivered', icon: Star, badge: 1 },
               ].map((item, idx) => (

@@ -42,6 +42,9 @@ export type ReturnStatus =
 export type ReturnReason =
   | "damaged"
   | "wrong_item"
+  | "did_not_receive_empty"
+  | "did_not_receive_not_delivered"
+  | "did_not_receive_missing_items"
   | "not_as_described"
   | "defective"
   | "missing_parts"
@@ -49,7 +52,7 @@ export type ReturnReason =
   | "duplicate_order"
   | "other";
 
-export type ReturnType = "return_refund" | "refund_only" | "replacement";
+export type ReturnType = "return_refund" | "refund_only" | "partial_refund" | "replacement";
 
 export type ResolutionPath = "instant" | "seller_review" | "return_required";
 
@@ -59,7 +62,79 @@ export const EVIDENCE_REQUIRED_REASONS: ReturnReason[] = [
   "not_as_described",
   "defective",
   "missing_parts",
+  "did_not_receive_empty",
+  "did_not_receive_missing_items",
 ];
+
+// ---------------------------------------------------------------------------
+// Evidence requirement helpers
+// ---------------------------------------------------------------------------
+export interface EvidenceRequirements {
+  descriptionRequired: boolean;
+  photoRequired: boolean;
+  videoRequired: boolean;
+  itemSelectionRequired: boolean;
+}
+
+export function getEvidenceRequirements(reason: ReturnReason): EvidenceRequirements {
+  switch (reason) {
+    case "damaged":
+      return { descriptionRequired: true, photoRequired: true, videoRequired: false, itemSelectionRequired: false };
+    case "wrong_item":
+      return { descriptionRequired: true, photoRequired: true, videoRequired: false, itemSelectionRequired: false };
+    case "did_not_receive_empty":
+      return { descriptionRequired: true, photoRequired: true, videoRequired: true, itemSelectionRequired: false };
+    case "did_not_receive_not_delivered":
+      return { descriptionRequired: true, photoRequired: false, videoRequired: false, itemSelectionRequired: false };
+    case "did_not_receive_missing_items":
+      return { descriptionRequired: false, photoRequired: true, videoRequired: false, itemSelectionRequired: true };
+    default:
+      return { descriptionRequired: true, photoRequired: false, videoRequired: false, itemSelectionRequired: false };
+  }
+}
+
+export function getAllowedResolutions(reason: ReturnReason): ReturnType[] {
+  switch (reason) {
+    case "damaged":
+    case "wrong_item":
+      return ["return_refund", "replacement"];
+    case "did_not_receive_empty":
+    case "did_not_receive_not_delivered":
+      return ["refund_only"];
+    case "did_not_receive_missing_items":
+      return ["partial_refund", "return_refund"];
+    default:
+      return ["return_refund", "replacement"];
+  }
+}
+
+export async function getReturnWindowDeadline(orderDbId: string): Promise<Date | null> {
+  if (!isSupabaseConfigured()) return null;
+  if (!ORDER_ID_UUID_REGEX.test(orderDbId)) return null;
+  try {
+    const { data, error } = await supabase
+      .from("orders")
+      .select("created_at, shipments:order_shipments(delivered_at, created_at)")
+      .eq("id", orderDbId)
+      .single();
+    if (error || !data) return null;
+    const shipments = Array.isArray((data as any).shipments) ? (data as any).shipments : [];
+    const deliveredTs = shipments
+      .map((s: any) => s?.delivered_at)
+      .filter((v: any): v is string => Boolean(v))
+      .sort((a: string, b: string) => new Date(b).getTime() - new Date(a).getTime())[0];
+    const shipmentCreatedTs = shipments
+      .map((s: any) => s?.created_at)
+      .filter((v: any): v is string => Boolean(v))
+      .sort((a: string, b: string) => new Date(b).getTime() - new Date(a).getTime())[0];
+    const baseline = new Date(deliveredTs || shipmentCreatedTs || (data as any).created_at);
+    const deadline = new Date(baseline);
+    deadline.setDate(deadline.getDate() + RETURN_WINDOW_DAYS);
+    return deadline;
+  } catch {
+    return null;
+  }
+}
 
 // ---------------------------------------------------------------------------
 // Interfaces

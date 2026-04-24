@@ -1,6 +1,6 @@
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { FlashList } from '@shopify/flash-list';
-import { ArrowLeft, ChevronDown, Search, SlidersHorizontal, X } from 'lucide-react-native';
+import { ArrowLeft, ChevronDown, FunnelIcon, Search, SlidersHorizontal, X } from 'lucide-react-native';
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import {
     ActivityIndicator,
@@ -653,11 +653,13 @@ export default function ProductListingScreen({ navigation, route }: Props) {
         )}
         <View style={{ flex: 1 }} />
         <View style={styles.filterSortButtons}>
+          {/* SORT ICON — change the icon component below to customize */}
           <Pressable
             style={[styles.iconButton, sortOption !== 'relevance' && styles.iconButtonActive]}
             onPress={() => setShowSortModal(true)}
           >
-            <ChevronDown size={18} color={sortOption !== 'relevance' ? COLORS.primary : COLORS.textPrimary} />
+            {/* Replace ChevronDown with your preferred sort icon */}
+            <FunnelIcon size={18} color={sortOption !== 'relevance' ? COLORS.primary : COLORS.textPrimary} />
             {sortOption !== 'relevance' && <View style={styles.iconBadge} />}
           </Pressable>
           <Pressable
