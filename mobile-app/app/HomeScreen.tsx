@@ -701,6 +701,17 @@ export default function HomeScreen({ navigation }: Props) {
 
   const verifiedStores = useMemo(() => {
     return (sellers || [])
+      .filter((seller) => {
+        // Only show stores from verified sellers (not blacklisted, suspended, etc.)
+        if (seller.approval_status !== 'verified') return false;
+        // suspended_at is null when not suspended
+        if (seller.suspended_at) return false;
+        // blacklisted_at is null when not blacklisted
+        if (seller.blacklisted_at) return false;
+        if (seller.is_permanently_blacklisted) return false;
+        if (seller.temp_blacklist_until && new Date(seller.temp_blacklist_until) > new Date()) return false;
+        return true;
+      })
       .map((seller) => {
         const storeProducts = (productsBySeller.get(seller.id) || []).slice(0, 2);
 
@@ -1057,7 +1068,7 @@ export default function HomeScreen({ navigation }: Props) {
               </Pressable>
             </View>
             <View style={styles.categoryGrid}>
-              {dbCategories.slice(0, 10).filter(item => item && item.name).map((item) => (
+              {dbCategories.filter(item => item && item.name && !item.parent_id).slice(0, 10).map((item) => (
                 <Pressable
                   key={item.id}
                   style={[styles.categoryGridItem, { width: CATEGORY_ITEM_WIDTH }]}
@@ -1291,13 +1302,12 @@ export default function HomeScreen({ navigation }: Props) {
               </Pressable>
             </View>
             <View style={styles.categoryGrid}>
-              {dbCategories.map((item) => (
+              {dbCategories.filter(item => !item.parent_id).map((item) => (
                 <Pressable
                   key={item.id}
                   style={[styles.categoryGridItem, { width: CATEGORY_ITEM_WIDTH }]}
                   onPress={() => handleCategoryPress(item)}
                 >
-                  {/* Change iconName to iconValue here */}
                   <CategoryItem label={item.name} iconValue={item.icon} itemWidth={CATEGORY_ITEM_WIDTH} />
                 </Pressable>
               ))}

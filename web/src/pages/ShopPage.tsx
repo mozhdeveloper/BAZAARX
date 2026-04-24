@@ -1,23 +1,25 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
-import { useState, useMemo, useEffect, useRef } from "react";
-import { motion, AnimatePresence } from "framer-motion";
-import { useNavigate, useSearchParams, Link, useLocation } from "react-router-dom";
+import { AnimatePresence, motion } from "framer-motion";
 import {
-  Star,
-  MapPin,
-  Truck,
   BadgeCheck,
-  ShoppingCart,
-  Menu,
-  Flame,
   ChevronRight,
-  X,
+  MapPin,
+  Menu,
+  ShoppingCart,
+  Star,
+  Truck,
+  X
 } from "lucide-react";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { Link, useLocation, useNavigate, useSearchParams } from "react-router-dom";
 import Header from "../components/Header";
+import ProductRequestModal from "../components/ProductRequestModal";
+import ShopBuyNowModal from "../components/shop/ShopBuyNowModal";
+import ShopVariantModal from "../components/shop/ShopVariantModal";
+import { Badge } from "../components/ui/badge";
 import { BazaarFooter } from "../components/ui/bazaar-footer";
 import { Button } from "../components/ui/button";
-import { Badge } from "../components/ui/badge";
-import { Slider } from "../components/ui/slider";
+import { CartModal } from "../components/ui/cart-modal";
 import {
   Select,
   SelectContent,
@@ -25,37 +27,32 @@ import {
   SelectTrigger,
   SelectValue,
 } from "../components/ui/select";
-import { CartModal } from "../components/ui/cart-modal";
-import ShopBuyNowModal from "../components/shop/ShopBuyNowModal";
-import ShopVariantModal from "../components/shop/ShopVariantModal";
-import ProductRequestModal from "../components/ProductRequestModal";
+import { Slider } from "../components/ui/slider";
 import VisualSearchModal from "../components/VisualSearchModal";
 // import CategoryCarousel from "../components/CategoryCarousel";
 // import { Checkbox } from "../components/ui/checkbox";
 import { useToast } from "../hooks/use-toast";
 // Hardcoded imports removed for database parity
-import { categoryService } from "@/services/categoryService";
-import type { Category } from "@/types/database.types";
-import { useBuyerStore } from "../stores/buyerStore";
-import { useProductStore } from "../stores/sellerStore";
-import { productService } from "@/services/productService";
-import { mapDbProductToSellerProduct } from "@/utils/productMapper";
 import { isSupabaseConfigured } from "@/lib/supabase";
+import { adBoostService, type AdBoostWithProduct } from "@/services/adBoostService";
+import { categoryService } from "@/services/categoryService";
 import { discountService } from "@/services/discountService";
 import { featuredProductService, type FeaturedProductWithDetails } from "@/services/featuredProductService";
-import { adBoostService, type AdBoostWithProduct } from "@/services/adBoostService";
-import { Alert, AlertDescription, AlertTitle } from "../components/ui/alert";
+import { productService } from "@/services/productService";
+import type { Category } from "@/types/database.types";
+import { mapDbProductToSellerProduct } from "@/utils/productMapper";
 import { AlertCircle } from "lucide-react";
 import ProductCard from "../components/ProductCard";
+import { Alert, AlertDescription, AlertTitle } from "../components/ui/alert";
+import { useBuyerStore } from "../stores/buyerStore";
+import { useProductStore } from "../stores/sellerStore";
 import { getSafeImageUrl } from "../utils/imageUtils";
-import { ProductCardSkeleton } from "../components/skeletons/ProductCardSkeleton";
 // import { useProductQAStore } from "../stores/productQAStore";
-import { ShopProduct } from "../types/shop";
 import type { ActiveDiscount } from "@/types/discount";
 import { CampaignCountdown } from "../components/shop/CampaignCountdown";
+import { ShopProduct } from "../types/shop";
 
 // Flash sale products are now derived from real products in the component
-import { bestSellerProducts } from "../data/products";
 
 const sortOptions = [
   { value: "default", label: "Default" },
@@ -67,10 +64,6 @@ const sortOptions = [
 ];
 
 const brandOptions: { name: string; count: number }[] = [];
-
-const sizeOptions: string[] = [];
-
-const colorOptions: { name: string; hex: string }[] = [];
 
 const popularTags = [
   "Bag", "Backpack", "Chair", "Clock", "Interior", "Indoor", "Gift", "Accessories", "Fashion", "Simple"
@@ -98,6 +91,19 @@ export default function ShopPage() {
   const shuffledIdsRef = useRef<string[]>([]);
   const [priceRange, setPriceRange] = useState<number[]>([0, 100000]);
   const [minRating, setMinRating] = useState<number>(0);
+  const [shippedFrom, setShippedFrom] = useState<string | null>(null);
+  // Shops & Promos filters
+  const [onSale, setOnSale] = useState(false);
+  const [freeShipping, setFreeShipping] = useState(false);
+  const [withVouchers, setWithVouchers] = useState(false);
+  const [preferredSeller, setPreferredSeller] = useState(false);
+  const [officialStore, setOfficialStore] = useState(false);
+  // Shipping option filters
+  const [standardDelivery, setStandardDelivery] = useState(false);
+  const [sameDayDelivery, setSameDayDelivery] = useState(false);
+  const [cashOnDelivery, setCashOnDelivery] = useState(false);
+  const [pickupAvailable, setPickupAvailable] = useState(false);
+  const [selectedSellers, setSelectedSellers] = useState<string[]>([]);
   const [showFilters, setShowFilters] = useState(false);
   const [showCartModal, setShowCartModal] = useState(false);
   const [addedProduct, setAddedProduct] = useState<{
@@ -190,6 +196,20 @@ export default function ShopPage() {
     // Start with store products (the initial 200-product fetch)
     const storeProducts = sellerProducts
       .filter((p) => p.approvalStatus === "approved" && p.isActive)
+      .filter((p) => {
+        // Safety net: filter out products from non-verified, blacklisted, or suspended sellers
+        const sellerStatus = (p as any).sellerApprovalStatus || (p as any).seller?.approval_status;
+        const sellerSuspendedAt = (p as any).sellerSuspendedAt || (p as any).seller?.suspended_at;
+        const sellerBlacklistedAt = (p as any).sellerBlacklistedAt || (p as any).seller?.blacklisted_at;
+        const sellerPermBlacklisted = (p as any).sellerIsPermBlacklisted || (p as any).seller?.is_permanently_blacklisted;
+        const sellerTempBlacklistUntil = (p as any).sellerTempBlacklistUntil || (p as any).seller?.temp_blacklist_until;
+        if (sellerStatus && sellerStatus !== 'verified') return false;
+        if (sellerSuspendedAt) return false;
+        if (sellerBlacklistedAt) return false;
+        if (sellerPermBlacklisted) return false;
+        if (sellerTempBlacklistUntil && new Date(sellerTempBlacklistUntil) > new Date()) return false;
+        return true;
+      })
       .map(mapToShopProduct);
 
     // Merge in category-specific products from server-side fetch
@@ -199,6 +219,20 @@ export default function ShopPage() {
       const extraProducts = categoryProducts
         .map(mapDbProductToSellerProduct)
         .filter((p: any) => p.approvalStatus === "approved" && p.isActive && !seenIds.has(p.id))
+        .filter((p: any) => {
+          // Safety net: filter out products from non-verified, blacklisted, or suspended sellers
+          const sellerStatus = p.sellerApprovalStatus || p.seller?.approval_status;
+          const sellerSuspendedAt = p.sellerSuspendedAt || p.seller?.suspended_at;
+          const sellerBlacklistedAt = p.sellerBlacklistedAt || p.seller?.blacklisted_at;
+          const sellerPermBlacklisted = p.sellerIsPermBlacklisted || p.seller?.is_permanently_blacklisted;
+          const sellerTempBlacklistUntil = p.sellerTempBlacklistUntil || p.seller?.temp_blacklist_until;
+          if (sellerStatus && sellerStatus !== 'verified') return false;
+          if (sellerSuspendedAt) return false;
+          if (sellerBlacklistedAt) return false;
+          if (sellerPermBlacklisted) return false;
+          if (sellerTempBlacklistUntil && new Date(sellerTempBlacklistUntil) > new Date()) return false;
+          return true;
+        })
         .map(mapToShopProduct);
       return [...storeProducts, ...extraProducts];
     }
@@ -319,22 +353,6 @@ export default function ShopPage() {
       .map(([name, count]) => ({ name, count }))
       .sort((a, b) => b.count - a.count)
       .slice(0, 10);
-  }, [allProducts]);
-
-  const dynamicSizeOptions = useMemo(() => {
-    const sizes = new Set<string>();
-    for (const p of allProducts) {
-      (p.variantLabel1Values || []).forEach(v => sizes.add(v));
-    }
-    return Array.from(sizes).slice(0, 10);
-  }, [allProducts]);
-
-  const dynamicColorOptions = useMemo(() => {
-    const colors = new Set<string>();
-    for (const p of allProducts) {
-      (p.variantLabel2Values || []).forEach(v => colors.add(v));
-    }
-    return Array.from(colors).slice(0, 10);
   }, [allProducts]);
 
   const otherProductsCount = useMemo(() => {
@@ -552,15 +570,35 @@ export default function ShopPage() {
         product.seller.toLowerCase().includes(searchQuery.toLowerCase());
 
       const matchesPrice =
-        product.price >= priceRange[0] && product.price <= priceRange[1];
+        (priceRange[0] === 0 && priceRange[1] === 100000) ||
+        (product.price >= priceRange[0] && product.price <= priceRange[1]);
 
       const matchesRating = minRating === 0 || (product.rating || 0) >= minRating;
 
-      return matchesSearch && matchesPrice && matchesRating;
+      const matchesShippedFrom = !shippedFrom || (() => {
+        const loc = (product.location || '').toLowerCase();
+        if (shippedFrom === 'metro_manila') {
+          return loc.includes('metro manila') || loc.includes('manila') || loc.includes('makati') || loc.includes('quezon city') || loc.includes('taguig') || loc.includes('pasig') || loc.includes('mandaluyong') || loc.includes('pasay') || loc.includes('parañaque') || loc.includes('paranaque') || loc.includes('caloocan') || loc.includes('marikina') || loc.includes('muntinlupa') || loc.includes('las piñas') || loc.includes('las pinas') || loc.includes('valenzuela') || loc.includes('malabon') || loc.includes('navotas') || loc.includes('pateros') || loc.includes('san juan');
+        }
+        if (shippedFrom === 'philippines') {
+          return loc.includes('philippines') || loc.includes('manila') || loc.includes('cebu') || loc.includes('davao') || loc.length > 0;
+        }
+        return true;
+      })();
+
+      // Shops & Promos filters
+      const matchesOnSale = !onSale || (product.originalPrice != null && product.originalPrice > product.price);
+      const matchesFreeShipping = !freeShipping || product.isFreeShipping === true;
+      const matchesVerified = !officialStore || product.isVerified === true;
+
+      // Seller filter
+      const matchesSeller = selectedSellers.length === 0 || selectedSellers.includes(product.seller);
+
+      return matchesSearch && matchesPrice && matchesRating && matchesShippedFrom && matchesOnSale && matchesFreeShipping && matchesVerified && matchesSeller;
     });
 
     return result;
-  }, [pricedProducts, featuredProductsAsShopProducts, searchQuery, isFeaturedView, priceRange, minRating]);
+  }, [pricedProducts, featuredProductsAsShopProducts, searchQuery, isFeaturedView, priceRange, minRating, shippedFrom, onSale, freeShipping, officialStore, selectedSellers]);
 
   // Category count map that reacts to active filters
   const filteredCategoryCountMap = useMemo(() => {
@@ -625,6 +663,17 @@ export default function ShopPage() {
     setIsFeaturedView(false);
     setPriceRange([0, 100000]);
     setMinRating(0);
+    setShippedFrom(null);
+    setOnSale(false);
+    setFreeShipping(false);
+    setWithVouchers(false);
+    setPreferredSeller(false);
+    setOfficialStore(false);
+    setStandardDelivery(false);
+    setSameDayDelivery(false);
+    setCashOnDelivery(false);
+    setPickupAvailable(false);
+    setSelectedSellers([]);
     setSearchParams(prev => {
       const p = new URLSearchParams(prev);
       p.delete("sort");
@@ -1174,61 +1223,202 @@ export default function ShopPage() {
                         </div>
                       </div>
 
-                      {/* Size Section */}
-                      {dynamicSizeOptions.length > 0 && (
-                        <div className="space-y-3">
-                          <h3 className="font-bold text-[var(--text-headline)] text-sm">Size</h3>
-                          <div className="flex flex-wrap gap-2">
-                            {dynamicSizeOptions.map((size) => (
-                              <button
-                                key={size}
-                                className="w-9 h-9 rounded-full border border-[var(--border)] bg-white flex items-center justify-center text-xs font-bold text-[var(--text-primary)] hover:border-[var(--brand-primary)] hover:text-[var(--brand-primary)] transition-all active:scale-95 shadow-sm"
-                              >
-                                {size}
-                              </button>
-                            ))}
-                          </div>
+                      {/* Shipped From Section */}
+                      <div className="space-y-3">
+                        <h3 className="font-bold text-gray-900 text-sm">Shipped From</h3>
+                        <div className="space-y-2">
+                          {[
+                            { id: "philippines", label: "Philippines" },
+                            { id: "metro_manila", label: "Metro Manila" },
+                          ].map((option) => (
+                            <button
+                              key={option.id}
+                              onClick={() => {
+                                manualScrollRef.current = true;
+                                setShippedFrom(shippedFrom === option.id ? null : option.id);
+                              }}
+                              className={`w-full flex justify-between items-center px-3 py-2 rounded-lg text-sm transition-all ${
+                                shippedFrom === option.id
+                                  ? "bg-[var(--brand-primary)]/10 text-[var(--brand-primary)] font-bold border border-[var(--brand-primary)]/20"
+                                  : "text-[var(--text-primary)] font-medium hover:bg-gray-50"
+                              }`}
+                            >
+                              <span>{option.label}</span>
+                              {shippedFrom === option.id && (
+                                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                                </svg>
+                              )}
+                            </button>
+                          ))}
                         </div>
-                      )}
+                      </div>
 
-                      {/* Color Section */}
-                      {dynamicColorOptions.length > 0 && (
-                        <div className="space-y-3">
-                          <h3 className="font-bold text-[var(--text-headline)] text-sm">Color</h3>
-                          <div className="flex flex-wrap gap-2.5">
-                            {dynamicColorOptions.map((color) => (
-                              <button
-                                key={color}
-                                className="px-2.5 py-1 rounded-full border border-[var(--border)] shadow-sm hover:border-[var(--brand-primary)] transition-all text-xs font-medium text-[var(--text-primary)]"
-                                aria-label={`Filter by color: ${color}`}
-                              >
-                                {color}
-                              </button>
-                            ))}
-                          </div>
+                      {/* Rating Section */}
+                      <div className="space-y-3">
+                        <h3 className="font-bold text-gray-900 text-sm">Ratings</h3>
+                        <div className="space-y-2">
+                          {[
+                            { label: "5 Stars", value: 5 },
+                            { label: "4 Stars & up", value: 4 },
+                            { label: "3 Stars & up", value: 3 },
+                            { label: "2 Stars & up", value: 2 },
+                            { label: "1 Star & up", value: 1 },
+                          ].map((option) => (
+                            <button
+                              key={option.value}
+                              onClick={() => {
+                                manualScrollRef.current = true;
+                                setMinRating(minRating === option.value ? 0 : option.value);
+                              }}
+                              className={`w-full flex items-center gap-2 px-3 py-2 rounded-lg text-sm transition-all ${
+                                minRating === option.value
+                                  ? "bg-[var(--brand-primary)]/10 text-[var(--brand-primary)] font-bold border border-[var(--brand-primary)]/20"
+                                  : "text-[var(--text-primary)] font-medium hover:bg-gray-50"
+                              }`}
+                            >
+                              <div className="flex items-center gap-0.5">
+                                {[...Array(5)].map((_, i) => (
+                                  <Star
+                                    key={i}
+                                    className={`h-3.5 w-3.5 ${i < option.value ? 'text-amber-400 fill-amber-400' : 'text-gray-200 fill-gray-200'}`}
+                                  />
+                                ))}
+                              </div>
+                              <span className="text-xs">{option.label}</span>
+                              {minRating === option.value && (
+                                <svg className="w-4 h-4 ml-auto" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                                </svg>
+                              )}
+                            </button>
+                          ))}
                         </div>
-                      )}
+                      </div>
 
-                      {/* Brands Section */}
+                      {/* Shops & Promos Section */}
+                      <div className="space-y-3">
+                        <h3 className="font-bold text-gray-900 text-sm">Shops & Promos</h3>
+                        <div className="space-y-2">
+                          {[
+                            { key: "onSale", label: "On Sale", state: onSale, setter: setOnSale },
+                            { key: "freeShipping", label: "Free Shipping", state: freeShipping, setter: setFreeShipping },
+                            { key: "withVouchers", label: "With Vouchers", state: withVouchers, setter: setWithVouchers },
+                            { key: "preferredSeller", label: "Preferred Seller", state: preferredSeller, setter: setPreferredSeller },
+                            { key: "officialStore", label: "Official Store", state: officialStore, setter: setOfficialStore },
+                          ].map((option) => (
+                            <button
+                              key={option.key}
+                              onClick={() => {
+                                manualScrollRef.current = true;
+                                option.setter(!option.state);
+                              }}
+                              className={`w-full flex justify-between items-center px-3 py-2 rounded-lg text-sm transition-all ${
+                                option.state
+                                  ? "bg-[var(--brand-primary)]/10 text-[var(--brand-primary)] font-bold border border-[var(--brand-primary)]/20"
+                                  : "text-[var(--text-primary)] font-medium hover:bg-gray-50"
+                              }`}
+                            >
+                              <span>{option.label}</span>
+                              <div className={`w-5 h-5 rounded flex items-center justify-center border-2 transition-all ${
+                                option.state
+                                  ? "bg-[var(--brand-primary)] border-[var(--brand-primary)]"
+                                  : "border-gray-300"
+                              }`}>
+                                {option.state && (
+                                  <svg className="w-3 h-3 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
+                                  </svg>
+                                )}
+                              </div>
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+
+                      {/* Shipping Option Section */}
+                      <div className="space-y-3">
+                        <h3 className="font-bold text-gray-900 text-sm">Shipping Option</h3>
+                        <div className="space-y-2">
+                          {[
+                            { key: "standardDelivery", label: "Standard Delivery", state: standardDelivery, setter: setStandardDelivery },
+                            { key: "sameDayDelivery", label: "Same Day Delivery", state: sameDayDelivery, setter: setSameDayDelivery },
+                            { key: "cashOnDelivery", label: "Cash on Delivery (COD)", state: cashOnDelivery, setter: setCashOnDelivery },
+                            { key: "pickupAvailable", label: "Pickup Available", state: pickupAvailable, setter: setPickupAvailable },
+                          ].map((option) => (
+                            <button
+                              key={option.key}
+                              onClick={() => {
+                                manualScrollRef.current = true;
+                                option.setter(!option.state);
+                              }}
+                              className={`w-full flex justify-between items-center px-3 py-2 rounded-lg text-sm transition-all ${
+                                option.state
+                                  ? "bg-[var(--brand-primary)]/10 text-[var(--brand-primary)] font-bold border border-[var(--brand-primary)]/20"
+                                  : "text-[var(--text-primary)] font-medium hover:bg-gray-50"
+                              }`}
+                            >
+                              <span>{option.label}</span>
+                              <div className={`w-5 h-5 rounded flex items-center justify-center border-2 transition-all ${
+                                option.state
+                                  ? "bg-[var(--brand-primary)] border-[var(--brand-primary)]"
+                                  : "border-gray-300"
+                              }`}>
+                                {option.state && (
+                                  <svg className="w-3 h-3 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
+                                  </svg>
+                                )}
+                              </div>
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+
+                      {/* Sellers Section */}
                       {dynamicBrandOptions.length > 0 && (
                         <div className="space-y-3">
                           <h3 className="font-bold text-gray-900 text-sm">Sellers</h3>
-                          <div className="space-y-3">
-                            {dynamicBrandOptions.map((brand) => (
-                              <button
-                                key={brand.name}
-                                className="w-full flex justify-between items-center group cursor-pointer hover:text-gray-900"
-                              >
-                                <div className="flex items-center gap-2">
-                                  <span className="text-sm transition-colors text-[var(--text-primary)] font-medium">
-                                    {brand.name}
+                          <div className="space-y-2">
+                            {dynamicBrandOptions.map((brand) => {
+                              const isSelected = selectedSellers.includes(brand.name);
+                              return (
+                                <button
+                                  key={brand.name}
+                                  onClick={() => {
+                                    manualScrollRef.current = true;
+                                    setSelectedSellers((prev) =>
+                                      isSelected
+                                        ? prev.filter((s) => s !== brand.name)
+                                        : [...prev, brand.name]
+                                    );
+                                  }}
+                                  className={`w-full flex justify-between items-center px-3 py-2 rounded-lg text-sm transition-all ${
+                                    isSelected
+                                      ? "bg-[var(--brand-primary)]/10 text-[var(--brand-primary)] font-bold border border-[var(--brand-primary)]/20"
+                                      : "text-[var(--text-primary)] font-medium hover:bg-gray-50"
+                                  }`}
+                                >
+                                  <div className="flex items-center gap-2">
+                                    <div className={`w-4 h-4 rounded flex items-center justify-center border-2 transition-all flex-shrink-0 ${
+                                      isSelected
+                                        ? "bg-[var(--brand-primary)] border-[var(--brand-primary)]"
+                                        : "border-gray-300"
+                                    }`}>
+                                      {isSelected && (
+                                        <svg className="w-2.5 h-2.5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
+                                        </svg>
+                                      )}
+                                    </div>
+                                    <span className="text-sm truncate">{brand.name}</span>
+                                  </div>
+                                  <span className={`text-[11px] flex-shrink-0 ${isSelected ? "text-[var(--brand-primary)] font-bold" : "text-[var(--text-muted)]"}`}>
+                                    {brand.count}
                                   </span>
-                                </div>
-                                <span className="text-[11px] transition-colors text-[var(--text-muted)] group-hover:text-[var(--text-primary)]">
-                                  {brand.count}
-                                </span>
-                              </button>
-                            ))}
+                                </button>
+                              );
+                            })}
                           </div>
                         </div>
                       )}
@@ -1317,7 +1507,7 @@ export default function ShopPage() {
                 </motion.div>
 
                 {/* Active Filter Chips */}
-                {(selectedCategory !== "All Categories" || selectedSort !== "default" || isFeaturedView || priceRange[0] !== 0 || priceRange[1] !== 100000 || minRating > 0) && (
+                {(selectedCategory !== "All Categories" || selectedSort !== "default" || isFeaturedView || priceRange[0] !== 0 || priceRange[1] !== 100000 || minRating > 0 || shippedFrom || onSale || freeShipping || withVouchers || preferredSeller || officialStore || standardDelivery || sameDayDelivery || cashOnDelivery || pickupAvailable || selectedSellers.length > 0) && (
                   <div className="mb-4 flex flex-wrap items-center gap-2">
                     {isFeaturedView && (
                       <button
@@ -1327,7 +1517,7 @@ export default function ShopPage() {
                         }}
                         className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-amber-50 border border-amber-200 text-xs font-semibold text-amber-700 hover:bg-amber-500 hover:text-white transition-all"
                       >
-                        ⭐ Featured Products
+                        Featured Products
                         <X className="h-3 w-3" />
                       </button>
                     )}
@@ -1374,6 +1564,90 @@ export default function ShopPage() {
                         <X className="h-3 w-3" />
                       </button>
                     )}
+                    {shippedFrom && (
+                      <button
+                        onClick={() => { manualScrollRef.current = true; setShippedFrom(null); }}
+                        className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-blue-50 border border-blue-200 text-xs font-semibold text-blue-700 hover:bg-blue-500 hover:text-white transition-all"
+                      >
+                         {shippedFrom === "metro_manila" ? "Metro Manila" : "Philippines"}
+                        <X className="h-3 w-3" />
+                      </button>
+                    )}
+                    {onSale && (
+                      <button
+                        onClick={() => { manualScrollRef.current = true; setOnSale(false); }}
+                        className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-red-50 border border-red-200 text-xs font-semibold text-red-700 hover:bg-red-500 hover:text-white transition-all"
+                      >
+                         On Sale
+                        <X className="h-3 w-3" />
+                      </button>
+                    )}
+                    {freeShipping && (
+                      <button
+                        onClick={() => { manualScrollRef.current = true; setFreeShipping(false); }}
+                        className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-emerald-50 border border-emerald-200 text-xs font-semibold text-emerald-700 hover:bg-emerald-500 hover:text-white transition-all"
+                      >
+                        Free Shipping
+                        <X className="h-3 w-3" />
+                      </button>
+                    )}
+                    {withVouchers && (
+                      <button
+                        onClick={() => { manualScrollRef.current = true; setWithVouchers(false); }}
+                        className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-purple-50 border border-purple-200 text-xs font-semibold text-purple-700 hover:bg-purple-500 hover:text-white transition-all"
+                      >
+                        With Vouchers
+                        <X className="h-3 w-3" />
+                      </button>
+                    )}
+                    {preferredSeller && (
+                      <button
+                        onClick={() => { manualScrollRef.current = true; setPreferredSeller(false); }}
+                        className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-orange-50 border border-orange-200 text-xs font-semibold text-orange-700 hover:bg-orange-500 hover:text-white transition-all"
+                      >
+                        Preferred Seller
+                        <X className="h-3 w-3" />
+                      </button>
+                    )}
+                    {officialStore && (
+                      <button
+                        onClick={() => { manualScrollRef.current = true; setOfficialStore(false); }}
+                        className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-indigo-50 border border-indigo-200 text-xs font-semibold text-indigo-700 hover:bg-indigo-500 hover:text-white transition-all"
+                      >
+                        Official Store
+                        <X className="h-3 w-3" />
+                      </button>
+                    )}
+                    {(standardDelivery || sameDayDelivery || cashOnDelivery || pickupAvailable) && (
+                      <button
+                        onClick={() => {
+                          manualScrollRef.current = true;
+                          setStandardDelivery(false);
+                          setSameDayDelivery(false);
+                          setCashOnDelivery(false);
+                          setPickupAvailable(false);
+                        }}
+                        className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-teal-50 border border-teal-200 text-xs font-semibold text-teal-700 hover:bg-teal-500 hover:text-white transition-all"
+                      >
+                        {[
+                          standardDelivery && "Standard",
+                          sameDayDelivery && "Same Day",
+                          cashOnDelivery && "COD",
+                          pickupAvailable && "Pickup",
+                        ].filter(Boolean).join(", ")}
+                        <X className="h-3 w-3" />
+                      </button>
+                    )}
+                    {selectedSellers.length > 0 && selectedSellers.map((seller) => (
+                      <button
+                        key={`seller-${seller}`}
+                        onClick={() => { manualScrollRef.current = true; setSelectedSellers((prev) => prev.filter((s) => s !== seller)); }}
+                        className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-cyan-50 border border-cyan-200 text-xs font-semibold text-cyan-700 hover:bg-cyan-500 hover:text-white transition-all"
+                      >
+                        {seller}
+                        <X className="h-3 w-3" />
+                      </button>
+                    ))}
                     <button
                       onClick={resetFilters}
                       className="text-xs font-medium text-[var(--text-muted)] hover:text-[var(--brand-primary)] transition-colors underline ml-1"

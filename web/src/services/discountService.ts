@@ -4,14 +4,14 @@
  * Adheres to the Class-based Service Layer Architecture
  */
 
-import { supabase, isSupabaseConfigured } from '@/lib/supabase';
+import { isSupabaseConfigured, supabase } from '@/lib/supabase';
 import type {
-  DiscountCampaign,
-  ProductDiscount,
-  DiscountUsage,
-  ActiveDiscount,
-  GlobalFlashSaleSlot,
-  FlashSaleSubmission
+    ActiveDiscount,
+    DiscountCampaign,
+    DiscountUsage,
+    FlashSaleSubmission,
+    GlobalFlashSaleSlot,
+    ProductDiscount
 } from '@/types/discount';
 
 export class DiscountService {
@@ -902,7 +902,7 @@ export class DiscountService {
             id, name, price, seller_id,
             images:product_images (image_url, is_primary, sort_order),
             variants:product_variants (stock, price),
-            seller:sellers!products_seller_id_fkey (id, store_name),
+            seller:sellers!products_seller_id_fkey (id, store_name, approval_status),
             category:categories!products_category_id_fkey (name),
             reviews(rating)
           )
@@ -912,10 +912,22 @@ export class DiscountService {
 
       if (subError) throw subError;
 
+      // Filter out products from non-verified, blacklisted, or suspended sellers
+      const verifiedSubmissions = (submissions || []).filter((sub: any) => {
+        const seller = sub.product?.seller;
+        if (!seller) return true;
+        if (seller.approval_status && seller.approval_status !== 'verified') return false;
+        if (seller.suspended_at) return false;
+        if (seller.blacklisted_at) return false;
+        if (seller.is_permanently_blacklisted) return false;
+        if (seller.temp_blacklist_until && new Date(seller.temp_blacklist_until) > new Date()) return false;
+        return true;
+      });
+
       // 3. Map to product display objects
       const slotMap = new Map(slots.map((s: any) => [s.id, s]));
 
-      return (submissions || []).map((sub: any) => {
+      return (verifiedSubmissions || []).map((sub: any) => {
         const p = sub.product as any;
         const slot = slotMap.get(sub.slot_id) as any;
         const basePrice = sub.submitted_price || p?.price || 0;

@@ -3,20 +3,20 @@ import type { BottomTabScreenProps } from '@react-navigation/bottom-tabs';
 import type { CompositeScreenProps } from '@react-navigation/native';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { FlashList } from "@shopify/flash-list";
-import { Bell, Camera, ChevronDown, MapPin, Search, SlidersHorizontal, Star, X } from 'lucide-react-native';
+import { Bell, Camera, ChevronDown, FunnelIcon, MapPin, Search, SlidersHorizontal, Star, X } from 'lucide-react-native';
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
-    ActivityIndicator,
-    Dimensions,
-    Keyboard,
-    Pressable,
-    RefreshControl,
-    ScrollView,
-    StatusBar,
-    StyleSheet,
-    Text,
-    TextInput,
-    View
+  ActivityIndicator,
+  Dimensions,
+  Keyboard,
+  Pressable,
+  RefreshControl,
+  ScrollView,
+  StatusBar,
+  StyleSheet,
+  Text,
+  TextInput,
+  View
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import type { RootStackParamList, TabParamList } from '../App';
@@ -32,7 +32,7 @@ import { notificationService } from '../src/services/notificationService';
 import { productService } from '../src/services/productService';
 import { useAuthStore } from '../src/stores/authStore';
 import type { Product } from '../src/types';
-import type { ActiveFilterChip, ProductFilters, SortOption } from '../src/types/filter.types';
+import type { ProductFilters, SortOption } from '../src/types/filter.types';
 import { DEFAULT_FILTERS } from '../src/types/filter.types';
 
   type Props = CompositeScreenProps<
@@ -642,6 +642,20 @@ import { DEFAULT_FILTERS } from '../src/types/filter.types';
         ? categoryProducts
         : dbProducts;
 
+      // Safety net: filter out products from non-verified, blacklisted, or suspended sellers
+      sourceProducts = sourceProducts.filter(p => {
+        const seller = (p as any).seller;
+        // If seller data is not available (already transformed), skip this check
+        // since the service layer already filtered
+        if (!seller || typeof seller === 'string') return true;
+        if (seller.approval_status && seller.approval_status !== 'verified') return false;
+        if (seller.suspended_at) return false;
+        if (seller.blacklisted_at) return false;
+        if (seller.is_permanently_blacklisted) return false;
+        if (seller.temp_blacklist_until && new Date(seller.temp_blacklist_until) > new Date()) return false;
+        return true;
+      });
+
       const normalizedQuery = searchQuery.trim().toLowerCase();
       const min = filters.priceRange.min ?? 0;
       const max = filters.priceRange.max ?? Infinity;
@@ -1000,7 +1014,7 @@ import { DEFAULT_FILTERS } from '../src/types/filter.types';
                 onPress={() => setShowSortModal(true)}
               >
                 {/* Replace ChevronDown with your preferred sort icon */}
-                <ChevronDown size={18} color={sortOption !== 'relevance' ? COLORS.primary : COLORS.textPrimary} />
+                <FunnelIcon size={18} color={sortOption !== 'relevance' ? COLORS.primary : COLORS.textPrimary} />
                 {sortOption !== 'relevance' && <View style={styles.toolbarIconBadge} />}
               </Pressable>
               <Pressable
