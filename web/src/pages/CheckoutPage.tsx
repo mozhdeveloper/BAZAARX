@@ -4,7 +4,8 @@ import { useNavigate, useLocation } from "react-router-dom";
 import { supabase } from "@/lib/supabase";
 import { checkoutService } from "@/services/checkoutService"; // Import checkout service
 import { discountService } from "@/services/discountService";
-import { BASIC_TEST_CARDS, THREE_DS_TEST_CARDS, SCENARIO_TEST_CARDS } from "@/constants/testCards";
+import { paymentService } from "@/services/paymentService";
+import { BASIC_TEST_CARDS, THREE_DS_TEST_CARDS, SCENARIO_TEST_CARDS, getTestCardByNumber } from "@/constants/testCards";
 import {
   ArrowLeft,
   ChevronLeft,
@@ -126,6 +127,7 @@ export default function CheckoutPage() {
     updateCampaignDiscountCache,
     loadCheckoutContext,
     isLoadingCheckoutContext,
+    addCard,
     logout,
   } = useBuyerStore();
   const [isAddressModalOpen, setIsAddressModalOpen] = useState(false);
@@ -280,6 +282,13 @@ export default function CheckoutPage() {
     gcashNumber: "",
     mayaNumber: "",
   });
+  const [selectedSavedCardId, setSelectedSavedCardId] = useState<string | null>(null);
+  const [useDifferentCard, setUseDifferentCard] = useState(false);
+
+  const savedPayMongoCards = useMemo(
+    () => (profile?.paymentMethods || []).filter((method) => method.type === 'card'),
+    [profile?.paymentMethods]
+  );
 
   // Force non-COD payment for registry orders if COD is selected
   useEffect(() => {
@@ -295,6 +304,23 @@ export default function CheckoutPage() {
 
   // Removed: Payment method auto-fill logic - always default to COD
   // Users can manually switch to card/gcash/paymaya if needed
+
+  useEffect(() => {
+    if (formData.paymentMethod !== 'card') {
+      return;
+    }
+
+    if (savedPayMongoCards.length === 0) {
+      setSelectedSavedCardId(null);
+      setUseDifferentCard(true);
+      return;
+    }
+
+    if (!selectedSavedCardId && !useDifferentCard) {
+      const defaultCard = savedPayMongoCards.find((card) => card.isDefault) || savedPayMongoCards[0];
+      setSelectedSavedCardId(defaultCard?.id || null);
+    }
+  }, [formData.paymentMethod, savedPayMongoCards, selectedSavedCardId, useDifferentCard]);
 
   const [isLoading, setIsLoading] = useState(false);
   const [errors, setErrors] = useState<Partial<CheckoutFormData>>({});
@@ -704,12 +730,27 @@ export default function CheckoutPage() {
     }
 
     // Only validate payment-specific fields for non-COD methods
-    if (formData.paymentMethod === "card" && formData.cardNumber?.trim()) {
-      if (!formData.cardName?.trim())
-        newErrors.cardName = "Cardholder name is required";
-      if (!formData.expiryDate?.trim())
-        newErrors.expiryDate = "Expiry date is required";
-      if (!formData.cvv?.trim()) newErrors.cvv = "CVV is required";
+    if (formData.paymentMethod === "card") {
+      const isUsingSavedCard = !useDifferentCard && !!selectedSavedCardId;
+
+      if (!isUsingSavedCard) {
+        const sanitizedCardNumber = formData.cardNumber?.replace(/\D/g, '') || '';
+        if (!sanitizedCardNumber) {
+          newErrors.cardNumber = "Card number is required";
+        } else if (!getTestCardByNumber(sanitizedCardNumber)) {
+          newErrors.cardNumber = "Only PayMongo test cards are accepted in this environment";
+        }
+
+        if (!formData.cardName?.trim()) {
+          newErrors.cardName = "Cardholder name is required";
+        }
+        if (!formData.expiryDate?.trim()) {
+          newErrors.expiryDate = "Expiry date is required";
+        }
+        if (!formData.cvv?.trim()) {
+          newErrors.cvv = "CVV is required";
+        }
+      }
     } else if (formData.paymentMethod === "gcash") {
       if (!formData.gcashNumber?.trim()) {
         newErrors.gcashNumber = "GCash number is required";
@@ -908,8 +949,8 @@ export default function CheckoutPage() {
         selectedAddressId: selectedAddress?.id ?? null,
         // BX-09-001 — Add per-seller shipping breakdown
         shippingBreakdown: shippingBreakdown,
-        // Add card details if card payment method is selected
-        ...(formData.paymentMethod === 'card' && {
+        // Add card details only for manual different-card PayMongo entry
+        ...(formData.paymentMethod === 'card' && (useDifferentCard || !selectedSavedCardId) && {
           cardDetails: {
             cardNumber: formData.cardNumber || '',
             expiryDate: formData.expiryDate || '',
@@ -926,6 +967,37 @@ export default function CheckoutPage() {
       }
 
       // Order successful
+
+      // Mirror mobile behavior: when buyer has no saved cards and enters one in PayMongo checkout,
+      // save it to Payment Methods after successful payment.
+      if (
+        formData.paymentMethod === 'card' &&
+        savedPayMongoCards.length === 0 &&
+        (useDifferentCard || !selectedSavedCardId) &&
+        formData.cardNumber?.trim() &&
+        formData.expiryDate?.trim() &&
+        formData.cardName?.trim()
+      ) {
+        try {
+          const sanitizedCardNumber = formData.cardNumber.replace(/\D/g, '');
+          const testCard = getTestCardByNumber(sanitizedCardNumber);
+          const savedMethod = await paymentService.addPaymentMethod(profile.id, {
+            type: 'card',
+            brand: testCard?.brand || 'PayMongo Card',
+            last4: sanitizedCardNumber.slice(-4),
+            expiry: formData.expiryDate,
+            isDefault: true,
+          });
+          addCard(savedMethod);
+        } catch (saveCardError) {
+          console.error('Checkout succeeded but failed to save PayMongo card:', saveCardError);
+          toast({
+            title: 'Payment successful',
+            description: 'Order placed, but card was not saved. You can add it in Payment Methods.',
+            variant: 'default',
+          });
+        }
+      }
 
       // Update local bazcoins if returned
       if (result.newBazcoinsBalance !== undefined) {
@@ -1031,7 +1103,7 @@ export default function CheckoutPage() {
     } finally {
       setIsLoading(false);
     }
-  }, [validateForm, profile, checkoutItems, finalTotal, selectedAddress, formData, isBuyAgainMode, isQuickCheckout, useBazcoins, bazcoinDiscount, earnedBazcoins, shippingFee, discount, appliedVoucher, navigate, toast, updateRegistryItem, clearBuyAgainItems, clearQuickOrder, removeSelectedItems, hasVacationSeller, vacationSellers]);
+  }, [validateForm, profile, checkoutItems, finalTotal, selectedAddress, formData, isBuyAgainMode, isQuickCheckout, useBazcoins, bazcoinDiscount, earnedBazcoins, shippingFee, discount, appliedVoucher, navigate, toast, updateRegistryItem, clearBuyAgainItems, clearQuickOrder, removeSelectedItems, hasVacationSeller, vacationSellers, savedPayMongoCards.length, useDifferentCard, selectedSavedCardId, addCard]);
 
   // Show loading while store is rehydrating
   if (!isStoreReady || isLoadingCheckoutContext) {
@@ -1075,9 +1147,9 @@ export default function CheckoutPage() {
         </div>
 
         <form onSubmit={handleSubmit}>
-          <div className="relative grid grid-cols-1 lg:grid-cols-3 gap-8">
+          <div className="relative grid grid-cols-1 lg:grid-cols-[minmax(0,1.6fr)_minmax(0,1fr)] gap-8">
             {/* Checkout Form */}
-            <div className="lg:col-span-2 space-y-8">
+            <div className="space-y-8">
               {/* Shipping Information */}
               <motion.section
                 initial={{ opacity: 0, y: 20 }}
@@ -1185,6 +1257,16 @@ export default function CheckoutPage() {
                       onClick={() => {
                         if (!method.comingSoon) {
                           handleInputChange("paymentMethod", method.id);
+                          if (method.id === "card") {
+                            if (savedPayMongoCards.length > 0) {
+                              const defaultCard = savedPayMongoCards.find((card) => card.isDefault) || savedPayMongoCards[0];
+                              setSelectedSavedCardId(defaultCard?.id || null);
+                              setUseDifferentCard(false);
+                            } else {
+                              setSelectedSavedCardId(null);
+                              setUseDifferentCard(true);
+                            }
+                          }
                         }
                       }}
                     >
@@ -1226,6 +1308,74 @@ export default function CheckoutPage() {
                 {/* Payment Details - Only show when Card is selected */}
                 {formData.paymentMethod === "card" && (
                   <div className="space-y-4">
+                    {savedPayMongoCards.length > 0 && (
+                      <div className="p-4 border border-gray-200 rounded-lg space-y-3">
+                        <div className="flex items-center justify-between">
+                          <p className="text-sm font-semibold text-gray-900">Your Saved Cards</p>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setUseDifferentCard(true);
+                              setSelectedSavedCardId(null);
+                            }}
+                            className="text-xs font-semibold text-[var(--brand-primary)] hover:underline"
+                          >
+                            Use Different Card
+                          </button>
+                        </div>
+
+                        {savedPayMongoCards.map((card) => (
+                          <button
+                            key={card.id}
+                            type="button"
+                            onClick={() => {
+                              setSelectedSavedCardId(card.id);
+                              setUseDifferentCard(false);
+                              setErrors((prev) => ({
+                                ...prev,
+                                cardNumber: undefined,
+                                cardName: undefined,
+                                expiryDate: undefined,
+                                cvv: undefined,
+                              }));
+                            }}
+                            className={`w-full flex items-center justify-between p-3 rounded-lg border transition-colors ${
+                              !useDifferentCard && selectedSavedCardId === card.id
+                                ? 'border-[var(--brand-primary)] bg-orange-50'
+                                : 'border-gray-200 hover:border-gray-300'
+                            }`}
+                          >
+                            <div className="flex items-center gap-3">
+                              <div className={`w-4 h-4 rounded-full border-2 flex items-center justify-center ${
+                                !useDifferentCard && selectedSavedCardId === card.id
+                                  ? 'border-[var(--brand-primary)] bg-[var(--brand-primary)]'
+                                  : 'border-gray-300'
+                              }`}>
+                                {!useDifferentCard && selectedSavedCardId === card.id && (
+                                  <Check className="w-3 h-3 text-white" />
+                                )}
+                              </div>
+                              <div className="text-left">
+                                <p className="text-sm font-medium text-gray-900">{card.brand} •••• {card.last4 || '----'}</p>
+                                <p className="text-xs text-gray-500">Expires {card.expiry || '--/--'}</p>
+                              </div>
+                            </div>
+                            {card.isDefault && (
+                              <Badge className="bg-orange-50 text-[#ff6a00] border-none text-[10px] font-bold">Default</Badge>
+                            )}
+                          </button>
+                        ))}
+                      </div>
+                    )}
+
+                    {savedPayMongoCards.length > 0 && !useDifferentCard && selectedSavedCardId && (
+                      <div className="p-3 rounded-lg bg-green-50 border border-green-200 text-sm text-green-700">
+                        Selected saved card will be used for this PayMongo payment.
+                      </div>
+                    )}
+
+                    {(useDifferentCard || savedPayMongoCards.length === 0) && (
+                      <>
                     {/* Test Card Selector (Development/Sandbox Only) */}
                     {process.env.NODE_ENV === 'development' && (
                       <div className="p-4 bg-blue-50 border border-blue-200 rounded-lg">
@@ -1372,6 +1522,8 @@ export default function CheckoutPage() {
                         )}
                       </div>
                     </div>
+                      </>
+                    )}
                   </div>
                 )}
 
@@ -1459,7 +1611,7 @@ export default function CheckoutPage() {
             <motion.div
               initial={{ opacity: 0, x: 20 }}
               animate={{ opacity: 1, x: 0 }}
-              className="lg:col-span-1"
+              className="min-w-0"
             >
               <div className="bg-white shadow-md rounded-xl p-6 sticky top-24">
                 <h3 className="text-lg font-semibold text-gray-900 mb-4">

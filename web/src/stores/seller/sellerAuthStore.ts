@@ -257,8 +257,6 @@ export const useAuthStore = create<AuthStore>()(
                     }
 
                     // 2) Create or update seller record (use upsert to handle conflicts)
-                    const { sellerService } =
-                        await import("@/services/sellerService");
 
                     const sellerInsertData = {
                         id: user.id,

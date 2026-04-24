@@ -4,6 +4,8 @@ import { persist } from 'zustand/middleware';
 import { orderService } from '@/services/orderService';
 import { orderReadService } from '@/services/orders/orderReadService';
 import { orderMutationService } from '@/services/orders/orderMutationService';
+import { notificationService } from '@/services/notificationService';
+import * as transactionalEmails from '@/services/transactionalEmails';
 import type { SellerOrder } from './sellerTypes';
 import { useAuthStore } from './sellerAuthStore';
 import { useProductStore } from './sellerProductStore';
@@ -212,58 +214,50 @@ export const useOrderStore = create<OrderStore>()(
                             `🚀 Creating buyer notification for order ${id}`,
                         );
 
-                        // Import notification service dynamically to avoid circular dependency
-                        import("@/services/notificationService").then(
-                            ({ notificationService }) => {
-                                notificationService
-                                    .notifyBuyerOrderStatus({
-                                        buyerId: order.buyer_id!,
-                                        orderId: id,
-                                        orderNumber: id.slice(-8),
-                                        status,
-                                        message,
-                                    })
-                                    .catch((refreshError) => {
-                                        console.error(
-                                            "Failed to refresh orders after status update:",
-                                            refreshError,
-                                        );
-                                    });
-                            },
-                        );
+                        // Notify buyer of order status
+                        notificationService
+                            .notifyBuyerOrderStatus({
+                                buyerId: order.buyer_id!,
+                                orderId: id,
+                                orderNumber: id.slice(-8),
+                                status,
+                                message,
+                            })
+                            .catch((refreshError) => {
+                                console.error(
+                                    "Failed to refresh orders after status update:",
+                                    refreshError,
+                                );
+                            });
 
                         // Fire transactional email using data already in the order (non-blocking)
                         if (order.buyerEmail) {
                             console.log(`[SellerOrderStore] ▶ Sending ${dbStatus} email to ${order.buyerEmail}`);
-                            import("@/services/transactionalEmails").then(
-                                (emails) => {
-                                    const base = {
-                                        buyerEmail: order.buyerEmail,
-                                        buyerId: order.buyer_id!,
-                                        orderNumber: order.orderNumber || id,
-                                        buyerName: order.buyerName || 'Valued Customer',
-                                    };
-                                    const BASE_URL = typeof window !== 'undefined' ? window.location.origin : 'https://bazaar.ph';
-                                    const trackUrl = `${BASE_URL}/orders/${id}`;
-                                    (
-                                        dbStatus === 'processing' ? emails.sendOrderConfirmedEmail({ ...base, estimatedDelivery: '3–7 business days' }) :
-                                        dbStatus === 'ready_to_ship' ? emails.sendOrderReadyToShipEmail({ ...base, estimatedPickup: 'Within 24 hours', trackUrl }) :
-                                        dbStatus === 'shipped' ? emails.sendOrderShippedEmail({ ...base, trackingNumber: order.trackingNumber || 'N/A', courierName: 'courier', trackingUrl: trackUrl }) :
-                                        dbStatus === 'out_for_delivery' ? emails.sendOrderOutForDeliveryEmail({ ...base, courierName: 'courier', trackUrl }) :
-                                        dbStatus === 'delivered' ? emails.sendOrderDeliveredEmail(base) :
-                                        dbStatus === 'failed_to_deliver' ? emails.sendOrderFailedDeliveryEmail({ ...base, failureReason: 'Delivery attempt failed', rescheduleUrl: trackUrl }) :
-                                        dbStatus === 'cancelled' ? emails.sendOrderCancelledEmail({ ...base, cancelReason: 'Order cancelled' }) :
-                                        dbStatus === 'returned' ? emails.sendOrderReturnedEmail({ ...base, refundAmount: 'Pending', refundMethod: 'Original payment method', trackUrl }) :
-                                        Promise.resolve()
-                                    ).then((result) => {
-                                        console.log(`[SellerOrderStore] ${dbStatus} email result:`, result);
-                                    }).catch((emailErr: unknown) => {
-                                        console.error("[SellerOrderStore] ✖ Email error:", emailErr);
-                                    });
-                                }
-                            ).catch((importErr: unknown) => {
-                                console.warn("[SellerOrderStore] Failed to import transactionalEmails:", importErr);
-                            });
+                            (() => {
+                                const base = {
+                                    buyerEmail: order.buyerEmail,
+                                    buyerId: order.buyer_id!,
+                                    orderNumber: order.orderNumber || id,
+                                    buyerName: order.buyerName || 'Valued Customer',
+                                };
+                                const BASE_URL = typeof window !== 'undefined' ? window.location.origin : 'https://bazaar.ph';
+                                const trackUrl = `${BASE_URL}/orders/${id}`;
+                                (
+                                    dbStatus === 'processing' ? transactionalEmails.sendOrderConfirmedEmail({ ...base, estimatedDelivery: '3–7 business days' }) :
+                                    dbStatus === 'ready_to_ship' ? transactionalEmails.sendOrderReadyToShipEmail({ ...base, estimatedPickup: 'Within 24 hours', trackUrl }) :
+                                    dbStatus === 'shipped' ? transactionalEmails.sendOrderShippedEmail({ ...base, trackingNumber: order.trackingNumber || 'N/A', courierName: 'courier', trackingUrl: trackUrl }) :
+                                    dbStatus === 'out_for_delivery' ? transactionalEmails.sendOrderOutForDeliveryEmail({ ...base, courierName: 'courier', trackUrl }) :
+                                    dbStatus === 'delivered' ? transactionalEmails.sendOrderDeliveredEmail(base) :
+                                    dbStatus === 'failed_to_deliver' ? transactionalEmails.sendOrderFailedDeliveryEmail({ ...base, failureReason: 'Delivery attempt failed', rescheduleUrl: trackUrl }) :
+                                    dbStatus === 'cancelled' ? transactionalEmails.sendOrderCancelledEmail({ ...base, cancelReason: 'Order cancelled' }) :
+                                    dbStatus === 'returned' ? transactionalEmails.sendOrderReturnedEmail({ ...base, refundAmount: 'Pending', refundMethod: 'Original payment method', trackUrl }) :
+                                    Promise.resolve()
+                                ).then((result) => {
+                                    console.log(`[SellerOrderStore] ${dbStatus} email result:`, result);
+                                }).catch((emailErr: unknown) => {
+                                    console.error("[SellerOrderStore] ✖ Email error:", emailErr);
+                                });
+                            })();
                         } else {
                             console.warn(`[SellerOrderStore] ⚠ No buyerEmail — skipping ${dbStatus} email for order ${id}`);
                         }
@@ -398,23 +392,17 @@ export const useOrderStore = create<OrderStore>()(
 
                     // Fire transactional email using data already in the order (non-blocking)
                     if (order.buyerEmail) {
-                        import("@/services/transactionalEmails").then(
-                            ({ sendOrderShippedEmail }) => {
-                                const BASE_URL = typeof window !== 'undefined' ? window.location.origin : 'https://bazaar.ph';
-                                sendOrderShippedEmail({
-                                    buyerEmail: order.buyerEmail,
-                                    buyerId: order.buyer_id!,
-                                    orderNumber: order.orderNumber || id,
-                                    buyerName: order.buyerName || 'Valued Customer',
-                                    trackingNumber: sanitizedTrackingNumber,
-                                    courierName: 'courier',
-                                    trackingUrl: `${BASE_URL}/orders/${id}`,
-                                }).catch((emailErr: unknown) => {
-                                    console.warn("[SellerOrderStore] Shipped email error:", emailErr);
-                                });
-                            }
-                        ).catch((importErr: unknown) => {
-                            console.warn("[SellerOrderStore] Failed to import transactionalEmails:", importErr);
+                        const BASE_URL = typeof window !== 'undefined' ? window.location.origin : 'https://bazaar.ph';
+                        transactionalEmails.sendOrderShippedEmail({
+                            buyerEmail: order.buyerEmail,
+                            buyerId: order.buyer_id!,
+                            orderNumber: order.orderNumber || id,
+                            buyerName: order.buyerName || 'Valued Customer',
+                            trackingNumber: sanitizedTrackingNumber,
+                            courierName: 'courier',
+                            trackingUrl: `${BASE_URL}/orders/${id}`,
+                        }).catch((emailErr: unknown) => {
+                            console.warn("[SellerOrderStore] Shipped email error:", emailErr);
                         });
                     }
                 } catch (error) {
@@ -483,41 +471,31 @@ export const useOrderStore = create<OrderStore>()(
                     // Fire transactional email using data already in the order (non-blocking)
                     // Send in-app notification + push to buyer
                     if (order.buyer_id) {
-                        import("@/services/notificationService").then(
-                            ({ notificationService }) => {
-                                notificationService.notifyBuyerOrderStatus({
-                                    buyerId: order.buyer_id!,
-                                    orderId: id,
-                                    orderNumber: order.orderNumber || id,
-                                    status: 'delivered',
-                                    message: `Your order #${order.orderNumber || id} has been delivered. Enjoy your purchase!`,
-                                }).catch((err: unknown) => {
-                                    console.error('[SellerOrderStore] ✖ Delivered notification error:', err);
-                                });
-                            }
-                        ).catch((importErr: unknown) => {
-                            console.warn('[SellerOrderStore] Failed to import notificationService:', importErr);
+                        notificationService.notifyBuyerOrderStatus({
+                            buyerId: order.buyer_id!,
+                            orderId: id,
+                            orderNumber: order.orderNumber || id,
+                            status: 'delivered',
+                            message: `Your order #${order.orderNumber || id} has been delivered. Enjoy your purchase!`,
+                        }).catch((err: unknown) => {
+                            console.error('[SellerOrderStore] ✖ Delivered notification error:', err);
                         });
                     }
 
                     if (order.buyerEmail) {
-                        import("@/services/transactionalEmails").then(
-                            ({ sendOrderDeliveredEmail }) => {
-                                console.log('[SellerOrderStore] ▶ Sending delivered email to', order.buyerEmail);
-                                sendOrderDeliveredEmail({
-                                    buyerEmail: order.buyerEmail,
-                                    buyerId: order.buyer_id!,
-                                    orderNumber: order.orderNumber || id,
-                                    buyerName: order.buyerName || 'Valued Customer',
-                                }).then((result) => {
-                                    console.log('[SellerOrderStore] Delivered email result:', result);
-                                }).catch((emailErr: unknown) => {
-                                    console.error("[SellerOrderStore] ✖ Delivered email error:", emailErr);
-                                });
-                            }
-                        ).catch((importErr: unknown) => {
-                            console.warn("[SellerOrderStore] Failed to import transactionalEmails:", importErr);
-                        });
+                        (() => {
+                            console.log('[SellerOrderStore] ▶ Sending delivered email to', order.buyerEmail);
+                            transactionalEmails.sendOrderDeliveredEmail({
+                                buyerEmail: order.buyerEmail,
+                                buyerId: order.buyer_id!,
+                                orderNumber: order.orderNumber || id,
+                                buyerName: order.buyerName || 'Valued Customer',
+                            }).then((result) => {
+                                console.log('[SellerOrderStore] Delivered email result:', result);
+                            }).catch((emailErr: unknown) => {
+                                console.error("[SellerOrderStore] ✖ Delivered email error:", emailErr);
+                            });
+                        })();
                     } else {
                         console.warn('[SellerOrderStore] ⚠ No buyerEmail on order — skipping delivered email', { orderId: id, hasEmail: !!order.buyerEmail });
                     }

@@ -6,6 +6,7 @@ import { useAdminAuth } from '../stores/adminStore';
 import { supabase, isSupabaseConfigured } from '@/lib/supabase';
 import AdminSidebar from '../components/AdminSidebar';
 import { useAdminRealtime } from '@/hooks/useAdminRealtime';
+import * as transactionalEmails from '@/services/transactionalEmails';
 import { toast } from '@/hooks/use-toast';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -340,15 +341,13 @@ const AdminOrders: React.FC = () => {
         const buyerId = selectedOrder.buyer_id;
         if (buyerEmail && buyerId) {
           const sendCancelEmail = () =>
-            import('@/services/transactionalEmails').then((emails) =>
-              emails.sendOrderCancelledEmail({
-                buyerEmail,
-                buyerId,
-                orderNumber: selectedOrder.orderNumber,
-                buyerName,
-                cancelReason: reason,
-              })
-            );
+            transactionalEmails.sendOrderCancelledEmail({
+              buyerEmail,
+              buyerId,
+              orderNumber: selectedOrder.orderNumber,
+              buyerName,
+              cancelReason: reason,
+            });
           sendCancelEmail().catch((err: unknown) => {
             console.warn('[AdminOrders] Cancel email error:', err);
             toast({

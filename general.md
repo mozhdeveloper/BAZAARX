@@ -68,153 +68,93 @@ The following files are local AI standards and are **never committed**:
 
 ---
 
-## Session Log — April 23, 2026
+## Session Log — April 24, 2026
 
-### Per-Seller Checkout Subtotal & Multi-Screen Alignment
+### PayMongo Checkout and Profile Payment Methods Parity (Web)
 
-**Status:** ✅ COMPLETE (with validation pending)
+**Status:** ✅ COMPLETE
 
-**Objective:** Implement per-seller subtotal display in checkout page, persist seller-specific pricing through order creation, and ensure consistent display across Checkout, Pending Orders tab, and Order Detail pages.
+**Objective:** Align web checkout/payment behavior with mobile by improving PayMongo card handling, enforcing sandbox test-card policy, and ensuring checkout card entry is persisted to Profile Payment Methods.
 
-**Critical Issue Resolved:** Fixed ₱160 vs ₱45 alignment mismatch where checkout displayed correct per-seller totals but Pending/Order Detail showed duplicated whole-purchase totals due to missing per-seller pricing persistence.
+**Scope Delivered Today:**
 
-**Root Cause:** Each seller order was persisting the entire checkout total instead of seller-specific totals because sellerPricingSummary calculations weren't being stored with orders.
-
-**Changes Implemented:**
-
-### 1. CheckoutPage.tsx — Per-Seller Subtotal Display
+### 1. Checkout Layout and Order Summary Width
 
 **Modified:** [web/src/pages/CheckoutPage.tsx](web/src/pages/CheckoutPage.tsx)
 
-- Added 3 memoized helper functions (lines 311-345):
-  - `calculateSellerItemsOriginalPrice(sellerId)` — sums original item prices for seller
-  - `calculateSellerCampaignDiscount(sellerId)` — sums campaign discounts for seller items
-  - `calculateSellerSubtotal(sellerId)` — returns items price minus discount
-- Added new per-seller subtotal UI section (lines 1540-1573):
-  - Displays Products/Campaign Discount/Subtotal breakdown per seller
-  - Shows shipping fee and total for each seller group
-  - Maintains responsive layout with Tailwind CSS
-- Modified handleSubmit navigation logic (lines 1008-1025):
-  - Multi-seller orders navigate to `/orders?tab=Pending` for overview
-  - Single-seller orders navigate to `/order/{id}` for detail view
+- Adjusted desktop checkout grid proportions so the order summary panel is wider.
+- Preserved two-column layout integrity (form + summary).
+- Kept responsive behavior intact for smaller breakpoints.
 
-### 2. CheckoutService.ts — Per-Seller Pricing Persistence (CRITICAL)
+### 2. Profile Payment Methods Web/Mobile Consistency
 
-**Modified:** [web/src/services/checkoutService.ts](web/src/services/checkoutService.ts)
+**Modified:** [web/src/components/profile/PaymentMethodsSection.tsx](web/src/components/profile/PaymentMethodsSection.tsx)
+**Modified:** [web/src/components/profile/PaymentMethodModal.tsx](web/src/components/profile/PaymentMethodModal.tsx)
+**Modified:** [web/src/hooks/profile/usePaymentMethodManager.ts](web/src/hooks/profile/usePaymentMethodManager.ts)
 
-- Extended CheckoutPayload interface (lines 39-47):
-  - Added optional `shippingBreakdown` to track per-seller shipping fees
-- Implemented per-seller pricing calculation before order creation (lines 298-306):
-  - Creates `sellerPricingSummary` object: `{ subtotal, shipping, tax: 0, campaignDiscount, voucherDiscount, bazcoinDiscount, total }`
-  - Each seller order gets its own distinct pricing snapshot
-- Persisted sellerPricingSummary in PRICING_SUMMARY notes field (line 315):
-  - Stores JSON-serialized pricing data for later retrieval
-  - Avoids schema constraint (no total_amount column)
-- Assigned seller shipping to first order item (line 350):
-  - `shipping_price: lineIndex === 0 ? sellerShipping : 0`
-  - Preserves seller-specific shipping at item level
-- Updated payment_transactions with seller total (line 390):
-  - Uses `sellerPricingSummary.total` for accurate charge per seller
-- Updated receipt email with seller-level values (lines 432-434):
-  - Displays correct subtotal/shipping/total in customer receipt
+- Updated web profile payment methods flow to match mobile UX direction.
+- Focused PayMongo/card path as primary active payment method flow.
+- Applied stricter validation for manual card entry consistency.
 
-### 3. OrdersPage.tsx — Pending Tab Label Clarity
+### 3. Strict PayMongo Sandbox Policy (Test Cards Only)
 
-**Modified:** [web/src/pages/OrdersPage.tsx](web/src/pages/OrdersPage.tsx)
+**Modified:** [web/src/pages/CheckoutPage.tsx](web/src/pages/CheckoutPage.tsx)
+**Modified:** [web/src/services/payMongoService.ts](web/src/services/payMongoService.ts)
 
-- Changed label from "Order Total:" to "Seller Total:" (lines 657, 847):
-  - Clarifies that each seller order card shows per-seller subtotal
-  - Reduces user confusion about whole-purchase vs seller-specific pricing
-- Maintained all existing calculation and display logic
+- Enforced test-card-only checks in checkout validation layer.
+- Enforced the same policy in service layer to prevent bypass.
+- Non-test cards are now rejected consistently before/at processing.
 
-### 4. OrderDetailPage.tsx — Persisted Tax Value
+### 4. Saved Card + Use Different Card in Web Checkout
 
-**Modified:** [web/src/pages/OrderDetailPage.tsx](web/src/pages/OrderDetailPage.tsx)
+**Modified:** [web/src/pages/CheckoutPage.tsx](web/src/pages/CheckoutPage.tsx)
 
-- Updated taxAmount calculation (line 466):
-  - Changed from: `Math.round(subtotalAmount * 0.12)` (recomputed)
-  - Changed to: `order.pricing?.tax ?? 0` (persisted from PRICING_SUMMARY)
-  - Uses seller-specific tax value, not whole-checkout recomputation
-- Maintains accurate per-seller order summary display
+- Added saved PayMongo card selection in checkout when cards exist.
+- Added "Use Different Card" path to allow manual entry during checkout.
+- Ensured payload includes `cardDetails` only for manual-entry flow.
 
-### 5. Order Mappers — Robust Price Fallback
+### 5. Auto-Save Checkout Card to Profile (No Saved Card Case)
 
-**Modified:** [web/src/utils/orders/mappers.ts](web/src/utils/orders/mappers.ts)
+**Modified:** [web/src/pages/CheckoutPage.tsx](web/src/pages/CheckoutPage.tsx)
 
-- Enhanced subtotal calculation with fallback (lines 192-200):
-  - Uses: `Number(item.price || item.variant?.price || 0)`
-  - Handles cases where item.price may be missing
-- Updated computedTotal with variant price fallback (lines 224-234)
-- Prioritized row-level computedTotal over whole-order total (lines 239-253):
-  - Ensures each seller order computes from its own line items
-  - Prevents whole-purchase totals from bleeding into seller orders
-- Effect: Pending/Order Detail now calculate seller totals from line items, not global totals
+- Implemented post-success save behavior that mirrors mobile logic:
+  - If payment method is PayMongo card,
+  - and buyer has no saved PayMongo card,
+  - and buyer entered card manually,
+  - then save card to Payment Methods after successful checkout.
+- Uses existing payment service write path and updates local buyer state immediately so Profile reflects the card without reload.
+- Save failure is non-blocking: order success is preserved and user receives a clear notice.
 
 ---
 
-### Key Features Implemented
-
-✅ **Per-Seller Subtotal Display**: Checkout shows Products/Discount/Subtotal breakdown per seller
-✅ **Per-Seller Pricing Persistence**: sellerPricingSummary calculated and stored for each seller before order creation
-✅ **Consistent Multi-Screen Display**: Checkout → Pending Tab → Order Detail all show aligned per-seller totals
-✅ **Conditional Navigation**: Multi-seller orders route to Pending overview; single-seller to detail view
-✅ **Shipping Per-Seller**: Each seller's shipping fee persisted and displayed correctly
-✅ **Accurate Tax Persistence**: Tax values stored per seller, not recomputed globally
-✅ **Label Clarity**: "Seller Total:" clarifies per-seller vs whole-purchase amounts
-✅ **Schema Compliance**: No invalid database column references; uses existing PRICING_SUMMARY and shipping_price fields
-✅ **Error-Free Compilation**: All TypeScript validation passing
-
----
-
-### What Was Preserved
-
-- ✅ Existing checkout validation logic
-- ✅ Multi-seller order split architecture
-- ✅ Campaign discount and voucher calculations
-- ✅ Bazcoin redemption flow
-- ✅ Address selection and form handling
-- ✅ Payment method selection
-- ✅ Order creation workflow
-- ✅ Mobile-responsive design
-- ✅ Framer Motion animations
-
----
-
-### Files Modified
+### Files Modified (Today)
 
 | File | Changes | Status |
 |------|---------|--------|
-| [web/src/pages/CheckoutPage.tsx](web/src/pages/CheckoutPage.tsx) | Added 3 helper functions + per-seller subtotal UI + navigation logic | ✅ Modified |
-| [web/src/services/checkoutService.ts](web/src/services/checkoutService.ts) | Implemented per-seller pricing calculation and persistence | ✅ Modified |
-| [web/src/pages/OrdersPage.tsx](web/src/pages/OrdersPage.tsx) | Updated label to "Seller Total:" for clarity | ✅ Modified |
-| [web/src/pages/OrderDetailPage.tsx](web/src/pages/OrderDetailPage.tsx) | Updated taxAmount to use persisted value | ✅ Modified |
-| [web/src/utils/orders/mappers.ts](web/src/utils/orders/mappers.ts) | Enhanced price fallback and total priority logic | ✅ Modified |
+| [web/src/pages/CheckoutPage.tsx](web/src/pages/CheckoutPage.tsx) | Checkout width update, PayMongo validation, saved card selection, use-different-card path, post-success auto-save to Profile | ✅ Modified |
+| [web/src/services/payMongoService.ts](web/src/services/payMongoService.ts) | Service-level test-card-only enforcement for PayMongo | ✅ Modified |
+| [web/src/components/profile/PaymentMethodsSection.tsx](web/src/components/profile/PaymentMethodsSection.tsx) | Profile payment methods parity updates | ✅ Modified |
+| [web/src/components/profile/PaymentMethodModal.tsx](web/src/components/profile/PaymentMethodModal.tsx) | Card add modal validation and PayMongo-focused flow | ✅ Modified |
+| [web/src/hooks/profile/usePaymentMethodManager.ts](web/src/hooks/profile/usePaymentMethodManager.ts) | Payment method manager alignment with updated card flow | ✅ Modified |
 
 **Total Files Modified:** 5
-**Lines Added:** ~280
-**Lines Removed:** ~15
-**Schema Errors Fixed:** 1 (removed invalid total_amount column reference)
 
 ---
 
-### Testing Checklist
+### Validation Snapshot
 
-✅ Per-seller subtotal displays correctly in CheckoutPage
-✅ Helper functions calculate accurate per-seller metrics
-✅ Per-seller pricing snapshot persists to database
-✅ PRICING_SUMMARY JSON stores seller-specific values
-✅ Shipping assigned to first order item per seller
-✅ Payment transaction uses seller total for charge
-✅ Receipt email displays seller-level breakdown
-✅ Pending tab shows "Seller Total:" label
-✅ Order Detail uses persisted tax value
-✅ Multi-seller orders navigate to `/orders?tab=Pending`
-✅ Single-seller orders navigate to `/order/{id}`
-✅ All 5 files compile without TypeScript errors
-✅ No schema errors (PostgREST PGRST204 fixed)
-✅ Order creation succeeds end-to-end
+✅ No TypeScript errors in changed checkout file after latest patch
+✅ Web flow now mirrors mobile behavior for manual-card save after successful PayMongo checkout (no-saved-card scenario)
+✅ Test-card-only policy applied in both UI and service layers
 
-**Next Step:** User testing required to validate that Checkout → Pending → Order Detail display aligned per-seller totals across all three screens.
+---
+
+### Next Step
+
+Run end-to-end user testing for:
+- Existing saved card checkout path
+- No saved card manual-entry checkout path
+- Profile Payment Methods reflecting newly saved PayMongo card immediately after successful order
 
 ---
 
