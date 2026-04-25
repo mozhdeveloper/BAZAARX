@@ -820,7 +820,6 @@ export const processCheckout = async (payload: CheckoutPayload): Promise<Checkou
                             p_order_id: orderData.id,
                             p_reason: 'order',
                             p_actor_id: userId,
-                            p_notes: null,
                         });
                         if (rpcErr) {
                             console.warn('[Checkout] decrement_stock_atomic failed, falling back:', rpcErr.message);

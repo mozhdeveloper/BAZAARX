@@ -768,7 +768,6 @@ export class OrderService {
                         p_order_id: orderId,
                         p_reason: 'pos_sale',
                         p_actor_id: sellerId,
-                        p_notes: null,
                     });
                     if (rpcErr) {
                         console.warn('[POS] decrement_stock_atomic failed, falling back:', rpcErr.message);
