@@ -82,13 +82,58 @@ class OrderMutationService {
     sellerId,
     trackingNumber,
   }: MarkOrderShippedInput): Promise<boolean> {
-    return orderService.markOrderAsShipped(orderId, trackingNumber, sellerId);
+    try {
+      // 1. Update the main orders table (Shipment Status)
+      const { data: orderData, error: orderError } = await supabase
+        .from('orders')
+        .update({ shipment_status: 'shipped', updated_at: new Date().toISOString() })
+        .eq('id', orderId)
+        .select('buyer_id, order_number')
+        .single();
+
+      if (orderError) throw new Error(`Failed to update order status: ${orderError.message}`);
+
+      // 2. Update the isolated order_shipments table
+      const { error: shipmentError } = await supabase
+        .from('order_shipments')
+        .update({
+          tracking_number: trackingNumber,
+          status: 'shipped',
+          shipped_at: new Date().toISOString(),
+          updated_at: new Date().toISOString()
+        })
+        .eq('order_id', orderId)
+        .eq('seller_id', sellerId);
+
+      if (shipmentError) throw new Error(`Failed to save tracking number: ${shipmentError.message}`);
+
+      // 3. Drop an immutable Audit Log
+      await supabase.from('order_status_history').insert({
+        order_id: orderId,
+        status: 'shipped',
+        note: `Parcel shipped via courier. Tracking: ${trackingNumber}`,
+        changed_by: sellerId,
+        changed_by_role: 'seller'
+      });
+
+      // 4. Trigger Real-time Buyer Notification
+      if (orderData?.buyer_id) {
+        await notificationService.notifyBuyerOrderShipped({
+          buyerId: orderData.buyer_id,
+          orderId: orderId,
+          orderNumber: orderData.order_number || orderId,
+          trackingNumber: trackingNumber
+        });
+      }
+
+      return true;
+    } catch (error) {
+      console.error('[Mutation] markOrderShipped error:', error);
+      throw error;
+    }
   }
 
-  async markOrderDelivered({
-    orderId,
-    sellerId,
-  }: MarkOrderDeliveredInput): Promise<boolean> {
+  async markOrderDelivered({ orderId, sellerId }: MarkOrderDeliveredInput): Promise<boolean> {
     return orderService.markOrderAsDelivered(orderId, sellerId);
   }
 
@@ -97,7 +142,43 @@ class OrderMutationService {
     buyerId,
     receiptPhotoUrls,
   }: ConfirmOrderReceivedInput): Promise<boolean> {
-    return orderService.confirmOrderReceived(orderId, buyerId, receiptPhotoUrls);
+    try {
+      // 1. Update the main orders table
+      const { error: orderError } = await supabase
+        .from('orders')
+        .update({ shipment_status: 'received', updated_at: new Date().toISOString() })
+        .eq('id', orderId)
+        .eq('buyer_id', buyerId);
+
+      if (orderError) throw new Error(`Failed to confirm delivery: ${orderError.message}`);
+
+      // 2. Update the isolated order_shipments table
+      await supabase
+        .from('order_shipments')
+        .update({ 
+          status: 'delivered', 
+          delivered_at: new Date().toISOString(), 
+          updated_at: new Date().toISOString() 
+        })
+        .eq('order_id', orderId);
+
+      // 3. Drop Audit Log with embedded JSON metadata for the receipt photos
+      await supabase.from('order_status_history').insert({
+        order_id: orderId,
+        status: 'received',
+        note: 'Buyer confirmed receipt of delivery.',
+        changed_by: buyerId,
+        changed_by_role: 'buyer',
+        metadata: receiptPhotoUrls && receiptPhotoUrls.length > 0 
+          ? { receipt_photos: receiptPhotoUrls } 
+          : {}
+      });
+
+      return true;
+    } catch (error) {
+      console.error('[Mutation] confirmOrderReceived error:', error);
+      throw error;
+    }
   }
 
   async cancelOrder({
