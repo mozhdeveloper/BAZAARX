@@ -1139,9 +1139,9 @@ class ReturnService {
   }
 
   /**
-   * Best-effort write to admin_action_log so that every refund-impacting action
-   * leaves a trail. Silently no-ops if the table doesn't exist or the user
-   * isn't authenticated (the row won't satisfy RLS).
+   * Best-effort write to admin_audit_logs so that every refund-impacting action
+   * leaves a trail. Silently no-ops if the user isn't authenticated (the row
+   * won't satisfy RLS).
    */
   private async logAuditAction(
     action: string,
@@ -1151,15 +1151,15 @@ class ReturnService {
     try {
       const { data: userData } = await supabase.auth.getUser();
       const adminId = userData?.user?.id ?? null;
-      const { error } = await supabase.from('admin_action_log').insert({
+      const { error } = await supabase.from('admin_audit_logs').insert({
         admin_id: adminId,
         action,
-        target_type: 'refund_return_period',
+        target_table: 'return_requests',
         target_id: returnId,
-        metadata,
+        new_values: metadata,
       });
-      // 42P01 = table missing, 42501 = RLS denial: both are non-fatal here.
-      if (error && !['42P01', '42501', 'PGRST205'].includes((error as { code?: string }).code || '')) {
+      // 42501 = RLS denial: non-fatal here.
+      if (error && !['42501', 'PGRST205'].includes((error as { code?: string }).code || '')) {
         console.warn('audit log write failed:', error.message);
       }
     } catch (err) {

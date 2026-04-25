@@ -38,7 +38,7 @@ const mapDbVoucherToVoucher = (dbVoucher: DbVoucher): Voucher => ({
     code: dbVoucher.code,
     title: dbVoucher.title,
     description: dbVoucher.description || '',
-    type: dbVoucher.voucher_type,
+    type: dbVoucher.voucher_type as VoucherType,
     value: dbVoucher.value,
     minOrderValue: dbVoucher.min_order_value,
     maxDiscount: dbVoucher.max_discount ?? undefined,

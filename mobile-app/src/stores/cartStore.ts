@@ -25,6 +25,11 @@ interface CartStore {
   getTotal: () => number;
   getItemCount: () => number;
 
+  // Checkout Validation
+  isValidatingCheckout: boolean;
+  checkoutErrors: Record<string, string>;
+  validateCheckout: (selectedIds: string[]) => Promise<boolean>;
+
   // Quick Order (Buy Now)
   quickOrder: CartItem | null;
   setQuickOrder: (product: Product, quantity?: number) => void;
@@ -235,8 +240,26 @@ export const useCartStore = create<CartStore>()(
       isLoading: false,
       error: null,
       quickOrder: null,
+      isValidatingCheckout: false,
+      checkoutErrors: {},
 
-      // HELPER: Calculates the sum of subtotals and updates the carts table
+      validateCheckout: async (selectedIds: string[]) => {
+        set({ isValidatingCheckout: true, checkoutErrors: {} });
+        try {
+          const result = await cartService.validateCheckoutItems(selectedIds);
+          if (!result.isValid) {
+            set({ checkoutErrors: result.errors });
+          }
+          return result.isValid;
+        } catch (e: any) {
+          set({ error: e.message || 'Validation failed' });
+          return false;
+        } finally {
+          set({ isValidatingCheckout: false });
+        }
+      },
+
+      // HELPER: Calculates the sum of subtotals
       syncCartTotal: async (cartId: string) => {
         try {
           await cartService.syncCartTotal(cartId);

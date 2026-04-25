@@ -22,7 +22,7 @@ import type { ActiveDiscount } from '../src/types/discount';
 
 
 export default function CartScreen({ navigation, route }: any) {
-  const { items, removeItem, updateQuantity, clearCart, initializeForCurrentUser, clearQuickOrder, updateItemVariant, removeItems, error } = useCartStore();
+  const { items, removeItem, updateQuantity, clearCart, initializeForCurrentUser, clearQuickOrder, updateItemVariant, removeItems, error, validateCheckout, isValidatingCheckout, checkoutErrors } = useCartStore();
   const insets = useSafeAreaInsets();
 
   // Use global theme color
@@ -280,7 +280,14 @@ export default function CartScreen({ navigation, route }: any) {
   }, [selectedSet]);
 
   const handleCheckout = async () => {
-    if (selectedIds.length === 0) return;
+    if (selectedIds.length === 0 || isValidatingCheckout) return;
+
+    // BX-04-010: Perform server-side validation before proceeding
+    const isValid = await validateCheckout(selectedIds);
+    if (!isValid) {
+      Alert.alert('Checkout Blocked', 'Some items in your cart are no longer available or changed stock. Please review the errors highlighted in red.');
+      return; // Stop the checkout flow entirely
+    }
 
     // Clear any previous quick order to ensure we checkout strictly from cart selections
     clearQuickOrder();
@@ -350,7 +357,7 @@ export default function CartScreen({ navigation, route }: any) {
 
       <ScrollView
         style={styles.scrollContainer}
-        contentContainerStyle={{ paddingBottom: 170 }}
+        contentContainerStyle={{ paddingBottom: 190 }} 
         showsVerticalScrollIndicator={false}
       >
         {/* SELLER GROUPS */}
@@ -425,6 +432,12 @@ export default function CartScreen({ navigation, route }: any) {
                       />
                     </View>
                   </View>
+                 {/* BX-04-010: Display server validation error if it exists */}
+                  {checkoutErrors[item.cartItemId] ? (
+                    <Text style={{ color: '#DC2626', fontSize: 12, fontWeight: '600', marginLeft: 36, marginBottom: 8, marginTop: -4 }}>
+                      ⚠️ {checkoutErrors[item.cartItemId]}
+                    </Text>
+                  ) : null}
                   {/* Add divider if not the last item */}
                   {index < sellerProducts.length - 1 && <View style={styles.itemSeparator} />}
                 </View>
@@ -469,8 +482,11 @@ export default function CartScreen({ navigation, route }: any) {
                   navigation.navigate('Checkout', { selectedItems });
                 }
               }}
-              style={[styles.checkoutBtn, { backgroundColor: BRAND_PRIMARY, opacity: (selectedIds.length === 0 || hasOutOfStockSelected || hasRestrictedItemsSelected) ? 0.5 : 1 }]}>
-              <Text style={styles.checkoutBtnText}>Checkout ({selectedIds.length})</Text>
+              style={[styles.checkoutBtn, { backgroundColor: BRAND_PRIMARY, opacity: (selectedIds.length === 0 || hasOutOfStockSelected || hasRestrictedItemsSelected || isValidatingCheckout) ?
+0.5 : 1 }]}>
+              <Text style={styles.checkoutBtnText}>
+                {isValidatingCheckout ? 'Validating...' : `Checkout (${selectedIds.length})`}
+              </Text>
             </Pressable>
           </View>
         </View>
