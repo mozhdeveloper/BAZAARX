@@ -1355,14 +1355,17 @@ export class OrderService {
               })
               .eq('id', existingShipment.id);
           } else {
-            await supabase
-              .from('order_shipments')
-              .insert({
-                order_id: orderId,
-                status: 'shipped',
-                tracking_number: trackingNumber,
-                shipped_at: new Date().toISOString(),
-              });
+            // No order_shipments row exists yet. We cannot insert one here
+            // because order_shipments has several NOT NULL columns
+            // (seller_id, shipping_method, calculated_fee, origin_zone,
+            // destination_zone, fee_breakdown, etc.) that are populated at
+            // checkout time. The order's shipment_status is the source of
+            // truth in this case; just log and continue.
+            console.warn(
+              '[OrderService] No order_shipments row exists for order',
+              orderId,
+              '— shipment_status was updated on orders, but no shipment record to update.'
+            );
           }
         } catch (error) {
           console.warn('[OrderService] Non-critical: Failed to update order_shipments:', error);
