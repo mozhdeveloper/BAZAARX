@@ -609,6 +609,83 @@ export class CartService {
     return { subtotal, itemCount, items };
   }
 
+  /**
+   * BX-04-010: Real-time Cart Validation Before Checkout
+   * Revalidates stock, seller status, and product availability server-side.
+   */
+  async validateCheckoutItems(cartItemIds: string[]): Promise<{ isValid: boolean, errors: Record<string, string> }> {
+    if (!isSupabaseConfigured()) throw new Error('Supabase not configured');
+    if (!cartItemIds || cartItemIds.length === 0) return { isValid: true, errors: {} };
+
+    const errors: Record<string, string> = {};
+    let isValid = true;
+
+    try {
+      // 1. Fetch the absolute latest data for the selected cart items directly from the DB
+      const { data: latestItems, error } = await supabase
+        .from('cart_items')
+        .select(`
+          id, quantity,
+          product:products ( id, is_active, seller:sellers ( is_vacation_mode, approval_status, suspended_at, is_permanently_blacklisted, temp_blacklist_until ) ),
+          variant:product_variants ( id, stock )
+        `)
+        .in('id', cartItemIds);
+
+      if (error) throw error;
+
+      // 2. Loop through and validate each item against real-time DB values
+      for (const item of (latestItems || [])) {
+        const product = item.product as any;
+        const seller = product?.seller;
+        const variant = item.variant as any;
+
+        // Check 1: Product exists and is active
+        if (!product || product.is_active === false) {
+          errors[item.id] = 'This product is no longer available.';
+          isValid = false;
+          continue;
+        }
+
+        // Check 2: Seller Eligibility
+        const now = new Date();
+        const tempBlacklist = seller?.temp_blacklist_until ? new Date(seller.temp_blacklist_until) : null;
+        const isSellerActive = !(
+          seller?.is_permanently_blacklisted || seller?.suspended_at || seller?.is_vacation_mode ||
+          seller?.approval_status === 'rejected' || seller?.approval_status === 'suspended' ||
+          (tempBlacklist && now <= tempBlacklist)
+        );
+
+        if (!isSellerActive) {
+          errors[item.id] = seller?.is_vacation_mode ? 'Seller is currently on vacation.' : 'Store is temporarily restricted.';
+          isValid = false;
+          continue;
+        }
+
+        // Check 3: Stock validation
+        let availableStock = 0;
+        if (variant) {
+          availableStock = variant.stock || 0;
+        } else {
+          // Fallback to product total stock if no variant
+          availableStock = await this.getAvailableStock(product.id);
+        }
+
+        if (availableStock === 0) {
+          errors[item.id] = 'This item just went out of stock.';
+          isValid = false;
+        } else if (item.quantity > availableStock) {
+          errors[item.id] = `Only ${availableStock} left in stock. Please reduce quantity.`;
+          isValid = false;
+        }
+      }
+
+      return { isValid, errors };
+    } catch (e) {
+      console.error('[CartService] Checkout validation failed:', e);
+      throw new Error('Failed to validate cart. Please try again.');
+    }
+  }
+
   // Convenience wrapper methods for cart store compatibility
   async addItem(cartId: string, productId: string, unitPrice: number, quantity: number, variantId?: string | null, personalizedOptions?: Record<string, unknown> | null, forceNewItem: boolean = false): Promise<CartItem> {
     return this.addToCart(cartId, productId, quantity, variantId || undefined, personalizedOptions || undefined, undefined, forceNewItem);
