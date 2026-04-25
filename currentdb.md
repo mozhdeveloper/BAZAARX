@@ -1,6 +1,6 @@
 ## Table `_orphan_orders_audit_20260424`
 
-Forensic backup of all orders that had no order_items as of 2026-04-24. The 17 pending_payment rows were hard-deleted (abandoned carts). The 20 paid + 17 refunded rows survive in public.orders flagged with [ORPHAN_NEEDS_REVIEW_2026-04-24] in notes — see migration 046.
+PERMANENT FORENSIC RECORD — do not drop. Archived snapshot of all 54 orders that had no order_items rows as of 2026-04-24. 17 pending_payment rows were hard-deleted by migration 046 (abandoned carts). 20 paid + 17 refunded rows survived in public.orders. Migration 049 cleared the review flag from the 17 refunded rows (money-trail intact). The ~20 paid rows remain flagged with [ORPHAN_NEEDS_REVIEW_2026-04-24] in orders.notes until an admin manually reviews and closes each one.
 
 ### Columns
 
@@ -328,6 +328,8 @@ Append-only audit trail of consent grant/revoke events. Required for PH Data Pri
 
 ## Table `contributor_tiers`
 
+Gamification tiers for product_request comment upvoting (bc_multiplier). Distinct from seller_tiers (QA bypass) and buyer_segments (marketing audience).
+
 ### Columns
 
 | Name | Type | Constraints |
@@ -366,8 +368,8 @@ Buyer-seller conversations
 | `service_type` | `text` |  |
 | `rate` | `numeric` |  |
 | `estimated_days` | `int4` |  Nullable |
-| `cached_at` | `timestamptz` |  Nullable |
-| `expires_at` | `timestamptz` |  Nullable |
+| `cached_at` | `timestamptz` |  |
+| `expires_at` | `timestamptz` |  |
 
 ## Table `delivery_bookings`
 
@@ -407,6 +409,8 @@ Buyer-seller conversations
 
 ## Table `delivery_tracking_events`
 
+Courier-side tracking scans (delivery_booking_id, courier_status_code). Distinct from order_status_history (order-side admin/seller actions).
+
 ### Columns
 
 | Name | Type | Constraints |
@@ -422,7 +426,7 @@ Buyer-seller conversations
 
 ## Table `discount_campaigns`
 
-Campaign management
+Seller PRICE-DISCOUNT campaigns (discount_value, badge, min_purchase_amount). Distinct from marketing_campaigns (email/SMS blasts). Do NOT merge.
 
 ### Columns
 
@@ -614,6 +618,8 @@ Automated inventory alerts
 
 ## Table `marketing_campaigns`
 
+Email/SMS MARKETING blasts to buyer_segments (segment_id, template_id, total_opened/clicked). Distinct from discount_campaigns (price reductions). Do NOT merge.
+
 ### Columns
 
 | Name | Type | Constraints |
@@ -716,6 +722,8 @@ Order discount applications
 
 ## Table `order_events`
 
+Drives chat-message generation from order state changes (has conversation_id, message_generated). Distinct from order_status_history (full audit timeline) and delivery_tracking_events (courier scans). All three required.
+
 ### Columns
 
 | Name | Type | Constraints |
@@ -779,19 +787,6 @@ Canonical 1-per-order payment record. Required for ALL orders (POS + ONLINE). Mo
 | `payment_date` | `timestamptz` |  Nullable |
 | `amount` | `numeric` |  |
 | `status` | `text` |  |
-| `created_at` | `timestamptz` |  |
-
-## Table `order_promos`
-
-Order promo code applications
-
-### Columns
-
-| Name | Type | Constraints |
-|------|------|-------------|
-| `id` | `uuid` | Primary |
-| `order_id` | `uuid` |  |
-| `promo_code` | `text` |  |
 | `created_at` | `timestamptz` |  |
 
 ## Table `order_recipients`
@@ -1141,7 +1136,7 @@ Product images with ordering
 
 ## Table `product_rejections`
 
-Product rejection events and reclassification metadata
+Per-assessment rejection record. Currently 0 rows (no products rejected yet) but actively written by qaService in web and mobile when admin rejects. Do NOT drop.
 
 ### Columns
 
@@ -1312,49 +1307,6 @@ Base user profile table - all users have an entry here
 | `user_id` | `uuid` |  |
 | `token` | `text` |  Unique |
 | `platform` | `text` |  |
-| `created_at` | `timestamptz` |  |
-| `updated_at` | `timestamptz` |  |
-
-## Table `qa_assessment_form_evidence`
-
-### Columns
-
-| Name | Type | Constraints |
-|------|------|-------------|
-| `id` | `uuid` | Primary |
-| `form_id` | `uuid` |  |
-| `evidence_type` | `text` |  |
-| `file_url` | `text` |  |
-| `metadata` | `jsonb` |  |
-| `created_at` | `timestamptz` |  |
-
-## Table `qa_assessment_forms`
-
-### Columns
-
-| Name | Type | Constraints |
-|------|------|-------------|
-| `id` | `uuid` | Primary |
-| `assessment_id` | `uuid` |  Unique |
-| `batch_id` | `uuid` |  Nullable |
-| `qc_method` | `text` |  Nullable |
-| `qc_agent_name` | `text` |  Nullable |
-| `qc_date` | `date` |  Nullable |
-| `serial_number` | `text` |  Nullable |
-| `product_tier` | `text` |  Nullable |
-| `packaging_condition` | `text` |  Nullable |
-| `product_appearance` | `text` |  Nullable |
-| `label_accuracy_verified` | `bool` |  |
-| `power_test` | `text` |  Nullable |
-| `functional_test` | `text` |  Nullable |
-| `stress_test` | `text` |  Nullable |
-| `general_notes` | `text` |  Nullable |
-| `defects_identified` | `text` |  Nullable |
-| `recommendations` | `text` |  Nullable |
-| `final_decision` | `text` |  |
-| `decision_reason` | `text` |  Nullable |
-| `reviewed_by` | `uuid` |  |
-| `reviewed_at` | `timestamptz` |  |
 | `created_at` | `timestamptz` |  |
 | `updated_at` | `timestamptz` |  |
 
