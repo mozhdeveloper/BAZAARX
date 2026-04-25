@@ -200,6 +200,15 @@ export default function OrdersPage() {
         buyerReturnRequests,
       );
 
+      // NORMALIZE DB STATUSES TO MATCH UI EXPECTATIONS
+      mergedOrders.forEach(order => {
+        if ((order.status as string) === "processing" || (order.status as string) === "ready_to_ship") {
+          order.status = "confirmed";
+        } else if ((order.status as string) === "pending_payment") {
+          order.status = "pending";
+        }
+      });
+
       // Fetch warranty status for order items
       const orderItemIds = mergedOrders
         .flatMap(order => order.items.map(item => item.orderItemId || item.id))
@@ -208,11 +217,11 @@ export default function OrdersPage() {
       if (orderItemIds.length > 0) {
         const warrantyStatusMap = await warrantyService.getOrderItemsWarrantyStatus(orderItemIds);
 
-        // Attach warranty info to order items
-        mergedOrders.forEach(order => {
-          order.items.forEach(item => {
-            const itemId = item.orderItemId || item.id;
-            const warrantyStatus = warrantyStatusMap.get(itemId);
+       // Attach warranty info to order items
+      mergedOrders.forEach(order => {
+        order.items.forEach((item: any) => { // Cast to any
+          const itemId = item.orderItemId || item.id;
+          const warrantyStatus = warrantyStatusMap.get(itemId) as any; // Cast to any
             if (warrantyStatus) {
               item.warranty = {
                 hasWarranty: !!warrantyStatus.warrantyType,
@@ -534,7 +543,7 @@ export default function OrdersPage() {
                     key={option.value}
                     onClick={() => setStatusFilter(option.value)}
                     className={cn(
-                      "px-4 py-1.5 rounded-full text-[11px] sm:text-xs font-medium whitespace-nowrap transition-all duration-300",
+                      "px-3.5 py-1.5 rounded-full text-[11px] sm:text-xs font-medium whitespace-nowrap flex-shrink-0 transition-all duration-300",
                       statusFilter === option.value
                         ? "bg-[var(--brand-primary)] text-white shadow-md ring-1 ring-[var(--brand-primary)]"
                         : "text-gray-500 hover:text-[var(--brand-primary)] hover:bg-white/50",
@@ -776,7 +785,7 @@ export default function OrdersPage() {
                           : navigate(`/order/${encodeURIComponent(order.id)}`)
                       }
                     >
-                      {order.items.map((item, itemIndex) => {
+                      {order.items.map((item: any, itemIndex: number) => { // Cast to any
                         const itemReview = (order as any).reviews?.find((r: any) => r.productId === ((item as any).productId || item.id)) ||
                           (!(order as any).reviews?.some((r: any) => r.productId) ? order.review : null);
 
@@ -937,7 +946,7 @@ export default function OrdersPage() {
                           /* Received/Reviewed - Write Review and Buy Again */
                           <>
                             {/* Write Review */}
-                            {order.status === "received" && order.items.some((item) => {
+                            {order.status === "received" && order.items.some((item: any) => { // Cast to any
                               const itemReview = (order as any).reviews?.find((r: any) => r.productId === ((item as any).productId || item.id)) ||
                                 (!(order as any).reviews?.some((r: any) => r.productId) ? order.review : null);
                               return !itemReview;
@@ -995,18 +1004,19 @@ export default function OrdersPage() {
                             </Button>
 
                             {/* Warranty Claims - for orders with active warranty items */}
-                            {order.status === "received" && order.items.some(item => item.warranty?.hasWarranty && item.warranty.canClaim && !item.warranty.warrantyClaimed) && (
+                            {order.status === "received" && order.items.some((item: any) => item.warranty?.hasWarranty && item.warranty.canClaim && !item.warranty.warrantyClaimed) && (
                               <Button
                                 onClick={(e) => {
                                   e.stopPropagation();
-                                  const warrantyItem = order.items.find(item => item.warranty?.hasWarranty && item.warranty.canClaim && !item.warranty.warrantyClaimed);
+                                  // Cast the entire result as any so TS stops restricting the properties
+                                  const warrantyItem = order.items.find((item: any) => item.warranty?.hasWarranty && item.warranty.canClaim && !item.warranty.warrantyClaimed) as any;
                                   if (warrantyItem) {
                                     setSelectedWarrantyItem({
                                       orderItemId: warrantyItem.orderItemId || warrantyItem.id,
                                       orderDbId: order.dbId,
                                       orderId: order.id,
                                       itemName: warrantyItem.name,
-                                      warranty: warrantyItem.warranty!,
+                                      warranty: warrantyItem.warranty,
                                     });
                                     setWarrantyClaimModalOpen(true);
                                   }

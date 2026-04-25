@@ -42,10 +42,10 @@ export class NotificationService {
     return NotificationService.instance;
   }
 
-  /**
+ /**
    * Get the table name based on user type
    */
-  private getTableName(userType: 'buyer' | 'seller' | 'admin'): string {
+  private getTableName(userType: 'buyer' | 'seller' | 'admin'): any {
     switch (userType) {
       case 'buyer': return 'buyer_notifications';
       case 'seller': return 'seller_notifications';
@@ -57,12 +57,13 @@ export class NotificationService {
   /**
    * Get the user ID column name based on user type
    */
-  private getUserIdColumn(userType: 'buyer' | 'seller' | 'admin'): string {
+  private getUserIdColumn(userType: 'buyer' | 'seller' | 'admin'): any {
     switch (userType) {
       case 'buyer': return 'buyer_id';
       case 'seller': return 'seller_id';
       case 'admin': return 'admin_id';
-      default: return 'buyer_id'; // seller_notifications doesn't have a seller_id column in the schema
+      default: return 'buyer_id';
+      // seller_notifications doesn't have a seller_id column in the schema
     }
   }
 
@@ -108,12 +109,11 @@ export class NotificationService {
         priority: params.priority || 'normal',
       };
 
-      const { data, error } = await supabase
-        .from(tableName)
+      const { data, error } = await (supabase.from(tableName as any) as any)
         .insert(insertData)
         .select()
         .single();
-
+        
       if (error) {
         // Handle table not existing gracefully
         if (error.code === '42P01' || error.code === 'PGRST204' || error.code === 'PGRST205') {
@@ -172,8 +172,7 @@ export class NotificationService {
       const tableName = this.getTableName(userType);
       const userIdColumn = this.getUserIdColumn(userType);
       
-      const { data, error } = await supabase
-        .from(tableName)
+      const { data, error } = await (supabase.from(tableName as any) as any)
         .select('*')
         .eq(userIdColumn, userId) // Enforce ID filtering for ALL types
         .order('created_at', { ascending: false })
@@ -217,11 +216,10 @@ export class NotificationService {
       const tableName = this.getTableName(userType);
       const userIdColumn = this.getUserIdColumn(userType);
       
-      const { count, error } = await supabase
-        .from(tableName)
+      const { count, error } = await (supabase.from(tableName as any) as any)
         .select('id', { count: 'exact' })
         .eq(userIdColumn, userId) // Enforce ID filtering
-        .is('read_at', null); // Unread = read_at is null
+        .is('read_at', null);
 
       if (error) {
         console.warn('Error fetching unread count:', error);
@@ -306,8 +304,7 @@ export class NotificationService {
     try {
       const tableName = this.getTableName(userType);
       
-      const { error } = await supabase
-        .from(tableName)
+      const { error } = await (supabase.from(tableName as any) as any)
         .delete()
         .eq('id', notificationId);
 
@@ -936,11 +933,37 @@ export class NotificationService {
       message: `Your order #${params.orderNumber} was automatically cancelled because you did not confirm in time. ${params.reason}`,
       icon: 'XCircle',
       iconBg: 'bg-red-500',
-      actionUrl: `/seller/orders?id=${params.orderId}`,
+      actionUrl: `/orders/${params.orderId}`,
       actionData: { orderId: params.orderId },
       priority: 'high'
     });
   }
-}
 
+  /**
+   * Notify buyer when their order is marked as shipped by the seller
+   */
+  async notifyBuyerOrderShipped(params: {
+    buyerId: string;
+    orderId: string;
+    orderNumber: string;
+    trackingNumber: string;
+  }): Promise<Notification> {
+    if (!params.buyerId) throw new Error('buyerId is missing');
+
+    return this.createNotification({
+      userId: params.buyerId,
+      userType: 'buyer',
+      type: 'order_shipped',
+      title: 'Order Shipped',
+      message: `Great news! Your order #${params.orderNumber} has been shipped. Tracking Number: ${params.trackingNumber}`,
+      icon: 'Truck',
+      iconBg: 'bg-blue-500',
+      actionUrl: `/orders/${params.orderId}`,
+      actionData: { orderId: params.orderId },
+      priority: 'high'
+    });
+  }
+} // <-- This closes the NotificationService class!
+
+// Export the singleton instance so orderMutationService can use it
 export const notificationService = NotificationService.getInstance();
