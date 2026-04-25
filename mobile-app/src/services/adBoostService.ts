@@ -191,7 +191,7 @@ class AdBoostServiceMobile {
             id, name, price, approval_status, disabled_at,
             images:product_images(id, image_url, is_primary),
             category:categories(id, name),
-            seller:sellers(id, store_name, avatar_url),
+            seller:sellers(id, store_name, avatar_url, approval_status),
             reviews(rating),
             variants:product_variants(stock)
           )
@@ -214,7 +214,17 @@ class AdBoostServiceMobile {
         return [];
       }
 
-      const results = (data || []) as AdBoostMobile[];
+      const results = ((data || []) as AdBoostMobile[]).filter((b: any) => {
+        // Filter out products from non-verified, blacklisted, or suspended sellers
+        const seller = b.product?.seller;
+        if (!seller) return true;
+        if (seller.approval_status && seller.approval_status !== 'verified') return false;
+        if (seller.suspended_at) return false;
+        if (seller.blacklisted_at) return false;
+        if (seller.is_permanently_blacklisted) return false;
+        if (seller.temp_blacklist_until && new Date(seller.temp_blacklist_until) > new Date()) return false;
+        return true;
+      });
       if (results.length === 0) return results;
 
       // Fetch sold counts from product_sold_counts view

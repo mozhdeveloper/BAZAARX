@@ -10,16 +10,15 @@
  * - Products may not have seller_id directly (check schema)
  */
 
-import { supabase, isSupabaseConfigured } from "@/lib/supabase";
-import { getSafeImageUrl } from "@/utils/imageUtils";
+import { isSupabaseConfigured, supabase } from "@/lib/supabase";
 import type {
+    Database,
     Product,
-    ProductWithSeller,
     ProductImage,
     ProductVariant,
-    Category,
-    Database,
+    ProductWithSeller
 } from "@/types/database.types";
+import { getSafeImageUrl } from "@/utils/imageUtils";
 
 type ProductInsert = Database["public"]["Tables"]["products"]["Insert"];
 type ProductUpdate = Database["public"]["Tables"]["products"]["Update"];
@@ -148,6 +147,10 @@ export class ProductService {
             store_name,
             approval_status,
             is_vacation_mode,
+            blacklisted_at,
+            suspended_at,
+            is_permanently_blacklisted,
+            temp_blacklist_until,
             business_profile:seller_business_profiles (
               city
             )
@@ -263,8 +266,31 @@ export class ProductService {
                 soldCountsMap.set(item.product_id, currentCount + (item.quantity || 0));
             });
 
-            // Transform to add legacy compatibility fields
-            const result = data.map((p) => this.transformProduct(p, soldCountsMap.get(p.id) || 0));
+            // Filter out products from non-verified, blacklisted, or suspended sellers
+            const verifiedData = data.filter(p => {
+                const seller = (p as any).seller;
+                if (!seller) return false;
+                if (seller.approval_status !== 'verified') return false;
+                // suspended_at is null when not suspended
+                if (seller.suspended_at) return false;
+                // blacklisted_at is null when not blacklisted
+                if (seller.blacklisted_at) return false;
+                if (seller.is_permanently_blacklisted) return false;
+                if (seller.temp_blacklist_until && new Date(seller.temp_blacklist_until) > new Date()) return false;
+                return true;
+            });
+
+            // Transform to add legacy compatibility fields and filter out zero-stock products
+            const result = verifiedData
+                .map((p) => this.transformProduct(p, soldCountsMap.get(p.id) || 0))
+                .filter((p) => {
+                    // Filter out products with no available stock (matches mobile behavior)
+                    const variants = (p as any).variants || [];
+                    if (Array.isArray(variants) && variants.length > 0) {
+                        return variants.some((v: any) => Number(v.stock || 0) > 0);
+                    }
+                    return Number((p as any).stock || 0) > 0;
+                });
             _setProductCache(cacheKey, result);
             return result;
         } catch (error) {

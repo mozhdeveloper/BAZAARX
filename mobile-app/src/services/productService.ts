@@ -159,7 +159,7 @@ export class ProductService {
           images:product_images (id, image_url, alt_text, sort_order, is_primary),
           variants:product_variants (id, sku, variant_name, size, color, option_1_value, option_2_value, price, stock, thumbnail_url),
           reviews (id, rating),
-          seller:sellers!products_seller_id_fkey (id, store_name, approval_status, avatar_url),
+          seller:sellers!products_seller_id_fkey (id, store_name, approval_status, avatar_url, blacklisted_at, suspended_at, is_permanently_blacklisted, temp_blacklist_until),
           product_discounts (id, discount_type, discount_value, sold_count, campaign:discount_campaigns (id, badge_text, badge_color, discount_type, discount_value, max_discount_amount, ends_at, status, starts_at))
         `)
         .is('deleted_at', null)
@@ -210,7 +210,7 @@ export class ProductService {
             images:product_images (id, image_url, alt_text, sort_order, is_primary),
             variants:product_variants (id, sku, variant_name, size, color, option_1_value, option_2_value, price, stock, thumbnail_url),
             reviews (id, rating),
-            seller:sellers!products_seller_id_fkey (id, store_name, approval_status, avatar_url),
+            seller:sellers!products_seller_id_fkey (id, store_name, approval_status, avatar_url, blacklisted_at, suspended_at, is_permanently_blacklisted, temp_blacklist_until),
             product_discounts (id, discount_type, discount_value, sold_count, campaign:discount_campaigns (id, badge_text, badge_color, discount_type, discount_value, max_discount_amount, ends_at, status, starts_at))
           `)
           .is('deleted_at', null)
@@ -348,7 +348,7 @@ export class ProductService {
           images:product_images (id, image_url, alt_text, sort_order, is_primary),
           variants:product_variants (id, sku, variant_name, size, color, option_1_value, option_2_value, price, stock, thumbnail_url),
           reviews (id, rating),
-          seller:sellers!products_seller_id_fkey (id, store_name, approval_status, avatar_url),
+          seller:sellers!products_seller_id_fkey (id, store_name, approval_status, avatar_url, blacklisted_at, suspended_at, is_permanently_blacklisted, temp_blacklist_until),
           product_discounts (id, discount_type, discount_value, sold_count, campaign:discount_campaigns (id, badge_text, badge_color, discount_type, discount_value, max_discount_amount, ends_at, status, starts_at))
         `)
         .is('deleted_at', null)
@@ -435,8 +435,25 @@ export class ProductService {
         }
       });
 
+      // Filter out products from non-verified, blacklisted, or suspended sellers
+      const verifiedData = (data || []).filter(p => {
+        const seller = (p as any).seller;
+        if (!seller) return false;
+        // Must be verified
+        if (seller.approval_status !== 'verified') return false;
+        // Must not be suspended (suspended_at is null when not suspended)
+        if (seller.suspended_at) return false;
+        // Must not be blacklisted (blacklisted_at is null when not blacklisted)
+        if (seller.blacklisted_at) return false;
+        // Must not be permanently blacklisted
+        if (seller.is_permanently_blacklisted) return false;
+        // Must not be temporarily blacklisted (temp_blacklist_until is null or in the past)
+        if (seller.temp_blacklist_until && new Date(seller.temp_blacklist_until) > new Date()) return false;
+        return true;
+      });
+
       // Transform to add legacy compatibility fields
-      const result = (data?.map(p => this.transformProduct(p, soldCountsMap.get(p.id) || 0)) || [])
+      const result = verifiedData.map(p => this.transformProduct(p, soldCountsMap.get(p.id) || 0))
         .filter(p => this.hasAvailableStock(p));
 
       // Store in cache
@@ -664,6 +681,10 @@ export class ProductService {
             approval_status,
             verified_at,
             is_vacation_mode,
+            blacklisted_at,
+            suspended_at,
+            is_permanently_blacklisted,
+            temp_blacklist_until,
             business_profile:seller_business_profiles (
               business_type,
               city,
@@ -1167,7 +1188,11 @@ export class ProductService {
             store_name,
             approval_status,
             avatar_url,
-            is_vacation_mode
+            is_vacation_mode,
+            blacklisted_at,
+            suspended_at,
+            is_permanently_blacklisted,
+            temp_blacklist_until
           ),
           product_discounts (
             id,
@@ -1278,6 +1303,19 @@ export class ProductService {
       let products = data || [];
 
       console.log('[ProductService] Raw query returned:', products.length, 'products');
+
+      // Filter out products from non-verified, blacklisted, or suspended sellers
+      products = products.filter(p => {
+        const seller = (p as any).seller;
+        if (!seller) return false;
+        if (seller.approval_status !== 'verified') return false;
+        if (seller.suspended_at) return false;
+        if (seller.blacklisted_at) return false;
+        if (seller.is_permanently_blacklisted) return false;
+        if (seller.temp_blacklist_until && new Date(seller.temp_blacklist_until) > new Date()) return false;
+        return true;
+      });
+      console.log('[ProductService] After seller verification filter:', products.length, 'products');
 
       // Phase 3: Client-side filtering for complex filters
 
@@ -1422,7 +1460,20 @@ export class ProductService {
         console.log('[ProductService] After location filter:', products.length, 'products');
       }
 
-      // Phase 4: Transform products with sold counts
+      // Phase 4: Filter out products from non-verified, blacklisted, or suspended sellers
+      products = products.filter(p => {
+        const seller = (p as any).seller;
+        if (!seller) return false;
+        if (seller.approval_status !== 'verified') return false;
+        if (seller.suspended_at) return false;
+        if (seller.blacklisted_at) return false;
+        if (seller.is_permanently_blacklisted) return false;
+        if (seller.temp_blacklist_until && new Date(seller.temp_blacklist_until) > new Date()) return false;
+        return true;
+      });
+      console.log('[ProductService] After seller verification filter:', products.length, 'products');
+
+      // Phase 5: Transform products with sold counts
       const productIds = products.map(p => p.id);
       const { data: soldCountsData } = await supabase
         .from('order_items')
@@ -1443,7 +1494,7 @@ export class ProductService {
       const result = products.map(p => this.transformProduct(p, soldCountsMap.get(p.id) || 0))
         .filter(p => this.hasAvailableStock(p));
 
-      // Phase 5: Client-side sorting for fields that require calculation
+      // Phase 6: Client-side sorting for fields that require calculation
       if (filters.sortBy === 'best-selling') {
         result.sort((a, b) => {
           const soldA = (a as any).sold || 0;
@@ -1454,7 +1505,7 @@ export class ProductService {
         result.sort((a, b) => (b.rating || 0) - (a.rating || 0));
       }
 
-      // Phase 6: Apply pagination after all filtering
+      // Phase 7: Apply pagination after all filtering
       const paginatedResult = result.slice(offset, offset + limit);
 
       console.log('[ProductService] Final filtered result:', paginatedResult.length, 'products');

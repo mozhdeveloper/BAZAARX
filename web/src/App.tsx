@@ -1,23 +1,24 @@
 import { lazy, Suspense, useEffect } from "react";
-import { BrowserRouter as Router, Routes, Route, Navigate } from "react-router-dom";
-import "./styles/globals.css";
-import { Toaster } from "./components/ui/toaster";
-import ScrollToTop from "./components/ScrollToTop";
-import { ChatBubble } from "./components/ChatBubbleAI";
-import { ProtectedSellerRoute } from "./components/ProtectedSellerRoute";
-import { ProtectedBuyerRoute } from "./components/ProtectedBuyerRoute";
-import { ProtectedAdminRoute } from "./components/ProtectedAdminRoute";
-import TrackingForm from "./components/TrackingForm";
-import PageLoader from "./components/PageLoader";
-import { usePresence } from './hooks/usePresence'; import { ErrorBoundary } from "react-error-boundary";
-import { OrderErrorFallback } from "./components/OrderErrorFallback";
+import { ErrorBoundary } from "react-error-boundary";
+import { Navigate, Route, BrowserRouter as Router, Routes } from "react-router-dom";
 import { AppErrorFallback } from "./components/AppErrorFallback";
+import { ChatBubble } from "./components/ChatBubbleAI";
+import { OrderErrorFallback } from "./components/OrderErrorFallback";
+import PageLoader from "./components/PageLoader";
+import { ProtectedAdminRoute } from "./components/ProtectedAdminRoute";
+import { ProtectedBuyerRoute } from "./components/ProtectedBuyerRoute";
+import { ProtectedSellerRoute } from "./components/ProtectedSellerRoute";
+import ScrollToTop from "./components/ScrollToTop";
+import TrackingForm from "./components/TrackingForm";
+import { Toaster } from "./components/ui/toaster";
+import { usePresence } from './hooks/usePresence';
 import { supabase } from "./lib/supabase";
 import { webPushService } from "./services/webPushService";
+import "./styles/globals.css";
 
 // for google auth
 import { authService } from "./services/authService";
-import { useBuyerStore, deriveBuyerName } from "./stores/buyerStore";
+import { deriveBuyerName, useBuyerStore } from "./stores/buyerStore";
 
 // ---------------------------------------------------------------------------
 // Lazy-loaded pages — each becomes its own Vite chunk, loaded on first visit
@@ -35,6 +36,7 @@ const SellerLandingPage = lazy(() => import("./pages/SellerLandingPage"));
 const ShopPage = lazy(() => import("./pages/ShopPage"));
 const CategoriesPage = lazy(() => import("./pages/CategoriesPage"));
 const SearchPage = lazy(() => import("./pages/SearchPage"));
+const ProductListingPage = lazy(() => import("./pages/ProductListingPage"));
 const CollectionsPage = lazy(() => import("./pages/CollectionsPage"));
 const StoresPage = lazy(() => import("./pages/StoresPage"));
 const FlashSalesPage = lazy(() => import("./pages/FlashSalesPage"));
@@ -345,6 +347,7 @@ function App() {
             <Route path="/announcements" element={<BuyerAnnouncementsPage />} />
             <Route path="/flash-sales" element={<FlashSalesPage />} />
             <Route path="/search" element={<SearchPage />} />
+            <Route path="/products" element={<ProductListingPage />} />
             <Route path="/collections" element={<CollectionsPage />} />
             <Route path="/stores" element={<StoresPage />} />
             <Route path="/about-us" element={<AboutUsPage />} />

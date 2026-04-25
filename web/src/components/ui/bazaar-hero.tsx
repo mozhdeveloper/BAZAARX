@@ -1,28 +1,20 @@
-import { useState, useMemo, useEffect } from "react";
-import { ArrowUpRight, Menu, Search, Bot, ShoppingBag, Store, Camera, Sparkles, Truck, ShieldCheck, CircleCheck, User, ArrowRight } from "lucide-react";
-import { Link, useNavigate } from "react-router-dom";
 import {
-  motion,
-  useScroll,
-  useMotionValueEvent,
-  AnimatePresence,
+    AnimatePresence,
+    motion,
+    useMotionValueEvent,
+    useScroll,
 } from "framer-motion";
-import {
-  Sheet,
-  SheetContent,
-  SheetHeader,
-  SheetTitle,
-  SheetTrigger,
-} from "./sheet";
-import { Button } from "./button";
-import { Separator } from "./separator";
-import { Hero } from "./hero";
-import { BuyerAuthModal } from "../BuyerAuthModal";
-import ProductRequestModal from "../ProductRequestModal";
-import ProductCard from "../ProductCard";
+import { ArrowRight, ArrowUpRight, CircleCheck, Search, ShieldCheck, Truck, User } from "lucide-react";
+import { useEffect, useMemo, useState } from "react";
+import { Link, useNavigate } from "react-router-dom";
 import { trendingProducts } from "../../data/products";
-import { useProductStore } from "../../stores/sellerStore";
 import { useBuyerStore } from "../../stores/buyerStore";
+import { useProductStore } from "../../stores/sellerStore";
+import { BuyerAuthModal } from "../BuyerAuthModal";
+import ProductCard from "../ProductCard";
+import ProductRequestModal from "../ProductRequestModal";
+import { Button } from "./button";
+import { Hero } from "./hero";
 
 const navigation = [
   { name: "Home", href: "/" },
@@ -145,7 +137,7 @@ export function BazaarHero({ mode = "buyer", scrollTargetId = "bazaar-marketplac
                           className="flex-1 h-7 bg-transparent border-none focus:ring-0 outline-none text-[12px] sm:text-[13px] text-gray-900 placeholder:text-gray-400 w-full min-w-0"
                           onKeyDown={(e) => {
                             if (e.key === 'Enter' && searchQuery.trim()) {
-                              navigate(`/search?q=${encodeURIComponent(searchQuery.trim())}`);
+                              navigate(`/products?q=${encodeURIComponent(searchQuery.trim())}`);
                             }
                           }}
                         />

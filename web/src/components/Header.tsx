@@ -1,35 +1,27 @@
-import React, { useState, useEffect, useRef } from "react";
-import { useNavigate, useLocation } from "react-router-dom";
-import {
-  User,
-  Heart,
-  Settings,
-  LogOut,
-  Star,
-  ChevronDown,
-  ShoppingBag,
-  Camera,
-  MessageCircle,
-  Headset,
-  Package,
-  Lightbulb,
-  RotateCcw,
-  Gift,
-} from "lucide-react";
 import { Badge } from "@/components/ui/badge";
-import { NotificationsDropdown } from "./NotificationsDropdown";
+import { prefetchRoute } from "@/lib/prefetch";
+import {
+    Camera,
+    ChevronDown,
+    Gift,
+    Headset,
+    Lightbulb,
+    LogOut,
+    MessageCircle,
+    Package,
+    RotateCcw,
+    Settings,
+    User
+} from "lucide-react";
+import React, { useEffect, useRef, useState } from "react";
+import { useLocation, useNavigate } from "react-router-dom";
+import { authService } from "../services/authService";
 import { chatService } from "../services/chatService";
 import { useBuyerStore } from "../stores/buyerStore";
-import VisualSearchModal from "./VisualSearchModal";
+import { NotificationsDropdown } from "./NotificationsDropdown";
 import ProductRequestModal from "./ProductRequestModal";
 import SupportModal from "./SupportModal";
-import {
-  trendingProducts,
-  bestSellerProducts,
-  newArrivals,
-} from "../data/products";
-import { prefetchRoute } from "@/lib/prefetch";
-import { authService } from "../services/authService";
+import VisualSearchModal from "./VisualSearchModal";
 
 interface HeaderProps {
   transparentOnTop?: boolean;
@@ -178,21 +170,18 @@ const Header: React.FC<HeaderProps> = ({ transparentOnTop = false, hideSearch = 
                       const query = (e.target as HTMLInputElement).value;
                       if (location.pathname === "/stores") {
                         navigate(`/stores${query ? "?q=" + encodeURIComponent(query) : ""}`);
-                      } else if (location.pathname === "/shop") {
-                        const existingParams = new URLSearchParams(location.search);
-                        if (query) {
-                          existingParams.set("q", query);
-                        } else {
-                          existingParams.delete("q");
-                        }
-                        const paramStr = existingParams.toString();
-                        navigate(`/shop${paramStr ? "?" + paramStr : ""}`);
                       } else {
-                        navigate(`/search${query ? "?q=" + encodeURIComponent(query) : ""}`);
+                        const url = `/products${query ? "?q=" + encodeURIComponent(query) : ""}`;
+                        // Only replace history when the current page is already a search on /products
+                        // (has ?q= param). If it's a category view (?categoryId=), push so back works.
+                        const currentParams = new URLSearchParams(location.search);
+                        const isAlreadySearching = location.pathname === "/products" && currentParams.has("q");
+                        navigate(url, { replace: isAlreadySearching });
                       }
                     }
                   }}
                   defaultValue={new URLSearchParams(location.search).get("q") || ""}
+                  key={location.search}
                 />
 
                 {location.pathname !== "/stores" && (
@@ -213,7 +202,7 @@ const Header: React.FC<HeaderProps> = ({ transparentOnTop = false, hideSearch = 
             className="flex items-center justify-end text-[var(--text-primary)] shrink-0 gap-[var(--spacing-md)]">
             {!isSearchPage && !hideSearch && (
               <button
-                onClick={() => navigate("/search")}
+                onClick={() => navigate("/products")}
                 className="md:hidden p-2 hover:bg-gray-100 rounded-full transition-colors"
               >
                 <svg
