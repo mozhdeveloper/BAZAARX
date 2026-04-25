@@ -450,7 +450,17 @@ class ReturnService {
         .select()
         .single();
 
-      if (returnError) throw returnError;
+      if (returnError) {
+        // Migration 043a added UNIQUE(order_id) on refund_return_periods.
+        // Translate the 23505 unique_violation to the same friendly error the
+        // app-side pre-check raises, so a race condition (concurrent submissions
+        // or a network retry that already succeeded server-side) returns a
+        // user-friendly message instead of a raw 500.
+        if ((returnError as any)?.code === "23505") {
+          throw new Error("A return request already exists for this order");
+        }
+        throw returnError;
+      }
 
       // Update order
       const orderUpdate: Record<string, any> = {
@@ -1129,9 +1139,9 @@ class ReturnService {
   }
 
   /**
-   * Best-effort write to admin_action_log so that every refund-impacting action
-   * leaves a trail. Silently no-ops if the table doesn't exist or the user
-   * isn't authenticated (the row won't satisfy RLS).
+   * Best-effort write to admin_audit_logs so that every refund-impacting action
+   * leaves a trail. Silently no-ops if the user isn't authenticated (the row
+   * won't satisfy RLS).
    */
   private async logAuditAction(
     action: string,
@@ -1141,15 +1151,15 @@ class ReturnService {
     try {
       const { data: userData } = await supabase.auth.getUser();
       const adminId = userData?.user?.id ?? null;
-      const { error } = await supabase.from('admin_action_log').insert({
+      const { error } = await supabase.from('admin_audit_logs').insert({
         admin_id: adminId,
         action,
-        target_type: 'refund_return_period',
+        target_table: 'return_requests',
         target_id: returnId,
-        metadata,
+        new_values: metadata,
       });
-      // 42P01 = table missing, 42501 = RLS denial: both are non-fatal here.
-      if (error && !['42P01', '42501', 'PGRST205'].includes((error as { code?: string }).code || '')) {
+      // 42501 = RLS denial: non-fatal here.
+      if (error && !['42501', 'PGRST205'].includes((error as { code?: string }).code || '')) {
         console.warn('audit log write failed:', error.message);
       }
     } catch (err) {

@@ -7,6 +7,87 @@
 
 ---
 
+## ⚠️ STATUS UPDATE — 2026-04-24 (post live-DB verification)
+
+**Every original P0 in this document has been verified against the live database and is now resolved.** The list below was largely stale — most items had already been silently fixed by migrations 040–044. A live verification pass on 2026-04-24 produced the following ground truth:
+
+| ID | Doc claim | Live truth | Resolution |
+|---|---|---|---|
+| FIX-001 | `order_shipments.seller_id` is `text` | already `uuid` | ✅ done in earlier migration |
+| FIX-002 | `seller_notifications.seller_id` nullable | already `NOT NULL` | ✅ done in earlier migration |
+| FIX-003 | `refund_return_periods.resolved_by` is `text` | already `uuid` | ✅ done in earlier migration |
+| FIX-004 | 9 nullable `created_at` columns | 8 of 9 already NOT NULL | ✅ last one (`user_presence.updated_at`) fixed in migration `045` |
+| FIX-005 | `seller_payout_accounts` is a duplicate table | already converted to a backwards-compatible `VIEW` | ✅ done in migration `040` |
+| FIX-006 | `admin_action_log` is a duplicate table | already converted to a backwards-compatible `VIEW` | ✅ done in migration `040` |
+| FIX-007 | `order_payments` vs `payment_transactions` confusion | clarified — `order_payments` is canonical, `payment_transactions` is gateway event log | ✅ done in migrations `043c` + `043d` |
+
+**The "complementary pairs" the audit doc suspected of being duplicates were verified to be deliberate by-design splits** (same lesson learned with notifications and payments — do not merge):
+
+- `consent_log` (append-only event audit, PH Data Privacy Act compliance) **+** `user_consent` (current state snapshot per channel) — both documented via `COMMENT ON TABLE` in migration `045`
+- `seller_verification_documents` (canonical/submitted) **+** `seller_verification_document_drafts` (work-in-progress staging) — both documented via `COMMENT ON TABLE` in migration `045`
+- `buyer_notifications` / `seller_notifications` / `admin_notifications` — deliberate per-role split for RLS isolation (documented in migration `044`)
+- `delivery_bookings` (3PL booking) **+** `order_shipments` (canonical shipment line) — documented in migrations `043e` + `045`
+
+**Lesson for future audits**: verify every claim against `information_schema` and live row counts before writing any migration. This document is dated 2026-04-23 and reflects a snapshot that is already obsolete.
+
+The detailed entries below are **kept for historical traceability** but should be considered ✅ resolved unless re-verified.
+
+---
+
+## 🆕 FOLLOW-UP — 2026-04-24 (FIX-009): `courier_rate_cache` nullable timestamps + Returns idempotency polish
+
+### Problem
+Master 20-check invariant verification surfaced two leftovers:
+1. `courier_rate_cache.cached_at` and `expires_at` were nullable (had defaults but no `NOT NULL`).
+2. `refund_return_periods` insert in both web and mobile `returnService.ts` could surface a raw 500 (`23505 unique_violation`) if a buyer retried after a network timeout — the app-side dup-check + new `UNIQUE(order_id)` constraint were both correct but the UX was unfriendly.
+
+### Resolution
+1. Migration `047_courier_rate_cache_hardening.sql` — `cached_at`/`expires_at` set `NOT NULL` (615 rows verified 0 NULL pre-fix), defaults preserved.
+2. Both `web/src/services/returnService.ts` and `mobile-app/src/services/returnService.ts` now translate `error.code === '23505'` to the same friendly `"A return request already exists for this order"` raised by the pre-check, eliminating the 500 on retry-after-timeout race.
+
+### Verification
+- Master 20-check: **20/20 PASS**
+- Deep referential audit (23 metrics): **22/23 OK**, sole REVIEW row is the 20 historical paid orphans documented under FIX-008 (manual reconciliation pending)
+- Web `npx tsc --noEmit`: **EXIT 0**
+- `get_errors` on both modified `returnService.ts` files: clean
+
+---
+
+## 🆕 NEW FINDING — 2026-04-24 (FIX-008): Orphan-order data integrity bug
+
+**Discovered during audit-doc verification, not in original list.**
+
+### Problem
+54 `orders` rows existed with **zero** `order_items`:
+- 17 `pending_payment` (abandoned carts, no money charged)
+- 17 `refunded` (historical orphans, money trail preserved)
+- **20 `paid`** — buyers were charged but no items were ever recorded ⚠️
+
+### Root cause
+Both `web/src/services/checkoutService.ts` and `mobile-app/src/services/checkoutService.ts` insert the `orders` row first (auto-commits), then insert `order_items` in a parallel `Promise.all`. If the items insert fails (RLS, materialized-view trigger, network) the orders row stays orphaned.
+
+### Resolution — migration `046_order_integrity_guard.sql` + code changes
+1. **Forensic archive** — every orphan backed up to `_orphan_orders_audit_20260424` with related payments + shipments as jsonb
+2. **Hard-deleted** the 17 abandoned carts (no money trail)
+3. **Flagged** the 37 surviving orphans (paid + refunded) with `[ORPHAN_NEEDS_REVIEW_2026-04-24]` in `notes` for manual reconciliation
+4. **Added BEFORE-trigger** `trg_enforce_paid_order_has_items` on `public.orders` — prevents future `payment_status='paid'` when order has zero items (structural backstop, fires regardless of which client codepath runs)
+5. **Application rollback** — both web and mobile checkout now `DELETE` the orphan `orders` row when items insert fails (immediate cleanup so it never appears in dashboards)
+6. **`rollbackOrphanOrder()` helper** added to mobile checkoutService for centralized orphan cleanup
+
+### Verification
+- 0 `pending_payment` orphans remaining
+- 37 surviving orphans all flagged in notes
+- Trigger live: `pg_trigger.tgname = 'trg_enforce_paid_order_has_items'` ✅
+- Web `npx tsc --noEmit`: ✅ clean
+- Mobile `npx tsc --noEmit`: clean for modified files (pre-existing missing type exports in `database.types.ts` are unrelated)
+
+### Manual follow-up required (admin team)
+Investigate the 37 flagged orphan orders in `public.orders` (filter by `notes LIKE '%ORPHAN_NEEDS_REVIEW_2026-04-24%'`). Forensic data in `public._orphan_orders_audit_20260424`:
+- 20 `PAID_ORPHAN_NEEDS_REVIEW` — refund or backfill items based on payment_transactions evidence
+- 17 `REFUNDED_ORPHAN_HISTORICAL` — likely safe to leave (already refunded), but confirm no double-charge
+
+---
+
 ## How to use this list
 
 - Each item has an **ID** (`FIX-001`, etc.) for PR/commit references.
