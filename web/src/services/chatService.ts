@@ -26,6 +26,8 @@ export interface Message {
   message_type?: 'user' | 'system' | 'text' | 'image' | 'video' | 'document';
   message_content?: string;
   order_event_type?: string;
+  reply_to_message_id?: string;
+  target_seller_id?: string;
 }
 
 export interface Conversation {
@@ -88,22 +90,35 @@ class ChatService {
       if (existing) return existing;
     }
 
-    // Fallback: find conversation with this seller via messages
+    // Fallback: find conversation with this seller via messages.
+    // Two parallel IN queries replace the old O(N×2) serial loop.
     const { data: convList } = await supabase
       .from('conversations')
       .select('id')
       .eq('buyer_id', buyerId);
 
-    for (const conv of convList || []) {
-      const { data: sellerMsg } = await supabase
-        .from('messages')
-        .select('id')
-        .eq('conversation_id', conv.id)
-        .eq('sender_id', sellerId)
-        .limit(1)
-        .maybeSingle();
+    if (convList && convList.length > 0) {
+      const convIds = convList.map((c) => c.id);
+      const [sellerMsgs, targetMsgs] = await Promise.all([
+        supabase
+          .from('messages')
+          .select('conversation_id')
+          .in('conversation_id', convIds)
+          .eq('sender_id', sellerId)
+          .limit(1),
+        supabase
+          .from('messages')
+          .select('conversation_id')
+          .in('conversation_id', convIds)
+          .eq('target_seller_id', sellerId)
+          .limit(1),
+      ]);
 
-      if (sellerMsg) return conv;
+      const matchId =
+        sellerMsgs.data?.[0]?.conversation_id ||
+        targetMsgs.data?.[0]?.conversation_id;
+
+      if (matchId) return { id: matchId };
     }
 
     // Create new conversation
@@ -143,9 +158,10 @@ class ChatService {
 
   /**
    * Helper: Get seller ID from messages in a conversation
+   * Checks both sender_id (seller replied) and target_seller_id (buyer messaged seller)
    */
   private async getSellerIdFromMessages(conversationId: string): Promise<string | null> {
-    // Find the seller from messages where sender_type is 'seller'
+    // First try: seller sent a message
     const { data } = await supabase
       .from('messages')
       .select('sender_id')
@@ -154,7 +170,18 @@ class ChatService {
       .limit(1)
       .maybeSingle();
 
-    return data?.sender_id || null;
+    if (data?.sender_id) return data.sender_id;
+
+    // Second try: buyer sent a message stamped with target_seller_id
+    const { data: targetData } = await supabase
+      .from('messages')
+      .select('target_seller_id')
+      .eq('conversation_id', conversationId)
+      .not('target_seller_id', 'is', null)
+      .limit(1)
+      .maybeSingle();
+
+    return targetData?.target_seller_id || null;
   }
 
   /**
@@ -244,7 +271,7 @@ class ChatService {
       .eq('buyer_id', buyerId);
 
     for (const conv of convList || []) {
-      // Check if this conversation has messages from/to this seller
+      // Check sender_id (seller replied)
       const { data: sellerMsg } = await supabase
         .from('messages')
         .select('id')
@@ -254,6 +281,19 @@ class ChatService {
         .maybeSingle();
 
       if (sellerMsg) {
+        return this.enrichConversation(conv, sellerId);
+      }
+
+      // Check target_seller_id (buyer messaged this seller but seller hasn't replied)
+      const { data: targetMsg } = await supabase
+        .from('messages')
+        .select('id')
+        .eq('conversation_id', conv.id)
+        .eq('target_seller_id', sellerId)
+        .limit(1)
+        .maybeSingle();
+
+      if (targetMsg) {
         return this.enrichConversation(conv, sellerId);
       }
     }
@@ -381,6 +421,7 @@ class ChatService {
     // --- 5 parallel bulk queries instead of N×8 sequential ones ---
     const [
       sellerMsgsResult,
+      targetSellerResult,
       recentMsgsResult,
       unreadMsgsResult,
     ] = await Promise.all([
@@ -390,6 +431,13 @@ class ChatService {
         .select('conversation_id, sender_id')
         .in('conversation_id', convIds)
         .eq('sender_type', 'seller')
+        .order('created_at', { ascending: false }),
+      // Q2b: target_seller_id fallback (buyer messaged seller, seller hasn't replied)
+      supabase
+        .from('messages')
+        .select('conversation_id, target_seller_id')
+        .in('conversation_id', convIds)
+        .not('target_seller_id', 'is', null)
         .order('created_at', { ascending: false }),
       // Q3: Recent messages for "last message" preview
       supabase
@@ -407,11 +455,17 @@ class ChatService {
         .eq('is_read', false),
     ]);
 
-    // Build convId → sellerId map (first seller msg per conv)
+    // Build convId → sellerId map (first seller msg per conv, fallback to target_seller_id)
     const sellerIdByConvId = new Map<string, string>();
     for (const msg of sellerMsgsResult.data || []) {
       if (!sellerIdByConvId.has(msg.conversation_id)) {
         sellerIdByConvId.set(msg.conversation_id, msg.sender_id);
+      }
+    }
+    // Fallback: use target_seller_id for conversations where seller hasn't replied yet
+    for (const msg of (targetSellerResult.data || []) as any[]) {
+      if (!sellerIdByConvId.has(msg.conversation_id) && msg.target_seller_id) {
+        sellerIdByConvId.set(msg.conversation_id, msg.target_seller_id);
       }
     }
 
@@ -480,13 +534,25 @@ class ChatService {
    */
   async getSellerConversations(sellerId: string): Promise<Conversation[]> {
     // Find all conversations where this seller has sent/received messages
-    const { data: sellerMessages } = await supabase
-      .from('messages')
-      .select('conversation_id')
-      .eq('sender_id', sellerId)
-      .eq('sender_type', 'seller');
+    // Check both sender_id (seller replied) and target_seller_id (buyer messaged this seller)
+    const [sellerMsgsResult, targetMsgsResult] = await Promise.all([
+      supabase
+        .from('messages')
+        .select('conversation_id')
+        .eq('sender_id', sellerId)
+        .eq('sender_type', 'seller'),
+      supabase
+        .from('messages')
+        .select('conversation_id')
+        .eq('target_seller_id', sellerId),
+    ]);
 
-    const conversationIds = [...new Set(sellerMessages?.map(m => m.conversation_id) || [])];
+    const conversationIds = [
+      ...new Set([
+        ...(sellerMsgsResult.data?.map(m => m.conversation_id) || []),
+        ...(targetMsgsResult.data?.map(m => m.conversation_id) || []),
+      ]),
+    ];
 
     if (conversationIds.length === 0) {
       return [];
@@ -600,7 +666,7 @@ class ChatService {
   async getMessages(conversationId: string): Promise<Message[]> {
     const { data, error } = await supabase
       .from('messages')
-      .select('id, conversation_id, sender_id, sender_type, content, image_url, media_url, media_type, created_at, is_read, message_type, message_content')
+      .select('id, conversation_id, sender_id, sender_type, content, image_url, media_url, media_type, created_at, is_read, message_type, message_content, reply_to_message_id, target_seller_id')
       .eq('conversation_id', conversationId)
       .order('created_at', { ascending: true })
       .limit(100);
@@ -630,8 +696,31 @@ class ChatService {
     content: string,
     imageUrl?: string,   // legacy param
     mediaUrl?: string,   // Supabase Storage public URL
-    mediaType?: 'image' | 'video' | 'document'
+    mediaType?: 'image' | 'video' | 'document',
+    replyToMessageId?: string,
+    targetSellerId?: string
   ): Promise<Message | null> {
+    // Resolve target_seller_id for proper conversation deduplication
+    let resolvedTargetSellerId = targetSellerId || null;
+    if (!resolvedTargetSellerId) {
+      if (senderType === 'seller') {
+        resolvedTargetSellerId = senderId;
+      } else {
+        // Buyer sending: resolve from order or existing messages
+        const { data: conv } = await supabase
+          .from('conversations')
+          .select('order_id')
+          .eq('id', conversationId)
+          .maybeSingle();
+        if (conv?.order_id) {
+          resolvedTargetSellerId = await this.getSellerIdFromOrder(conv.order_id);
+        }
+        if (!resolvedTargetSellerId) {
+          resolvedTargetSellerId = await this.getSellerIdFromMessages(conversationId);
+        }
+      }
+    }
+
     const { data: message, error: msgError } = await supabase
       .from('messages')
       .insert({
@@ -644,6 +733,8 @@ class ChatService {
         media_type: mediaType || null,
         message_type: mediaType || 'text',
         is_read: false,
+        reply_to_message_id: replyToMessageId || null,
+        target_seller_id: resolvedTargetSellerId,
       } as any)
       .select()
       .single();
@@ -699,16 +790,16 @@ class ChatService {
     // Broadcast sidebar update to the receiver (bypasses RLS)
     try {
       let receiverId: string | null = null;
-      if (senderType === 'buyer' && conv?.order_id) {
-        receiverId = await this.getSellerIdFromOrder(conv.order_id);
-      } else if (senderType === 'buyer') {
-        receiverId = await this.getSellerIdFromMessages(conversationId);
+      if (senderType === 'buyer') {
+        // Use resolved target seller ID (already computed above)
+        receiverId = resolvedTargetSellerId;
       } else if (senderType === 'seller' && conv?.buyer_id) {
         receiverId = conv.buyer_id;
       }
 
       if (receiverId) {
         console.log('📤 Broadcasting sidebar_update to:', receiverId);
+        const mediaPreviewMap: Record<string, string> = { image: '📷 Photo', video: '🎬 Video', document: '📄 Document' };
         const broadcastChannel = supabase.channel(`sidebar:${receiverId}`);
         await broadcastChannel.subscribe();
         await broadcastChannel.send({
@@ -716,7 +807,7 @@ class ChatService {
           event: 'sidebar_update',
           payload: {
             conversationId,
-            lastMessage: mediaType === 'image' ? '📷 Photo' : content,
+            lastMessage: mediaType ? (mediaPreviewMap[mediaType] || content) : content,
             lastMessageAt: message?.created_at ?? new Date().toISOString(),
             senderType,
           },
@@ -1112,6 +1203,50 @@ class ChatService {
       }
     } catch (e) {
       console.error('[ChatService] RPC call failed:', e);
+    }
+  }
+
+  /**
+   * Check if a seller is suspended/blocked.
+   */
+  async getSellerStatus(sellerId: string): Promise<{ isSuspended: boolean; approvalStatus: string }> {
+    const { data } = await supabase
+      .from('sellers')
+      .select('approval_status, is_permanently_blacklisted, blacklisted_at, suspended_at')
+      .eq('id', sellerId)
+      .maybeSingle();
+
+    if (!data) return { isSuspended: false, approvalStatus: 'unknown' };
+
+    const blocked = new Set(['blacklisted', 'suspended', 'banned']);
+    const status = (data.approval_status || '').toLowerCase();
+    const isSuspended =
+      data.is_permanently_blacklisted === true ||
+      !!data.blacklisted_at ||
+      !!data.suspended_at ||
+      blocked.has(status);
+
+    return { isSuspended, approvalStatus: status };
+  }
+
+  /**
+   * Download media file via blob fetch + <a download> trick.
+   * Forces the browser's native "Save As" dialog.
+   */
+  async downloadMedia(url: string, fileName: string): Promise<void> {
+    try {
+      const response = await fetch(url);
+      const blob = await response.blob();
+      const blobUrl = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = blobUrl;
+      link.download = fileName;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      URL.revokeObjectURL(blobUrl);
+    } catch (error) {
+      console.error('[ChatService] Download error:', error);
     }
   }
 }

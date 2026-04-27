@@ -8,13 +8,15 @@ import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import {
-  Search, Send, MoreVertical, Phone, Video, Image as ImageIcon,
+  Search, Send, Image as ImageIcon,
   ChevronLeft, MessageCircle, Loader2, FileText, X,
-  Paperclip, Play,
+  Paperclip, Play, ChevronDown, Reply,
 } from 'lucide-react';
 import ChatMediaModal, { type MediaPreview } from '../components/ChatMediaModal';
 import { chatService, Conversation as DBConversation, Message as DBMessage } from '../services/chatService';
 import { validateChatMedia, type ChatMediaType } from '../utils/chatMediaUtils';
+import ChatListSkeleton from '../components/skeletons/ChatListSkeleton';
+import { useToast } from '../hooks/use-toast';
 
 // Extract original filename from Supabase storage URL (strips timestamp prefix)
 const extractFileName = (url: string, fallback = 'Document.pdf') => {
@@ -53,6 +55,7 @@ interface Conversation {
 
 export default function SellerMessages() {
   const { seller } = useAuthStore();
+  const { toast } = useToast();
   const [selectedConversation, setSelectedConversation] = useState<string | null>(null);
   const [newMessage, setNewMessage] = useState('');
   const [searchQuery, setSearchQuery] = useState('');
@@ -60,6 +63,7 @@ export default function SellerMessages() {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const docInputRef = useRef<HTMLInputElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const chatContainerRef = useRef<HTMLDivElement>(null);
 
   const [dbConversations, setDbConversations] = useState<DBConversation[]>([]);
   const [dbMessages, setDbMessages] = useState<DBMessage[]>([]);
@@ -67,6 +71,18 @@ export default function SellerMessages() {
   const [sending, setSending] = useState(false);
   const [uploading, setUploading] = useState(false);
   const [pendingMedia, setPendingMedia] = useState<{ file: File; previewUrl: string; mediaType: ChatMediaType } | null>(null);
+  const [replyingTo, setReplyingTo] = useState<DBMessage | null>(null);
+  const [sellerSuspended, setSellerSuspended] = useState(false);
+  const [showJumpToLatest, setShowJumpToLatest] = useState(false);
+
+  // Smart date formatter
+  const formatSmartDate = useCallback((dateStr: string | Date) => {
+    const d = typeof dateStr === 'string' ? new Date(dateStr) : dateStr;
+    const now = new Date();
+    if (d.toDateString() === now.toDateString()) return d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+    if (d.getFullYear() === now.getFullYear()) return d.toLocaleDateString([], { month: 'short', day: 'numeric' });
+    return d.toLocaleDateString([], { month: 'short', day: 'numeric', year: 'numeric' });
+  }, []);
 
   const useRealData = dbConversations.length > 0;
 
@@ -145,6 +161,12 @@ export default function SellerMessages() {
     return unsubscribe;
   }, [seller?.id, selectedConversation]);
 
+  // Check self-suspension on mount
+  useEffect(() => {
+    if (!seller?.id) return;
+    chatService.getSellerStatus(seller.id).then(s => setSellerSuspended(s.isSuspended)).catch(() => { });
+  }, [seller?.id]);
+
   useEffect(() => {
     if (!selectedConversation || !useRealData) return;
     const loadMessages = async () => {
@@ -153,6 +175,7 @@ export default function SellerMessages() {
       if (seller?.id) chatService.markAsRead(selectedConversation, seller.id, 'seller');
     };
     loadMessages();
+    setReplyingTo(null);
   }, [selectedConversation, useRealData, seller?.id]);
 
   useEffect(() => {
@@ -234,8 +257,13 @@ export default function SellerMessages() {
         if (textareaRef.current) textareaRef.current.style.height = 'auto';
       }
       setSending(true);
+      const currentReplyTo = replyingTo;
+      setReplyingTo(null);
       try {
-        const result = await chatService.sendMessage(selectedConversation, seller.id, 'seller', msgText);
+        const result = await chatService.sendMessage(
+          selectedConversation, seller.id, 'seller', msgText,
+          undefined, undefined, undefined, currentReplyTo?.id
+        );
         if (result) {
           setDbMessages(prev =>
             prev.some(msg => msg.id === result.id) ? prev : [...prev, result]
@@ -266,7 +294,7 @@ export default function SellerMessages() {
     const file = files[0];
     const { valid, mediaType, error } = validateChatMedia(file);
     if (!valid || !mediaType) {
-      console.error('[SellerMessages] Invalid file:', error);
+      toast({ title: 'Invalid file', description: error || 'File type not supported.', variant: 'destructive' });
       if (fileInputRef.current) fileInputRef.current.value = '';
       if (docInputRef.current) docInputRef.current.value = '';
       return;
@@ -296,7 +324,7 @@ export default function SellerMessages() {
     setUploading(false);
 
     if (!url) {
-      console.error('[SellerMessages] Upload failed');
+      toast({ title: 'Upload failed', description: 'Could not upload file. Please try again.', variant: 'destructive' });
       return;
     }
 
@@ -323,8 +351,7 @@ export default function SellerMessages() {
   };
 
   const filteredConversations = normalizedDbConversations.filter(conv =>
-    conv.buyerName.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    conv.lastMessage.toLowerCase().includes(searchQuery.toLowerCase())
+    conv.buyerName.toLowerCase().includes(searchQuery.toLowerCase())
   );
 
   return (
@@ -336,21 +363,23 @@ export default function SellerMessages() {
       </div>
 
       <div className="flex-1 flex flex-col overflow-hidden">
-        <div className="flex-1 flex h-full overflow-hidden max-w-7xl mx-auto w-full p-0 md:px-8 md:py-6 gap-0 md:gap-6">
+        <div className="flex-1 flex h-full overflow-hidden w-full p-0 md:px-8 md:py-6 gap-0 md:gap-6">
           <div className="w-full md:w-80 border-r bg-white flex flex-col md:rounded-xl md:shadow-[0_8px_30px_rgba(0,0,0,0.04)] md:border border-orange-100 overflow-hidden hidden md:flex">
             <div className="p-6 border-b border-orange-50 bg-white">
               <h2 className="text-xl font-black text-[var(--text-headline)] mb-4 tracking-tight">Messages</h2>
               <div className="relative group">
                 <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400 h-4 w-4 group-focus-within:text-[var(--brand-primary)] transition-colors" />
-                <Input placeholder="Search buyers..." value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} className="pl-10 bg-gray-50/50 border-transparent focus:border-orange-200 focus:bg-white focus:ring-4 focus:ring-orange-500/10 rounded-xl py-6 shadow-sm transition-all font-medium" />
+                <Input placeholder="Search Buyers" value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} className="pl-10 pr-8 bg-gray-50/50 border-transparent focus:border-orange-200 focus:bg-white focus:ring-4 focus:ring-orange-500/10 rounded-xl py-6 shadow-sm transition-all font-medium" />
+                {searchQuery && (
+                  <button onClick={() => setSearchQuery('')} className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 transition-colors">
+                    <X className="h-4 w-4" />
+                  </button>
+                )}
               </div>
             </div>
             <div className="flex-1 overflow-y-auto">
               {loading ? (
-                <div className="flex flex-col items-center justify-center h-64 text-gray-400">
-                  <Loader2 className="h-8 w-8 animate-spin mb-2" />
-                  <p className="text-sm">Loading conversations...</p>
-                </div>
+                <ChatListSkeleton />
               ) : filteredConversations.length === 0 ? (
                 <div className="flex flex-col items-center justify-center h-64 text-gray-400">
                   <MessageCircle className="h-12 w-12 mb-2" />
@@ -380,7 +409,7 @@ export default function SellerMessages() {
                         <div className="flex justify-between items-baseline gap-2 mb-1">
                           <h4 className={`font-bold truncate text-sm min-w-0 ${selectedConversation === conv.id ? 'text-[var(--brand-primary-dark)]' : 'text-gray-900'}`}>{conv.buyerName}</h4>
                           <span className="text-[10px] font-semibold text-gray-400 uppercase tracking-wide shrink-0">
-                            {conv.lastMessageTime.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                            {formatSmartDate(conv.lastMessageTime)}
                           </span>
                         </div>
                         <p className={`text-sm truncate ${conv.unreadCount > 0 ? 'text-gray-900 font-bold' : 'text-gray-500 font-medium'}`}>{conv.isLastMessageFromMe ? <span className="font-bold">You: </span> : null}{conv.lastMessage}</p>
@@ -415,20 +444,24 @@ export default function SellerMessages() {
                   </div>
                   <div className="flex-1">
                     <h3 className="font-black text-lg leading-tight tracking-tight">{activeConversation.buyerName}</h3>
-                    {/* 👈 NEW: Header text indicator online/offline */}
-                    <div className="flex items-center gap-1.5 text-xs font-medium text-orange-50">
-                      <span className={`w-1.5 h-1.5 rounded-full ${activeConversation.isOnline ? 'bg-teal-400 animate-pulse' : 'bg-gray-400'}`} />
+                    <div className="flex items-center gap-1.5 text-xs font-medium text-white/70">
                       {activeConversation.isOnline ? 'Online' : 'Offline'}
                     </div>
                   </div>
-                  <div className="flex items-center gap-1">
-                    <Button variant="ghost" size="icon" className="text-white hover:bg-white/20 rounded-full"><Phone className="h-5 w-5" /></Button>
-                    <Button variant="ghost" size="icon" className="text-white hover:bg-white/20 rounded-full"><Video className="h-5 w-5" /></Button>
-                    <Button variant="ghost" size="icon" className="text-white hover:bg-white/20 rounded-full"><MoreVertical className="h-5 w-5" /></Button>
-                  </div>
                 </div>
 
-                <div key={selectedConversation} className="flex-1 min-h-0 overflow-y-auto p-6 space-y-6 space-y-reverse bg-[var(--brand-wash)] scrollbar-hide flex flex-col-reverse">
+                {/* Suspended banner */}
+                {sellerSuspended && (
+                  <div className="bg-red-500/10 border-b border-red-200 px-4 py-2 text-center">
+                    <span className="text-xs font-semibold text-red-600">⚠ Your account is suspended. You cannot send messages.</span>
+                  </div>
+                )}
+                <div
+                  key={selectedConversation}
+                  ref={chatContainerRef}
+                  className="flex-1 min-h-0 overflow-y-auto p-6 space-y-6 space-y-reverse bg-[var(--brand-wash)] scrollbar-hide flex flex-col-reverse relative"
+                  onScroll={(e) => setShowJumpToLatest(e.currentTarget.scrollTop < -300)}
+                >
                   {(() => {
                     const items: React.ReactNode[] = [];
                     let lastDateLabel = '';
@@ -460,13 +493,32 @@ export default function SellerMessages() {
                       }
                       const isSeller = msg.senderId === 'seller';
                       const fullTimestamp = msgDate.toLocaleString([], { year: 'numeric', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' });
+                      // Find replied-to message
+                      const dbMsg = dbMessages.find(m => m.id === msg.id);
+                      const repliedMsg = dbMsg?.reply_to_message_id ? dbMessages.find(m => m.id === dbMsg.reply_to_message_id) : null;
                       items.push(
-                        <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} key={msg.id} className={`flex ${isSeller ? 'justify-end' : 'justify-start'}`}>
+                        <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} key={msg.id} id={`msg-${msg.id}`} className={`flex ${isSeller ? 'justify-end' : 'justify-start'} group/msg`}>
                           <div className={`max-w-[80%] flex flex-col ${isSeller ? 'items-end' : 'items-start'}`}>
                             <div
-                              title={fullTimestamp}
-                              className={`max-w-full px-5 py-4 shadow-sm group relative cursor-default ${isSeller ? 'bg-gradient-to-br from-[var(--brand-primary)] to-[var(--brand-primary-dark)] text-white rounded-xl rounded-tr-sm shadow-orange-500/20' : 'bg-white text-gray-800 border border-gray-100 rounded-xl rounded-tl-sm shadow-[0_2px_8px_rgba(0,0,0,0.04)]'}`}
+                              className={`max-w-full px-5 py-4 shadow-sm group relative cursor-default transition-all ${isSeller ? 'bg-gradient-to-br from-[var(--brand-primary)] to-[var(--brand-primary-dark)] text-white rounded-xl rounded-tr-sm shadow-orange-500/20' : 'bg-white text-gray-800 border border-gray-100 rounded-xl rounded-tl-sm shadow-[0_2px_8px_rgba(0,0,0,0.04)]'}`}
                             >
+                              {/* Reply-to quote */}
+                              {repliedMsg && (
+                                <div
+                                  className={`mb-2 px-3 py-1.5 rounded-lg text-xs border-l-2 cursor-pointer hover:opacity-80 transition-opacity ${isSeller ? 'bg-white/10 border-white/40 text-white/80' : 'bg-gray-100 border-gray-300 text-gray-500'}`}
+                                  onClick={() => {
+                                    const el = document.getElementById(`msg-${repliedMsg.id}`);
+                                    if (el) {
+                                      el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                                      el.classList.add('ring-2', 'ring-[var(--brand-primary)]');
+                                      setTimeout(() => el.classList.remove('ring-2', 'ring-[var(--brand-primary)]'), 1500);
+                                    }
+                                  }}
+                                >
+                                  <p className="font-semibold text-[10px] mb-0.5">{repliedMsg.sender_type === 'seller' ? 'You' : activeConversation?.buyerName || 'Buyer'}</p>
+                                  <p className="truncate">{repliedMsg.content}</p>
+                                </div>
+                              )}
                               {/* Image */}
                               {(msg.media_url || msg.image_url) && (msg.media_type === 'image' || msg.message_type === 'image' || (!msg.media_type && msg.image_url)) && (
                                 <div className="mb-2 cursor-pointer" onClick={() => setPreviewMedia({ type: 'image', url: (msg.media_url || msg.image_url)! })}>
@@ -513,14 +565,20 @@ export default function SellerMessages() {
                                 </div>
                               )}
                               {msg.text && !(msg.media_url && ['[Image]', '[Video]', '[Document]'].includes(msg.text)) && !(msg.image_url && msg.text === '[Image]') && <p className="text-[15px] leading-relaxed whitespace-pre-wrap break-words">{msg.text}</p>}
-                              {/* Hover timestamp tooltip */}
+                              {/* Hover timestamp + reply */}
                               <span className={`absolute bottom-full mb-1 ${isSeller ? 'right-0' : 'left-0'} hidden group-hover:block text-[10px] text-white bg-gray-700/90 rounded px-2 py-0.5 whitespace-nowrap z-10`}>
                                 {fullTimestamp}
                               </span>
+                              {dbMsg && (
+                                <button
+                                  onClick={() => setReplyingTo(dbMsg)}
+                                  className={`absolute top-1/2 -translate-y-1/2 ${isSeller ? '-left-8' : '-right-8'} opacity-0 group-hover/msg:opacity-100 transition-opacity p-1 rounded-full hover:bg-gray-200`}
+                                  title="Reply"
+                                >
+                                  <Reply className="w-3.5 h-3.5 text-gray-400" />
+                                </button>
+                              )}
                             </div>
-                            <span className="text-[10px] font-bold text-gray-400 mt-1.5 px-1 uppercase tracking-wider">
-                              {msgDate.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                            </span>
                           </div>
                         </motion.div>
                       );
@@ -529,15 +587,37 @@ export default function SellerMessages() {
                     return items.reverse();
                   })()}
                 </div>
+                {/* Jump to latest */}
+                {showJumpToLatest && (
+                  <button
+                    onClick={() => chatContainerRef.current?.scrollTo({ top: 0, behavior: 'smooth' })}
+                    className="absolute bottom-24 left-1/2 -translate-x-1/2 z-20 bg-[var(--brand-primary)] text-white px-4 py-2 rounded-full shadow-lg flex items-center gap-1.5 text-sm font-medium hover:bg-[var(--brand-primary-dark)] transition-colors"
+                  >
+                    <ChevronDown className="w-4 h-4" /> Jump to latest
+                  </button>
+                )}
 
                 <div className="p-4 bg-white border-t border-orange-100">
+                  {/* Reply preview bar */}
+                  {replyingTo && (
+                    <div className="flex items-center gap-2 px-3 py-2 mb-3 bg-orange-50 rounded-xl border border-orange-100">
+                      <Reply className="w-4 h-4 text-[var(--brand-primary)] flex-shrink-0" />
+                      <div className="flex-1 min-w-0">
+                        <p className="text-[10px] font-semibold text-[var(--brand-primary)]">
+                          {replyingTo.sender_type === 'seller' ? 'You' : activeConversation?.buyerName || 'Buyer'}
+                        </p>
+                        <p className="text-xs text-gray-500 truncate">{replyingTo.content}</p>
+                      </div>
+                      <button onClick={() => setReplyingTo(null)} className="text-gray-400 hover:text-gray-600"><X className="w-4 h-4" /></button>
+                    </div>
+                  )}
                   <form onSubmit={handleSendMessage} className="flex items-center gap-3 p-2 bg-gray-50/80 rounded-[20px] border border-gray-100 focus-within:border-orange-300 focus-within:bg-white focus-within:ring-4 focus-within:ring-orange-500/10 transition-all shadow-sm">
                     <input type="file" ref={fileInputRef} onChange={handleMediaUpload} accept="image/jpeg,image/png,image/webp,video/mp4,video/quicktime" multiple className="hidden" />
                     <input type="file" ref={docInputRef} onChange={handleMediaUpload} accept="application/pdf" className="hidden" />
-                    <Button type="button" variant="ghost" size="icon" className="text-gray-400 hover:text-[var(--brand-primary)] hover:bg-orange-50 rounded-full h-10 w-10 transition-colors" onClick={() => fileInputRef.current?.click()} disabled={uploading}>
+                    <Button type="button" variant="ghost" size="icon" className="text-gray-400 hover:text-[var(--brand-primary)] hover:bg-orange-50 rounded-full h-10 w-10 transition-colors" onClick={() => fileInputRef.current?.click()} disabled={uploading || sellerSuspended}>
                       {uploading ? <Loader2 className="w-5 h-5 animate-spin" /> : <ImageIcon className="w-5 h-5" />}
                     </Button>
-                    <Button type="button" variant="ghost" size="icon" className="text-gray-400 hover:text-[var(--brand-primary)] hover:bg-orange-50 rounded-full h-10 w-10 transition-colors -ml-1" onClick={() => docInputRef.current?.click()} disabled={uploading}>
+                    <Button type="button" variant="ghost" size="icon" className="text-gray-400 hover:text-[var(--brand-primary)] hover:bg-orange-50 rounded-full h-10 w-10 transition-colors -ml-1" onClick={() => docInputRef.current?.click()} disabled={uploading || sellerSuspended}>
                       <Paperclip className="w-5 h-5" />
                     </Button>
                     <textarea
@@ -559,10 +639,10 @@ export default function SellerMessages() {
                         t.style.height = 'auto';
                         t.style.height = `${Math.min(t.scrollHeight, 120)}px`;
                       }}
-                      disabled={sending || uploading}
+                      disabled={sending || uploading || sellerSuspended}
                     />
                     <div className="flex items-center gap-1 pr-1">
-                      <Button type="submit" className="bg-gradient-to-r from-[var(--brand-primary)] to-[var(--brand-primary-dark)] hover:shadow-lg hover:shadow-orange-500/30 text-white rounded-xl h-10 w-10 p-0 transition-all transform hover:scale-105 active:scale-95" disabled={!newMessage.trim() || sending || uploading}>
+                      <Button type="submit" className="bg-gradient-to-r from-[var(--brand-primary)] to-[var(--brand-primary-dark)] hover:shadow-lg hover:shadow-orange-500/30 text-white rounded-xl h-10 w-10 p-0 transition-all transform hover:scale-105 active:scale-95" disabled={!newMessage.trim() || sending || uploading || sellerSuspended}>
                         {(sending || uploading) ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4 ml-0.5" />}
                       </Button>
                     </div>
@@ -593,7 +673,7 @@ export default function SellerMessages() {
               animate={{ scale: 1, opacity: 1, y: 0 }}
               exit={{ scale: 0.9, opacity: 0, y: 20 }}
               transition={{ type: 'spring', duration: 0.4 }}
-              className="relative bg-white rounded-2xl shadow-2xl w-full max-w-md overflow-hidden"
+              className={`relative bg-white rounded-2xl shadow-2xl w-full overflow-hidden ${pendingMedia.mediaType === 'document' ? 'max-w-2xl' : 'max-w-md'}`}
               onClick={(e) => e.stopPropagation()}
             >
               {/* Header */}
@@ -618,13 +698,11 @@ export default function SellerMessages() {
                   <video src={pendingMedia.previewUrl} controls autoPlay className="max-w-full max-h-[360px] rounded-lg" />
                 )}
                 {pendingMedia.mediaType === 'document' && (
-                  <div className="flex flex-col items-center gap-3 py-6">
-                    <div className="w-16 h-16 bg-orange-50 rounded-2xl flex items-center justify-center">
-                      <FileText className="w-8 h-8 text-[var(--brand-primary)]" />
-                    </div>
-                    <p className="text-gray-900 font-medium text-sm text-center max-w-[280px] truncate">{pendingMedia.file.name}</p>
-                    <p className="text-gray-400 text-xs">{(pendingMedia.file.size / (1024 * 1024)).toFixed(1)} MB</p>
-                  </div>
+                  <iframe
+                    src={`${pendingMedia.previewUrl}#toolbar=0`}
+                    className="w-full h-[360px] rounded-lg border-0"
+                    title="PDF Preview"
+                  />
                 )}
               </div>
 
