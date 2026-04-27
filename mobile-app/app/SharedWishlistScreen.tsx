@@ -20,6 +20,7 @@ type SharedRegistryItem = {
     purchasedQty: number;
     isPrivate?: boolean;
     product: any;
+    status?: 'available' | 'out_of_stock' | 'seller_on_vacation' | 'restricted' | 'deleted';
 };
 
 export default function SharedWishlistScreen() {
@@ -83,12 +84,13 @@ export default function SharedWishlistScreen() {
                     purchasedQty: receivedQty,
                     isPrivate: !!item.is_private,
                     product: {
-                        ...snapshot,
-                        id: snapshot.id || item.product_id || item.id,
-                        name: item.product_name || snapshot.name || 'Registry Item',
                         price: Number(snapshot.price || snapshot.originalPrice || 0),
                         image: snapshot.image || snapshot.images?.[0],
                     },
+                    status: item.product?.approval_status === 'suspended' ? 'restricted' : 
+                            item.product?.seller?.on_vacation ? 'seller_on_vacation' :
+                            (item.product?.stock ?? snapshot.stock ?? 0) <= 0 ? 'out_of_stock' : 
+                            !item.product_id ? 'deleted' : 'available',
                 };
             })
             .filter((item: SharedRegistryItem) => !item.isPrivate);
@@ -206,6 +208,19 @@ export default function SharedWishlistScreen() {
                                     <View style={[styles.priorityTag, { backgroundColor: item.priority === 'high' ? '#DC2626' : item.priority === 'medium' ? '#D97706' : '#2563EB' }]}>
                                         <Text style={styles.priorityTagText}>{item.priority.toUpperCase()}</Text>
                                     </View>
+                                    {item.status && item.status !== 'available' && (
+                                        <View style={[
+                                            styles.statusBadge,
+                                            { backgroundColor: item.status === 'out_of_stock' ? '#FEE2E2' : item.status === 'seller_on_vacation' ? '#FEF3C7' : '#F3F4F6' }
+                                        ]}>
+                                            <Text style={[
+                                                styles.statusText,
+                                                { color: item.status === 'out_of_stock' ? '#DC2626' : item.status === 'seller_on_vacation' ? '#D97706' : '#4B5563' }
+                                            ]}>
+                                                {item.status.replace(/_/g, ' ').toUpperCase()}
+                                            </Text>
+                                        </View>
+                                    )}
                                 </View>
                                 
                                 <View style={styles.cardContent}>
@@ -222,13 +237,19 @@ export default function SharedWishlistScreen() {
                                     </View>
                                     
                                     {!isFullyPurchased ? (
-                                        <Pressable 
-                                            style={styles.giftButton}
-                                            onPress={() => handleBuyAsGift(item.product)}
-                                        >
-                                            <Gift size={16} color="#FFF" style={{ marginRight: 6 }} />
-                                            <Text style={styles.giftButtonText}>Buy as Gift</Text>
-                                        </Pressable>
+                                        item.status && item.status !== 'available' ? (
+                                            <View style={styles.unavailableBadge}>
+                                                <Text style={styles.unavailableText}>Unavailable</Text>
+                                            </View>
+                                        ) : (
+                                            <Pressable 
+                                                style={styles.giftButton}
+                                                onPress={() => handleBuyAsGift(item.product)}
+                                            >
+                                                <Gift size={16} color="#FFF" style={{ marginRight: 6 }} />
+                                                <Text style={styles.giftButtonText}>Buy as Gift</Text>
+                                            </Pressable>
+                                        )
                                     ) : (
                                         <View style={styles.giftedBadge}>
                                             <CheckCircle size={14} color="#059669" style={{ marginRight: 4 }} />
@@ -334,4 +355,31 @@ const styles = StyleSheet.create({
         textAlign: 'center',
     },
     giftedText: { color: '#059669', fontSize: 12, fontWeight: '700' },
+    statusBadge: {
+        position: 'absolute',
+        bottom: 8,
+        left: 8,
+        paddingHorizontal: 6,
+        paddingVertical: 3,
+        borderRadius: 4,
+    },
+    statusText: {
+        fontSize: 9,
+        fontWeight: '800',
+    },
+    unavailableBadge: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'center',
+        backgroundColor: '#F3F4F6',
+        paddingVertical: 10,
+        borderRadius: 12,
+        borderWidth: 1,
+        borderColor: '#E5E7EB',
+    },
+    unavailableText: {
+        color: '#6B7280',
+        fontSize: 12,
+        fontWeight: '700',
+    },
 });

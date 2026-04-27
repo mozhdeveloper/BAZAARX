@@ -18,6 +18,7 @@ export interface WishlistItem extends Product {
     isPrivate?: boolean;
     // DB registry_items.id — used for update/delete
     registryItemId?: string;
+    status?: 'available' | 'out_of_stock' | 'seller_on_vacation' | 'restricted' | 'deleted';
 }
 
 export interface WishlistCategory {
@@ -90,6 +91,10 @@ function mapDbItemToWishlistItem(item: any, registryId: string): WishlistItem {
         addedAt: item.created_at || new Date().toISOString(),
         categoryId: registryId,
         registryItemId: item.id,
+        status: item.product?.approval_status === 'suspended' ? 'restricted' : 
+                item.product?.seller?.on_vacation ? 'seller_on_vacation' :
+                (item.product?.stock ?? snapshot.stock ?? 0) <= 0 ? 'out_of_stock' : 
+                !item.product_id ? 'deleted' : 'available',
     };
 }
 
@@ -284,6 +289,7 @@ export const useWishlistStore = create<WishlistState>((set, get) => ({
                 dbUpdates.category = updates.occasion;
             }
             if (updates.privacy !== undefined) dbUpdates.privacy = updates.privacy;
+
             if (updates.delivery !== undefined) {
                 dbUpdates.delivery = {
                     showAddress: updates.delivery.showAddress ?? false,

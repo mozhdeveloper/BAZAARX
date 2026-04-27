@@ -58,7 +58,7 @@ export type RootStackParamList = {
   Terms: { signupData: any };
   CategoryPreference: { signupData: any };
   AddressSetup: { signupData: any };
-  Login: undefined;
+  Login: { from?: string } | undefined;
   Signup: undefined;
   EmailVerification: { email: string; otpAlreadySent?: boolean; signupData?: any };
   ForgotPassword: undefined;

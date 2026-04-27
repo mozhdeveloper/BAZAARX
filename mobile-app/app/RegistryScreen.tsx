@@ -15,13 +15,21 @@ const { width } = Dimensions.get('window');
 
 const OCCASIONS = [
     { id: 'wedding', label: 'Wedding', icon: 'Gift' },
-    { id: 'baby_shower', label: 'Baby Shower', icon: 'Baby' },
+    { id: 'baby', label: 'Baby Shower', icon: 'Baby' },
     { id: 'birthday', label: 'Birthday', icon: 'Cake' },
     { id: 'graduation', label: 'Graduation', icon: 'GraduationCap' },
     { id: 'housewarming', label: 'Housewarming', icon: 'Home' },
     { id: 'christmas', label: 'Christmas', icon: 'Tree' },
     { id: 'other', label: 'Other', icon: 'MoreHorizontal' },
 ];
+
+const getOccasionLabel = (id: string | undefined | null) => {
+    if (!id) return '';
+    if (id === 'baby') return 'BABY SHOWER';
+    const occ = OCCASIONS.find(o => o.id === id);
+    if (occ) return occ.label.toUpperCase();
+    return id.replace('_', ' ').toUpperCase();
+};
 
 const BRAND_COLOR = COLORS.primary;
 
@@ -131,6 +139,19 @@ const WishlistListItem = ({
                             <Text style={styles.listItemDiscountText}>{discountPercent}%</Text>
                         </View>
                     )}
+                    {item.status && item.status !== 'available' && (
+                        <View style={[
+                            styles.statusBadge,
+                            { backgroundColor: item.status === 'out_of_stock' ? '#FEE2E2' : item.status === 'seller_on_vacation' ? '#FEF3C7' : '#F3F4F6' }
+                        ]}>
+                            <Text style={[
+                                styles.statusText,
+                                { color: item.status === 'out_of_stock' ? '#DC2626' : item.status === 'seller_on_vacation' ? '#D97706' : '#4B5563' }
+                            ]}>
+                                {item.status.replace(/_/g, ' ').toUpperCase()}
+                            </Text>
+                        </View>
+                    )}
                 </View>
 
                 {/* Middle: Product Details */}
@@ -184,8 +205,14 @@ const WishlistListItem = ({
                         <ChevronDown size={18} color={desiredQty > 1 ? COLORS.primary : '#D1D5DB'} strokeWidth={2.5} />
                     </Pressable>
                     <Pressable
-                        style={styles.listItemDeleteBtn}
-                        onPress={() => setShowDeleteModal(true)}
+                        style={[styles.listItemDeleteBtn, item.purchasedQty > 0 && { opacity: 0.3 }]}
+                        onPress={() => {
+                            if (item.purchasedQty > 0) {
+                                Alert.alert('Cannot Remove', 'This item has already been partially or fully purchased as a gift.');
+                                return;
+                            }
+                            setShowDeleteModal(true);
+                        }}
                     >
                         <Trash2 size={15} color="#DC2626" strokeWidth={2.2} />
                     </Pressable>
@@ -282,6 +309,7 @@ const CreateListModal = ({
     onCreate: (payload: CreateRegistryPayload) => void;
     userId?: string | null;
 }) => {
+    const navigation = useNavigation<any>();
     const { savedAddresses, defaultAddress, loadSavedAddresses } = useAddressStore();
     const [name, setName] = useState('');
     const [selectedOccasion, setSelectedOccasion] = useState(OCCASIONS[2].id); // Default to Birthday
@@ -317,10 +345,19 @@ const CreateListModal = ({
     }, [visible, userId, loadSavedAddresses, defaultAddress?.id]);
 
     useEffect(() => {
-        if (visible && savedAddresses.length > 0 && !selectedAddressId) {
-            setSelectedAddressId(defaultAddress?.id || savedAddresses[0].id);
+        if (visible) {
+            if (savedAddresses.length === 1) {
+                setSelectedAddressId(savedAddresses[0].id);
+                setShowAddress(true);
+            } else if (savedAddresses.length > 0 && !selectedAddressId) {
+                setSelectedAddressId(defaultAddress?.id || savedAddresses[0].id);
+                setShowAddress(false);
+            } else if (savedAddresses.length === 0) {
+                setSelectedAddressId('');
+                setShowAddress(false);
+            }
         }
-    }, [visible, showAddress, selectedAddressId, savedAddresses, defaultAddress?.id]);
+    }, [visible, savedAddresses.length]);
 
     useEffect(() => {
         const showSub = Keyboard.addListener(
@@ -414,6 +451,8 @@ const CreateListModal = ({
                         autoFocus
                     />
 
+
+
                     <Text style={styles.inputLabel}>Gift Category</Text>
                     <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.occasionScroll} contentContainerStyle={styles.occasionContainer}>
                         {OCCASIONS.map((occ) => (
@@ -462,15 +501,25 @@ const CreateListModal = ({
                             }}
                             disabled={savedAddresses.length === 0}
                         >
-                            <View style={[styles.checkbox, showAddress && styles.checkboxActive, !savedAddresses.length && styles.checkboxDisabled]}>
-                                {showAddress && <View style={styles.checkboxDot} />}
+                            <View style={{ flex: 1, flexDirection: 'row', alignItems: 'center' }}>
+                                <View style={[styles.checkbox, showAddress && styles.checkboxActive, !savedAddresses.length && styles.checkboxDisabled]}>
+                                    {showAddress && <View style={styles.checkboxDot} />}
+                                </View>
+                                <Text style={styles.deliveryToggleText}>Share address with gifters</Text>
                             </View>
-                            <Text style={styles.deliveryToggleText}>Share address with gifters</Text>
+                            <Pressable 
+                                onPress={() => {
+                                    onClose();
+                                    navigation.navigate('Addresses');
+                                }}
+                            >
+                                <Text style={{ color: COLORS.primary, fontSize: 13, fontWeight: '600' }}>Manage</Text>
+                            </Pressable>
                         </Pressable>
                         <Text style={styles.deliveryHint}>
                             {savedAddresses.length
                                 ? 'Choose a saved address to make it visible on this registry.'
-                                : 'Add a saved address first to enable address sharing.'}
+                                : 'Please add a delivery address in your profile settings to enable address sharing.'}
                         </Text>
 
                         {showAddress && savedAddresses.length > 0 && (
@@ -583,6 +632,7 @@ const ItemEditModal = ({ visible, onClose, item, onSave }: any) => {
 
 // Edit Category Modal
 const EditCategoryModal = ({ visible, onClose, category, onSave, onDelete }: any) => {
+    const navigation = useNavigation<any>();
     const { user } = useAuthStore();
     const { savedAddresses, defaultAddress, loadSavedAddresses } = useAddressStore();
     const [name, setName] = useState(category?.name || '');
@@ -744,15 +794,25 @@ const EditCategoryModal = ({ visible, onClose, category, onSave, onDelete }: any
                             }}
                             disabled={savedAddresses.length === 0}
                         >
-                            <View style={[styles.checkbox, showAddress && styles.checkboxActive, !savedAddresses.length && styles.checkboxDisabled]}>
-                                {showAddress && <View style={styles.checkboxDot} />}
+                            <View style={{ flex: 1, flexDirection: 'row', alignItems: 'center' }}>
+                                <View style={[styles.checkbox, showAddress && styles.checkboxActive, !savedAddresses.length && styles.checkboxDisabled]}>
+                                    {showAddress && <View style={styles.checkboxDot} />}
+                                </View>
+                                <Text style={styles.deliveryToggleText}>Share address with gifters</Text>
                             </View>
-                            <Text style={styles.deliveryToggleText}>Share address with gifters</Text>
+                            <Pressable 
+                                onPress={() => {
+                                    onClose();
+                                    navigation.navigate('Addresses');
+                                }}
+                            >
+                                <Text style={{ color: COLORS.primary, fontSize: 13, fontWeight: '600' }}>Manage</Text>
+                            </Pressable>
                         </Pressable>
                         <Text style={styles.deliveryHint}>
                             {savedAddresses.length
                                 ? 'Choose a saved address to make it visible on this registry.'
-                                : 'Add a saved address first to enable address sharing.'}
+                                : 'Please add a delivery address in your profile settings to enable address sharing.'}
                         </Text>
 
                         {showAddress && savedAddresses.length > 0 && (
@@ -947,6 +1007,14 @@ export default function RegistryScreen() {
                                     <Pressable
                                         style={styles.headerIconBtn}
                                         onPress={() => {
+                                            navigation.navigate('MainTabs', { screen: 'Shop' });
+                                        }}
+                                    >
+                                        <PlusCircle size={20} color={COLORS.primary} strokeWidth={2} />
+                                    </Pressable>
+                                    <Pressable
+                                        style={styles.headerIconBtn}
+                                        onPress={() => {
                                             // Edit the current category
                                             const currentCat = categories.find(c => c.id === selectedCategoryId);
                                             if (currentCat) {
@@ -1073,7 +1141,7 @@ export default function RegistryScreen() {
                                                         <Text style={styles.groupedCardTitle}>{cat.name}</Text>
                                                         <View style={styles.groupedCardRatingRow}>
                                                             {cat.occasion && (
-                                                                <Text style={styles.groupedCardDetail}>{cat.occasion.replace('_', ' ')}</Text>
+                                                                <Text style={styles.groupedCardDetail}>{getOccasionLabel(cat.occasion)}</Text>
                                                             )}
                                                             <ProductThumbnails items={categoryItems} totalCount={itemCount} />
                                                         </View>
@@ -1467,6 +1535,18 @@ const styles = StyleSheet.create({
         color: '#FFFFFF',
         fontSize: 10,
         fontWeight: '900',
+    },
+    statusBadge: {
+        position: 'absolute',
+        bottom: 6,
+        left: 6,
+        paddingHorizontal: 5,
+        paddingVertical: 2,
+        borderRadius: 4,
+    },
+    statusText: {
+        fontSize: 9,
+        fontWeight: '800',
     },
     listItemDetails: {
         flex: 1,

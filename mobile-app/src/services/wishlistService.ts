@@ -83,7 +83,7 @@ export const wishlistService = {
             title?: string;
             event_type?: string;
             category?: string;
-            privacy?: string;
+            privacy?: 'private' | 'shared';
             delivery?: {
                 addressId?: string;
                 showAddress?: boolean;

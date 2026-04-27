@@ -1045,8 +1045,7 @@ export default function ProductDetailScreen({ route, navigation }: Props) {
   const handleWishlistAction = useCallback(() => {
     const { isGuest: guestCheck } = useAuthStore.getState();
     if (guestCheck) {
-      setGuestModalMessage("Sign up to create wishlists.");
-      setShowGuestModal(true);
+      navigation.navigate('Login', { from: 'ProductDetail' });
       return;
     }
 

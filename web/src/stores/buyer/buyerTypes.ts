@@ -30,11 +30,13 @@ export interface RegistryProduct extends Product {
   isMostWanted?: boolean;
   selectedVariant?: ProductVariant; // snapshot of the chosen variant
   delivery?: RegistryDeliveryPreference; // item-level override if ever needed
+  status?: 'available' | 'out_of_stock' | 'seller_on_vacation' | 'restricted' | 'deleted';
 }
 
 export interface RegistryItem {
   id: string;
   title: string;
+  recipientName?: string;
   sharedDate: string;
   imageUrl: string;
   category?: string;

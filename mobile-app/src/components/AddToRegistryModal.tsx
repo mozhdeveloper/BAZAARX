@@ -13,6 +13,7 @@ import {
     Platform,
     Alert,
 } from 'react-native';
+import { useNavigation } from '@react-navigation/native';
 import { X, Gift, PlusCircle } from 'lucide-react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { COLORS } from '../constants/theme';
@@ -24,13 +25,21 @@ const { height } = Dimensions.get('window');
 
 const OCCASIONS = [
     { id: 'wedding', label: 'Wedding' },
-    { id: 'baby_shower', label: 'Baby Shower' },
+    { id: 'baby', label: 'Baby Shower' },
     { id: 'birthday', label: 'Birthday' },
     { id: 'graduation', label: 'Graduation' },
     { id: 'housewarming', label: 'Housewarming' },
     { id: 'christmas', label: 'Christmas' },
     { id: 'other', label: 'Other' },
 ];
+
+const getOccasionLabel = (id: string | undefined | null) => {
+    if (!id) return '';
+    if (id === 'baby') return 'BABY SHOWER';
+    const occ = OCCASIONS.find(o => o.id === id);
+    if (occ) return occ.label.toUpperCase();
+    return id.replace('_', ' ').toUpperCase();
+};
 
 interface AddToRegistryModalProps {
     visible: boolean;
@@ -39,6 +48,7 @@ interface AddToRegistryModalProps {
 }
 
 export const AddToRegistryModal = ({ visible, onClose, product }: AddToRegistryModalProps) => {
+    const navigation = useNavigation<any>();
     const insets = useSafeAreaInsets();
     const { categories, items, addItem, createCategory } = useWishlistStore();
     const { user } = useAuthStore();
@@ -70,6 +80,7 @@ export const AddToRegistryModal = ({ visible, onClose, product }: AddToRegistryM
 
             setShowAddress(false);
             setSelectedAddressId(defaultAddress?.id || '');
+            setDeliveryInstructions('');
             setDeliveryInstructions('');
 
             Animated.spring(slideAnim, {
@@ -216,8 +227,11 @@ export const AddToRegistryModal = ({ visible, onClose, product }: AddToRegistryM
                                     placeholderTextColor="#9CA3AF"
                                     value={newListName}
                                     onChangeText={setNewListName}
+                                    maxLength={50}
                                     autoFocus
                                 />
+
+
 
                                 <Text style={styles.inputLabel}>Gift Category</Text>
                                 <ScrollView
@@ -272,10 +286,20 @@ export const AddToRegistryModal = ({ visible, onClose, product }: AddToRegistryM
                                         }}
                                         disabled={savedAddresses.length === 0}
                                     >
-                                        <View style={[styles.checkbox, showAddress && styles.checkboxActive, !savedAddresses.length && styles.checkboxDisabled]}>
-                                            {showAddress && <View style={styles.checkboxDot} />}
+                                        <View style={{ flex: 1, flexDirection: 'row', alignItems: 'center' }}>
+                                            <View style={[styles.checkbox, showAddress && styles.checkboxActive, !savedAddresses.length && styles.checkboxDisabled]}>
+                                                {showAddress && <View style={styles.checkboxDot} />}
+                                            </View>
+                                            <Text style={styles.deliveryToggleText}>Share address with gifters</Text>
                                         </View>
-                                        <Text style={styles.deliveryToggleText}>Share address with gifters</Text>
+                                        <Pressable 
+                                            onPress={() => {
+                                                onClose();
+                                                navigation.navigate('Addresses');
+                                            }}
+                                        >
+                                            <Text style={{ color: COLORS.primary, fontSize: 13, fontWeight: '600' }}>Manage</Text>
+                                        </Pressable>
                                     </Pressable>
                                     <Text style={styles.deliveryHint}>
                                         {savedAddresses.length
@@ -352,7 +376,7 @@ export const AddToRegistryModal = ({ visible, onClose, product }: AddToRegistryM
                                         <View style={styles.listInfo}>
                                             <Text style={styles.listName}>{cat.name}</Text>
                                             <Text style={styles.listOccasion}>
-                                                {cat.occasion || 'General'} List
+                                                {cat.occasion ? getOccasionLabel(cat.occasion) : 'General'} List
                                             </Text>
                                         </View>
                                     </Pressable>

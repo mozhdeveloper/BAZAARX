@@ -46,6 +46,10 @@ export const mapDbToRegistryProduct = (item: any): RegistryProduct => {
     note: item.notes ?? snapshot.note,
     isMostWanted: item.is_most_wanted ?? false,
     selectedVariant: item.selected_variant ?? snapshot.selectedVariant,
+    status: item.product?.approval_status === 'suspended' ? 'restricted' : 
+            item.product?.seller?.on_vacation ? 'seller_on_vacation' :
+            (item.product?.stock ?? snapshot.stock ?? 0) <= 0 ? 'out_of_stock' : 
+            !item.product_id ? 'deleted' : 'available',
   });
 };
 
@@ -57,6 +61,7 @@ export const mapDbToRegistryItem = (row: any): RegistryItem => {
   const result = ensureRegistryDefaults({
     id: row.id,
     title: row.title,
+    recipientName: row.recipient_name,
     sharedDate:
       row.shared_date ||
       new Date(row.created_at).toLocaleDateString('en-US', {
@@ -64,7 +69,7 @@ export const mapDbToRegistryItem = (row: any): RegistryItem => {
         day: 'numeric',
         year: 'numeric',
       }),
-    imageUrl: row.image_url || '',
+    imageUrl: row.image_url || '/gradGift.jpeg',
     category: row.category || row.event_type || '',
     privacy: (row.privacy as RegistryPrivacy) || 'link',
     delivery: row.delivery || { showAddress: false },

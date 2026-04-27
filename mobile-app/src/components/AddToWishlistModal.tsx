@@ -21,13 +21,21 @@ const { height } = Dimensions.get('window');
 
 const OCCASIONS = [
     { id: 'wedding', label: 'Wedding' },
-    { id: 'baby_shower', label: 'Baby Shower' },
+    { id: 'baby', label: 'Baby Shower' },
     { id: 'birthday', label: 'Birthday' },
     { id: 'graduation', label: 'Graduation' },
     { id: 'housewarming', label: 'Housewarming' },
     { id: 'christmas', label: 'Christmas' },
     { id: 'other', label: 'Other' },
 ];
+
+const getOccasionLabel = (id: string | undefined | null) => {
+    if (!id) return '';
+    if (id === 'baby') return 'Baby Shower';
+    const occ = OCCASIONS.find(o => o.id === id);
+    if (occ) return occ.label;
+    return id.replace('_', ' ').replace(/\b\w/g, l => l.toUpperCase());
+};
 
 interface AddToWishlistModalProps {
     visible: boolean;
@@ -173,6 +181,7 @@ export const AddToWishlistModal = ({ visible, onClose, product }: AddToWishlistM
                                     placeholderTextColor="#9CA3AF"
                                     value={newListName}
                                     onChangeText={setNewListName}
+                                    maxLength={50}
                                     autoFocus
                                 />
 
@@ -251,7 +260,7 @@ export const AddToWishlistModal = ({ visible, onClose, product }: AddToWishlistM
                                         <View style={styles.listInfo}>
                                             <Text style={styles.listName}>{cat.name}</Text>
                                             <Text style={styles.listOccasion}>
-                                                {cat.occasion || 'General'} List
+                                                {cat.occasion ? getOccasionLabel(cat.occasion) : 'General'} List
                                             </Text>
                                         </View>
                                     </Pressable>

@@ -977,7 +977,7 @@ export const useBuyerStore = create<BuyerStore>()(persist(
           code: v.code,
           title: v.title,
           description: v.description || '',
-          type: v.voucher_type,
+          type: v.voucher_type as any,
           value: v.value,
           minOrderValue: v.min_order_value,
           maxDiscount: v.max_discount || undefined,
@@ -1042,7 +1042,7 @@ export const useBuyerStore = create<BuyerStore>()(persist(
           code: dbVoucher.code,
           title: dbVoucher.title,
           description: dbVoucher.description || '',
-          type: dbVoucher.voucher_type,
+          type: dbVoucher.voucher_type as any,
           value: dbVoucher.value,
           minOrderValue: dbVoucher.min_order_value,
           maxDiscount: dbVoucher.max_discount || undefined,
@@ -1868,6 +1868,7 @@ export const useBuyerStore = create<BuyerStore>()(persist(
 
       const dbUpdate: Record<string, any> = {};
       if (updates.title !== undefined) dbUpdate.title = updates.title;
+      if (updates.recipientName !== undefined) dbUpdate.recipient_name = updates.recipientName;
       if (updates.category !== undefined) { dbUpdate.category = updates.category; dbUpdate.event_type = updates.category; }
       if (updates.imageUrl !== undefined) dbUpdate.image_url = updates.imageUrl;
       if (updates.sharedDate !== undefined) dbUpdate.shared_date = updates.sharedDate;
@@ -1992,6 +1993,14 @@ export const useBuyerStore = create<BuyerStore>()(persist(
     },
 
     removeRegistryItem: async (registryId, productId) => {
+      const registry = get().registries.find(r => r.id === registryId);
+      const item = registry?.products?.find(p => p.id === productId);
+      
+      if (item && item.receivedQty > 0) {
+        console.warn('[removeRegistryItem] Cannot remove item with gift activity');
+        throw new Error('Cannot remove item with gift activity');
+      }
+
       // Optimistic
       set((state) => ({
         registries: state.registries.map((r) =>

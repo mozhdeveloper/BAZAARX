@@ -10,6 +10,7 @@ import {
   RegistryProduct,
   RegistryItem,
 } from "../stores/buyerStore";
+import { cn } from "../lib/utils";
 import { EditRegistryItemModal } from "./EditRegistryItemModal";
 import {
   Select,
@@ -18,6 +19,20 @@ import {
   SelectTrigger,
   SelectValue,
 } from "./ui/select";
+
+const getOccasionLabel = (id: string | undefined | null) => {
+  if (!id) return "GIFT LIST";
+  if (id === "baby") return "BABY SHOWER";
+  const labels: Record<string, string> = {
+    wedding: "WEDDING",
+    birthday: "BIRTHDAY",
+    graduation: "GRADUATION",
+    housewarming: "HOUSEWARMING",
+    christmas: "CHRISTMAS",
+    other: "OTHER"
+  };
+  return labels[id] || id.replace("_", " ").toUpperCase();
+};
 
 
 interface RegistryDetailModalProps {
@@ -85,7 +100,6 @@ export const RegistryDetailModal = ({
       setShowAddress(show || !!addr);
       setAddressId(addr);
       setDeliveryInstructions(liveRegistry.delivery?.instructions || "");
-      // Sync editable title & category when registry changes
       setEditTitle(liveRegistry.title || "");
       setEditCategory(liveRegistry.category || "");
     }
@@ -138,7 +152,6 @@ export const RegistryDetailModal = ({
       },
     });
   };
-
   return (
     <AnimatePresence>
       {isOpen && (
@@ -168,7 +181,7 @@ export const RegistryDetailModal = ({
               </button>
 
               <div className="mb-6 border-b border-gray-100 pb-4">
-                <div className="flex items-center gap-3 mb-3">
+                <div className="flex items-center gap-3 mb-3 pr-12">
                   <span className="text-sm text-[var(--text-secondary)]">
                     Created on {liveRegistry.sharedDate}
                   </span>
@@ -204,6 +217,7 @@ export const RegistryDetailModal = ({
                       value={editTitle}
                       onChange={(e) => setEditTitle(e.target.value)}
                       placeholder="e.g., Sarah's Wedding"
+                      maxLength={50}
                       className="text-xl font-bold text-[var(--text-primary)] border-gray-200 focus-visible:ring-[var(--brand-primary)] h-12"
                     />
                   </div>
@@ -252,20 +266,26 @@ export const RegistryDetailModal = ({
                         type="checkbox"
                         className="h-4 w-4"
                         checked={showAddress}
+                        disabled={(addresses || []).length === 0}
                         onChange={(e) => setShowAddress(e.target.checked)}
                       />
-                      <Label htmlFor="detail-showAddress" className="text-sm">
+                      <Label htmlFor="detail-showAddress" className={`text-sm ${(addresses || []).length === 0 ? 'text-gray-400' : ''}`}>
                         Share address with gifters
                       </Label>
                       <Button
                         size="sm"
-                        variant="ghost"
-                        onClick={() => navigate("/settings")}
-                        className="ml-auto text-[var(--brand-primary)] hover:bg-[var(--brand-primary)]/10"
+                        variant="outline"
+                        onClick={() => navigate("/profile?tab=addresses")}
+                        className="ml-auto text-gray-600 border-gray-200 hover:bg-gray-50 hover:text-gray-900"
                       >
                         Manage addresses
                       </Button>
                     </div>
+                    {(addresses || []).length === 0 && (
+                      <p className="text-xs text-amber-600">
+                        Please add a delivery address in your profile settings to enable address sharing.
+                      </p>
+                    )}
                     <Select
                       value={addressId}
                       onValueChange={(val) => {
@@ -329,42 +349,18 @@ export const RegistryDetailModal = ({
                     Registry Items
                   </h3>
                   <Button
-                    onClick={() => setIsAdding(!isAdding)}
+                    onClick={() => {
+                      navigate("/shop");
+                      onClose();
+                    }}
                     size="sm"
                     variant="outline"
-                    className="text-[var(--brand-primary)] border-[var(--brand-primary)]/30 hover:bg-[var(--brand-primary)]/10"
+                    className="text-gray-600 border-gray-200 hover:bg-gray-50 hover:text-gray-900"
                   >
                     <Plus className="w-4 h-4 mr-2" />
                     Add Item
                   </Button>
                 </div>
-
-                {isAdding && (
-                  <motion.div
-                    initial={{ opacity: 0, height: 0 }}
-                    animate={{ opacity: 1, height: "auto" }}
-                    className="bg-gray-50 p-4 rounded-xl border border-gray-200"
-                  >
-                    <Label className="mb-2 block">
-                      Add a Product (Quick Add)
-                    </Label>
-                    <div className="flex gap-2">
-                      <Input
-                        value={newProductName}
-                        onChange={(e) => setNewProductName(e.target.value)}
-                        placeholder="Enter product name..."
-                        className="bg-white"
-                        autoFocus
-                      />
-                      <Button
-                        onClick={handleAdd}
-                        className="btn-primary shrink-0"
-                      >
-                        Add
-                      </Button>
-                    </div>
-                  </motion.div>
-                )}
 
                 <div className="space-y-3">
                   {!liveRegistry.products ||
@@ -393,7 +389,6 @@ export const RegistryDetailModal = ({
                           className="flex flex-col bg-white rounded-xl shadow-sm hover:shadow-md transition-all cursor-pointer overflow-hidden border border-gray-100 group"
                         >
                           <div className="aspect-[1/1] relative bg-gray-100 overflow-hidden">
-                            {/* Fix: fallback to images[0] when image is empty — mirrors mobile's item.image || item.images?.[0] */}
                             {(product.image || (product as any).images?.[0]) ? (
                               <img loading="lazy"
                                 src={product.image || (product as any).images?.[0]}
@@ -407,8 +402,18 @@ export const RegistryDetailModal = ({
                               </div>
                             )}
                             {(product as any).isMostWanted && (
-                              <div className="absolute top-2 left-2 bg-[var(--brand-primary)] text-white text-[10px] font-bold px-2 py-1 rounded-full uppercase tracking-wide">
-                                Most Wanted
+                              <div className="absolute top-2 left-2 bg-[var(--brand-primary)] text-white px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wide">
+                                MOST WANTED
+                              </div>
+                            )}
+                            {product.status && product.status !== 'available' && (
+                              <div className={cn(
+                                "absolute bottom-2 right-2 px-2 py-1 rounded text-[10px] font-bold uppercase tracking-wide",
+                                product.status === 'out_of_stock' ? "bg-red-500 text-white" :
+                                product.status === 'seller_on_vacation' ? "bg-amber-500 text-white" :
+                                "bg-gray-500 text-white"
+                              )}>
+                                {product.status.replace(/_/g, ' ')}
                               </div>
                             )}
                           </div>
@@ -455,6 +460,7 @@ export const RegistryDetailModal = ({
                 </div>
               </div>
             </div>
+
             <div className="border-t border-gray-100 p-6 flex justify-center">
               <Button
                 onClick={() => {

@@ -1121,6 +1121,10 @@ export default function ProductDetailPage({ }: ProductDetailPageProps) {
                             <button
                                 onClick={(e) => {
                                     e.stopPropagation();
+                                    if (!profile) {
+                                        navigate("/login", { state: { from: location.pathname } });
+                                        return;
+                                    }
                                     if (!registries || registries.length === 0) {
                                         setIsCreateRegistryModalOpen(true);
                                     } else {
@@ -1492,9 +1496,27 @@ export default function ProductDetailPage({ }: ProductDetailPageProps) {
                                         />
                                     </div>
                                     <div className="flex-1">
-                                        <h3 className="font-black text-[var(--text-headline)] group-hover:text-[var(--brand-primary)] transition-colors text-base uppercase tracking-tight">
-                                            {registry.title}
-                                        </h3>
+                                        <div className="flex items-center justify-between">
+                                            <h3 className="font-black text-[var(--text-headline)] group-hover:text-[var(--brand-primary)] transition-colors text-base uppercase tracking-tight">
+                                                {registry.title}
+                                            </h3>
+                                            {registry.category && (
+                                                <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-[var(--brand-wash)] text-[var(--brand-primary)] uppercase tracking-wider">
+                                                    {(() => {
+                                                        const labels: Record<string, string> = {
+                                                            wedding: 'Wedding',
+                                                            baby: 'Baby Shower',
+                                                            birthday: 'Birthday',
+                                                            graduation: 'Graduation',
+                                                            housewarming: 'Housewarming',
+                                                            christmas: 'Christmas',
+                                                            other: 'Other'
+                                                        };
+                                                        return labels[registry.category as string] || registry.category;
+                                                    })()}
+                                                </span>
+                                            )}
+                                        </div>
                                         <p className="text-xs text-[var(--text-muted)] font-bold mt-0.5">
                                             {registry.products?.length || 0}{" "}
                                             items • Shared {registry.sharedDate}

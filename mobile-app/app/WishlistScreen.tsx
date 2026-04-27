@@ -14,13 +14,21 @@ const { width } = Dimensions.get('window');
 
 const OCCASIONS = [
     { id: 'wedding', label: 'Wedding', icon: 'Gift' },
-    { id: 'baby_shower', label: 'Baby Shower', icon: 'Baby' },
+    { id: 'baby', label: 'Baby Shower', icon: 'Baby' },
     { id: 'birthday', label: 'Birthday', icon: 'Cake' },
     { id: 'graduation', label: 'Graduation', icon: 'GraduationCap' },
     { id: 'housewarming', label: 'Housewarming', icon: 'Home' },
     { id: 'christmas', label: 'Christmas', icon: 'Tree' },
     { id: 'other', label: 'Other', icon: 'MoreHorizontal' },
 ];
+
+export const getOccasionLabel = (id: string | undefined | null) => {
+    if (!id) return '';
+    if (id === 'baby') return 'BABY SHOWER';
+    const occ = OCCASIONS.find(o => o.id === id);
+    if (occ) return occ.label.toUpperCase();
+    return id.replace('_', ' ').toUpperCase();
+};
 
 const BRAND_COLOR = COLORS.primary;
 
@@ -117,6 +125,19 @@ const WishlistListItem = ({
                             <Text style={styles.listItemDiscountText}>{discountPercent}%</Text>
                         </View>
                     )}
+                    {item.status && item.status !== 'available' && (
+                        <View style={[
+                            styles.statusBadge,
+                            { backgroundColor: item.status === 'out_of_stock' ? '#FEE2E2' : item.status === 'seller_on_vacation' ? '#FEF3C7' : '#F3F4F6' }
+                        ]}>
+                            <Text style={[
+                                styles.statusText,
+                                { color: item.status === 'out_of_stock' ? '#DC2626' : item.status === 'seller_on_vacation' ? '#D97706' : '#4B5563' }
+                            ]}>
+                                {item.status.replace(/_/g, ' ').toUpperCase()}
+                            </Text>
+                        </View>
+                    )}
                 </View>
 
                 {/* Middle: Product Details */}
@@ -168,6 +189,18 @@ const WishlistListItem = ({
                         onPress={handleQtyDecrease}
                     >
                         <ChevronDown size={18} color={desiredQty > 1 ? COLORS.primary : '#D1D5DB'} strokeWidth={2.5} />
+                    </Pressable>
+                    <Pressable
+                        style={[styles.listItemDeleteBtn, item.purchasedQty > 0 && { opacity: 0.3 }]}
+                        onPress={() => {
+                            if (item.purchasedQty > 0) {
+                                Alert.alert('Cannot Remove', 'This item has already been partially or fully purchased as a gift.');
+                                return;
+                            }
+                            setShowDeleteModal(true);
+                        }}
+                    >
+                        <Trash2 size={15} color="#DC2626" strokeWidth={2.2} />
                     </Pressable>
                 </View>
             </Pressable>
@@ -351,6 +384,7 @@ const CreateListModal = ({ visible, onClose, onCreate }: any) => {
                         onChangeText={setName}
                         placeholder="e.g., Sarah's Wedding, Baby Doe 2026"
                         placeholderTextColor="#9CA3AF"
+                        maxLength={50}
                         autoFocus
                     />
 
@@ -582,6 +616,7 @@ const EditCategoryModal = ({ visible, onClose, category, onSave, onDelete }: any
                         value={name}
                         onChangeText={setName}
                         placeholder="List Name"
+                        maxLength={50}
                         autoFocus
                     />
 
@@ -836,7 +871,7 @@ export default function WishlistScreen() {
                                                         <Text style={styles.groupedCardTitle}>{cat.name}</Text>
                                                         <View style={styles.groupedCardRatingRow}>
                                                             {cat.occasion && (
-                                                                <Text style={styles.groupedCardDetail}>{cat.occasion.replace('_', ' ')}</Text>
+                                                                <Text style={styles.groupedCardDetail}>{getOccasionLabel(cat.occasion)}</Text>
                                                             )}
                                                             <ProductThumbnails items={categoryItems} totalCount={itemCount} />
                                                         </View>
@@ -1206,6 +1241,29 @@ const styles = StyleSheet.create({
         color: '#FFFFFF',
         fontSize: 10,
         fontWeight: '900',
+    },
+    statusBadge: {
+        position: 'absolute',
+        bottom: 6,
+        left: 6,
+        paddingHorizontal: 5,
+        paddingVertical: 2,
+        borderRadius: 4,
+    },
+    statusText: {
+        fontSize: 9,
+        fontWeight: '800',
+    },
+    listItemDeleteBtn: {
+        width: 28,
+        height: 28,
+        borderRadius: 14,
+        backgroundColor: '#FEF2F2',
+        justifyContent: 'center',
+        alignItems: 'center',
+        borderWidth: 1,
+        borderColor: '#FECACA',
+        marginTop: 4,
     },
     listItemDetails: {
         flex: 1,
