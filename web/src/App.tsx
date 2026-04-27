@@ -197,8 +197,10 @@ function App() {
 
           if (emailIdentity && googleIdentity) {
             const isExplicitlyLinked = !!user.user_metadata?.google_explicitly_linked;
-            
-            // If we are currently linking, mark as explicit
+            // Use the app_metadata provider to see what was used for THIS login
+            const currentProvider = user.app_metadata?.provider;
+
+            // If they are currently linking, mark as explicit
             if (isLinking && !isExplicitlyLinked) {
               console.log('[Auth] 🔗 Explicitly linking Google account...');
               await supabase.auth.updateUser({
@@ -206,23 +208,18 @@ function App() {
               });
               sessionStorage.removeItem('oauth_intent');
               // Proceed as normal
-            } else {
-              // Use the created_at from the google identity
-              const identityCreatedAt = googleIdentity.created_at ? new Date(googleIdentity.created_at).getTime() : Date.now();
-              const linkAgeMs = Date.now() - identityCreatedAt;
-
-              // If not explicitly linked and the link was created recently (e.g. during this session)
-              if (!isExplicitlyLinked && linkAgeMs < 300000) {
-                console.log('[Auth] 🛡️ Google Link Policy Blocked (Silent Link Detected)');
-                
-                // Unlink Google and Sign Out
-                await (supabase.auth as any).unlinkIdentity(googleIdentity);
-                await supabase.auth.signOut();
-                
-                // Redirect to login with error
-                window.location.href = '/login?error=google_unlinked';
-                return;
-              }
+            } else if (currentProvider === 'google' && emailIdentity && !isExplicitlyLinked) {
+              // BLOCK: They just signed in via Google, but they have an email account
+              // and they never explicitly linked it. This is a silent link (old or new).
+              console.log('[Auth] 🛡️ Google Link Policy Blocked (Silent Link Detected)');
+              
+              // Unlink Google and Sign Out to be safe
+              await (supabase.auth as any).unlinkIdentity(googleIdentity);
+              await supabase.auth.signOut();
+              
+              // Redirect to login with error
+              window.location.href = '/login?error=google_unlinked';
+              return;
             }
           }
         } catch (linkErr) {

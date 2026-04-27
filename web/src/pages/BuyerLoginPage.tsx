@@ -35,6 +35,12 @@ export default function BuyerLoginPage() {
   const [showLinkNotice, setShowLinkNotice] = useState(isLinkError);
   const [showNoAccountNotice, setShowNoAccountNotice] = useState(isNoAccountError);
 
+  // Sync state with URL params (handles redirects while component is mounted)
+  useEffect(() => {
+    if (isLinkError) setShowLinkNotice(true);
+    if (isNoAccountError) setShowNoAccountNotice(true);
+  }, [isLinkError, isNoAccountError]);
+
   const isVerified = (location.state as any)?.verified;
   const verifiedEmail = (location.state as any)?.email;
 
