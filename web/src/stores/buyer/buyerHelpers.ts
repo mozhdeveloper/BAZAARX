@@ -31,8 +31,12 @@ export const isRealUUID = (id: string) => UUID_REGEX.test(id);
 // Maps a DB registry row (with nested registry_items) to the frontend RegistryItem shape
 export const mapDbToRegistryProduct = (item: any): RegistryProduct => {
   const snapshot = item.product_snapshot || {};
+  // Resolve image: prefer snapshot.image, fallback to first entry in images[] — mirrors mobile's item.image || item.images?.[0]
+  const resolvedImage: string = snapshot.image || snapshot.images?.[0] || '';
   return ensureRegistryProductDefaults({
     ...snapshot,
+    image: resolvedImage,
+    sourceProductId: item.product_id || snapshot.sourceProductId || snapshot.id,
     // Use registry_items.id as the local product identifier so update/delete can target the DB row
     id: item.id,
     name: item.product_name || snapshot.name || '',

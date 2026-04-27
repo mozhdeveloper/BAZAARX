@@ -56,6 +56,9 @@ export const RegistryDetailModal = ({
   const [addressId, setAddressId] = useState("");
   const [deliveryInstructions, setDeliveryInstructions] = useState("");
   const [showShareModal, setShowShareModal] = useState(false);
+  // Editable registry meta — mirrors mobile EditCategoryModal
+  const [editTitle, setEditTitle] = useState("");
+  const [editCategory, setEditCategory] = useState("");
 
   const selectedAddress = useMemo(
     () => (addresses || []).find((addr) => addr.id === addressId),
@@ -82,6 +85,9 @@ export const RegistryDetailModal = ({
       setShowAddress(show || !!addr);
       setAddressId(addr);
       setDeliveryInstructions(liveRegistry.delivery?.instructions || "");
+      // Sync editable title & category when registry changes
+      setEditTitle(liveRegistry.title || "");
+      setEditCategory(liveRegistry.category || "");
     }
   }, [liveRegistry]);
 
@@ -122,6 +128,8 @@ export const RegistryDetailModal = ({
 
   const handleSavePreferences = () => {
     updateRegistryMeta(liveRegistry.id, {
+      title: editTitle.trim() || liveRegistry.title,
+      category: editCategory.trim() || liveRegistry.category,
       privacy: "link",
       delivery: {
         addressId: addressId || undefined,
@@ -160,19 +168,11 @@ export const RegistryDetailModal = ({
               </button>
 
               <div className="mb-6 border-b border-gray-100 pb-4">
-                <div className="flex items-center gap-3 mb-2">
-                  <span className="bg-orange-100 text-[var(--brand-primary)] px-3 py-1 rounded-full text-xs font-semibold uppercase tracking-wider">
-                    {liveRegistry.category || "Gift List"}
-                  </span>
+                <div className="flex items-center gap-3 mb-3">
                   <span className="text-sm text-[var(--text-secondary)]">
                     Created on {liveRegistry.sharedDate}
                   </span>
-                </div>
-                <div className="flex items-start justify-between gap-4">
-                  <h2 className="text-3xl font-bold text-[var(--text-primary)]">
-                    {liveRegistry.title}
-                  </h2>
-                  <div className="flex gap-2">
+                  <div className="flex gap-2 ml-auto">
                     <Button
                       size="sm"
                       variant="outline"
@@ -193,6 +193,37 @@ export const RegistryDetailModal = ({
                         <span>Delete</span>
                       </Button>
                     )}
+                  </div>
+                </div>
+                {/* Editable Registry Name — matches mobile EditCategoryModal */}
+                <div className="space-y-3">
+                  <div className="space-y-1">
+                    <Label htmlFor="registry-title" className="text-xs font-semibold text-[var(--text-muted)] uppercase tracking-wider">Registry Name</Label>
+                    <Input
+                      id="registry-title"
+                      value={editTitle}
+                      onChange={(e) => setEditTitle(e.target.value)}
+                      placeholder="e.g., Sarah's Wedding"
+                      className="text-xl font-bold text-[var(--text-primary)] border-gray-200 focus-visible:ring-[var(--brand-primary)] h-12"
+                    />
+                  </div>
+                  {/* Editable Gift Category — matches mobile EditCategoryModal occasion field */}
+                  <div className="space-y-1">
+                    <Label className="text-xs font-semibold text-[var(--text-muted)] uppercase tracking-wider">Gift Category</Label>
+                    <Select value={editCategory} onValueChange={setEditCategory}>
+                      <SelectTrigger className="focus:ring-[var(--brand-primary)] border-gray-200">
+                        <SelectValue placeholder="Select a category" />
+                      </SelectTrigger>
+                      <SelectContent className="z-[10200]" position="popper" side="bottom" sideOffset={4}>
+                        <SelectItem value="wedding">Wedding</SelectItem>
+                        <SelectItem value="baby">Baby Shower</SelectItem>
+                        <SelectItem value="birthday">Birthday</SelectItem>
+                        <SelectItem value="graduation">Graduation</SelectItem>
+                        <SelectItem value="housewarming">Housewarming</SelectItem>
+                        <SelectItem value="christmas">Christmas</SelectItem>
+                        <SelectItem value="other">Other</SelectItem>
+                      </SelectContent>
+                    </Select>
                   </div>
                 </div>
               </div>
@@ -362,11 +393,13 @@ export const RegistryDetailModal = ({
                           className="flex flex-col bg-white rounded-xl shadow-sm hover:shadow-md transition-all cursor-pointer overflow-hidden border border-gray-100 group"
                         >
                           <div className="aspect-[1/1] relative bg-gray-100 overflow-hidden">
-                            {product.image ? (
+                            {/* Fix: fallback to images[0] when image is empty — mirrors mobile's item.image || item.images?.[0] */}
+                            {(product.image || (product as any).images?.[0]) ? (
                               <img loading="lazy"
-                                src={product.image}
+                                src={product.image || (product as any).images?.[0]}
                                 alt={product.name}
                                 className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+                                onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = 'none'; }}
                               />
                             ) : (
                               <div className="w-full h-full flex items-center justify-center">

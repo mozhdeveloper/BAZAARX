@@ -1,13 +1,14 @@
 import { useNavigation } from '@react-navigation/native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Image } from 'expo-image';
-import { ChevronDown, ChevronLeft, ChevronRight, ChevronUp, Edit2, FolderHeart, Gift, Heart, Share, Star, Trash2, X } from 'lucide-react-native';
+import { ChevronDown, ChevronLeft, ChevronRight, ChevronUp, Edit2, Gift, PlusCircle, Share, Star, Trash2, X } from 'lucide-react-native';
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Alert, Animated, Dimensions, Keyboard, KeyboardAvoidingView, Modal, Platform, Pressable, ScrollView, Share as ShareApi, StatusBar, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { GuestLoginModal } from '../src/components/GuestLoginModal';
 import { COLORS } from '../src/constants/theme';
 import { useAuthStore } from '../src/stores/authStore';
+import { useAddressStore } from '../src/stores/addressStore';
 import { useWishlistStore, WishlistItem } from '../src/stores/wishlistStore';
 
 const { width } = Dimensions.get('window');
@@ -23,6 +24,19 @@ const OCCASIONS = [
 ];
 
 const BRAND_COLOR = COLORS.primary;
+
+type RegistryDeliveryPreference = {
+    addressId?: string;
+    showAddress: boolean;
+    instructions?: string;
+};
+
+type CreateRegistryPayload = {
+    name: string;
+    privacy: 'private' | 'shared';
+    occasion: string;
+    delivery: RegistryDeliveryPreference;
+};
 
 // Delete Confirmation Modal
 const DeleteConfirmationModal = ({ visible, onClose, onConfirm, itemName }: {
@@ -40,7 +54,7 @@ const DeleteConfirmationModal = ({ visible, onClose, onConfirm, itemName }: {
                     </View>
                     <Text style={styles.deleteModalTitle}>Remove Item?</Text>
                     <Text style={styles.deleteModalMessage}>
-                        Are you sure you want to remove "{itemName}" from your wishlist?
+                        Are you sure you want to remove "{itemName}" from your registry?
                     </Text>
                     <View style={styles.deleteModalActions}>
                         <Pressable style={[styles.deleteModalBtn, styles.deleteModalCancelBtn]} onPress={onClose}>
@@ -169,6 +183,12 @@ const WishlistListItem = ({
                     >
                         <ChevronDown size={18} color={desiredQty > 1 ? COLORS.primary : '#D1D5DB'} strokeWidth={2.5} />
                     </Pressable>
+                    <Pressable
+                        style={styles.listItemDeleteBtn}
+                        onPress={() => setShowDeleteModal(true)}
+                    >
+                        <Trash2 size={15} color="#DC2626" strokeWidth={2.2} />
+                    </Pressable>
                 </View>
             </Pressable>
 
@@ -251,17 +271,40 @@ const ProductThumbnails = ({ items, totalCount }: { items: WishlistItem[]; total
 };
 
 // Create List Modal (Bottom Sheet Style)
-const CreateListModal = ({ visible, onClose, onCreate }: any) => {
+const CreateListModal = ({
+    visible,
+    onClose,
+    onCreate,
+    userId,
+}: {
+    visible: boolean;
+    onClose: () => void;
+    onCreate: (payload: CreateRegistryPayload) => void;
+    userId?: string | null;
+}) => {
+    const { savedAddresses, defaultAddress, loadSavedAddresses } = useAddressStore();
     const [name, setName] = useState('');
     const [selectedOccasion, setSelectedOccasion] = useState(OCCASIONS[2].id); // Default to Birthday
     const [customOccasion, setCustomOccasion] = useState('');
-    const [isPrivate, setIsPrivate] = useState(true);
+    const [showAddress, setShowAddress] = useState(false);
+    const [selectedAddressId, setSelectedAddressId] = useState('');
+    const [deliveryInstructions, setDeliveryInstructions] = useState('');
     const insets = useSafeAreaInsets();
     const slideAnim = useRef(new Animated.Value(Dimensions.get('window').height)).current;
     const keyboardOffset = useRef(new Animated.Value(0)).current;
 
     useEffect(() => {
+        if (visible && userId) {
+            loadSavedAddresses(userId);
+        }
+
         if (visible) {
+            setName('');
+            setSelectedOccasion(OCCASIONS[2].id);
+            setCustomOccasion('');
+            setShowAddress(false);
+            setSelectedAddressId(defaultAddress?.id || '');
+            setDeliveryInstructions('');
             Animated.spring(slideAnim, {
                 toValue: 0,
                 tension: 50,
@@ -271,7 +314,13 @@ const CreateListModal = ({ visible, onClose, onCreate }: any) => {
         } else {
             slideAnim.setValue(Dimensions.get('window').height);
         }
-    }, [visible]);
+    }, [visible, userId, loadSavedAddresses, defaultAddress?.id]);
+
+    useEffect(() => {
+        if (visible && savedAddresses.length > 0 && !selectedAddressId) {
+            setSelectedAddressId(defaultAddress?.id || savedAddresses[0].id);
+        }
+    }, [visible, showAddress, selectedAddressId, savedAddresses, defaultAddress?.id]);
 
     useEffect(() => {
         const showSub = Keyboard.addListener(
@@ -311,11 +360,22 @@ const CreateListModal = ({ visible, onClose, onCreate }: any) => {
     const handleCreate = () => {
         if (!name.trim()) return;
         const occasionValue = selectedOccasion === 'other' ? (customOccasion.trim() || 'other') : selectedOccasion;
-        onCreate(name, 'private', occasionValue);
+        onCreate({
+            name,
+            privacy: 'private',
+            occasion: occasionValue,
+            delivery: {
+                showAddress,
+                addressId: showAddress ? selectedAddressId || undefined : undefined,
+                instructions: showAddress ? deliveryInstructions.trim() || undefined : undefined,
+            },
+        });
         setName('');
         setSelectedOccasion(OCCASIONS[2].id);
         setCustomOccasion('');
-        setIsPrivate(true);
+        setShowAddress(false);
+        setSelectedAddressId('');
+        setDeliveryInstructions('');
         handleCloseInternal();
     };
 
@@ -344,7 +404,7 @@ const CreateListModal = ({ visible, onClose, onCreate }: any) => {
                         </Pressable>
                     </View>
 
-                    <Text style={styles.inputLabel}>Wishlist Name</Text>
+                    <Text style={styles.inputLabel}>Registry Name</Text>
                     <TextInput
                         style={styles.bsInput}
                         value={name}
@@ -385,6 +445,64 @@ const CreateListModal = ({ visible, onClose, onCreate }: any) => {
                             />
                         </View>
                     )}
+
+                    <View style={styles.deliverySection}>
+                        <Text style={styles.inputLabel}>Delivery Preference</Text>
+                        <Pressable
+                            style={styles.deliveryToggleRow}
+                            onPress={() => {
+                                if (!savedAddresses.length) return;
+                                setShowAddress((value) => {
+                                    const next = !value;
+                                    if (next && !selectedAddressId) {
+                                        setSelectedAddressId(defaultAddress?.id || savedAddresses[0].id);
+                                    }
+                                    return next;
+                                });
+                            }}
+                            disabled={savedAddresses.length === 0}
+                        >
+                            <View style={[styles.checkbox, showAddress && styles.checkboxActive, !savedAddresses.length && styles.checkboxDisabled]}>
+                                {showAddress && <View style={styles.checkboxDot} />}
+                            </View>
+                            <Text style={styles.deliveryToggleText}>Share address with gifters</Text>
+                        </Pressable>
+                        <Text style={styles.deliveryHint}>
+                            {savedAddresses.length
+                                ? 'Choose a saved address to make it visible on this registry.'
+                                : 'Add a saved address first to enable address sharing.'}
+                        </Text>
+
+                        {showAddress && savedAddresses.length > 0 && (
+                            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.addressChipRow}>
+                                {savedAddresses.map((address) => {
+                                    const isSelected = selectedAddressId === address.id;
+                                    return (
+                                        <Pressable
+                                            key={address.id}
+                                            style={[styles.addressChip, isSelected && styles.addressChipActive]}
+                                            onPress={() => setSelectedAddressId(address.id)}
+                                        >
+                                            <Text style={[styles.addressChipText, isSelected && styles.addressChipTextActive]}>
+                                                {address.label || `${address.firstName} ${address.lastName}`}
+                                            </Text>
+                                        </Pressable>
+                                    );
+                                })}
+                            </ScrollView>
+                        )}
+
+                        {showAddress && (
+                            <TextInput
+                                style={[styles.bsInput, styles.deliveryInstructionsInput]}
+                                value={deliveryInstructions}
+                                onChangeText={setDeliveryInstructions}
+                                placeholder="Delivery instructions (optional)"
+                                placeholderTextColor="#9CA3AF"
+                                editable={savedAddresses.length > 0}
+                            />
+                        )}
+                    </View>
 
                     <Pressable onPress={handleCreate} style={[styles.createBtn, !name.trim() && styles.disabledBtn, { marginTop: selectedOccasion === 'other' ? 0 : 24 }]}>
                         <Text style={styles.createBtnText}>Create Private List</Text>
@@ -465,7 +583,12 @@ const ItemEditModal = ({ visible, onClose, item, onSave }: any) => {
 
 // Edit Category Modal
 const EditCategoryModal = ({ visible, onClose, category, onSave, onDelete }: any) => {
+    const { user } = useAuthStore();
+    const { savedAddresses, defaultAddress, loadSavedAddresses } = useAddressStore();
     const [name, setName] = useState(category?.name || '');
+    const [showAddress, setShowAddress] = useState(false);
+    const [selectedAddressId, setSelectedAddressId] = useState('');
+    const [deliveryInstructions, setDeliveryInstructions] = useState('');
     const insets = useSafeAreaInsets();
     const slideAnim = useRef(new Animated.Value(Dimensions.get('window').height)).current;
     const keyboardOffset = useRef(new Animated.Value(0)).current;
@@ -473,11 +596,17 @@ const EditCategoryModal = ({ visible, onClose, category, onSave, onDelete }: any
     useEffect(() => {
         if (category) {
             setName(category.name);
+            setShowAddress(category.delivery?.showAddress ?? false);
+            setSelectedAddressId(category.delivery?.addressId || '');
+            setDeliveryInstructions(category.delivery?.instructions || '');
         }
     }, [category]);
 
     useEffect(() => {
         if (visible) {
+            if (user?.id) {
+                loadSavedAddresses(user.id);
+            }
             Animated.spring(slideAnim, {
                 toValue: 0,
                 tension: 50,
@@ -487,7 +616,13 @@ const EditCategoryModal = ({ visible, onClose, category, onSave, onDelete }: any
         } else {
             slideAnim.setValue(Dimensions.get('window').height);
         }
-    }, [visible]);
+    }, [visible, user?.id, loadSavedAddresses]);
+
+    useEffect(() => {
+        if (visible && savedAddresses.length > 0 && !selectedAddressId) {
+            setSelectedAddressId(defaultAddress?.id || savedAddresses[0].id);
+        }
+    }, [visible, savedAddresses, selectedAddressId, defaultAddress?.id]);
 
     // Keyboard handling
     useEffect(() => {
@@ -527,7 +662,15 @@ const EditCategoryModal = ({ visible, onClose, category, onSave, onDelete }: any
 
     const handleSave = () => {
         if (!name.trim()) return;
-        onSave(category.id, { name, privacy: 'private' });
+        onSave(category.id, {
+            name,
+            privacy: 'private',
+            delivery: {
+                showAddress,
+                addressId: showAddress ? selectedAddressId || undefined : undefined,
+                instructions: showAddress ? deliveryInstructions.trim() || undefined : undefined,
+            },
+        });
         handleCloseInternal();
     };
 
@@ -585,6 +728,64 @@ const EditCategoryModal = ({ visible, onClose, category, onSave, onDelete }: any
                         autoFocus
                     />
 
+                    <View style={styles.deliverySection}>
+                        <Text style={styles.inputLabel}>Delivery Preference</Text>
+                        <Pressable
+                            style={styles.deliveryToggleRow}
+                            onPress={() => {
+                                if (!savedAddresses.length) return;
+                                setShowAddress((value) => {
+                                    const next = !value;
+                                    if (next && !selectedAddressId) {
+                                        setSelectedAddressId(defaultAddress?.id || savedAddresses[0].id);
+                                    }
+                                    return next;
+                                });
+                            }}
+                            disabled={savedAddresses.length === 0}
+                        >
+                            <View style={[styles.checkbox, showAddress && styles.checkboxActive, !savedAddresses.length && styles.checkboxDisabled]}>
+                                {showAddress && <View style={styles.checkboxDot} />}
+                            </View>
+                            <Text style={styles.deliveryToggleText}>Share address with gifters</Text>
+                        </Pressable>
+                        <Text style={styles.deliveryHint}>
+                            {savedAddresses.length
+                                ? 'Choose a saved address to make it visible on this registry.'
+                                : 'Add a saved address first to enable address sharing.'}
+                        </Text>
+
+                        {showAddress && savedAddresses.length > 0 && (
+                            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.addressChipRow}>
+                                {savedAddresses.map((address) => {
+                                    const isSelected = selectedAddressId === address.id;
+                                    return (
+                                        <Pressable
+                                            key={address.id}
+                                            style={[styles.addressChip, isSelected && styles.addressChipActive]}
+                                            onPress={() => setSelectedAddressId(address.id)}
+                                        >
+                                            <Text style={[styles.addressChipText, isSelected && styles.addressChipTextActive]}>
+                                                {address.label || `${address.firstName} ${address.lastName}`}
+                                            </Text>
+                                        </Pressable>
+                                    );
+                                })}
+                            </ScrollView>
+                        )}
+
+                        {showAddress && (
+                            <TextInput
+                                style={[styles.bsInput, styles.deliveryInstructionsInput]}
+                                value={deliveryInstructions}
+                                onChangeText={setDeliveryInstructions}
+                                placeholder="Delivery instructions (optional)"
+                                placeholderTextColor="#9CA3AF"
+                                editable={savedAddresses.length > 0}
+                            />
+                        )}
+                    </View>
+
                     <View style={{ gap: 12, marginTop: 12 }}>
                         <View style={styles.editListButtonRow}>
                             <Pressable onPress={handleCloseInternal} style={[styles.editListBtn, styles.editListCancelBtn]}>
@@ -607,7 +808,7 @@ const EditCategoryModal = ({ visible, onClose, category, onSave, onDelete }: any
     );
 };
 
-export default function WishlistScreen() {
+export default function RegistryScreen() {
     const insets = useSafeAreaInsets();
     const navigation = useNavigation<any>();
 
@@ -652,16 +853,16 @@ export default function WishlistScreen() {
                 url: url
             });
         } catch (error) {
-            Alert.alert('Error', 'Failed to share wishlist');
+            Alert.alert('Error', 'Failed to share registry');
         }
     }, [selectedCategoryId, shareWishlist]);
 
     const currentCategoryName = useMemo(() =>
-        categories.find(c => c.id === selectedCategoryId)?.name || 'My Wishlists',
+        categories.find(c => c.id === selectedCategoryId)?.name || 'My Registry & Gifting',
         [categories, selectedCategoryId]);
 
-    const handleCreateList = useCallback((name: string, privacy: 'private' | 'shared', occasion?: string) => {
-        createCategory(name, privacy, occasion);
+    const handleCreateList = useCallback((payload: CreateRegistryPayload) => {
+        createCategory(payload.name, payload.privacy, payload.occasion, undefined, payload.delivery);
     }, [createCategory]);
 
     const BRAND_COLOR = COLORS.primary;
@@ -704,7 +905,7 @@ export default function WishlistScreen() {
 
                 {/* Header */}
                 <View style={[styles.headerContainer, { paddingTop: insets.top + 10 }]}>
-                    {/* My Wishlists View - Single row with centered title */}
+                    {/* My Registry & Gifting view - Single row with centered title */}
                     {!selectedCategoryId && (
                         <View style={styles.headerTop}>
                             <Pressable
@@ -717,10 +918,15 @@ export default function WishlistScreen() {
                             </Pressable>
 
                             <Text style={[styles.headerTitle, { color: COLORS.textHeadline }]}>
-                                My Wishlists
+                                My Registry & Gifting
                             </Text>
 
-                            <View style={{ width: 44 }} />
+                            <Pressable
+                                onPress={() => setShowCreateModal(true)}
+                                style={styles.headerIconButton}
+                            >
+                                <PlusCircle size={24} color={COLORS.primary} strokeWidth={2.25} />
+                            </Pressable>
                         </View>
                     )}
 
@@ -756,6 +962,32 @@ export default function WishlistScreen() {
                                     >
                                         <Share size={20} color={COLORS.primary} strokeWidth={2} />
                                     </Pressable>
+                                    {selectedCategoryId !== 'default' && (
+                                        <Pressable
+                                            style={styles.headerIconBtn}
+                                            onPress={() => {
+                                                const currentCat = categories.find(c => c.id === selectedCategoryId);
+                                                if (!currentCat) return;
+                                                Alert.alert(
+                                                    'Delete Folder',
+                                                    `Delete "${currentCat.name}"? Items will be moved to your default folder.`,
+                                                    [
+                                                        { text: 'Cancel', style: 'cancel' },
+                                                        {
+                                                            text: 'Delete',
+                                                            style: 'destructive',
+                                                            onPress: () => {
+                                                                deleteCategory(currentCat.id);
+                                                                setSelectedCategoryId(null);
+                                                            },
+                                                        },
+                                                    ],
+                                                );
+                                            }}
+                                        >
+                                            <Trash2 size={20} color="#DC2626" strokeWidth={2} />
+                                        </Pressable>
+                                    )}
                                 </View>
                             </View>
 
@@ -799,14 +1031,19 @@ export default function WishlistScreen() {
                                 ))}
                             </ScrollView>
 
+                            <Pressable style={styles.createFolderButton} onPress={() => setShowCreateModal(true)}>
+                                <PlusCircle size={18} color={COLORS.primary} />
+                                <Text style={styles.createFolderText}>Create Folder</Text>
+                            </Pressable>
+
                             <View style={styles.categoriesList}>
                                 {displayedCategories.length === 0 ? (
                                     <View style={styles.emptyContainer}>
                                         <View style={[styles.emptyIconCircle, { backgroundColor: '#F3F4F6' }]}>
-                                            <FolderHeart size={48} color={BRAND_COLOR} strokeWidth={1.5} />
+                                                <Gift size={48} color={BRAND_COLOR} strokeWidth={1.5} />
                                         </View>
-                                        <Text style={styles.emptyTitle}>Your Wishlist is Empty</Text>
-                                        <Text style={styles.emptySubtitle}>Start building your favorite collections!</Text>
+                                        <Text style={styles.emptyTitle}>Your Registry and Gifting is Empty</Text>
+                                        <Text style={styles.emptySubtitle}>Start building your Registry collections!</Text>
                                         <TouchableOpacity
                                             style={[styles.shopNowButton, { backgroundColor: BRAND_COLOR }]}
                                             onPress={() => navigation.navigate('MainTabs', { screen: 'Home' })}
@@ -866,6 +1103,10 @@ export default function WishlistScreen() {
                                     <Pressable style={styles.shopNowButton} onPress={() => navigation.navigate('MainTabs', { screen: 'Shop' })}>
                                         <Text style={styles.shopNowText}>Start Shopping</Text>
                                     </Pressable>
+                                    <Pressable style={styles.createEmptyStateButton} onPress={() => setShowCreateModal(true)}>
+                                        <PlusCircle size={18} color={COLORS.primary} />
+                                        <Text style={styles.createEmptyStateText}>Create Folder</Text>
+                                    </Pressable>
                                 </View>
                             ) : (
                                 <View style={styles.itemsListContainer}>
@@ -907,6 +1148,7 @@ export default function WishlistScreen() {
                     visible={showCreateModal}
                     onClose={() => setShowCreateModal(false)}
                     onCreate={handleCreateList}
+                    userId={user?.id}
                 />
 
                 <ItemEditModal
@@ -967,6 +1209,8 @@ const styles = StyleSheet.create({
         fontSize: 20,
         fontWeight: '800',
         color: COLORS.textHeadline,
+        flex: 1,
+        textAlign: 'center',
     },
     headerTitleContainer: {
         paddingHorizontal: 4,
@@ -1137,6 +1381,23 @@ const styles = StyleSheet.create({
         backgroundColor: '#FFF', alignItems: 'center', justifyContent: 'center',
         marginBottom: 24, elevation: 4, shadowColor: '#000', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.1, shadowRadius: 10
     },
+    createEmptyStateButton: {
+        marginTop: 14,
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 8,
+        paddingHorizontal: 16,
+        paddingVertical: 12,
+        borderRadius: 999,
+        backgroundColor: '#FFF7ED',
+        borderWidth: 1,
+        borderColor: '#FDBA74',
+    },
+    createEmptyStateText: {
+        fontSize: 14,
+        fontWeight: '800',
+        color: COLORS.primary,
+    },
     emptySubtitle: { fontSize: 16, color: '#6B7280', textAlign: 'center', marginHorizontal: 40, lineHeight: 22 },
     emptyState: {
         width: 52,
@@ -1292,6 +1553,17 @@ const styles = StyleSheet.create({
         alignItems: 'center',
         borderWidth: 1,
         borderColor: '#FEE2E2',
+    },
+    listItemDeleteBtn: {
+        width: 28,
+        height: 28,
+        borderRadius: 14,
+        backgroundColor: '#FEF2F2',
+        justifyContent: 'center',
+        alignItems: 'center',
+        borderWidth: 1,
+        borderColor: '#FECACA',
+        marginTop: 4,
     },
     listItemQtyLabel: {
         fontSize: 10,
@@ -1479,6 +1751,79 @@ const styles = StyleSheet.create({
         marginBottom: 24,
         backgroundColor: '#F9FAFB',
     },
+    deliverySection: {
+        marginTop: 4,
+        marginBottom: 8,
+    },
+    deliveryToggleRow: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 10,
+        marginTop: 10,
+    },
+    deliveryToggleText: {
+        fontSize: 14,
+        fontWeight: '700',
+        color: COLORS.textHeadline,
+    },
+    deliveryHint: {
+        fontSize: 12,
+        color: COLORS.textMuted,
+        marginTop: 8,
+        lineHeight: 18,
+    },
+    checkbox: {
+        width: 22,
+        height: 22,
+        borderRadius: 6,
+        borderWidth: 1.5,
+        borderColor: '#D1D5DB',
+        alignItems: 'center',
+        justifyContent: 'center',
+        backgroundColor: '#FFF',
+    },
+    checkboxActive: {
+        borderColor: COLORS.primary,
+        backgroundColor: '#FFF7ED',
+    },
+    checkboxDisabled: {
+        opacity: 0.5,
+    },
+    checkboxDot: {
+        width: 10,
+        height: 10,
+        borderRadius: 5,
+        backgroundColor: COLORS.primary,
+    },
+    addressChipRow: {
+        gap: 8,
+        paddingVertical: 12,
+    },
+    addressChip: {
+        paddingHorizontal: 12,
+        paddingVertical: 8,
+        borderRadius: 999,
+        backgroundColor: '#F3F4F6',
+        borderWidth: 1,
+        borderColor: '#E5E7EB',
+        marginRight: 8,
+    },
+    addressChipActive: {
+        backgroundColor: '#FFF7ED',
+        borderColor: '#FDBA74',
+    },
+    addressChipText: {
+        fontSize: 12,
+        fontWeight: '700',
+        color: '#4B5563',
+    },
+    addressChipTextActive: {
+        color: COLORS.primary,
+    },
+    deliveryInstructionsInput: {
+        marginTop: 0,
+        marginBottom: 0,
+    },
     bsSwitchRow: {
         flexDirection: 'row',
         justifyContent: 'space-between',
@@ -1500,6 +1845,24 @@ const styles = StyleSheet.create({
         color: '#FFF',
         fontSize: 16,
         fontWeight: '800',
+    },
+    createFolderButton: {
+        alignSelf: 'flex-start',
+        marginBottom: 10,
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 8,
+        paddingHorizontal: 14,
+        paddingVertical: 10,
+        borderRadius: 999,
+        backgroundColor: '#FFF7ED',
+        borderWidth: 1,
+        borderColor: '#FDBA74',
+    },
+    createFolderText: {
+        fontSize: 13,
+        fontWeight: '800',
+        color: COLORS.primary,
     },
 
     // Edit List Modal Button Styles (matching Delete Confirmation Modal)

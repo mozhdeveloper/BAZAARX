@@ -40,7 +40,6 @@ import {
   ChevronRight,
   ChevronDown,
   Bookmark, // For Wishlist categories
-  FolderHeart,
   PlusCircle,
   Gift,
   Edit3,
@@ -63,7 +62,7 @@ import { chatService } from '../src/services/chatService';
 import { AIChatBubble } from '../src/components/AIChatBubble';
 import { AddedToCartModal } from '../src/components/AddedToCartModal';
 import { QuantityStepper } from '../src/components/QuantityStepper';
-import { AddToWishlistModal } from '../src/components/AddToWishlistModal';
+import { AddToRegistryModal } from '../src/components/AddToRegistryModal';
 import { useCartStore } from '../src/stores/cartStore';
 import { useWishlistStore } from '../src/stores/wishlistStore';
 // trendingProducts removed — related products are now fetched from Supabase by category
@@ -590,7 +589,7 @@ export default function ProductDetailScreen({ route, navigation }: Props) {
     }
   }, [selectedVariantInfo.image, productImages]);
   const setQuickOrder = useCartStore((state) => state.setQuickOrder);
-  const { addItem: addToWishlist, removeItem: removeFromWishlist, isInWishlist, categories, createCategory } = useWishlistStore();
+  const { addItem: addToWishlist, isInWishlist, categories, createCategory } = useWishlistStore();
   const isFavorite = isInWishlist(product.id);
 
   // Constants
@@ -1051,12 +1050,9 @@ export default function ProductDetailScreen({ route, navigation }: Props) {
       return;
     }
 
-    if (isFavorite) {
-      removeFromWishlist(product.id);
-    } else {
-      setShowWishlistModal(true);
-    }
-  }, [isFavorite, product.id, removeFromWishlist]);
+    // Always open the registry modal so a buyer can add this product to another folder.
+    setShowWishlistModal(true);
+  }, []);
 
   const handleMarkReviewHelpful = async (reviewId: string) => {
     if (helpfulReviewIds[reviewId]) {
@@ -1238,7 +1234,7 @@ export default function ProductDetailScreen({ route, navigation }: Props) {
               </AnimatedText>
             </View>
             <Pressable onPress={() => handleWishlistAction()} style={{ width: 44, height: 44, alignItems: 'center', justifyContent: 'center' }}>
-              <Heart size={24} color={BRAND_ACCENT} strokeWidth={1.5} fill={isFavorite ? BRAND_ACCENT : "transparent"} />
+              <Gift size={24} color={BRAND_ACCENT} strokeWidth={1.5} fill="transparent" />
             </Pressable>
           </View>
 
@@ -1964,7 +1960,7 @@ export default function ProductDetailScreen({ route, navigation }: Props) {
         />
       )}
 
-      <AddToWishlistModal
+      <AddToRegistryModal
         visible={showWishlistModal}
         onClose={() => setShowWishlistModal(false)}
         product={product}

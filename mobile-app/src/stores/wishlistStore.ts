@@ -3,6 +3,12 @@ import { Product } from '../types';
 import { wishlistService } from '../services/wishlistService';
 import { supabase } from '../lib/supabase';
 
+export interface RegistryDeliveryPreference {
+    addressId?: string;
+    showAddress: boolean;
+    instructions?: string;
+}
+
 export interface WishlistItem extends Product {
     priority: 'low' | 'medium' | 'high';
     desiredQty: number;
@@ -21,6 +27,7 @@ export interface WishlistCategory {
     image?: string;
     privacy: 'private' | 'shared';
     occasion?: string;
+    delivery?: RegistryDeliveryPreference;
 }
 
 interface WishlistState {
@@ -37,7 +44,7 @@ interface WishlistState {
     removeItem: (registryItemId: string) => Promise<void>;
     updateItem: (registryItemId: string, updates: Partial<WishlistItem>) => Promise<void>;
 
-    createCategory: (name: string, privacy: 'private' | 'shared', occasion?: string, description?: string) => Promise<string>;
+    createCategory: (name: string, privacy: 'private' | 'shared', occasion?: string, description?: string, delivery?: RegistryDeliveryPreference) => Promise<string>;
     deleteCategory: (categoryId: string) => Promise<void>;
     updateCategory: (categoryId: string, updates: Partial<WishlistCategory>) => Promise<void>;
 
@@ -60,6 +67,13 @@ function mapDbRowToCategory(row: any): WishlistCategory {
         name: row.title,
         privacy: 'private',
         occasion: row.category || row.event_type || 'general',
+        delivery: row.delivery
+            ? {
+                addressId: row.delivery.addressId,
+                showAddress: row.delivery.showAddress ?? false,
+                instructions: row.delivery.instructions,
+            }
+            : undefined,
     };
 }
 
@@ -198,18 +212,25 @@ export const useWishlistStore = create<WishlistState>((set, get) => ({
         }
     },
 
-    createCategory: async (name, privacy, occasion = 'other', description) => {
+    createCategory: async (name, privacy, occasion = 'other', description, delivery) => {
         const { _buyerId, categories } = get();
         if (!_buyerId) return 'default';
 
         try {
-            const row = await wishlistService.createRegistry(_buyerId, name, occasion);
+            const row = await wishlistService.createRegistry(_buyerId, name, occasion, delivery);
             const newCat: WishlistCategory = {
                 id: row.id,
                 name,
                 privacy: 'private',
                 occasion,
                 description,
+                delivery: delivery ?? (row.delivery
+                    ? {
+                        addressId: row.delivery.addressId,
+                        showAddress: row.delivery.showAddress ?? false,
+                        instructions: row.delivery.instructions,
+                    }
+                    : undefined),
             };
             set({ categories: [...categories, newCat] });
             return row.id;
@@ -261,6 +282,16 @@ export const useWishlistStore = create<WishlistState>((set, get) => ({
             if (updates.occasion !== undefined) {
                 dbUpdates.event_type = updates.occasion;
                 dbUpdates.category = updates.occasion;
+            }
+            if (updates.privacy !== undefined) dbUpdates.privacy = updates.privacy;
+            if (updates.delivery !== undefined) {
+                dbUpdates.delivery = {
+                    showAddress: updates.delivery.showAddress ?? false,
+                    ...(updates.delivery.addressId ? { addressId: updates.delivery.addressId } : {}),
+                    ...(updates.delivery.instructions?.trim()
+                        ? { instructions: updates.delivery.instructions.trim() }
+                        : {}),
+                };
             }
             await wishlistService.updateRegistry(categoryId, dbUpdates);
         } catch (err) {

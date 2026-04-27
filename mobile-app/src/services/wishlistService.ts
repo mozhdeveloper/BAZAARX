@@ -7,6 +7,7 @@ export interface DbRegistry {
     event_type: string;
     category?: string | null;
     privacy?: string | null;
+    delivery?: any | null;
     created_at: string;
     updated_at: string;
 }
@@ -28,6 +29,15 @@ export interface DbRegistryItem {
     updated_at?: string;
 }
 
+export interface PublicRegistrySearchResult {
+    id: string;
+    title: string;
+    event_type?: string | null;
+    category?: string | null;
+    created_at: string;
+    itemCount: number;
+}
+
 export const wishlistService = {
     async getRegistries(buyerId: string): Promise<(DbRegistry & { registry_items: DbRegistryItem[] })[]> {
         const { data, error } = await supabase
@@ -40,7 +50,16 @@ export const wishlistService = {
         return data || [];
     },
 
-    async createRegistry(buyerId: string, name: string, occasion: string): Promise<DbRegistry & { registry_items: DbRegistryItem[] }> {
+    async createRegistry(
+        buyerId: string,
+        name: string,
+        occasion: string,
+        delivery?: {
+            addressId?: string;
+            showAddress?: boolean;
+            instructions?: string;
+        },
+    ): Promise<DbRegistry & { registry_items: DbRegistryItem[] }> {
         const { data, error } = await supabase
             .from('registries')
             .insert({
@@ -49,6 +68,7 @@ export const wishlistService = {
                 event_type: occasion,
                 category: occasion,
                 privacy: 'private',
+                delivery: delivery ?? { showAddress: false },
             })
             .select('*, registry_items(*)')
             .single();
@@ -57,7 +77,20 @@ export const wishlistService = {
         return data;
     },
 
-    async updateRegistry(registryId: string, updates: { title?: string; event_type?: string; category?: string }): Promise<void> {
+    async updateRegistry(
+        registryId: string,
+        updates: {
+            title?: string;
+            event_type?: string;
+            category?: string;
+            privacy?: string;
+            delivery?: {
+                addressId?: string;
+                showAddress?: boolean;
+                instructions?: string;
+            };
+        },
+    ): Promise<void> {
         const { error } = await supabase
             .from('registries')
             .update(updates)
@@ -127,5 +160,45 @@ export const wishlistService = {
             .eq('registry_id', fromRegistryId);
 
         if (error) throw error;
+    },
+
+    async searchPublicRegistries(query: string): Promise<PublicRegistrySearchResult[]> {
+        const trimmed = query.trim();
+        if (!trimmed) return [];
+
+        const { data, error } = await supabase
+            .from('registries')
+            .select('id, title, event_type, category, created_at, registry_items(id)')
+            .eq('privacy', 'link')
+            .ilike('title', `%${trimmed}%`)
+            .order('created_at', { ascending: false })
+            .limit(30);
+
+        if (error) throw error;
+
+        return (data || []).map((row: any) => ({
+            id: row.id,
+            title: row.title,
+            event_type: row.event_type,
+            category: row.category,
+            created_at: row.created_at,
+            itemCount: Array.isArray(row.registry_items) ? row.registry_items.length : 0,
+        }));
+    },
+
+    async getPublicRegistry(registryId: string): Promise<(DbRegistry & { registry_items: DbRegistryItem[] }) | null> {
+        const { data, error } = await supabase
+            .from('registries')
+            .select('*, registry_items(*)')
+            .eq('id', registryId)
+            .eq('privacy', 'link')
+            .single();
+
+        if (error) {
+            if (error.code === 'PGRST116') return null;
+            throw error;
+        }
+
+        return data;
     },
 };

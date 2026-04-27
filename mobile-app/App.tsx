@@ -675,7 +675,7 @@ export default function App() {
               <Stack.Screen name="DeliveryTracking" getComponent={() => require('./app/DeliveryTrackingScreen').default} />
               <Stack.Screen name="FlashSale" getComponent={() => require('./app/FlashSaleScreen').default} options={{ headerShown: false }} />
               <Stack.Screen name="FollowingShops" getComponent={() => require('./app/FollowingShopsScreen').default} />
-              <Stack.Screen name="Wishlist" getComponent={() => require('./app/WishlistScreen').default} />
+              <Stack.Screen name="Wishlist" getComponent={() => require('./app/RegistryScreen').default} />
               <Stack.Screen name="SharedWishlist" getComponent={() => require('./app/SharedWishlistScreen').default} />
               <Stack.Screen name="FindRegistry" getComponent={() => require('./app/FindRegistryScreen').default} />
               <Stack.Screen name="Addresses" getComponent={() => require('./app/AddressesScreen').default} />

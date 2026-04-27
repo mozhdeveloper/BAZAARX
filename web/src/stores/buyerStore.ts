@@ -1856,8 +1856,23 @@ export const useBuyerStore = create<BuyerStore>()(persist(
 
     addToRegistry: async (registryId, product) => {
       const productWithDefaults = ensureRegistryProductDefaults(product);
+      const normalizedProductId = String(product.id);
+      const targetRegistry = get().registries.find((r) => r.id === registryId);
+      const alreadyExistsInRegistry = !!targetRegistry?.products?.some((p) => {
+        const sourceId = (p as any).sourceProductId;
+        return String(sourceId || p.id) === normalizedProductId;
+      });
+
+      if (alreadyExistsInRegistry) {
+        return;
+      }
+
       const tempId = `temp-${Date.now()}`;
-      const tempProduct = { ...productWithDefaults, id: tempId };
+      const tempProduct = {
+        ...productWithDefaults,
+        sourceProductId: normalizedProductId,
+        id: tempId,
+      };
 
       // Optimistic
       set((state) => ({

@@ -23,6 +23,7 @@ export interface RegistryDeliveryPreference {
 }
 
 export interface RegistryProduct extends Product {
+  sourceProductId?: string;
   requestedQty: number;
   receivedQty: number;
   note?: string;

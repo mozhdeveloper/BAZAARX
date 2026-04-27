@@ -132,11 +132,13 @@ const SharedRegistryPage = () => {
                     className="flex flex-col p-4 border border-gray-100 rounded-xl hover:shadow-md transition-shadow bg-white"
                   >
                     <div className="aspect-square bg-gray-100 rounded-lg flex items-center justify-center mb-4 overflow-hidden">
-                      {product.image ? (
+                      {/* Fix: fallback to images[0] when image is empty — mirrors mobile's item.image || item.images?.[0] */}
+                      {(product.image || product.images?.[0]) ? (
                         <img loading="lazy" 
-                          src={product.image}
+                          src={product.image || product.images?.[0]}
                           alt={product.name}
                           className="w-full h-full object-cover"
+                          onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = 'none'; }}
                         />
                       ) : (
                         <Gift className="w-12 h-12 text-gray-300" />

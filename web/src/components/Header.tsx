@@ -283,7 +283,7 @@ const Header: React.FC<HeaderProps> = ({ transparentOnTop = false, hideSearch = 
                 ? "text-[var(--brand-primary)] bg-[var(--brand-wash)] shadow-sm scale-110"
                 : "text-[var(--text-primary)] hover:text-[var(--brand-primary)] hover:bg-[var(--brand-wash)]"
                 }`}
-              title="Registry"
+              title="Registry & Gifting"
             >
               <Gift className="h-6 w-6" />
             </button>
