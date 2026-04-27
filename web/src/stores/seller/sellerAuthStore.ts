@@ -60,7 +60,7 @@ export const useAuthStore = create<AuthStore>()(
                     return get().hydrateSellerContext(user.id);
                 } catch (err) {
                     console.error("Login error:", err);
-                    return false;
+                    throw err;
                 }
             },
             register: async (sellerData) => {
@@ -392,15 +392,55 @@ export const useAuthStore = create<AuthStore>()(
 
                 try {
                     const sellerProfile = await authService.getSellerProfile(userId);
+                    const profileContact = await authService.getProfileContact(userId);
+                    
                     if (!sellerProfile) {
-                        return false;
+                        // --- NEW: Handle missing seller profile by creating a skeleton ---
+                        // This allows users to reach the onboarding page even if the record creation was skipped
+                        console.warn("Seller profile missing for user, creating skeleton context...");
+                        
+                        if (!profileContact) {
+                          console.error("No profile contact found, cannot hydrate context.");
+                          return false;
+                        }
+
+                        // Create a minimal seller object so the app doesn't crash
+                        const skeletonSeller: Seller = {
+                            id: userId,
+                            name: profileContact.email?.split("@")[0] || "Seller",
+                            ownerName: "Seller",
+                            email: profileContact.email || "",
+                            phone: profileContact.phone || "",
+                            businessName: "",
+                            storeName: "",
+                            storeDescription: "",
+                            storeCategory: [],
+                            businessType: "",
+                            businessRegistrationNumber: "",
+                            taxIdNumber: "",
+                            businessAddress: "",
+                            city: "",
+                            province: "",
+                            postalCode: "",
+                            storeAddress: "",
+                            bankName: "",
+                            accountName: "",
+                            accountNumber: "",
+                            isVerified: false,
+                            approvalStatus: "pending",
+                            rating: 0,
+                            totalSales: 0,
+                            joinDate: new Date().toISOString().split("T")[0],
+                        };
+                        
+                        set({ seller: skeletonSeller, isAuthenticated: true });
+                        return true;
                     }
 
                     const mappedSeller = mapDbSellerToSeller(sellerProfile);
-                    const profileContact =
-                        await authService.getProfileContact(userId);
 
                     if (profileContact) {
+
                         mappedSeller.email =
                             profileContact.email || mappedSeller.email;
                         mappedSeller.phone =

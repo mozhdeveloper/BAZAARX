@@ -64,7 +64,12 @@ const ProductRequestDetailPage = lazy(() => import("./pages/ProductRequestDetail
 const CommunityRequestsPage = lazy(() => import("./pages/CommunityRequestsPage"));
 const BuyerLoginPage = lazy(() => import("./pages/BuyerLoginPage"));
 const BuyerSignupPage = lazy(() => import("./pages/BuyerSignupPage"));
+const EmailVerificationPage = lazy(() => import("./pages/EmailVerificationPage"));
+const SellerEmailVerificationPage = lazy(() => import("./pages/SellerEmailVerificationPage"));
+const AuthCallbackPage = lazy(() => import("./pages/AuthCallbackPage"));
+const EmailConfirmedPage = lazy(() => import("./pages/EmailConfirmedPage"));
 const ForgotPasswordPage = lazy(() => import("./pages/ForgotPasswordPage"));
+
 const ResetPasswordPage = lazy(() => import("./pages/ResetPasswordPage"));
 const BuyerSupport = lazyNamed(() => import("./pages/BuyerSupport"), "BuyerSupport");
 const MyTickets = lazy(() => import("./pages/MyTickets"));
@@ -162,7 +167,11 @@ function App() {
       });
 
       // 1. Catch BOTH events: SIGNED_IN (direct login) and INITIAL_SESSION (page load after Google redirect)
-      if ((event === 'SIGNED_IN' || event === 'INITIAL_SESSION') && session?.user) {
+      // Only handle buyer record creation for OAuth providers.
+      // Email/password signups are finalized by AuthCallbackPage after email verification.
+      const isOAuthProvider = session?.user?.app_metadata?.provider === 'google' ||
+        session?.user?.app_metadata?.provider === 'facebook';
+      if ((event === 'SIGNED_IN' || event === 'INITIAL_SESSION') && session?.user && isOAuthProvider) {
         const { user } = session;
 
         try {
@@ -331,7 +340,15 @@ function App() {
             <Route path="/sell" element={<SellerLandingPage />} />
             <Route path="/login" element={<BuyerLoginPage />} />
             <Route path="/signup" element={<BuyerSignupPage />} />
+            <Route path="/verify-email" element={<EmailVerificationPage />} />
+            <Route path="/seller/verify-email" element={<SellerEmailVerificationPage />} />
+            <Route path="/auth/callback" element={<AuthCallbackPage />} />
+            <Route path="/email-confirmed" element={<EmailConfirmedPage />} />
+            <Route path="/seller/email-confirmed" element={<EmailConfirmedPage />} />
             <Route path="/forgot-password" element={<ForgotPasswordPage />} />
+
+
+
             <Route path="/forgot" element={<ForgotPasswordPage />} />
             <Route path="/reset-password" element={<ResetPasswordPage />} />
             <Route

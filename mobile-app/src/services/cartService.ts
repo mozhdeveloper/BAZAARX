@@ -621,40 +621,46 @@ export class CartService {
     let isValid = true;
 
     try {
-      // 1. Fetch the absolute latest data for the selected cart items directly from the DB
+      // 1. Fetch items directly, decoupled from strict FK seller joins to prevent 400 crashes
       const { data: latestItems, error } = await supabase
         .from('cart_items')
         .select(`
           id, quantity,
-          product:products ( id, is_active, seller:sellers ( is_vacation_mode, approval_status, suspended_at, is_permanently_blacklisted, temp_blacklist_until ) ),
+          product:products ( id, approval_status, disabled_at, deleted_at, seller_id ),
           variant:product_variants ( id, stock )
         `)
         .in('id', cartItemIds);
 
       if (error) throw error;
 
-      // 2. Loop through and validate each item against real-time DB values
+      // 2. Fetch sellers decoupled to bypass FK trap
+      const sellerIds = [...new Set((latestItems || []).map(item => (item.product as any)?.seller_id).filter(Boolean))];
+      let sellersData: any[] = [];
+      
+      if (sellerIds.length > 0) {
+        const { data: sData } = await supabase
+          .from('sellers')
+          .select('id, is_vacation_mode, approval_status')
+          .in('id', sellerIds);
+        sellersData = sData || [];
+      }
+
+      // 3. Loop through and validate each item against real-time DB values
       for (const item of (latestItems || [])) {
         const product = item.product as any;
-        const seller = product?.seller;
+        const seller = sellersData.find(s => s.id === product?.seller_id);
         const variant = item.variant as any;
 
-        // Check 1: Product exists and is active
-        if (!product || product.is_active === false) {
+        // Check 1: Product exists and matches new schema integrity guards
+        const isProductActive = product && !product.disabled_at && !product.deleted_at && product.approval_status !== 'rejected';
+        if (!isProductActive) {
           errors[item.id] = 'This product is no longer available.';
           isValid = false;
           continue;
         }
 
         // Check 2: Seller Eligibility
-        const now = new Date();
-        const tempBlacklist = seller?.temp_blacklist_until ? new Date(seller.temp_blacklist_until) : null;
-        const isSellerActive = !(
-          seller?.is_permanently_blacklisted || seller?.suspended_at || seller?.is_vacation_mode ||
-          seller?.approval_status === 'rejected' || seller?.approval_status === 'suspended' ||
-          (tempBlacklist && now <= tempBlacklist)
-        );
-
+        const isSellerActive = seller && !seller.is_vacation_mode && seller.approval_status !== 'rejected' && seller.approval_status !== 'suspended';
         if (!isSellerActive) {
           errors[item.id] = seller?.is_vacation_mode ? 'Seller is currently on vacation.' : 'Store is temporarily restricted.';
           isValid = false;
