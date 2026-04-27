@@ -15,6 +15,7 @@ import {
   RotateCcw,
   X,
   Camera,
+  Copy,
 } from "lucide-react";
 import { ConfirmReceivedModal } from "../components/ConfirmReceivedModal";
 import { Order } from "../stores/cartStore";
@@ -131,6 +132,13 @@ export default function OrderDetailPage() {
           shipping_cost: detail.shipping_cost || 0,
           cancellationReason: detail.order.cancellationReason,
         };
+
+        // NORMALIZE DB STATUSES TO MATCH UI EXPECTATIONS
+        if ((extendedOrder.status as string) === "processing" || (extendedOrder.status as string) === "ready_to_ship") {
+          extendedOrder.status = "confirmed";
+        } else if ((extendedOrder.status as string) === "pending_payment") {
+          extendedOrder.status = "pending";
+        }
 
         setDbOrder(extendedOrder);
       } catch (err) {
@@ -975,6 +983,39 @@ export default function OrderDetailPage() {
                       </div>
                     </div>
 
+                    {/* Dynamic Tracking Injection */}
+                    {(() => {
+                      // Only show this block if the order has progressed to logistics
+                      if (order.status === "pending" || order.status === "confirmed" || order.status === "cancelled") return null;
+
+                      // Generate a realistic mock tracking number based on the Order Number for the demo
+                      const trackingNum = `BZX-${order.orderNumber || order.id.substring(0, 8).toUpperCase()}`;
+                      
+                      return (
+                        <div className="mt-6 flex flex-col gap-2">
+                          <span className="text-[11px] font-bold text-gray-500 uppercase tracking-wider ml-1">
+                            Tracking Number
+                          </span>
+                          <div className="flex items-center gap-2 bg-gray-50 border border-gray-200 p-1.5 rounded-xl w-fit max-w-full shadow-sm">
+                            <button 
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                navigator.clipboard.writeText(trackingNum);
+                                toast({ title: "Copied!", description: "Tracking number copied to clipboard." });
+                              }}
+                              className="p-1.5 bg-white rounded-lg border border-gray-200 text-gray-400 hover:text-[var(--brand-primary)] hover:border-[var(--brand-primary)] hover:shadow-sm transition-all shrink-0"
+                              title="Copy Tracking Number"
+                            >
+                              <Copy className="w-4 h-4" />
+                            </button>
+                            <span className="text-xs sm:text-sm font-mono font-bold text-gray-800 tracking-wider pr-3 whitespace-nowrap overflow-hidden text-ellipsis">
+                              {trackingNum}
+                            </span>
+                          </div>
+                        </div>
+                      );
+                    })()}
+
                     {order.status === "shipped" && (
                       <div className="mt-8 py-4 px-6 bg-gray-50 rounded-lg">
                         <div className="flex items-start gap-4">
@@ -1553,13 +1594,20 @@ export default function OrderDetailPage() {
 
                 if (detail) {
                   const refreshedOrder: Order & DbOrderData = {
-                    ...(detail.order as unknown as Order),
-                    buyer_id: detail.buyer_id,
-                    is_reviewed: detail.is_reviewed || false,
-                    shipping_cost: detail.shipping_cost || 0,
-                    cancellationReason: detail.order.cancellationReason,
-                  };
-                  setDbOrder(refreshedOrder);
+                  ...(detail.order as unknown as Order),
+                  buyer_id: detail.buyer_id,
+                  is_reviewed: detail.is_reviewed || false,
+                  shipping_cost: detail.shipping_cost || 0,
+                  cancellationReason: detail.order.cancellationReason,
+                };
+
+                if ((refreshedOrder.status as string) === "processing" || (refreshedOrder.status as string) === "ready_to_ship") {
+                  refreshedOrder.status = "confirmed";
+                } else if ((refreshedOrder.status as string) === "pending_payment") {
+                  refreshedOrder.status = "pending";
+                }
+
+                setDbOrder(refreshedOrder);
                 }
               }
             }}
@@ -1690,6 +1738,13 @@ export default function OrderDetailPage() {
                               shipping_cost: detail.shipping_cost || 0,
                               cancellationReason: detail.order.cancellationReason,
                             };
+
+                            if ((refreshedOrder.status as string) === "processing" || (refreshedOrder.status as string) === "ready_to_ship") {
+                              refreshedOrder.status = "confirmed";
+                            } else if ((refreshedOrder.status as string) === "pending_payment") {
+                              refreshedOrder.status = "pending";
+                            }
+
                             setDbOrder(refreshedOrder);
                           }
                         }

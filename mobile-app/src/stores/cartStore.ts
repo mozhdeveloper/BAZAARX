@@ -29,6 +29,9 @@ interface CartStore {
   isValidatingCheckout: boolean;
   checkoutErrors: Record<string, string>;
   validateCheckout: (selectedIds: string[]) => Promise<boolean>;
+  
+  hasSeenUnavailableModal: boolean;
+  setHasSeenUnavailableModal: () => void;
 
   // Quick Order (Buy Now)
   quickOrder: CartItem | null;
@@ -242,6 +245,8 @@ export const useCartStore = create<CartStore>()(
       quickOrder: null,
       isValidatingCheckout: false,
       checkoutErrors: {},
+      hasSeenUnavailableModal: false,
+      setHasSeenUnavailableModal: () => set({ hasSeenUnavailableModal: true }),
 
       validateCheckout: async (selectedIds: string[]) => {
         set({ isValidatingCheckout: true, checkoutErrors: {} });
@@ -519,13 +524,13 @@ export const useCartStore = create<CartStore>()(
           if (!cartId) return;
 
           const previousItems = get().items;
-          set({ items: [] });
-
+          // BX-04-009: Wipe the cartId from device memory so a fresh cart is created next time
+          set({ items: [], cartId: null });
           try {
             await cartService.clearCart(cartId);
           } catch (e) {
             // Rollback on error
-            set({ items: previousItems });
+            set({ items: previousItems, cartId });
             console.error('[CartStore] Failed to clear cart:', e);
           }
         };

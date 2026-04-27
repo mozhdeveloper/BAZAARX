@@ -117,6 +117,10 @@ export interface CartItem extends Product {
   selected?: boolean;
   registryId?: string;
   createdAt?: string;
+  // Added for BX-06 OrdersPage UI mapping compatibility:
+  warranty?: any;
+  orderItemId?: string;
+  durationMonths?: number;
 }
 
 export interface GroupedCart {

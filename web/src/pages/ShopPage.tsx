@@ -2,14 +2,17 @@
 import { AnimatePresence, motion } from "framer-motion";
 import {
   BadgeCheck,
+  ShoppingCart,
+  ShoppingBag,
+  Menu,
+  Flame,
   ChevronRight,
   MapPin,
-  Menu,
-  ShoppingCart,
   Star,
   Truck,
   X
 } from "lucide-react";
+
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Link, useLocation, useNavigate, useSearchParams } from "react-router-dom";
 import Header from "../components/Header";
@@ -129,6 +132,9 @@ export default function ShopPage() {
   const [featuredProducts, setFeaturedProducts] = useState<FeaturedProductWithDetails[]>([]);
   const [boostedProducts, setBoostedProducts] = useState<AdBoostWithProduct[]>([]);
   const [featuredLoading, setFeaturedLoading] = useState(true);
+
+  const hasCompletedOnboarding = profile && profile.preferences?.interestedCategories && profile.preferences.interestedCategories.length > 0;
+  const showOnboardingBanner = profile && !hasCompletedOnboarding;
 
   // Fetch real flash sale products (global admin events from global_flash_sale_slots)
   useEffect(() => {
@@ -614,7 +620,7 @@ export default function ShopPage() {
   }, [productsFilteredWithoutCategory]);
 
   const filteredProducts = useMemo<ShopProduct[]>(() => {
-    let filtered = productsFilteredWithoutCategory.filter((product) => {
+    const filtered = productsFilteredWithoutCategory.filter((product) => {
       const matchesCategory =
         selectedCategory === "All Categories" ||
         (selectedCategory === "Others"
@@ -743,6 +749,85 @@ export default function ShopPage() {
               Registry & Gifting
             </Link>
           </div>
+
+          {/* Onboarding Banner - Premium Rebranded Style */}
+          {showOnboardingBanner && (
+            <motion.div 
+              initial={{ opacity: 0, y: -20 }}
+              animate={{ opacity: 1, y: 0 }}
+              className="mb-6 relative overflow-hidden rounded-[20px] p-5 shadow-[0_15px_40px_rgba(245,158,11,0.15)]"
+              style={{
+                background: "linear-gradient(135deg, #EA580C 0%, #F59E0B 100%)"
+              }}
+            >
+              {/* Decorative Background Elements */}
+              <div className="absolute top-0 right-0 w-64 h-64 bg-white/10 rounded-full blur-3xl -mr-20 -mt-20 pointer-events-none" />
+              <div className="absolute bottom-0 left-0 w-32 h-32 bg-black/5 rounded-full blur-2xl -ml-10 -mb-10 pointer-events-none" />
+
+              <div className="relative z-10 flex flex-col md:flex-row items-center justify-between gap-6">
+                <div className="flex-1 text-center md:text-left">
+                  <p className="text-white/80 font-medium tracking-wide mb-2 uppercase text-xs">
+                    Almost there!
+                  </p>
+                  <h2 className="text-xl md:text-2xl font-black text-white mb-2 leading-tight font-heading">
+                    Unlock Your 
+                    <span className="text-transparent bg-clip-text bg-gradient-to-r from-white to-orange-100 ml-2">
+                      BazaarX Experience
+                    </span>
+                  </h2>
+                  <p className="text-white/90 text-sm font-medium max-w-sm mb-5">
+                    Complete your onboarding to get personalized product listings and discover trusted sellers.
+                  </p>
+                  
+                  <Link 
+                    to="/buyer-onboarding" 
+                    className="inline-flex items-center justify-center px-6 py-2.5 bg-[#7C2D12] text-white rounded-full text-sm font-bold shadow-xl hover:scale-105 transition-all duration-300 group"
+                  >
+                    Complete Profile
+                    <ChevronRight size={16} className="ml-2 group-hover:translate-x-1 transition-transform" />
+                  </Link>
+                </div>
+
+                <div className="relative shrink-0 flex items-center justify-center w-32 h-32">
+                  {/* Glowing Icon Media Wrapper */}
+                  <motion.div
+                    animate={{ 
+                      y: [0, -6, 0],
+                      rotate: [0, 5, 0]
+                    }}
+                    transition={{ 
+                      duration: 4, 
+                      repeat: Infinity, 
+                      ease: "easeInOut" 
+                    }}
+                    className="relative z-20 w-20 h-20 bg-white/20 backdrop-blur-xl rounded-2xl border border-white/30 flex items-center justify-center shadow-2xl"
+                  >
+                    <ShoppingBag size={40} className="text-white drop-shadow-2xl" />
+                  </motion.div>
+                  
+                  {/* Aura Glow */}
+                  <div className="absolute inset-0 bg-white/20 blur-[50px] rounded-full scale-150 animate-pulse" />
+                  
+                  {/* Floating Elements (simulating 3D graphics) */}
+                  <motion.div 
+                    animate={{ x: [0, 10, 0], y: [0, -12, 0] }}
+                    transition={{ duration: 5, repeat: Infinity }}
+                    className="absolute top-0 right-0 w-8 h-8 bg-orange-200/40 backdrop-blur-md rounded-lg flex items-center justify-center shadow-lg"
+                  >
+                    <BadgeCheck size={16} className="text-white" />
+                  </motion.div>
+                  
+                  <motion.div 
+                    animate={{ x: [0, -8, 0], y: [0, 10, 0] }}
+                    transition={{ duration: 6, repeat: Infinity }}
+                    className="absolute bottom-2 left-0 w-7 h-7 bg-white/30 backdrop-blur-md rounded-full flex items-center justify-center shadow-lg"
+                  >
+                    <Star size={14} className="text-white fill-current" />
+                  </motion.div>
+                </div>
+              </div>
+            </motion.div>
+          )}
 
           {/* Shop Header */}
           <div className="py-24 bg-hero-gradient backdrop-blur-md shadow-md rounded-3xl border-0">

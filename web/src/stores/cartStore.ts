@@ -1,7 +1,8 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 import { notificationService } from '@/services/notificationService';
-import type { PaymentStatus, ShipmentStatus } from '@/types/database.types';
+type PaymentStatus = 'pending' | 'paid' | 'failed' | 'refunded';
+type ShipmentStatus = 'pending' | 'processing' | 'shipped' | 'delivered' | 'cancelled';
 import { supabase, isSupabaseConfigured } from '@/lib/supabase';
 import { getSafeImageUrl } from '@/utils/imageUtils';
 

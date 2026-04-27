@@ -10,13 +10,15 @@ import {
   User,
   Building,
   MapPin,
-  CreditCard,
-  FileText,
   CheckCircle,
+  Check,
   ChevronRight,
   ChevronLeft,
 } from "lucide-react";
+
+
 import { supabase } from "@/lib/supabase";
+import { authService } from "@/services/authService";
 
 const CATEGORIES = [
   "Electronics",
@@ -34,25 +36,14 @@ const CATEGORIES = [
 ];
 
 const BUSINESS_TYPES = [
-  "Sole Proprietorship",
-  "Partnership",
-  "Corporation",
-  "Cooperative",
-  "Others",
+  { label: "Sole Proprietorship", value: "sole_proprietor" },
+  { label: "Partnership", value: "partnership" },
+  { label: "Corporation", value: "corporation" },
+  { label: "Cooperative", value: "partnership" }, // Map to closest DB type if 'cooperative' doesn't exist
+  { label: "Others", value: "sole_proprietor" },
 ];
 
-const BANKS = [
-  "BDO",
-  "BPI",
-  "Metrobank",
-  "Landbank",
-  "PNB",
-  "Security Bank",
-  "RCBC",
-  "Unionbank",
-  "Chinabank",
-  "Others",
-];
+
 
 export function SellerOnboarding() {
   const navigate = useNavigate();
@@ -83,19 +74,8 @@ export function SellerOnboarding() {
     city: "",
     province: "",
     postalCode: "",
-
-    // Banking
-    bankName: "",
-    accountName: "",
-    accountNumber: "",
-
-    // Document URLs
-    businessPermitUrl: "",
-    validIdUrl: "",
-    proofOfAddressUrl: "",
-    dtiRegistrationUrl: "",
-    taxIdUrl: "",
   });
+
 
   const [errors, setErrors] = useState<Record<string, string>>({});
 
@@ -115,7 +95,22 @@ export function SellerOnboarding() {
     }));
   };
 
-  const validateStep = (step: number): boolean => {
+  const checkStoreNameUnique = async (name: string) => {
+    if (!name) return true;
+    const { data, error } = await supabase
+      .from('sellers')
+      .select('id')
+      .eq('store_name', name)
+      .single();
+
+    // If we find a record with a different ID, it's a duplicate
+    if (data && data.id !== seller?.id) {
+      return false;
+    }
+    return true;
+  };
+
+  const validateStep = async (step: number): Promise<boolean> => {
     const newErrors: Record<string, string> = {};
 
     if (step === 1) {
@@ -132,6 +127,10 @@ export function SellerOnboarding() {
         newErrors.businessName = "Business name is required";
       if (!formData.storeName.trim())
         newErrors.storeName = "Store name is required";
+      else {
+        const isUnique = await checkStoreNameUnique(formData.storeName);
+        if (!isUnique) newErrors.storeName = "This store name is already taken";
+      }
       if (!formData.storeDescription.trim())
         newErrors.storeDescription = "Store description is required";
       if (formData.storeCategory.length === 0)
@@ -150,25 +149,13 @@ export function SellerOnboarding() {
         newErrors.postalCode = "Postal code is required";
     }
 
-    if (step === 4) {
-      if (!formData.bankName) newErrors.bankName = "Bank name is required";
-      if (!formData.accountName.trim())
-        newErrors.accountName = "Account name is required";
-      if (!formData.accountNumber.trim())
-        newErrors.accountNumber = "Account number is required";
-    }
-
-    if (step === 5) {
-      // Documents are now optional for initial submission
-      // They can be uploaded later from seller profile
-    }
-
     setErrors(newErrors);
     return Object.keys(newErrors).length === 0;
   };
 
-  const handleNext = () => {
-    if (validateStep(currentStep)) {
+
+  const handleNext = async () => {
+    if (await validateStep(currentStep)) {
       setCurrentStep((prev) => prev + 1);
     }
   };
@@ -179,40 +166,76 @@ export function SellerOnboarding() {
 
   const fillTestData = () => {
     setFormData({
-      ownerName: "Juan Dela Cruz",
-      phone: "09123456789",
-      businessName: "Test Store PH",
-      storeName: "Test Store PH",
-      storeDescription: "Premium quality products at affordable prices",
-      storeCategory: ["Electronics", "Fashion"],
-      businessType: "Sole Proprietorship",
-      businessRegistrationNumber: "DTI-2024-001234",
-      taxIdNumber: "123-456-789-012",
-      businessAddress: "123 Main Street, Barangay San Antonio",
-      city: "Quezon City",
+      ownerName: "Maria Santos",
+      phone: "09171234567",
+      businessName: "Aesthetic Home PH",
+      storeName: "Aesthetic Home",
+      storeDescription: "Discover beautiful, curated home decor and lifestyle essentials for your modern sanctuary.",
+      storeCategory: ["Home & Living", "Beauty & Personal Care"],
+      businessType: "sole_proprietor",
+      businessRegistrationNumber: "DTI-2024-888888",
+      taxIdNumber: "123-456-789-000",
+      businessAddress: "BGC High Street, 7th Avenue",
+      city: "Taguig",
       province: "Metro Manila",
-      postalCode: "1100",
-      bankName: "BDO",
-      accountName: "Juan Dela Cruz",
-      accountNumber: "0123456789012345",
-      businessPermitUrl: "https://example.com/permit.pdf",
-      validIdUrl: "https://example.com/id.pdf",
-      proofOfAddressUrl: "https://example.com/proof.pdf",
-      dtiRegistrationUrl: "https://example.com/dti.pdf",
-      taxIdUrl: "https://example.com/tax.pdf",
-    });
+      postalCode: "1634",
+    } as any);
     setCurrentStep(1);
   };
 
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!validateStep(currentStep)) return;
+    
+    // If not on the last step, just go to the next step
+    if (currentStep < steps.length) {
+      await handleNext();
+      return;
+    }
+
+    if (!(await validateStep(currentStep))) return;
 
     setIsSubmitting(true);
 
+
     try {
-      const sellerId = seller?.id;
-      if (!sellerId) throw new Error('No authenticated seller ID');
+      let sellerId = seller?.id;
+      let pendingSeller: any = null;
+
+      if (!sellerId) {
+        try {
+          const storedPending = sessionStorage.getItem("pendingSellerSignup");
+          pendingSeller = JSON.parse(storedPending || "null");
+
+          // If we have pending seller data with email/password, create auth account
+          if (pendingSeller?.email && pendingSeller?.password) {
+            const result = await authService.initiateSignUp(
+              pendingSeller.email,
+              pendingSeller.password,
+              {
+                first_name: formData.ownerName.split(' ')[0],
+                last_name: formData.ownerName.split(' ').slice(1).join(' ') || formData.businessName,
+                phone: formData.phone.trim(),
+                user_type: "seller",
+              }
+            );
+
+            if (!result) {
+              throw new Error('Failed to create seller account');
+            }
+
+            sellerId = result.userId;
+          } else if (pendingSeller?.userId) {
+            // Fallback for stored userId
+            sellerId = pendingSeller.userId;
+          }
+        } catch (e: any) {
+          console.error("Auth signup error:", e);
+          throw e;
+        }
+      }
+
+      if (!sellerId) throw new Error('No seller ID available. Please restart the registration process.');
 
       // 1. Upsert the sellers row (only columns that exist on the sellers table)
       const { error: sellerError } = await supabase
@@ -243,38 +266,11 @@ export function SellerOnboarding() {
 
       if (bpError) throw bpError;
 
-      // 3. Upsert payout settings (canonical table; `seller_payout_accounts`
-      //    is now a view that doesn't support ON CONFLICT — migration 040).
-      if (formData.bankName || formData.accountName || formData.accountNumber) {
-        const { error: payoutError } = await supabase
-          .from('seller_payout_settings')
-          .upsert({
-            seller_id: sellerId,
-            payout_method: 'bank_transfer',
-            bank_name: formData.bankName,
-            bank_account_name: formData.accountName,
-            bank_account_number: formData.accountNumber,
-          } as any, { onConflict: 'seller_id' });
+      if (bpError) throw bpError;
+ 
+       // 3. Save store categories via junction table (seller_categories)
+       if (formData.storeCategory && Array.isArray(formData.storeCategory) && formData.storeCategory.length > 0) {
 
-        if (payoutError) console.warn('Payout account save error:', payoutError);
-      }
-
-      // 4. Upsert verification documents (seller_verification_documents)
-      const { error: docError } = await supabase
-        .from('seller_verification_documents')
-        .upsert({
-          seller_id: sellerId,
-          business_permit_url: formData.businessPermitUrl || null,
-          valid_id_url: formData.validIdUrl || null,
-          proof_of_address_url: formData.proofOfAddressUrl || null,
-          dti_registration_url: formData.dtiRegistrationUrl || null,
-          tax_id_url: formData.taxIdUrl || null,
-        } as any);
-
-      if (docError) console.warn('Verification documents save error:', docError);
-
-      // 5. Save store categories via junction table (seller_categories)
-      if (formData.storeCategory && Array.isArray(formData.storeCategory) && formData.storeCategory.length > 0) {
         // Look up category IDs by name
         const { data: categories } = await supabase
           .from('categories')
@@ -293,31 +289,34 @@ export function SellerOnboarding() {
         }
       }
 
-      // 6. Update local state and proceed to success screens
-      updateSellerDetails({ ...formData, approvalStatus: "pending" });
+      // 4. Update local state and proceed to success screens
+      updateSellerDetails({ ...formData, approvalStatus: "pending" } as any);
+
       setIsSubmitting(false);
       setIsVerifying(true);
 
       setTimeout(() => {
         setIsVerifying(false);
         setVerificationComplete(true);
-        setTimeout(() => navigate("/seller/unverified"), 2000);
-      }, 3000);
+        sessionStorage.removeItem("pendingSellerSignup");
+        setTimeout(() => navigate("/seller"), 2000);
+      }, 5000); // Increased to 5s as requested
 
     } catch (error: any) {
       console.error("Submission error:", error.message);
       alert(`Registration failed: ${error.message}`);
       setIsSubmitting(false);
+      setIsVerifying(false); // Ensure loading is removed on error
     }
+
   };
 
   const steps = [
     { number: 1, title: "Personal Info", icon: User },
     { number: 2, title: "Business Info", icon: Building },
     { number: 3, title: "Address", icon: MapPin },
-    { number: 4, title: "Banking", icon: CreditCard },
-    { number: 5, title: "Documents", icon: FileText },
   ];
+
 
   // Show verification loading
   if (isVerifying) {
@@ -449,45 +448,34 @@ export function SellerOnboarding() {
         </div>
 
         {/* Progress Steps */}
-        <div className="flex justify-between items-center mb-12 relative px-4">
-          <div className="absolute top-5 left-4 right-4 h-1 bg-gray-100 -z-10 rounded-full">
-            <div
-              className="h-full bg-gradient-to-r from-[var(--brand-primary)] to-[var(--brand-primary-dark)] transition-all duration-500 rounded-full shadow-lg shadow-orange-500/20"
-              style={{
-                width: `${((currentStep - 1) / (steps.length - 1)) * 100}%`,
-              }}
-            />
-          </div>
-          {steps.map((step) => {
+        <div className="flex items-center justify-center gap-2 mb-12 max-w-xl mx-auto px-4">
+          {steps.map((step, index) => {
             const Icon = step.icon;
-            const isCompleted = currentStep > step.number;
-            const isCurrent = currentStep === step.number;
-
             return (
-              <div key={step.number} className="flex flex-col items-center group cursor-default">
-                <div
-                  className={`w-12 h-12 rounded-2xl flex items-center justify-center transition-all duration-300 font-bold shadow-sm ${isCompleted
-                    ? "bg-[var(--brand-primary)] text-white shadow-lg shadow-orange-500/20 scale-100"
-                    : isCurrent
-                      ? "bg-[var(--brand-primary)] text-white ring-4 ring-orange-100 shadow-xl shadow-orange-500/30 scale-110"
-                      : "bg-white border-2 border-gray-100 text-gray-300"
-                    }`}
-                >
-                  {isCompleted ? (
-                    <CheckCircle className="w-6 h-6" />
-                  ) : (
-                    <Icon className="w-5 h-5" />
-                  )}
+              <React.Fragment key={step.number}>
+                <div className="flex flex-col items-center relative min-w-[80px]">
+                  <div className={`w-10 h-10 rounded-full flex items-center justify-center font-bold text-sm transition-all shadow-md z-10 ${currentStep >= step.number ? "bg-[var(--brand-primary)] text-white shadow-orange-500/20" : "bg-white text-gray-400 border border-gray-100"}`}>
+                    {currentStep > step.number ? <Check size={18} /> : <Icon size={18} />}
+                  </div>
+                  <span className={`absolute -bottom-7 text-[11px] font-bold uppercase tracking-wider whitespace-nowrap transition-colors ${currentStep >= step.number ? "text-[var(--brand-primary)]" : "text-gray-400"}`}>
+                    {step.title}
+                  </span>
                 </div>
-                <p
-                  className={`mt-3 text-xs font-bold uppercase tracking-wider transition-colors ${isCurrent ? "text-[var(--brand-primary)]" : "text-[var(--text-muted)]"}`}
-                >
-                  {step.title}
-                </p>
-              </div>
+                {index < steps.length - 1 && (
+                  <div className="w-16 h-1 bg-gray-100 rounded-full overflow-hidden mt-[-1.75rem]">
+                    <motion.div 
+                      initial={{ width: "0%" }} 
+                      animate={{ width: currentStep > step.number ? "100%" : "0%" }} 
+                      className="h-full bg-[var(--brand-primary)]" 
+                    />
+                  </div>
+                )}
+              </React.Fragment>
             );
           })}
         </div>
+
+
 
         {/* Form */}
         <div className="bg-white rounded-[32px] shadow-[0_8px_30px_rgba(0,0,0,0.04)] p-8 lg:p-10 border border-transparent">
@@ -675,8 +663,8 @@ export function SellerOnboarding() {
                       >
                         <option value="">Select business type</option>
                         {BUSINESS_TYPES.map((type) => (
-                          <option key={type} value={type}>
-                            {type}
+                          <option key={type.value} value={type.value}>
+                            {type.label}
                           </option>
                         ))}
                       </select>
@@ -824,161 +812,7 @@ export function SellerOnboarding() {
                 </motion.div>
               )}
 
-              {/* Step 4: Banking */}
-              {currentStep === 4 && (
-                <motion.div
-                  key="step4"
-                  initial={{ opacity: 0, x: 20 }}
-                  animate={{ opacity: 1, x: 0 }}
-                  exit={{ opacity: 0, x: -20 }}
-                  className="space-y-6"
-                >
-                  <h3 className="text-2xl font-bold text-gray-900 mb-6">
-                    Banking Information
-                  </h3>
 
-                  <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-6">
-                    <p className="text-sm text-blue-800">
-                      <strong>🔒 Secure Information:</strong> Your banking
-                      details are encrypted and will only be used for payouts.
-                    </p>
-                  </div>
-
-                  <div className="space-y-4">
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-2">
-                        Bank Name *
-                      </label>
-                      <select
-                        value={formData.bankName}
-                        onChange={(e) =>
-                          handleInputChange("bankName", e.target.value)
-                        }
-                        className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent"
-                      >
-                        <option value="">Select bank</option>
-                        {BANKS.map((bank) => (
-                          <option key={bank} value={bank}>
-                            {bank}
-                          </option>
-                        ))}
-                      </select>
-                      {errors.bankName && (
-                        <p className="mt-1 text-sm text-red-600">
-                          {errors.bankName}
-                        </p>
-                      )}
-                    </div>
-
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-2">
-                        Account Name *
-                      </label>
-                      <input
-                        type="text"
-                        value={formData.accountName}
-                        onChange={(e) =>
-                          handleInputChange("accountName", e.target.value)
-                        }
-                        className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent"
-                        placeholder="Juan Dela Cruz"
-                      />
-                      {errors.accountName && (
-                        <p className="mt-1 text-sm text-red-600">
-                          {errors.accountName}
-                        </p>
-                      )}
-                    </div>
-
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-2">
-                        Account Number *
-                      </label>
-                      <input
-                        type="text"
-                        value={formData.accountNumber}
-                        onChange={(e) =>
-                          handleInputChange("accountNumber", e.target.value)
-                        }
-                        className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent"
-                        placeholder="1234567890"
-                      />
-                      {errors.accountNumber && (
-                        <p className="mt-1 text-sm text-red-600">
-                          {errors.accountNumber}
-                        </p>
-                      )}
-                    </div>
-                  </div>
-                </motion.div>
-              )}
-
-              {/* Step 5: Document URLs */}
-              {currentStep === 5 && (
-                <motion.div
-                  key="step5"
-                  initial={{ opacity: 0, x: 20 }}
-                  animate={{ opacity: 1, x: 0 }}
-                  exit={{ opacity: 0, x: -20 }}
-                  className="space-y-6"
-                >
-                  <h3 className="text-2xl font-bold text-gray-900 mb-6">
-                    Document URLs
-                  </h3>
-
-                  <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-6">
-                    <p className="text-sm text-blue-800">
-                      <strong>📋 Optional for now:</strong> You can provide
-                      document URLs or upload them later from your seller
-                      profile.
-                    </p>
-                  </div>
-
-                  <div className="space-y-4">
-                    {[
-                      {
-                        key: "businessPermitUrl",
-                        label: "Business Permit URL",
-                      },
-                      { key: "validIdUrl", label: "Valid ID (Owner) URL" },
-                      {
-                        key: "proofOfAddressUrl",
-                        label: "Proof of Address URL",
-                      },
-                      {
-                        key: "dtiRegistrationUrl",
-                        label: "DTI/SEC Registration URL",
-                      },
-                      {
-                        key: "taxIdUrl",
-                        label: "BIR Certificate of Registration (TIN) URL",
-                      },
-                    ].map((doc) => (
-                      <div key={doc.key}>
-                        <label className="block text-sm font-medium text-gray-700 mb-2">
-                          {doc.label}
-                        </label>
-                        <input
-                          type="text"
-                          value={
-                            formData[doc.key as keyof typeof formData] as string
-                          }
-                          onChange={(e) =>
-                            handleInputChange(doc.key, e.target.value)
-                          }
-                          className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent"
-                          placeholder="https://example.com/document.pdf"
-                        />
-                        {errors[doc.key] && (
-                          <p className="mt-1 text-sm text-red-600">
-                            {errors[doc.key]}
-                          </p>
-                        )}
-                      </div>
-                    ))}
-                  </div>
-                </motion.div>
-              )}
             </AnimatePresence>
 
             {/* Navigation Buttons */}

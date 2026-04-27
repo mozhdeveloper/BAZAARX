@@ -67,7 +67,12 @@ interface BuyerStore {
   updateCartQuantity: (productId: string, quantity: number, variantId?: string) => void;
   updateItemVariant: (productId: string, oldVariantId: string | undefined, newVariant: ProductVariant, quantity?: number) => Promise<void>;
   updateCartNotes: (productId: string, notes: string) => void;
-  clearCart: () => void;
+  
+  clearCart: () => Promise<void>;
+  isValidatingCheckout: boolean;
+  checkoutErrors: Record<string, string>;
+  validateCheckout: (selectedIds: string[]) => Promise<boolean>;
+  
   getCartTotal: () => number;
   getCartItemCount: () => number;
   getTotalCartItems: () => number;
@@ -857,7 +862,34 @@ export const useBuyerStore = create<BuyerStore>()(persist(
       }));
     },
 
-    clearCart: () => set({ cartItems: [], groupedCart: {}, appliedVouchers: {}, platformVoucher: null }),
+    isValidatingCheckout: false,
+    checkoutErrors: {},
+    validateCheckout: async (selectedIds) => {
+      set({ isValidatingCheckout: true, checkoutErrors: {} });
+      try {
+        const result = await cartService.validateCheckoutItems(selectedIds);
+        if (!result.isValid) set({ checkoutErrors: result.errors });
+        return result.isValid;
+      } catch (e: any) {
+        set({ checkoutErrors: { 'global': 'Validation failed.' }});
+        return false;
+      } finally {
+        set({ isValidatingCheckout: false });
+      }
+    },
+
+    clearCart: async () => {
+      const user = await getCurrentUser();
+      if (user) {
+        try {
+          const cart = await cartService.getCart(user.id);
+          if (cart) await cartService.clearCart(cart.id);
+        } catch (e) {
+          console.error('[buyerStore] Failed to clear DB cart', e);
+        }
+      }
+      set({ cartItems: [], groupedCart: {}, appliedVouchers: {}, platformVoucher: null });
+    },
 
     getCartTotal: () => {
       const { groupedCart, appliedVouchers, platformVoucher } = get();
@@ -1406,7 +1438,7 @@ export const useBuyerStore = create<BuyerStore>()(persist(
         // First, check if buyer record exists
         const { data: existingBuyer, error: fetchError } = await db
           .from('buyers')
-          .select('*')
+          .select('id, avatar_url, bazcoins, preferences')
           .eq('id', userId)
           .single();
 
@@ -1421,8 +1453,6 @@ export const useBuyerStore = create<BuyerStore>()(persist(
             .from('buyers')
             .insert([{
               id: userId,
-              shipping_addresses: [],
-              payment_methods: [],
               preferences: {
                 language: 'en',
                 currency: 'PHP',
@@ -1437,8 +1467,6 @@ export const useBuyerStore = create<BuyerStore>()(persist(
                   showFollowing: true,
                 },
               },
-              followed_shops: [],
-              total_spent: 0,
               bazcoins: 0,
             }]);
 
@@ -1455,7 +1483,7 @@ export const useBuyerStore = create<BuyerStore>()(persist(
         const { data: buyerWithProfile, error: buyerJoinError } = await db
           .from('buyers')
           .select(`
-            *,
+            id, avatar_url, bazcoins, preferences,
             profile:profiles!id (
               id, email, first_name, last_name, phone, created_at
             )
@@ -1472,7 +1500,7 @@ export const useBuyerStore = create<BuyerStore>()(persist(
           const [{ data: buyerOnly, error: buyerOnlyError }, { data: profileOnly, error: profileOnlyError }] = await Promise.all([
             db
               .from('buyers')
-              .select('*')
+              .select('id, avatar_url, bazcoins, preferences')
               .eq('id', userId)
               .single(),
             db
@@ -1542,7 +1570,7 @@ export const useBuyerStore = create<BuyerStore>()(persist(
           phone: profileInfo?.phone || '',
           avatar: buyerData.avatar_url || '/placeholder-avatar.jpg',
           memberSince: profileInfo?.created_at ? new Date(profileInfo.created_at) : new Date(),
-          totalSpent: buyerData.total_spent || 0,
+          totalSpent: 0,
           bazcoins: buyerData.bazcoins || 0,
           totalOrders: 0,
         };
