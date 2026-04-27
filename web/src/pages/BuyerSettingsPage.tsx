@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { motion } from 'framer-motion';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
 import Header from '../components/Header';
 import { BazaarFooter } from '../components/ui/bazaar-footer';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '../components/ui/card';
@@ -100,10 +100,14 @@ const mockPaymentMethods = [
 
 export default function BuyerSettingsPage() {
   const navigate = useNavigate();
+  const location = useLocation();
+  const searchParams = new URLSearchParams(location.search);
+  const initialTab = searchParams.get('tab') || 'addresses';
+
   const [showPassword, setShowPassword] = useState(false);
   const [showNewPassword, setShowNewPassword] = useState(false);
   const [showConfirmNewPassword, setShowConfirmNewPassword] = useState(false);
-  const [activeTab, setActiveTab] = useState('addresses');
+  const [activeTab, setActiveTab] = useState(initialTab);
   const { toast } = useToast();
   const { profile, addresses, addAddress, updateAddress, deleteAddress, logout } = useBuyerStore();
 
@@ -160,6 +164,10 @@ export default function BuyerSettingsPage() {
     confirmNewPassword.length > 0 && newPassword !== confirmNewPassword;
   const [isUpdatingPassword, setIsUpdatingPassword] = useState(false);
   const [isSendingReset, setIsSendingReset] = useState(false);
+  const [isLinkingGoogle, setIsLinkingGoogle] = useState(false);
+  const [isUnlinkingGoogle, setIsUnlinkingGoogle] = useState(false);
+  const [showUnlinkModal, setShowUnlinkModal] = useState(false);
+  const [identities, setIdentities] = useState<any[]>([]);
 
   // Address Selection Lists
   const [regionList, setRegionList] = useState<any[]>([]);
@@ -500,6 +508,70 @@ export default function BuyerSettingsPage() {
     twoFactor: false,
     loginAlerts: true
   });
+
+  // Fetch identities on mount
+  useEffect(() => {
+    const fetchIdentities = async () => {
+      const { data } = await (supabase.auth as any).getUserIdentities();
+      if (data?.identities) {
+        setIdentities(data.identities);
+      }
+    };
+    fetchIdentities();
+  }, []);
+
+  const handleUnlinkGoogle = async () => {
+    setIsUnlinkingGoogle(true);
+    try {
+      const { data: identityData } = await (supabase.auth as any).getUserIdentities();
+      const googleIdentity = identityData?.identities?.find((id: any) => id.provider === 'google');
+
+      if (googleIdentity) {
+        const { error } = await (supabase.auth as any).unlinkIdentity(googleIdentity);
+        if (error) throw error;
+
+        // Also clear metadata for explicit linking policy
+        await supabase.auth.updateUser({
+          data: { google_explicitly_linked: false }
+        });
+
+        // Refresh identities in local state
+        const { data: freshData } = await (supabase.auth as any).getUserIdentities();
+        if (freshData?.identities) setIdentities(freshData.identities);
+
+        toast({ title: 'Google Unlinked', description: 'Your Google account has been disconnected successfully.' });
+      }
+    } catch (err: any) {
+      toast({ title: 'Unlinking Failed', description: err.message, variant: 'destructive' });
+    } finally {
+      setIsUnlinkingGoogle(false);
+      setShowUnlinkModal(false);
+    }
+  };
+
+  const handleLinkGoogle = async () => {
+    setIsLinkingGoogle(true);
+    try {
+      sessionStorage.setItem('oauth_intent', 'link_google');
+      const { data, error } = await supabase.auth.signInWithOAuth({
+        provider: 'google',
+        options: {
+          redirectTo: window.location.origin + '/settings?tab=security', // Will be caught by App.tsx
+          queryParams: {
+            access_type: 'offline',
+            prompt: 'select_account',
+          },
+        },
+      });
+      if (error) throw error;
+      if (data.url) window.location.assign(data.url);
+    } catch (err: any) {
+      toast({ title: 'Connection Failed', description: err.message, variant: 'destructive' });
+      setIsLinkingGoogle(false);
+    }
+  };
+
+  const isGoogleConnected = identities.some(id => id.provider === 'google');
 
   return (
     <div className="min-h-screen bg-[var(--brand-wash)]">
@@ -866,225 +938,247 @@ export default function BuyerSettingsPage() {
               animate={{ opacity: 1, y: 0 }}
               className="space-y-6"
             >
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              <Card>
-                <CardHeader>
-                  <CardTitle className="flex items-center gap-2">
-                    <Lock className="h-5 w-5 text-[var(--brand-primary)]" />
-                    Password & Authentication
-                  </CardTitle>
-                </CardHeader>
-                <CardContent className="space-y-4">
-                  <div className="rounded-xl border border-orange-100 bg-orange-50/60 p-3 flex items-center justify-between gap-3">
-                    <div>
-                      <p className="font-medium">Need to reset your password?</p>
-                      <p className="text-sm text-gray-500">We’ll send a secure reset link to your account email.</p>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <Card>
+                  <CardHeader>
+                    <CardTitle className="flex items-center gap-2">
+                      <Lock className="h-5 w-5 text-[var(--brand-primary)]" />
+                      Password & Authentication
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent className="space-y-4">
+                    <div className="rounded-xl border border-orange-100 bg-orange-50/60 p-3 flex items-center justify-between gap-3">
+                      <div>
+                        <p className="font-medium">Need to reset your password?</p>
+                        <p className="text-sm text-gray-500">We’ll send a secure reset link to your account email.</p>
+                      </div>
+                      <Button
+                        type="button"
+                        onClick={handleSendPasswordReset}
+                        disabled={isSendingReset}
+                        className="bg-[var(--brand-primary)] hover:bg-[var(--brand-primary-dark)] rounded-full"
+                      >
+                        {isSendingReset ? (
+                          <span className="inline-flex items-center gap-2"><Loader2 className="h-4 w-4 animate-spin" />Sending</span>
+                        ) : (
+                          'Send Reset Link'
+                        )}
+                      </Button>
                     </div>
+
+                    <div>
+                      <Label>Current Password</Label>
+                      <div className="relative">
+                        <Input
+                          type={showPassword ? 'text' : 'password'}
+                          placeholder="Enter current password"
+                          value={currentPassword}
+                          onChange={(e) => setCurrentPassword(e.target.value)}
+                          className="pr-10"
+                        />
+                        <button
+                          type="button"
+                          onClick={() => setShowPassword(!showPassword)}
+                          className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                        >
+                          {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                        </button>
+                      </div>
+                    </div>
+
+                    <div>
+                      <Label>New Password</Label>
+                      <div className="relative">
+                        <Input
+                          type={showNewPassword ? 'text' : 'password'}
+                          placeholder="Enter new password"
+                          value={newPassword}
+                          onChange={(e) => setNewPassword(e.target.value)}
+                          className="pr-10"
+                        />
+                        <button
+                          type="button"
+                          onClick={() => setShowNewPassword(!showNewPassword)}
+                          className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                        >
+                          {showNewPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                        </button>
+                      </div>
+                      {livePasswordError ? <p className="text-sm text-red-600 mt-1">{livePasswordError}</p> : null}
+                    </div>
+
+                    <div>
+                      <Label>Confirm New Password</Label>
+                      <div className="relative">
+                        <Input
+                          type={showConfirmNewPassword ? 'text' : 'password'}
+                          placeholder="Confirm new password"
+                          value={confirmNewPassword}
+                          onChange={(e) => setConfirmNewPassword(e.target.value)}
+                          className="pr-10"
+                        />
+                        <button
+                          type="button"
+                          onClick={() => setShowConfirmNewPassword(!showConfirmNewPassword)}
+                          className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                        >
+                          {showConfirmNewPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                        </button>
+                      </div>
+                      {hasPasswordMismatch ? <p className="text-sm text-red-600 mt-1">Passwords do not match.</p> : null}
+                    </div>
+
                     <Button
                       type="button"
-                      onClick={handleSendPasswordReset}
-                      disabled={isSendingReset}
-                      className="bg-[var(--brand-primary)] hover:bg-[var(--brand-primary-dark)] rounded-full"
+                      onClick={handleUpdatePassword}
+                      disabled={isUpdatingPassword || hasPasswordMismatch || !!livePasswordError}
+                      className="w-full bg-[var(--brand-primary)] hover:bg-[var(--brand-primary-dark)]"
                     >
-                      {isSendingReset ? (
-                        <span className="inline-flex items-center gap-2"><Loader2 className="h-4 w-4 animate-spin" />Sending</span>
+                      {isUpdatingPassword ? (
+                        <><Loader2 className="h-4 w-4 mr-2 animate-spin" />Updating...</>
                       ) : (
-                        'Send Reset Link'
+                        <><Save className="h-4 w-4 mr-2" />Update Password</>
                       )}
                     </Button>
-                  </div>
 
-                  <div>
-                    <Label>Current Password</Label>
-                    <div className="relative">
-                      <Input
-                        type={showPassword ? 'text' : 'password'}
-                        placeholder="Enter current password"
-                        value={currentPassword}
-                        onChange={(e) => setCurrentPassword(e.target.value)}
-                        className="pr-10"
-                      />
-                      <button
-                        type="button"
-                        onClick={() => setShowPassword(!showPassword)}
-                        className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
-                      >
-                        {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-                      </button>
+                    <div className="pt-4 border-t">
+                      <div className="flex items-center justify-between mb-3">
+                        <div>
+                          <p className="font-medium">Two-Factor Authentication</p>
+                          <p className="text-sm text-gray-500">Add extra security to your account</p>
+                        </div>
+                        <Switch
+                          checked={security.twoFactor}
+                          onCheckedChange={(checked) => setSecuritySettings({ ...security, twoFactor: checked })}
+                        />
+                      </div>
                     </div>
-                  </div>
+                  </CardContent>
+                </Card>
 
-                  <div>
-                    <Label>New Password</Label>
-                    <div className="relative">
-                      <Input
-                        type={showNewPassword ? 'text' : 'password'}
-                        placeholder="Enter new password"
-                        value={newPassword}
-                        onChange={(e) => setNewPassword(e.target.value)}
-                        className="pr-10"
-                      />
-                      <button
-                        type="button"
-                        onClick={() => setShowNewPassword(!showNewPassword)}
-                        className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
-                      >
-                        {showNewPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-                      </button>
-                    </div>
-                    {livePasswordError ? <p className="text-sm text-red-600 mt-1">{livePasswordError}</p> : null}
-                  </div>
-
-                  <div>
-                    <Label>Confirm New Password</Label>
-                    <div className="relative">
-                      <Input
-                        type={showConfirmNewPassword ? 'text' : 'password'}
-                        placeholder="Confirm new password"
-                        value={confirmNewPassword}
-                        onChange={(e) => setConfirmNewPassword(e.target.value)}
-                        className="pr-10"
-                      />
-                      <button
-                        type="button"
-                        onClick={() => setShowConfirmNewPassword(!showConfirmNewPassword)}
-                        className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
-                      >
-                        {showConfirmNewPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-                      </button>
-                    </div>
-                    {hasPasswordMismatch ? <p className="text-sm text-red-600 mt-1">Passwords do not match.</p> : null}
-                  </div>
-
-                  <Button
-                    type="button"
-                    onClick={handleUpdatePassword}
-                    disabled={isUpdatingPassword || hasPasswordMismatch || !!livePasswordError}
-                    className="w-full bg-[var(--brand-primary)] hover:bg-[var(--brand-primary-dark)]"
-                  >
-                    {isUpdatingPassword ? (
-                      <><Loader2 className="h-4 w-4 mr-2 animate-spin" />Updating...</>
-                    ) : (
-                      <><Save className="h-4 w-4 mr-2" />Update Password</>
-                    )}
-                  </Button>
-
-                  <div className="pt-4 border-t">
-                    <div className="flex items-center justify-between mb-3">
+                <Card>
+                  <CardHeader>
+                    <CardTitle className="flex items-center gap-2">
+                      <Shield className="h-5 w-5 text-[var(--brand-primary)]" />
+                      Privacy & Security
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent className="space-y-4">
+                    <div className="flex items-center justify-between">
                       <div>
-                        <p className="font-medium">Two-Factor Authentication</p>
-                        <p className="text-sm text-gray-500">Add extra security to your account</p>
+                        <p className="font-medium">Show Profile</p>
+                        <p className="text-sm text-gray-500">Make your profile visible</p>
                       </div>
                       <Switch
-                        checked={security.twoFactor}
-                        onCheckedChange={(checked) => setSecuritySettings({ ...security, twoFactor: checked })}
+                        checked={privacy.showProfile}
+                        onCheckedChange={(checked) => setPrivacy({ ...privacy, showProfile: checked })}
                       />
                     </div>
-                  </div>
-                </CardContent>
-              </Card>
 
-              <Card>
-                <CardHeader>
-                  <CardTitle className="flex items-center gap-2">
-                    <Shield className="h-5 w-5 text-[var(--brand-primary)]" />
-                    Privacy & Security
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <p className="font-medium">Show Purchase History</p>
+                        <p className="text-sm text-gray-500">Display your purchases</p>
+                      </div>
+                      <Switch
+                        checked={privacy.showPurchases}
+                        onCheckedChange={(checked) => setPrivacy({ ...privacy, showPurchases: checked })}
+                      />
+                    </div>
+
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <p className="font-medium">Show Following List</p>
+                        <p className="text-sm text-gray-500">Display followed shops</p>
+                      </div>
+                      <Switch
+                        checked={privacy.showFollowing}
+                        onCheckedChange={(checked) => setPrivacy({ ...privacy, showFollowing: checked })}
+                      />
+                    </div>
+
+                    <div className="flex items-center justify-between pt-4 border-t">
+                      <div>
+                        <p className="font-medium">Login Alerts</p>
+                        <p className="text-sm text-gray-500">Get notified of new logins</p>
+                      </div>
+                      <Switch
+                        checked={security.loginAlerts}
+                        onCheckedChange={(checked) => setSecuritySettings({ ...security, loginAlerts: checked })}
+                      />
+                    </div>
+
+                    <div className="pt-4 border-t">
+                      <h4 className="font-medium mb-3">Connected Accounts</h4>
+                      <div className="space-y-2">
+                        {isGoogleConnected ? (
+                          <Button
+                            variant="outline"
+                            className="w-full justify-between p-3 border rounded-xl bg-green-50/50 border-green-100 hover:bg-red-50 hover:border-red-100 group transition-all"
+                            onClick={() => setShowUnlinkModal(true)}
+                          >
+                            <div className="flex items-center gap-2">
+                              <img src="https://www.svgrepo.com/show/475656/google-color.svg" className="h-5 w-5" alt="Google" />
+                              <span className="text-sm font-medium text-green-700 group-hover:text-red-700 transition-colors">Google Connected</span>
+                            </div>
+                            <div className="flex items-center">
+                              <Check className="h-4 w-4 text-green-600 group-hover:hidden" />
+                              <Trash2 className="h-4 w-4 text-red-600 hidden group-hover:block" />
+                            </div>
+                          </Button>
+                        ) : (
+                          <Button
+                            variant="outline"
+                            className="w-full justify-start hover:bg-orange-50 hover:border-orange-200 transition-all"
+                            onClick={handleLinkGoogle}
+                            disabled={isLinkingGoogle}
+                          >
+                            {isLinkingGoogle ? (
+                              <Loader2 className="h-5 w-5 mr-2 animate-spin" />
+                            ) : (
+                              <img src="https://www.svgrepo.com/show/475656/google-color.svg" className="h-5 w-5 mr-2" alt="Google" />
+                            )}
+                            Connect Google Account
+                          </Button>
+                        )}
+                      </div>
+                    </div>
+                  </CardContent>
+                </Card>
+              </div>
+
+              {/* Danger Zone */}
+              <Card className="border-red-200 bg-red-50/50">
+                <CardHeader className="pb-3">
+                  <CardTitle className="flex items-center gap-2 text-red-700">
+                    <AlertTriangle className="h-5 w-5" />
+                    Danger Zone
                   </CardTitle>
+                  <CardDescription className="text-red-600/70">
+                    Permanent actions that cannot be undone. Under the Data Privacy Act (RA 10173),
+                    you have the right to erasure of your personal data.
+                  </CardDescription>
                 </CardHeader>
-                <CardContent className="space-y-4">
-                  <div className="flex items-center justify-between">
+                <CardContent>
+                  <div className="flex items-center justify-between p-4 border border-red-200 rounded-lg bg-white">
                     <div>
-                      <p className="font-medium">Show Profile</p>
-                      <p className="text-sm text-gray-500">Make your profile visible</p>
+                      <p className="font-medium text-gray-900">Delete Account</p>
+                      <p className="text-sm text-gray-500 mt-0.5">
+                        Permanently delete your account and all associated data.
+                      </p>
                     </div>
-                    <Switch
-                      checked={privacy.showProfile}
-                      onCheckedChange={(checked) => setPrivacy({ ...privacy, showProfile: checked })}
-                    />
-                  </div>
-
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <p className="font-medium">Show Purchase History</p>
-                      <p className="text-sm text-gray-500">Display your purchases</p>
-                    </div>
-                    <Switch
-                      checked={privacy.showPurchases}
-                      onCheckedChange={(checked) => setPrivacy({ ...privacy, showPurchases: checked })}
-                    />
-                  </div>
-
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <p className="font-medium">Show Following List</p>
-                      <p className="text-sm text-gray-500">Display followed shops</p>
-                    </div>
-                    <Switch
-                      checked={privacy.showFollowing}
-                      onCheckedChange={(checked) => setPrivacy({ ...privacy, showFollowing: checked })}
-                    />
-                  </div>
-
-                  <div className="flex items-center justify-between pt-4 border-t">
-                    <div>
-                      <p className="font-medium">Login Alerts</p>
-                      <p className="text-sm text-gray-500">Get notified of new logins</p>
-                    </div>
-                    <Switch
-                      checked={security.loginAlerts}
-                      onCheckedChange={(checked) => setSecuritySettings({ ...security, loginAlerts: checked })}
-                    />
-                  </div>
-
-                  <div className="pt-4 border-t">
-                    <h4 className="font-medium mb-3">Connected Accounts</h4>
-                    <div className="space-y-2">
-                      <Button variant="outline" className="w-full justify-start">
-                        <Facebook className="h-5 w-5 mr-2 text-blue-600" />
-                        Connect Facebook
-                      </Button>
-                      <Button variant="outline" className="w-full justify-start">
-                        <Twitter className="h-5 w-5 mr-2 text-sky-500" />
-                        Connect Twitter
-                      </Button>
-                    </div>
+                    <Button
+                      variant="destructive"
+                      size="sm"
+                      onClick={() => setShowDeleteModal(true)}
+                      className="ml-4 shrink-0"
+                    >
+                      <Trash2 className="h-4 w-4 mr-1.5" />
+                      Delete Account
+                    </Button>
                   </div>
                 </CardContent>
               </Card>
-            </div>
-
-            {/* Danger Zone */}
-            <Card className="border-red-200 bg-red-50/50">
-              <CardHeader className="pb-3">
-                <CardTitle className="flex items-center gap-2 text-red-700">
-                  <AlertTriangle className="h-5 w-5" />
-                  Danger Zone
-                </CardTitle>
-                <CardDescription className="text-red-600/70">
-                  Permanent actions that cannot be undone. Under the Data Privacy Act (RA 10173),
-                  you have the right to erasure of your personal data.
-                </CardDescription>
-              </CardHeader>
-              <CardContent>
-                <div className="flex items-center justify-between p-4 border border-red-200 rounded-lg bg-white">
-                  <div>
-                    <p className="font-medium text-gray-900">Delete Account</p>
-                    <p className="text-sm text-gray-500 mt-0.5">
-                      Permanently delete your account and all associated data.
-                    </p>
-                  </div>
-                  <Button
-                    variant="destructive"
-                    size="sm"
-                    onClick={() => setShowDeleteModal(true)}
-                    className="ml-4 shrink-0"
-                  >
-                    <Trash2 className="h-4 w-4 mr-1.5" />
-                    Delete Account
-                  </Button>
-                </div>
-              </CardContent>
-            </Card>
             </motion.div>
           </TabsContent>
         </Tabs>
@@ -1368,6 +1462,42 @@ export default function BuyerSettingsPage() {
               </Button>
             </DialogFooter>
           )}
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={showUnlinkModal} onOpenChange={setShowUnlinkModal}>
+        <DialogContent className="sm:max-w-[425px]">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2 text-red-600">
+              <Shield className="h-5 w-5" />
+              Disconnect Google Account?
+            </DialogTitle>
+            <DialogDescription className="pt-2">
+              Are you sure you want to unlink your Google account? You will no longer be able to sign in using Google unless you reconnect it later.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter className="mt-6">
+            <Button
+              variant="outline"
+              onClick={() => setShowUnlinkModal(false)}
+              disabled={isUnlinkingGoogle}
+            >
+              Cancel
+            </Button>
+            <Button
+              variant="destructive"
+              onClick={handleUnlinkGoogle}
+              disabled={isUnlinkingGoogle}
+              className="bg-red-600 hover:bg-red-700"
+            >
+              {isUnlinkingGoogle ? (
+                <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+              ) : (
+                <Trash2 className="h-4 w-4 mr-2" />
+              )}
+              Disconnect Account
+            </Button>
+          </DialogFooter>
         </DialogContent>
       </Dialog>
     </div>

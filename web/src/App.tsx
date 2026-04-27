@@ -153,9 +153,10 @@ function App() {
       };
 
       // Track if this is an OAuth redirect callback (Supabase appends access_token in hash)
+      const isOAuthProvider = session?.user?.app_metadata?.provider && session.user.app_metadata.provider !== 'email';
       const oauthIntent = sessionStorage.getItem('oauth_intent');
       const oauthRedirectDone = sessionStorage.getItem('oauth_redirect_done');
-      const isOAuthRedirect = oauthIntent === 'buyer' || window.location.hash.includes('access_token');
+      const isOAuthRedirect = isOAuthProvider && (oauthIntent === 'buyer' || oauthIntent === 'seller' || oauthIntent === 'link_google' || !oauthIntent);
       debug('onAuthStateChange', {
         event,
         pathname: window.location.pathname,
@@ -169,10 +170,61 @@ function App() {
       // 1. Catch BOTH events: SIGNED_IN (direct login) and INITIAL_SESSION (page load after Google redirect)
       // Only handle buyer record creation for OAuth providers.
       // Email/password signups are finalized by AuthCallbackPage after email verification.
-      const isOAuthProvider = session?.user?.app_metadata?.provider === 'google' ||
-        session?.user?.app_metadata?.provider === 'facebook';
       if ((event === 'SIGNED_IN' || event === 'INITIAL_SESSION') && session?.user && isOAuthProvider) {
         const { user } = session;
+
+        // POLICY ENFORCEMENT: Check for unauthorized Google linking (Mobile Parity)
+        try {
+          const oauthIntent = sessionStorage.getItem('oauth_intent');
+          const isLinking = oauthIntent === 'link_google';
+
+          // fetch identities to be sure we have the latest ones
+          const { data: identityData } = await (supabase.auth as any).getUserIdentities();
+          const identities = identityData?.identities || user.identities || [];
+          
+          const emailIdentity = identities.find((id: any) => id.provider === 'email');
+          const googleIdentity = identities.find((id: any) => id.provider === 'google');
+
+          // 1. PREVENT NEW GOOGLE-ONLY ACCOUNTS (Email-First Policy)
+          // If the user has Google but NO email identity, and isn't currently linking,
+          // it means they tried to sign up via Google directly without a pre-existing email account.
+          if (googleIdentity && !emailIdentity && !isLinking) {
+            console.log('[Auth] 🛡️ Google-only account detected. Rejecting login.');
+            await supabase.auth.signOut();
+            window.location.href = '/login?error=google_not_registered';
+            return;
+          }
+
+          if (emailIdentity && googleIdentity) {
+            const isExplicitlyLinked = !!user.user_metadata?.google_explicitly_linked;
+            // Use the app_metadata provider to see what was used for THIS login
+            const currentProvider = user.app_metadata?.provider;
+
+            // If they are currently linking, mark as explicit
+            if (isLinking && !isExplicitlyLinked) {
+              console.log('[Auth] 🔗 Explicitly linking Google account...');
+              await supabase.auth.updateUser({
+                data: { google_explicitly_linked: true }
+              });
+              sessionStorage.removeItem('oauth_intent');
+              // Proceed as normal
+            } else if (currentProvider === 'google' && emailIdentity && !isExplicitlyLinked) {
+              // BLOCK: They just signed in via Google, but they have an email account
+              // and they never explicitly linked it. This is a silent link (old or new).
+              console.log('[Auth] 🛡️ Google Link Policy Blocked (Silent Link Detected)');
+              
+              // Unlink Google and Sign Out to be safe
+              await (supabase.auth as any).unlinkIdentity(googleIdentity);
+              await supabase.auth.signOut();
+              
+              // Redirect to login with error
+              window.location.href = '/login?error=google_unlinked';
+              return;
+            }
+          }
+        } catch (linkErr) {
+          console.warn('[Auth] Identity check failed:', linkErr);
+        }
 
         try {
           // Extract details provided by Google
@@ -223,14 +275,16 @@ function App() {
           // Redirect immediately once we know first-time vs returning OAuth user.
           // Use BrowserRouter-compatible history navigation (no full reload).
           if (isOAuthRedirect && oauthRedirectDone !== '1') {
-            const targetPath = isFirstOAuthLogin ? '/buyer-onboarding' : '/shop';
-            sessionStorage.setItem('oauth_redirect_done', '1');
-            sessionStorage.removeItem('oauth_intent');
-            debug('immediate oauth navigation', { userId: user.id, targetPath, currentPath: window.location.pathname });
-            if (window.location.pathname !== targetPath) {
-              window.history.replaceState({}, '', targetPath);
-              window.dispatchEvent(new PopStateEvent('popstate'));
+            let targetPath = isFirstOAuthLogin ? '/buyer-onboarding' : '/shop';
+            
+            // If they were linking, send them back to settings (security tab)
+            if (oauthIntent === 'link_google') {
+              targetPath = '/settings?tab=security';
             }
+            
+            sessionStorage.setItem('oauth_redirect_done', '1');
+            window.location.href = targetPath;
+            return;
           }
 
           // 2. CREATE/UPDATE PROFILE: Force insert into the 'profiles' table
