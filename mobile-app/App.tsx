@@ -61,6 +61,7 @@ export type RootStackParamList = {
   Login: undefined;
   Signup: undefined;
   EmailVerification: { email: string; otpAlreadySent?: boolean; signupData?: any };
+  EmailConfirmed: undefined;
   ForgotPassword: undefined;
   ResetPassword: undefined;
   SellerLogin: undefined;
@@ -609,6 +610,11 @@ export default function App() {
                 name="EmailVerification"
                 getComponent={() => require('./app/onboarding/EmailVerificationScreen').default}
                 options={{ animation: 'slide_from_right' }}
+              />
+              <Stack.Screen
+                name="EmailConfirmed"
+                getComponent={() => require('./app/onboarding/EmailConfirmedScreen').default}
+                options={{ animation: 'fade' }}
               />
               <Stack.Screen
                 name="Terms"

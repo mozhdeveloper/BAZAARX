@@ -23,6 +23,7 @@ export const signupSchema = z.object({
     .regex(/[!@#$%^&*(),.?":{}|<>\-_[\]\\/`~+=;']/, 'Must contain at least one special character')
     .refine((val) => !/\s/.test(val), 'Password must not contain spaces'),
   confirmPassword: z.string().min(1, 'Please confirm your password'),
+  acceptTerms: z.boolean().refine((val) => val === true, 'You must accept the terms and conditions'),
 }).refine((data) => data.password === data.confirmPassword, {
   message: "Passwords don't match",
   path: ['confirmPassword'],
