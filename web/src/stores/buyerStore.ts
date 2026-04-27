@@ -67,7 +67,12 @@ interface BuyerStore {
   updateCartQuantity: (productId: string, quantity: number, variantId?: string) => void;
   updateItemVariant: (productId: string, oldVariantId: string | undefined, newVariant: ProductVariant, quantity?: number) => Promise<void>;
   updateCartNotes: (productId: string, notes: string) => void;
-  clearCart: () => void;
+  
+  clearCart: () => Promise<void>;
+  isValidatingCheckout: boolean;
+  checkoutErrors: Record<string, string>;
+  validateCheckout: (selectedIds: string[]) => Promise<boolean>;
+  
   getCartTotal: () => number;
   getCartItemCount: () => number;
   getTotalCartItems: () => number;
@@ -857,7 +862,34 @@ export const useBuyerStore = create<BuyerStore>()(persist(
       }));
     },
 
-    clearCart: () => set({ cartItems: [], groupedCart: {}, appliedVouchers: {}, platformVoucher: null }),
+    isValidatingCheckout: false,
+    checkoutErrors: {},
+    validateCheckout: async (selectedIds) => {
+      set({ isValidatingCheckout: true, checkoutErrors: {} });
+      try {
+        const result = await cartService.validateCheckoutItems(selectedIds);
+        if (!result.isValid) set({ checkoutErrors: result.errors });
+        return result.isValid;
+      } catch (e: any) {
+        set({ checkoutErrors: { 'global': 'Validation failed.' }});
+        return false;
+      } finally {
+        set({ isValidatingCheckout: false });
+      }
+    },
+
+    clearCart: async () => {
+      const user = await getCurrentUser();
+      if (user) {
+        try {
+          const cart = await cartService.getCart(user.id);
+          if (cart) await cartService.clearCart(cart.id);
+        } catch (e) {
+          console.error('[buyerStore] Failed to clear DB cart', e);
+        }
+      }
+      set({ cartItems: [], groupedCart: {}, appliedVouchers: {}, platformVoucher: null });
+    },
 
     getCartTotal: () => {
       const { groupedCart, appliedVouchers, platformVoucher } = get();
