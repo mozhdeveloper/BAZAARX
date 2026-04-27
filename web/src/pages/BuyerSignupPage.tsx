@@ -185,7 +185,7 @@ export default function BuyerSignupPage() {
 
       // --- Phase 1: Initiate signup (creates auth.users, sends verification email) ---
       // DB records (profiles, buyers, user_roles) are created in AuthCallbackPage after verification.
-      await authService.initiateSignUp(
+      const signupResult = await authService.initiateSignUp(
         email,
         password,
         {
@@ -201,6 +201,7 @@ export default function BuyerSignupPage() {
       sessionStorage.setItem(
         "pendingBuyerSignup",
         JSON.stringify({
+          userId: signupResult?.userId,
           firstName: firstName,
           lastName: lastName,
           email: email,
@@ -221,24 +222,6 @@ export default function BuyerSignupPage() {
       setIsLoading(false);
     }
   };
-
-
-  const handleGoogleSignup = async () => {
-    setError("");
-    setIsLoading(true);
-    try {
-      const result = await authService.signInWithProvider("google");
-      if (result?.url) {
-        sessionStorage.setItem('oauth_intent', 'buyer');
-        sessionStorage.removeItem('oauth_redirect_done');
-        window.location.assign(result.url); // Manually trigger the redirect
-      }
-    } catch (err) {
-      setError("Failed to initialize Google Sign-In.");
-      setIsLoading(false);
-    }
-  };
-
 
 
   return (
@@ -580,32 +563,6 @@ export default function BuyerSignupPage() {
               )}
             </button>
 
-            {!isSwitchMode && (
-              <>
-                <div className="relative my-6">
-                  <div className="absolute inset-0 flex items-center">
-                    <div className="w-full border-t border-[var(--border)]"></div>
-                  </div>
-                  <div className="relative flex justify-center text-sm">
-                    <span className="px-4 bg-white text-sm text-[var(--text-muted)] font-medium">or</span>
-                  </div>
-                </div>
-
-                <button
-                  type="button"
-                  onClick={handleGoogleSignup}
-                  className="w-full h-14 text-sm flex items-center border border-[var(--border)] hover:border-[var(--brand-primary)] hover:bg-[var(--secondary)]/5 rounded-[var(--radius-md)] justify-center gap-3 transition-all duration-200 shadow-sm"
-                  disabled={isLoading}
-                >
-                  <img loading="lazy" 
-                    src="https://www.svgrepo.com/show/475656/google-color.svg"
-                    className="w-5 h-5"
-                    alt="Google"
-                  />
-                  <span className="font-semibold text-[var(--text-primary)]">Sign up with Google</span>
-                </button>
-              </>
-            )}
           </form>
 
           {!isSwitchMode && (

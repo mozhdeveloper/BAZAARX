@@ -29,6 +29,14 @@ export default function AuthCallbackPage() {
 
   const finalizeSignup = async () => {
     try {
+      // 0. Check if we actually have an auth token in the URL or pending data
+      const hasToken = window.location.hash.includes('access_token') || 
+                       window.location.search.includes('code=') ||
+                       window.location.search.includes('token_hash=');
+      
+      const hasPending = !!(sessionStorage.getItem("pendingSellerSignup") || 
+                           sessionStorage.getItem("pendingBuyerSignup"));
+
       // 1. Get the verified session (Supabase has already processed the callback URL token)
       const {
         data: { session },
@@ -42,6 +50,15 @@ export default function AuthCallbackPage() {
       }
 
       const { user } = session;
+
+      // If we have a session but NO token and NO pending data, 
+      // this is likely a manual visit or a stale redirect.
+      // Redirect to home/shop instead of "confirming" anything.
+      if (!hasToken && !hasPending) {
+        console.log("[AuthCallback] No token or pending data, redirecting to home");
+        navigate("/shop", { replace: true });
+        return;
+      }
 
       // 2. Read the pending signup data (Buyer or Seller)
       const pending: PendingSignup | null = (() => {
@@ -93,11 +110,14 @@ export default function AuthCallbackPage() {
             first_name: firstName,
             last_name: lastName,
             last_login_at: new Date().toISOString(),
-          } as any, { onConflict: "email" });
+          } as any, { onConflict: "id" });
 
           await authService.addUserRole(user.id, "buyer");
           await authService.createBuyerAccount(user.id);
         }
+
+        // 3.5 Determine if this is an OAuth user or a standard Email/Password user
+        const isOAuth = user.app_metadata?.provider && user.app_metadata.provider !== "email";
 
         // Initialize store
         await useBuyerStore.getState().initializeBuyerProfile(user.id, {});
@@ -105,19 +125,20 @@ export default function AuthCallbackPage() {
         // Check onboarding completion
         const isComplete = await authService.isOnboardingComplete(user.id);
 
-        if (isComplete) {
-          navigate("/email-confirmed", { replace: true, state: { email: user.email, role: "buyer" } });
+        if (isOAuth) {
+          // OAuth users don't need the "Email Verified" holding page; send them to content
+          navigate(isComplete ? "/shop" : "/buyer-onboarding", { replace: true });
         } else {
+          // Standard email signups still see the confirmation page to finalize the flow
           navigate("/email-confirmed", { replace: true, state: { email: user.email, role: "buyer" } });
         }
-
-
 
         return;
       }
 
       // 4. Handle standard Email Verification finalization
       // Ensure profile row exists (upsert so it's idempotent)
+      // FIX: Upsert on 'id' instead of 'email' to prevent FKEY violations and identity mismatch
       const { error: profileError } = await supabase
         .from("profiles")
         .upsert(
@@ -129,11 +150,15 @@ export default function AuthCallbackPage() {
             phone: pending.phone || null,
             last_login_at: new Date().toISOString(),
           } as any,
-          { onConflict: "email", ignoreDuplicates: false },
+          { onConflict: "id", ignoreDuplicates: false },
         );
 
       if (profileError) {
         console.error("Profile upsert failed:", profileError);
+        // If it failed due to email uniqueness, handle it
+        if (profileError.message?.includes("profiles_email_key")) {
+          throw new Error("This email is already associated with another account.");
+        }
         throw new Error(`Profile setup failed: ${profileError.message}`);
       }
 

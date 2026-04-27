@@ -671,7 +671,8 @@ import { DEFAULT_FILTERS } from '../src/types/filter.types';
           productDescription.includes(normalizedQuery);
 
         // When using server-fetched category products, skip client-side category filtering
-        const categoryMatch =
+        // When "All" chip is selected, also check the modal's category filter (filters.categoryId)
+        const chipCategoryMatch =
           selectedCategory === 'all' ||
           categoryProducts.length > 0 ||
           product.category_id === selectedCategory ||
@@ -679,6 +680,13 @@ import { DEFAULT_FILTERS } from '../src/types/filter.types';
             product.category.toLowerCase() === selectedCategory.toLowerCase() ||
             normalizeCategoryKey(product.category) === normalizeCategoryKey(selectedCategory)
           ));
+
+        // Modal category filter: when user picks a category from the filter modal
+        const modalCategoryMatch =
+          !filters.categoryId ||
+          product.category_id === filters.categoryId;
+
+        const categoryMatch = chipCategoryMatch && modalCategoryMatch;
         const priceMatch = productPrice >= min && productPrice <= max;
 
         // Rating filter
@@ -791,6 +799,10 @@ import { DEFAULT_FILTERS } from '../src/types/filter.types';
 
     const handleCategorySelect = useCallback((id: string) => {
       setSelectedCategory(id);
+      // Clear category filter when switching chips, since the filter is hidden for non-"All" chips
+      if (id !== 'all') {
+        setFilters(prev => ({ ...prev, categoryId: null, categoryPath: [] }));
+      }
     }, []);
 
     // Count active filters for badge
@@ -1082,6 +1094,7 @@ import { DEFAULT_FILTERS } from '../src/types/filter.types';
           onClose={() => setShowFilterModal(false)}
           onApply={handleFilterApply}
           initialFilters={filters}
+          hideCategoryFilter={selectedCategory !== 'all'}
           availableCategories={
             // Exclude the currently selected category chip from filter options
             // since the user is already viewing that category's products
