@@ -10,6 +10,7 @@ import {
   RegistryProduct,
   RegistryItem,
 } from "../stores/buyerStore";
+import { cn } from "../lib/utils";
 import { EditRegistryItemModal } from "./EditRegistryItemModal";
 import {
   Select,
@@ -18,6 +19,20 @@ import {
   SelectTrigger,
   SelectValue,
 } from "./ui/select";
+
+const getOccasionLabel = (id: string | undefined | null) => {
+  if (!id) return "GIFT LIST";
+  if (id === "baby") return "BABY SHOWER";
+  const labels: Record<string, string> = {
+    wedding: "WEDDING",
+    birthday: "BIRTHDAY",
+    graduation: "GRADUATION",
+    housewarming: "HOUSEWARMING",
+    christmas: "CHRISTMAS",
+    other: "OTHER"
+  };
+  return labels[id] || id.replace("_", " ").toUpperCase();
+};
 
 
 interface RegistryDetailModalProps {
@@ -56,6 +71,9 @@ export const RegistryDetailModal = ({
   const [addressId, setAddressId] = useState("");
   const [deliveryInstructions, setDeliveryInstructions] = useState("");
   const [showShareModal, setShowShareModal] = useState(false);
+  // Editable registry meta — mirrors mobile EditCategoryModal
+  const [editTitle, setEditTitle] = useState("");
+  const [editCategory, setEditCategory] = useState("");
 
   const selectedAddress = useMemo(
     () => (addresses || []).find((addr) => addr.id === addressId),
@@ -82,6 +100,8 @@ export const RegistryDetailModal = ({
       setShowAddress(show || !!addr);
       setAddressId(addr);
       setDeliveryInstructions(liveRegistry.delivery?.instructions || "");
+      setEditTitle(liveRegistry.title || "");
+      setEditCategory(liveRegistry.category || "");
     }
   }, [liveRegistry]);
 
@@ -122,6 +142,8 @@ export const RegistryDetailModal = ({
 
   const handleSavePreferences = () => {
     updateRegistryMeta(liveRegistry.id, {
+      title: editTitle.trim() || liveRegistry.title,
+      category: editCategory.trim() || liveRegistry.category,
       privacy: "link",
       delivery: {
         addressId: addressId || undefined,
@@ -130,7 +152,6 @@ export const RegistryDetailModal = ({
       },
     });
   };
-
   return (
     <AnimatePresence>
       {isOpen && (
@@ -160,19 +181,11 @@ export const RegistryDetailModal = ({
               </button>
 
               <div className="mb-6 border-b border-gray-100 pb-4">
-                <div className="flex items-center gap-3 mb-2">
-                  <span className="bg-orange-100 text-[var(--brand-primary)] px-3 py-1 rounded-full text-xs font-semibold uppercase tracking-wider">
-                    {liveRegistry.category || "Gift List"}
-                  </span>
+                <div className="flex items-center gap-3 mb-3 pr-12">
                   <span className="text-sm text-[var(--text-secondary)]">
                     Created on {liveRegistry.sharedDate}
                   </span>
-                </div>
-                <div className="flex items-start justify-between gap-4">
-                  <h2 className="text-3xl font-bold text-[var(--text-primary)]">
-                    {liveRegistry.title}
-                  </h2>
-                  <div className="flex gap-2">
+                  <div className="flex gap-2 ml-auto">
                     <Button
                       size="sm"
                       variant="outline"
@@ -193,6 +206,38 @@ export const RegistryDetailModal = ({
                         <span>Delete</span>
                       </Button>
                     )}
+                  </div>
+                </div>
+                {/* Editable Registry Name — matches mobile EditCategoryModal */}
+                <div className="space-y-3">
+                  <div className="space-y-1">
+                    <Label htmlFor="registry-title" className="text-xs font-semibold text-[var(--text-muted)] uppercase tracking-wider">Registry Name</Label>
+                    <Input
+                      id="registry-title"
+                      value={editTitle}
+                      onChange={(e) => setEditTitle(e.target.value)}
+                      placeholder="e.g., Sarah's Wedding"
+                      maxLength={50}
+                      className="text-xl font-bold text-[var(--text-primary)] border-gray-200 focus-visible:ring-[var(--brand-primary)] h-12"
+                    />
+                  </div>
+                  {/* Editable Gift Category — matches mobile EditCategoryModal occasion field */}
+                  <div className="space-y-1">
+                    <Label className="text-xs font-semibold text-[var(--text-muted)] uppercase tracking-wider">Gift Category</Label>
+                    <Select value={editCategory} onValueChange={setEditCategory}>
+                      <SelectTrigger className="focus:ring-[var(--brand-primary)] border-gray-200">
+                        <SelectValue placeholder="Select a category" />
+                      </SelectTrigger>
+                      <SelectContent className="z-[10200]" position="popper" side="bottom" sideOffset={4}>
+                        <SelectItem value="wedding">Wedding</SelectItem>
+                        <SelectItem value="baby">Baby Shower</SelectItem>
+                        <SelectItem value="birthday">Birthday</SelectItem>
+                        <SelectItem value="graduation">Graduation</SelectItem>
+                        <SelectItem value="housewarming">Housewarming</SelectItem>
+                        <SelectItem value="christmas">Christmas</SelectItem>
+                        <SelectItem value="other">Other</SelectItem>
+                      </SelectContent>
+                    </Select>
                   </div>
                 </div>
               </div>
@@ -221,20 +266,26 @@ export const RegistryDetailModal = ({
                         type="checkbox"
                         className="h-4 w-4"
                         checked={showAddress}
+                        disabled={(addresses || []).length === 0}
                         onChange={(e) => setShowAddress(e.target.checked)}
                       />
-                      <Label htmlFor="detail-showAddress" className="text-sm">
+                      <Label htmlFor="detail-showAddress" className={`text-sm ${(addresses || []).length === 0 ? 'text-gray-400' : ''}`}>
                         Share address with gifters
                       </Label>
                       <Button
                         size="sm"
-                        variant="ghost"
-                        onClick={() => navigate("/settings")}
-                        className="ml-auto text-[var(--brand-primary)] hover:bg-[var(--brand-primary)]/10"
+                        variant="outline"
+                        onClick={() => navigate("/profile?tab=addresses")}
+                        className="ml-auto text-gray-600 border-gray-200 hover:bg-gray-50 hover:text-gray-900"
                       >
                         Manage addresses
                       </Button>
                     </div>
+                    {(addresses || []).length === 0 && (
+                      <p className="text-xs text-amber-600">
+                        Please add a delivery address in your profile settings to enable address sharing.
+                      </p>
+                    )}
                     <Select
                       value={addressId}
                       onValueChange={(val) => {
@@ -298,42 +349,18 @@ export const RegistryDetailModal = ({
                     Registry Items
                   </h3>
                   <Button
-                    onClick={() => setIsAdding(!isAdding)}
+                    onClick={() => {
+                      navigate("/shop");
+                      onClose();
+                    }}
                     size="sm"
                     variant="outline"
-                    className="text-[var(--brand-primary)] border-[var(--brand-primary)]/30 hover:bg-[var(--brand-primary)]/10"
+                    className="text-gray-600 border-gray-200 hover:bg-gray-50 hover:text-gray-900"
                   >
                     <Plus className="w-4 h-4 mr-2" />
                     Add Item
                   </Button>
                 </div>
-
-                {isAdding && (
-                  <motion.div
-                    initial={{ opacity: 0, height: 0 }}
-                    animate={{ opacity: 1, height: "auto" }}
-                    className="bg-gray-50 p-4 rounded-xl border border-gray-200"
-                  >
-                    <Label className="mb-2 block">
-                      Add a Product (Quick Add)
-                    </Label>
-                    <div className="flex gap-2">
-                      <Input
-                        value={newProductName}
-                        onChange={(e) => setNewProductName(e.target.value)}
-                        placeholder="Enter product name..."
-                        className="bg-white"
-                        autoFocus
-                      />
-                      <Button
-                        onClick={handleAdd}
-                        className="btn-primary shrink-0"
-                      >
-                        Add
-                      </Button>
-                    </div>
-                  </motion.div>
-                )}
 
                 <div className="space-y-3">
                   {!liveRegistry.products ||
@@ -362,11 +389,12 @@ export const RegistryDetailModal = ({
                           className="flex flex-col bg-white rounded-xl shadow-sm hover:shadow-md transition-all cursor-pointer overflow-hidden border border-gray-100 group"
                         >
                           <div className="aspect-[1/1] relative bg-gray-100 overflow-hidden">
-                            {product.image ? (
+                            {(product.image || (product as any).images?.[0]) ? (
                               <img loading="lazy"
-                                src={product.image}
+                                src={product.image || (product as any).images?.[0]}
                                 alt={product.name}
                                 className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+                                onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = 'none'; }}
                               />
                             ) : (
                               <div className="w-full h-full flex items-center justify-center">
@@ -374,8 +402,18 @@ export const RegistryDetailModal = ({
                               </div>
                             )}
                             {(product as any).isMostWanted && (
-                              <div className="absolute top-2 left-2 bg-[var(--brand-primary)] text-white text-[10px] font-bold px-2 py-1 rounded-full uppercase tracking-wide">
-                                Most Wanted
+                              <div className="absolute top-2 left-2 bg-[var(--brand-primary)] text-white px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wide">
+                                MOST WANTED
+                              </div>
+                            )}
+                            {product.status && product.status !== 'available' && (
+                              <div className={cn(
+                                "absolute bottom-2 right-2 px-2 py-1 rounded text-[10px] font-bold uppercase tracking-wide",
+                                product.status === 'out_of_stock' ? "bg-red-500 text-white" :
+                                product.status === 'seller_on_vacation' ? "bg-amber-500 text-white" :
+                                "bg-gray-500 text-white"
+                              )}>
+                                {product.status.replace(/_/g, ' ')}
                               </div>
                             )}
                           </div>
@@ -422,6 +460,7 @@ export const RegistryDetailModal = ({
                 </div>
               </div>
             </div>
+
             <div className="border-t border-gray-100 p-6 flex justify-center">
               <Button
                 onClick={() => {

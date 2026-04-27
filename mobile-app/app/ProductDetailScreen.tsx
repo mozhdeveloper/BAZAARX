@@ -4,22 +4,33 @@ import { LinearGradient } from 'expo-linear-gradient';
 import {
   ArrowLeft,
   BadgeCheck, // For Image filter icon
+  Bookmark, // For Wishlist categories
+  Camera,
   CheckCircle,
   ChevronDown,
   ChevronLeft,
   ChevronRight,
+  Edit3,
   FileText,
+  Filter, // For Filter icon
+  Gift,
   Heart, // For Filter icon
   ImageIcon,
   Mail,
   MapPin,
   MessageCircle,
+  Minus,
   Phone,
+  Plus,
+  PlusCircle,
+  Search,
   Share2,
   Shield,
   ShieldCheck,
   ShoppingCart,
   Star,
+  Truck,
+  User, // Added missing import
   ThumbsUp,
   X
 } from 'lucide-react-native';
@@ -43,8 +54,8 @@ import {
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { AIChatBubble } from '../src/components/AIChatBubble';
-import { AddToWishlistModal } from '../src/components/AddToWishlistModal';
 import { AddedToCartModal } from '../src/components/AddedToCartModal';
+import { AddToRegistryModal } from '../src/components/AddToRegistryModal';
 import CameraSearchModal from '../src/components/CameraSearchModal';
 import { MasonryProductCard } from '../src/components/ProductCard';
 import { VariantSelectionModal } from '../src/components/VariantSelectionModal';
@@ -648,7 +659,7 @@ export default function ProductDetailScreen({ route, navigation }: Props) {
     }
   }, [selectedVariantInfo.image, productImages]);
   const setQuickOrder = useCartStore((state) => state.setQuickOrder);
-  const { addItem: addToWishlist, removeItem: removeFromWishlist, isInWishlist, categories, createCategory } = useWishlistStore();
+  const { addItem: addToWishlist, isInWishlist, categories, createCategory } = useWishlistStore();
   const isFavorite = isInWishlist(product.id);
 
   // Constants
@@ -1104,17 +1115,13 @@ export default function ProductDetailScreen({ route, navigation }: Props) {
   const handleWishlistAction = useCallback(() => {
     const { isGuest: guestCheck } = useAuthStore.getState();
     if (guestCheck) {
-      setGuestModalMessage("Sign up to create wishlists.");
-      setShowGuestModal(true);
+      navigation.navigate('Login', { from: 'ProductDetail' });
       return;
     }
 
-    if (isFavorite) {
-      removeFromWishlist(product.id);
-    } else {
-      setShowWishlistModal(true);
-    }
-  }, [isFavorite, product.id, removeFromWishlist]);
+    // Always open the registry modal so a buyer can add this product to another folder.
+    setShowWishlistModal(true);
+  }, []);
 
   const handleMarkReviewHelpful = async (reviewId: string) => {
     if (helpfulReviewIds[reviewId]) {
@@ -1212,7 +1219,7 @@ export default function ProductDetailScreen({ route, navigation }: Props) {
               <ArrowLeft size={24} color="#78350F" strokeWidth={2.5} />
             </Pressable>
             <Pressable onPress={() => handleWishlistAction()} style={{ width: 44, height: 44, alignItems: 'center', justifyContent: 'center' }}>
-              <Heart size={24} color={BRAND_ACCENT} strokeWidth={1.5} fill={isFavorite ? BRAND_ACCENT : "transparent"} />
+              <Gift size={24} color={BRAND_ACCENT} strokeWidth={1.5} fill="transparent" />
             </Pressable>
           </View>
 
@@ -2284,7 +2291,7 @@ export default function ProductDetailScreen({ route, navigation }: Props) {
         />
       )}
 
-      <AddToWishlistModal
+      <AddToRegistryModal
         visible={showWishlistModal}
         onClose={() => setShowWishlistModal(false)}
         product={product}
