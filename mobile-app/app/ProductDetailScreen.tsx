@@ -1219,7 +1219,7 @@ export default function ProductDetailScreen({ route, navigation }: Props) {
               <ArrowLeft size={24} color="#78350F" strokeWidth={2.5} />
             </Pressable>
             <Pressable onPress={() => handleWishlistAction()} style={{ width: 44, height: 44, alignItems: 'center', justifyContent: 'center' }}>
-              <Heart size={24} color={BRAND_ACCENT} strokeWidth={1.5} fill={isFavorite ? BRAND_ACCENT : "transparent"} />
+              <Gift size={24} color={BRAND_ACCENT} strokeWidth={1.5} fill="transparent" />
             </Pressable>
           </View>
 
