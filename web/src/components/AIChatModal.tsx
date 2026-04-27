@@ -1,4 +1,5 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
+
 import { motion, AnimatePresence } from 'framer-motion';
 import { X, Send, Sparkles, Bot } from 'lucide-react';
 
@@ -52,7 +53,7 @@ export default function AIChatModal({ isOpen, onClose }: AIChatModalProps) {
     scrollToBottom();
   }, [messages, isTyping]);
 
-  const handleSendMessage = (text?: string) => {
+  const handleSendMessage = useCallback((text?: string) => {
     const messageText = text || inputValue.trim();
     if (!messageText) return;
 
@@ -81,7 +82,8 @@ export default function AIChatModal({ isOpen, onClose }: AIChatModalProps) {
       };
       setMessages((prev) => [...prev, aiMessage]);
     }, 1500 + Math.random() * 1000);
-  };
+  }, [inputValue]);
+
 
   const handleKeyPress = (e: React.KeyboardEvent) => {
     if (e.key === 'Enter' && !e.shiftKey) {

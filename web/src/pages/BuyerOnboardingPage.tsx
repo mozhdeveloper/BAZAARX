@@ -24,6 +24,7 @@ import type { Category } from "@/types/database.types";
 export default function BuyerOnboardingPage() {
     const navigate = useNavigate();
     const { profile, updateProfile, addAddress } = useBuyerStore();
+
     const [step, setStep] = useState(1);
     const [isLoading, setIsLoading] = useState(false);
 

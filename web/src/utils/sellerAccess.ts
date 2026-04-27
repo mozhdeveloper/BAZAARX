@@ -82,8 +82,13 @@ export function getDefaultPathForTier(tier: SellerAccessTier): string {
 export function resolveSellerLandingPath(
   seller: SellerAccessContext | null | undefined
 ): string {
+  // If seller is logged in but hasn't completed onboarding (empty storeName)
+  if (seller && !seller.storeName) {
+    return "/seller/onboarding";
+  }
   return getDefaultPathForTier(getSellerAccessTier(seller));
 }
+
 
 export function isPathAllowedForTier(
   pathname: string,
