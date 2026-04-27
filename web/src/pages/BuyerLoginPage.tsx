@@ -27,6 +27,10 @@ export default function BuyerLoginPage() {
   const { setProfile } = useBuyerStore();
   const lockoutStore = useLockoutStore();
 
+  const queryParams = new URLSearchParams(location.search);
+  const linkError = queryParams.get("error") === "link_required" || queryParams.get("error") === "google_unlinked";
+  const [showLinkNotice, setShowLinkNotice] = useState(linkError);
+
   const isVerified = (location.state as any)?.verified;
   const verifiedEmail = (location.state as any)?.email;
 
@@ -215,6 +219,37 @@ export default function BuyerLoginPage() {
               <img loading="lazy" src="/BazaarX.png" alt="BazaarX" className="w-12 h-12 object-contain" />
             </div>
           </div>
+
+          <AnimatePresence>
+            {showLinkNotice && (
+              <motion.div
+                initial={{ opacity: 0, height: 0 }}
+                animate={{ opacity: 1, height: "auto" }}
+                exit={{ opacity: 0, height: 0 }}
+                className="mb-6 p-4 bg-orange-50 border border-orange-100 rounded-2xl flex flex-col gap-3 text-[var(--text-primary)] text-sm shadow-sm overflow-hidden"
+              >
+                <div className="flex items-center gap-3">
+                  <div className="bg-orange-500 rounded-full p-2 text-white">
+                    <ShieldAlert size={20} />
+                  </div>
+                  <div>
+                    <p className="font-black text-orange-600 uppercase tracking-wider text-[10px]">Security Notice</p>
+                    <p className="font-bold text-sm">Action Required: Explicit Linking</p>
+                  </div>
+                </div>
+                <p className="text-[13px] leading-relaxed opacity-90">
+                  This Google account is not yet linked to your BazaarX profile. For your security, please <b>sign in with your password</b> first, then link Google in your account settings.
+                </p>
+                <button 
+                  type="button"
+                  onClick={() => setShowLinkNotice(false)}
+                  className="w-full py-2 bg-white border border-orange-200 rounded-xl text-orange-600 font-bold text-xs hover:bg-orange-100 transition-colors"
+                >
+                  Got it
+                </button>
+              </motion.div>
+            )}
+          </AnimatePresence>
 
           {lockoutTimer > 0 && (
             <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: "auto" }} className="mb-6 p-4 bg-red-50 border border-red-100 rounded-2xl flex items-center gap-3 text-red-700 text-sm overflow-hidden">

@@ -13,8 +13,10 @@ export default function EmailVerificationPage() {
 
   // Resolve the email from router state or sessionStorage
   const locationEmail = (location.state as { email?: string } | null)?.email ?? "";
-  const pending: PendingSignup | null = (() => {
+  const pending: (PendingSignup & { userId?: string }) | null = (() => {
     try {
+      const seller = sessionStorage.getItem("pendingSellerSignup");
+      if (seller) return JSON.parse(seller);
       const buyer = sessionStorage.getItem("pendingBuyerSignup");
       return JSON.parse(buyer || "null");
     } catch {
@@ -49,7 +51,11 @@ export default function EmailVerificationPage() {
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
       if ((event === "SIGNED_IN" || event === "USER_UPDATED") && session?.user?.email_confirmed_at) {
-        if (session.user.email?.toLowerCase() === email.toLowerCase()) {
+        // Strict check: session must match the expected email AND the specific user ID we just created
+        const matchesEmail = session.user.email?.toLowerCase() === email.toLowerCase();
+        const matchesId = !pending?.userId || session.user.id === pending.userId;
+
+        if (matchesEmail && matchesId) {
           setVerified(true);
           // Small delay for visual feedback before navigating
           setTimeout(() => {
@@ -68,13 +74,20 @@ export default function EmailVerificationPage() {
 
     const checkSession = async () => {
       try {
-        const isVerified = await authService.checkVerificationStatus(email);
-        if (isVerified) {
-          setVerified(true);
-          if (pollRef.current) clearInterval(pollRef.current);
-          setTimeout(() => {
-            navigate("/auth/callback", { replace: true });
-          }, 800);
+        const { data } = await supabase.auth.getSession();
+        const user = data?.session?.user;
+
+        if (user?.email_confirmed_at) {
+          const matchesEmail = user.email?.toLowerCase() === email.toLowerCase();
+          const matchesId = !pending?.userId || user.id === pending.userId;
+
+          if (matchesEmail && matchesId) {
+            setVerified(true);
+            if (pollRef.current) clearInterval(pollRef.current);
+            setTimeout(() => {
+              navigate("/auth/callback", { replace: true });
+            }, 800);
+          }
         }
       } catch {
         // Silently ignore polling errors

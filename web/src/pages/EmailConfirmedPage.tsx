@@ -1,4 +1,5 @@
 import { useLocation, useNavigate } from "react-router-dom";
+import { useEffect } from "react";
 import { motion } from "framer-motion";
 import { CheckCircle2, ArrowRight } from "lucide-react";
 
@@ -13,6 +14,17 @@ export default function EmailConfirmedPage() {
   const isSeller = role === "seller";
   const loginPath = isSeller ? "/seller/login" : "/login";
   const accountType = isSeller ? "Seller Account" : "Account";
+
+  // Auto-redirect to login after 3 seconds if not a resent link
+  useEffect(() => {
+    if (state?.resent) return;
+    
+    const timer = setTimeout(() => {
+      navigate(loginPath, { replace: true, state: { email, verified: true } });
+    }, 3000);
+    
+    return () => clearTimeout(timer);
+  }, [navigate, loginPath, state?.resent, email]);
 
   return (
     <div className="min-h-screen relative overflow-hidden font-sans bg-white flex items-center justify-center p-6">
@@ -76,7 +88,7 @@ export default function EmailConfirmedPage() {
           </p>
           
           <button
-            onClick={() => navigate(loginPath, { replace: true, state: { email, verified: true } })}
+            onClick={() => navigate(isSeller ? "/seller/login" : "/login", { replace: true, state: { email, verified: true } })}
             className="group w-full h-14 bg-[#FB8C00] text-white font-bold rounded-2xl flex items-center justify-center gap-3 hover:bg-[#EA580C] transition-all duration-300 shadow-[0_10px_25px_-5px_rgba(251,140,0,0.4)] hover:shadow-[0_15px_30px_-5px_rgba(251,140,0,0.5)] active:scale-[0.98]"
           >
             {isSeller ? "Go to Seller Login" : "Go to Login"}
