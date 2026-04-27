@@ -61,7 +61,15 @@ export default function EnhancedCartPage() {
     updateItemVariant,
     campaignDiscountCache,
     updateCampaignDiscountCache,
+    clearCart,
+    validateCheckout,
+    isValidatingCheckout,
+    checkoutErrors
   } = useBuyerStore();
+
+  const [showUnavailableModal, setShowUnavailableModal] = useState(false);
+  const [hasCheckedAvailability, setHasCheckedAvailability] = useState(false);
+  const [showClearCartConfirm, setShowClearCartConfirm] = useState(false);
 
   const [voucherCode, setVoucherCode] = useState("");
   const [voucherError, setVoucherError] = useState("");
@@ -132,6 +140,20 @@ export default function EnhancedCartPage() {
     const s = getItemStock(item);
     return s !== null && s === 0;
   }, [getItemStock]);
+
+  // BX-04-005: Trigger modal if items are unavailable on load (Once per session)
+  useEffect(() => {
+    const hasSeenModalThisSession = sessionStorage.getItem('hasSeenUnavailableModal') === 'true';
+
+    if (!hasCheckedAvailability && !hasSeenModalThisSession && cartItems.length > 0 && Object.keys(liveVariantStock).length > 0) {
+      const hasUnavailable = cartItems.some(i => isItemOutOfStock(i));
+      if (hasUnavailable) {
+        setShowUnavailableModal(true);
+        sessionStorage.setItem('hasSeenUnavailableModal', 'true');
+      }
+      setHasCheckedAvailability(true);
+    }
+  }, [cartItems, liveVariantStock, hasCheckedAvailability, isItemOutOfStock]);
 
   // Campaign discounts — seeded immediately from Zustand cache, updated in background
   const [activeCampaignDiscounts, setActiveCampaignDiscounts] = useState<Record<string, ActiveDiscount>>(
@@ -323,13 +345,39 @@ export default function EnhancedCartPage() {
 
 
   // Memoize sorted cart groups to avoid re-sort on every render
-  const sortedCartGroups = useMemo(() =>
-    Object.entries(groupedCart).sort(([, groupA], [, groupB]) => {
+  const sortedCartGroups = useMemo(() => {
+    // BX-04-005/010: Filter out unavailable items from the main groups
+    const validGroups = Object.entries(groupedCart).map(([sellerId, group]) => {
+      return [sellerId, { ...group, items: group.items.filter(i => !isItemOutOfStock(i)) }] as const;
+    }).filter(([, group]) => group.items.length > 0);
+
+    return validGroups.sort(([, groupA], [, groupB]) => {
       const latestA = Math.max(...groupA.items.map(i => i.createdAt ? new Date(i.createdAt).getTime() : 0));
       const latestB = Math.max(...groupB.items.map(i => i.createdAt ? new Date(i.createdAt).getTime() : 0));
       return latestB - latestA;
-    }),
-  [groupedCart]);
+    });
+  }, [groupedCart, isItemOutOfStock]);
+
+  const unavailableItems = useMemo(() => cartItems.filter(i => isItemOutOfStock(i)), [cartItems, isItemOutOfStock]);
+
+  const handleCheckoutClick = async () => {
+    const selectedIds = cartItems.filter(i => i.selected).map(i => i.cartItemId || i.id);
+    if (selectedIds.length === 0 || isValidatingCheckout) return;
+
+    const isValid = await validateCheckout(selectedIds);
+    if (!isValid) {
+      // Fetch the latest state directly to guarantee we catch the exact error
+      const currentErrors = useBuyerStore.getState().checkoutErrors;
+      if (currentErrors.global) {
+        alert(`Checkout Blocked: ${currentErrors.global}`);
+      } else {
+        alert("Checkout Blocked: Some items in your cart are no longer available. Please review the items highlighted in red.");
+      }
+      return; 
+    }
+    
+    navigate("/checkout");
+  };
 
   if (totalItems === 0) {
     return (
@@ -411,6 +459,15 @@ export default function EnhancedCartPage() {
                 }}
               />
               <span className="text-xs font-small text-[var(--text-muted)] mr-auto">Select All Items ({totalItems})</span>
+
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => setShowClearCartConfirm(true)}
+                className="text-gray-500 hover:text-red-600 hover:bg-red-50 text-xs h-6 px-2 mr-2"
+              >
+                Clear Cart
+              </Button>
 
               {selectedCount > 0 && (
                 <Button
@@ -649,7 +706,7 @@ export default function EnhancedCartPage() {
                                     </Button>
                                   </div>
                                   <button
-                                    onClick={() => setDeleteTarget({ type: 'single', id: item.id, variantId: item.selectedVariant?.id })}
+                                     onClick={() => setDeleteTarget({ type: 'single', id: item.id, variantId: item.selectedVariant?.id })}
                                     className="text-gray-400 hover:text-red-500 transition-colors"
                                     aria-label="Remove item"
                                   >
@@ -658,6 +715,14 @@ export default function EnhancedCartPage() {
                                 </div>
                               </div>
                             </div>
+                            
+                            {/* BX-04-010: Validation Error */}
+                            {checkoutErrors[item.cartItemId || item.id] && (
+                              <p className="text-xs text-red-600 font-medium ml-22 mt-2">
+                                ⚠️ {checkoutErrors[item.cartItemId || item.id]}
+                              </p>
+                            )}
+
                           </motion.div>
                         ))}
                       </div>
@@ -698,6 +763,37 @@ export default function EnhancedCartPage() {
                   )
                 )}
             </AnimatePresence>
+
+            {/* BX-04-005 & BX-04-010: Unavailable Items Section */}
+            {unavailableItems.length > 0 && (
+              <div className="mt-8 border-t border-gray-200 pt-6">
+                <div className="flex items-center gap-2 mb-4">
+                  <AlertCircle className="text-gray-400 w-5 h-5" />
+                  <h3 className="text-lg font-bold text-gray-500">Unavailable Items</h3>
+                </div>
+                <div className="space-y-4 opacity-60 grayscale-[0.5]">
+                  {unavailableItems.map((item) => (
+                    <div key={item.cartItemId || item.id} className="flex items-center justify-between gap-3 bg-white p-3 rounded-xl border border-gray-100 shadow-sm pointer-events-none">
+                      <div className="flex items-center gap-3">
+                         <img src={item.image} alt={item.name} className="w-12 h-12 rounded-md object-cover" />
+                         <div>
+                           <p className="text-sm font-medium text-gray-700">{item.name}</p>
+                           <Badge variant="outline" className="text-[10px] mt-1 bg-gray-100 text-gray-500 border-gray-200">
+                             Out of Stock / Unavailable
+                           </Badge>
+                         </div>
+                      </div>
+                      <button 
+                        className="p-2 text-red-500 pointer-events-auto hover:bg-red-50 rounded-full"
+                        onClick={() => removeFromCart(item.id, item.selectedVariant?.id)}
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
           </div>
 
           {/* Order Summary */}
@@ -844,13 +940,13 @@ export default function EnhancedCartPage() {
               </div>
 
               <Button
-                onClick={() => navigate("/checkout")}
+                onClick={handleCheckoutClick}
                 onMouseEnter={() => prefetchRoute(() => import("./CheckoutPage"))}
                 size="lg"
-                disabled={selectedCount === 0 || hasOutOfStockSelected}
+                disabled={selectedCount === 0 || hasOutOfStockSelected || isValidatingCheckout}
                 className="w-full bg-[var(--brand-primary)] hover:bg-[var(--brand-accent)] text-white disabled:bg-[var(--text-muted)] disabled:cursor-not-allowed"
               >
-                Proceed to Checkout ({selectedCount})
+                {isValidatingCheckout ? 'Validating...' : `Proceed to Checkout (${selectedCount})`}
               </Button>
               {hasOutOfStockSelected && (
                 <p className="text-xs text-red-500 text-center mt-2 flex items-center justify-center gap-1">
@@ -905,6 +1001,41 @@ export default function EnhancedCartPage() {
             <Button variant="destructive" onClick={handleConfirmDelete} className="bg-red-600 hover:bg-red-700">
               Delete
             </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Clear Cart Confirmation Dialog */}
+      <Dialog open={showClearCartConfirm} onOpenChange={setShowClearCartConfirm}>
+        <DialogContent className="sm:max-w-[425px]">
+          <DialogHeader>
+            <DialogTitle>Clear Entire Cart?</DialogTitle>
+            <DialogDescription>
+              Are you sure you want to remove all items from your shopping cart? This action cannot be undone.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowClearCartConfirm(false)}>Cancel</Button>
+            <Button variant="destructive" onClick={() => { clearCart(); setShowClearCartConfirm(false); }}>Clear Cart</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Unavailable Items Notification Modal */}
+      <Dialog open={showUnavailableModal} onOpenChange={setShowUnavailableModal}>
+        <DialogContent className="sm:max-w-[425px]">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2 text-orange-600">
+              <AlertCircle className="w-5 h-5" /> Items Unavailable
+            </DialogTitle>
+            <DialogDescription className="text-base text-gray-700 mt-4">
+              Some items in your cart are no longer available or went out of stock while you were away. 
+              <br/><br/>
+              These items have been moved to the "Unavailable Items" section at the bottom of your cart.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button onClick={() => setShowUnavailableModal(false)} className="bg-[var(--brand-primary)] text-white w-full">I Understand</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>

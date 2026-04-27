@@ -1,4 +1,4 @@
-/* eslint-disable @typescript-eslint/no-explicit-any */
+ /* eslint-disable @typescript-eslint/no-explicit-any */
 import { useState, useEffect, useMemo, useCallback, lazy, Suspense } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { motion } from "framer-motion";
@@ -37,7 +37,17 @@ import { cn } from "../lib/utils";
 import { productService } from "../services/productService";
 import { discountService } from "@/services/discountService";
 import { warrantyService, type WarrantyInfo } from "@/services/warrantyService";
-import { ProductWithSeller } from "../types/database.types";
+export interface ProductWithSeller {
+  id: string;
+  name: string;
+  description?: string;
+  price: number;
+  stock?: number;
+  is_active?: boolean;
+  seller_id?: string;
+  category_id?: string;
+  [key: string]: any; // Catch-all for joined seller/variant data
+}
 import type { ActiveDiscount } from "@/types/discount";
 // Lazily loaded — these are only needed on interaction or scroll, not initial render
 const ProductReviews = lazy(() =>
