@@ -1,5 +1,10 @@
-import type { PaymentStatus, ShipmentStatus, WarrantyType, WarrantyClaimStatus } from "@/types/database.types";
+import type { Database } from '@/types/database.types';
 
+// Extract the types manually since Supabase regeneration removed the direct exports
+export type PaymentStatus = string; 
+export type ShipmentStatus = string;
+export type WarrantyType = string;
+export type WarrantyClaimStatus = string;
 export type OrderUiStatus =
   | "pending"
   | "confirmed"
