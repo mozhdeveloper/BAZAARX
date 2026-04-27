@@ -3,7 +3,7 @@
 **Project:** BazaarX Mobile
 **Feature:** OAuth 2.0 Google Sign-In
 **Status:** Implemented & Ready for Testing
-**Last Updated:** April 2026
+**Last Updated:** April 2026 (Revised: Seller Signup Flow Refactor)
 
 ---
 
@@ -19,6 +19,8 @@
 8. [Setup Requirements](#setup-requirements)
 9. [Testing Guide](#testing-guide)
 10. [Troubleshooting](#troubleshooting)
+11. [Seller Auth Context & Revised Flow](#seller-auth-context--revised-flow)
+12. [Web Parity Requirements](#web-parity-requirements)
 
 ---
 
@@ -930,3 +932,209 @@ const handleMagicLink = async (email: string) => {
 **Implementation Date:** April 2026
 **Status:** Ready for Testing
 **Owner:** BazaarX Mobile Team
+
+---
+
+## Seller Auth Context & Revised Flow
+
+> **Context:** This section documents the seller signup flow refactor (April 2026) where the verification step was moved to *after* all seller details are collected. This is distinct from the older 3-step flow (Account → Email → Store) and is the **current canonical seller registration pattern**.
+
+### Why Verification is Deferred for Sellers
+
+The original flow inserted database records (`profiles`, `sellers`, `seller_business_profiles`) *before* email verification, which risked creating orphaned or incomplete records if the user abandoned the flow. The revised flow:
+
+1. Collects **all data first** (2-step form).
+2. Creates the `auth.users` entry to trigger the verification email.
+3. Persists all form data to `authStore.pendingSignupData` to survive the deep-link redirect.
+4. **Defers all database insertions** until after email verification is confirmed.
+
+This ensures the FK chain `auth.users → profiles → sellers → seller_business_profiles` is only created for users with verified, active accounts.
+
+---
+
+### Seller Signup Flow (Current — 2 Steps)
+
+**File:** `app/seller/signup.tsx`
+
+**Step 1 — Account Details:**
+- Email (with live availability check via `authService.getEmailRoleStatus()`)
+- Password + Confirm Password
+- Terms & Conditions acceptance
+
+**Step 2 — Store Details:**
+- Store Name (with live uniqueness check against `sellers` table)
+- Phone Number
+- Store Address
+- Store Description (optional)
+
+**On Step 2 Submit (`handleSubmitForm`):**
+```typescript
+const signupData = {
+  firstName: formData.storeName.split(' ')[0],
+  email: normalizedEmail,
+  password: formData.password,
+  phone: formData.phone,
+  storeName: formData.storeName,
+  storeAddress: formData.storeAddress,
+  storeDescription: formData.storeDescription,
+  user_type: 'seller' as const,
+};
+
+// Persist to store — survives deep-link redirect
+useGlobalAuthStore.getState().setPendingSignup(signupData);
+
+// For new users: triggers auth signup and sends verification email
+await authService.signUp(normalizedEmail, formData.password, { user_type: 'buyer', ... });
+
+// Navigate to shared verification screen
+navigation.replace('EmailVerification', { email: normalizedEmail, signupData });
+```
+
+> **Note:** The user is initially signed up as `user_type: 'buyer'` in the auth metadata. The seller role is applied by `SellerFinalizeScreen` *after* verification, preventing partial state.
+
+---
+
+### Shared EmailVerificationScreen (`app/onboarding/EmailVerificationScreen.tsx`)
+
+This screen is **reused** by both buyer and seller signups. It:
+- Polls `authService.checkVerificationStatus(email)` every few seconds.
+- On successful verification, reads `signupData.user_type` and routes accordingly:
+
+```typescript
+const signupData = route.params?.signupData || useAuthStore.getState().pendingSignupData;
+
+if (signupData?.user_type === 'seller') {
+  navigation.replace('SellerFinalize');
+} else {
+  navigation.reset({ index: 0, routes: [{ name: 'MainTabs' }] });
+}
+```
+
+---
+
+### Post-Verification: SellerFinalizeScreen (`app/seller/finalize.tsx`)
+
+This screen is the **seller-specific hook** that runs after email verification. It handles all database writes:
+
+```typescript
+// 1. Read persisted data
+const signupData = useAuthStore.getState().pendingSignupData;
+
+// 2. Ensure valid authenticated session
+await useAuthStore.getState().checkSession();
+
+// 3. Fallback: silent login if deep-link session failed
+if (!currentUser && signupData.password) {
+  await supabase.auth.signInWithPassword({ email, password: signupData.password });
+}
+
+// 4. DB writes
+await supabase.from('profiles').update({ first_name, phone }).eq('id', userId);
+await authService.addUserRole(userId, 'seller');
+await supabase.from('sellers').upsert({ id: userId, store_name, store_description, approval_status: 'pending' });
+await supabase.from('seller_business_profiles').upsert({ seller_id: userId, address_line_1 });
+
+// 5. Update app stores and clear pending data
+useAuthStore.getState().setPendingSignup(null);
+navigation.replace('SellerStack');
+```
+
+---
+
+### authStore Changes: `PendingSignupData`
+
+The `PendingSignupData` interface was extended to carry seller-specific fields:
+
+```typescript
+// src/stores/authStore.ts
+export interface PendingSignupData {
+  firstName: string;
+  lastName: string;
+  email: string;
+  phone: string;
+  password?: string;
+  user_type?: 'buyer' | 'seller';
+  storeName?: string;       // seller-only
+  storeAddress?: string;    // seller-only
+  storeDescription?: string; // seller-only
+}
+
+// setPendingSignup now accepts null to allow clearing
+setPendingSignup: (data: PendingSignupData | null) => void;
+```
+
+---
+
+## Web Parity Requirements
+
+The web version (`/web`) must implement the **exact same two-phase pattern** as mobile to ensure a 1:1 experience and shared data model.
+
+### Phase 1: Form → Trigger Verification (Web)
+
+**Seller Registration Page** (e.g., `/seller/signup`):
+
+1. Present a multi-step form: **Step 1** (Account) → **Step 2** (Store Details).
+2. On final submit, call:
+   ```typescript
+   await supabase.auth.signUp({
+     email,
+     password,
+     options: { data: { user_type: 'buyer', has_accepted_terms: true } },
+   });
+   ```
+3. Store all collected form data in a state store (Zustand, Context, or `sessionStorage`) before navigating away:
+   ```typescript
+   sessionStorage.setItem('pendingSignupData', JSON.stringify({ storeName, storeAddress, ... }));
+   ```
+4. Route user to a `/seller/verify-email` page.
+
+### Phase 2: Callback → Finalize (Web)
+
+**Email Callback URL** (e.g., `/auth/callback`):
+
+1. Supabase delivers the session to this page after the user clicks the verification link.
+2. Read the session from the URL hash/PKCE exchange:
+   ```typescript
+   const { data: { session } } = await supabase.auth.getSession();
+   ```
+3. Read the pending data from the store:
+   ```typescript
+   const signupData = JSON.parse(sessionStorage.getItem('pendingSignupData') || 'null');
+   ```
+4. Branch on `user_type`:
+   - **`seller`** → Run DB insertions then redirect to `/seller/dashboard`.
+   - **`buyer`** → Redirect to `/home`.
+5. DB insertions for sellers (must match mobile exactly):
+   ```typescript
+   await supabase.from('profiles').update({ first_name: storeName, phone }).eq('id', userId);
+   await supabase.from('user_roles').insert({ user_id: userId, role: 'seller' });
+   await supabase.from('sellers').upsert({ id: userId, store_name, store_description, approval_status: 'pending' });
+   await supabase.from('seller_business_profiles').upsert({ seller_id: userId, address_line_1: storeAddress });
+   ```
+6. Clear pending data from sessionStorage after successful writes.
+
+### Google Sign-In on Web (No Change)
+
+The Google OAuth flow remains unchanged for web. The session lands on the callback URL as usual:
+```typescript
+// Use Supabase JS client for web
+const { data } = await supabase.auth.signInWithOAuth({
+  provider: 'google',
+  options: { redirectTo: 'https://yourdomain.com/auth/callback' },
+});
+```
+The callback handler checks `user_type` and routes accordingly. Google-authenticated sellers will go directly to the seller dashboard if they already have a `sellers` record, or can be prompted to complete store details on first login.
+
+### Summary: Mobile vs. Web Parity Table
+
+| Concern | Mobile | Web |
+|---------|--------|-----|
+| Form Flow | 2-step form in `seller/signup.tsx` | 2-step form in `/seller/signup` page |
+| Signup trigger | `authService.signUp()` | `supabase.auth.signUp()` |
+| Persist pending data | `authStore.pendingSignupData` (Zustand) | `sessionStorage` or Zustand |
+| Verification screen | `EmailVerificationScreen` (polls) | `/seller/verify-email` (polls or waits) |
+| Callback handler | `EmailVerificationScreen` → routes by `user_type` | `/auth/callback` → routes by `user_type` |
+| Finalization | `SellerFinalizeScreen` runs DB writes | `/auth/callback` or `/seller/finalize` runs DB writes |
+| DB tables written | `profiles`, `user_roles`, `sellers`, `seller_business_profiles` | Same |
+| Success destination | `SellerStack` (native navigator) | `/seller/dashboard` |
+| Cleanup | `setPendingSignup(null)` | `sessionStorage.removeItem('pendingSignupData')` |

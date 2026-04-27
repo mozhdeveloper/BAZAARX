@@ -1406,7 +1406,7 @@ export const useBuyerStore = create<BuyerStore>()(persist(
         // First, check if buyer record exists
         const { data: existingBuyer, error: fetchError } = await db
           .from('buyers')
-          .select('*')
+          .select('id, avatar_url, bazcoins, preferences')
           .eq('id', userId)
           .single();
 
@@ -1421,8 +1421,6 @@ export const useBuyerStore = create<BuyerStore>()(persist(
             .from('buyers')
             .insert([{
               id: userId,
-              shipping_addresses: [],
-              payment_methods: [],
               preferences: {
                 language: 'en',
                 currency: 'PHP',
@@ -1437,8 +1435,6 @@ export const useBuyerStore = create<BuyerStore>()(persist(
                   showFollowing: true,
                 },
               },
-              followed_shops: [],
-              total_spent: 0,
               bazcoins: 0,
             }]);
 
@@ -1455,7 +1451,7 @@ export const useBuyerStore = create<BuyerStore>()(persist(
         const { data: buyerWithProfile, error: buyerJoinError } = await db
           .from('buyers')
           .select(`
-            *,
+            id, avatar_url, bazcoins, preferences,
             profile:profiles!id (
               id, email, first_name, last_name, phone, created_at
             )
@@ -1472,7 +1468,7 @@ export const useBuyerStore = create<BuyerStore>()(persist(
           const [{ data: buyerOnly, error: buyerOnlyError }, { data: profileOnly, error: profileOnlyError }] = await Promise.all([
             db
               .from('buyers')
-              .select('*')
+              .select('id, avatar_url, bazcoins, preferences')
               .eq('id', userId)
               .single(),
             db
@@ -1542,7 +1538,7 @@ export const useBuyerStore = create<BuyerStore>()(persist(
           phone: profileInfo?.phone || '',
           avatar: buyerData.avatar_url || '/placeholder-avatar.jpg',
           memberSince: profileInfo?.created_at ? new Date(profileInfo.created_at) : new Date(),
-          totalSpent: buyerData.total_spent || 0,
+          totalSpent: 0,
           bazcoins: buyerData.bazcoins || 0,
           totalOrders: 0,
         };
