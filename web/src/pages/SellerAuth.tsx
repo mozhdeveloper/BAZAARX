@@ -535,17 +535,7 @@ export function SellerRegister() {
       setIsLoading(true);
       setError("");
       try {
-        // Persist form data so AuthCallbackPage can finalize DB writes after email verification.
-        sessionStorage.setItem("pendingSellerSignup", JSON.stringify({
-          email: watchedEmail.trim().toLowerCase(),
-          password: watchedPassword,
-          phone: watch("phone") || "",
-          user_type: "seller",
-          firstName: watchedFirstName,
-          lastName: watchedLastName,
-        }));
-
-        await authService.initiateSignUp(
+        const signupResult = await authService.initiateSignUp(
           watchedEmail.trim().toLowerCase(),
           watchedPassword,
           {
@@ -555,6 +545,17 @@ export function SellerRegister() {
             last_name: watchedLastName,
           }
         );
+
+        // Persist form data so AuthCallbackPage can finalize DB writes after email verification.
+        sessionStorage.setItem("pendingSellerSignup", JSON.stringify({
+          userId: signupResult?.userId,
+          email: watchedEmail.trim().toLowerCase(),
+          password: watchedPassword,
+          phone: watch("phone") || "",
+          user_type: "seller",
+          firstName: watchedFirstName,
+          lastName: watchedLastName,
+        }));
         
         setStep(2);
         setResendCooldown(60);
