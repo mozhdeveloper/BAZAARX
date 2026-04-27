@@ -1,89 +1,75 @@
-import React, { useState, useRef, useEffect, useMemo, useCallback } from 'react';
-import {
-  View,
-  Text,
-  ScrollView,
-  StyleSheet,
-  Pressable,
-  Dimensions,
-  TextInput,
-  StatusBar,
-  Alert,
-  Share,
-  Platform,
-  Modal,
-  TouchableWithoutFeedback,
-  FlatList,
-  ActivityIndicator,
-  Linking,
-  Animated,
-} from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
 import { Image } from 'expo-image';
 import { LinearGradient } from 'expo-linear-gradient';
-import { Ionicons } from '@expo/vector-icons';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import {
   ArrowLeft,
+  BadgeCheck, // For Image filter icon
+  CheckCircle,
+  ChevronDown,
+  ChevronLeft,
+  ChevronRight,
+  FileText,
+  Heart, // For Filter icon
+  ImageIcon,
+  Mail,
+  MapPin,
+  MessageCircle,
+  Phone,
+  Share2,
+  Shield,
+  ShieldCheck,
   ShoppingCart,
   Star,
-  BadgeCheck,
-  Search,
-  Camera,
-  Share2,
-  Heart,
-  Plus,
-  Minus,
-  X,
-  MessageCircle,
-  Truck,
-  ShieldCheck,
-  ChevronRight,
-  ChevronDown,
-  Bookmark, // For Wishlist categories
-  FolderHeart,
-  PlusCircle,
-  Gift,
-  Edit3,
-  MapPin, // Added for seller location
-  User, // Added missing import
-  Filter, // For Filter icon
-  ImageIcon, // For Image filter icon
-  CheckCircle,
   ThumbsUp,
-  Shield,
-  Calendar,
-  Phone,
-  Mail,
-  FileText,
+  X
 } from 'lucide-react-native';
-import { ProductCard, MasonryProductCard } from '../src/components/ProductCard';
-import { VariantSelectionModal } from '../src/components/VariantSelectionModal';
-import CameraSearchModal from '../src/components/CameraSearchModal';
-import { chatService } from '../src/services/chatService';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import {
+  ActivityIndicator,
+  Alert,
+  Animated,
+  Dimensions,
+  FlatList,
+  Linking,
+  Modal,
+  Pressable,
+  ScrollView,
+  Share,
+  StatusBar,
+  StyleSheet,
+  Text,
+  TouchableWithoutFeedback,
+  View
+} from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { AIChatBubble } from '../src/components/AIChatBubble';
-import { AddedToCartModal } from '../src/components/AddedToCartModal';
-import { QuantityStepper } from '../src/components/QuantityStepper';
 import { AddToWishlistModal } from '../src/components/AddToWishlistModal';
+import { AddedToCartModal } from '../src/components/AddedToCartModal';
+import CameraSearchModal from '../src/components/CameraSearchModal';
+import { MasonryProductCard } from '../src/components/ProductCard';
+import { VariantSelectionModal } from '../src/components/VariantSelectionModal';
+import { chatService } from '../src/services/chatService';
 import { useCartStore } from '../src/stores/cartStore';
 import { useWishlistStore } from '../src/stores/wishlistStore';
 // trendingProducts removed — related products are now fetched from Supabase by category
-import { COLORS } from '../src/constants/theme';
-import { useAuthStore } from '../src/stores/authStore';
-import { GuestLoginModal } from '../src/components/GuestLoginModal';
-import { reviewService, type ReviewFeedItem } from '../src/services/reviewService';
-import { productService } from '../src/services/productService';
-import { sellerService } from '../src/services/sellerService';
-import { discountService } from '../src/services/discountService';
-import { ActiveDiscount } from '../src/types/discount';
-import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { useFocusEffect } from '@react-navigation/native';
+import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import type { RootStackParamList } from '../App';
+import { GuestLoginModal } from '../src/components/GuestLoginModal';
+import { COLORS } from '../src/constants/theme';
+import { discountService } from '../src/services/discountService';
+import { productService } from '../src/services/productService';
+import { reviewService, type ReviewFeedItem } from '../src/services/reviewService';
+import { sellerService } from '../src/services/sellerService';
+import { useAuthStore } from '../src/stores/authStore';
+import { ActiveDiscount } from '../src/types/discount';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'ProductDetail'>;
 
-const { width } = Dimensions.get('window');
+const { width, height: screenHeight } = Dimensions.get('window');
 const BRAND_COLOR = COLORS.primary;
 const BRAND_ACCENT = '#E58C1A'; // mid amber accent matching web app
+const PLACEHOLDER_IMAGE = 'https://placehold.co/400x400/e5e7eb/6b7280?text=No+Image';
 
 // Color name to hex mapping for display
 const colorNameToHex: Record<string, string> = {
@@ -330,14 +316,30 @@ export default function ProductDetailScreen({ route, navigation }: Props) {
   const productSizes = option2Values;
 
   // Variant selections
-  const [selectedOption1, setSelectedOption1] = useState(hasOption1 ? option1Values[0] : null);
-  const [selectedOption2, setSelectedOption2] = useState(hasOption2 ? option2Values[0] : null);
+  const [selectedOption1, setSelectedOption1] = useState<string | null>(null);
+  const [selectedOption2, setSelectedOption2] = useState<string | null>(null);
 
-  // Sync state if options change (e.g. after re-fetch)
+  // Sync variant selections when options change (e.g. after product re-fetch)
+  // This runs synchronously with the options data so there's no flash
   useEffect(() => {
-    if (hasOption1 && !selectedOption1) setSelectedOption1(option1Values[0]);
-    if (hasOption2 && !selectedOption2) setSelectedOption2(option2Values[0]);
-  }, [option1Values, option2Values]);
+    if (hasOption1 && option1Values.length > 0) {
+      setSelectedOption1(prev => {
+        // Keep current selection if it's still valid
+        if (prev && option1Values.includes(prev)) return prev;
+        return option1Values[0];
+      });
+    } else {
+      setSelectedOption1(null);
+    }
+    if (hasOption2 && option2Values.length > 0) {
+      setSelectedOption2(prev => {
+        if (prev && option2Values.includes(prev)) return prev;
+        return option2Values[0];
+      });
+    } else {
+      setSelectedOption2(null);
+    }
+  }, [option1Values, option2Values, hasOption1, hasOption2]);
   // Legacy aliases
   const selectedColor = selectedOption1;
   const selectedSize = selectedOption2;
@@ -359,6 +361,7 @@ export default function ProductDetailScreen({ route, navigation }: Props) {
   const [showCameraSearch, setShowCameraSearch] = useState(false);
   const [chatLoading, setChatLoading] = useState(false);
   const [currentImageIndex, setCurrentImageIndex] = useState(0);
+  const [brokenImageIndices, setBrokenImageIndices] = useState<Set<number>>(new Set());
   const [isSearchFocused, setIsSearchFocused] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [showGuestModal, setShowGuestModal] = useState(false);
@@ -382,6 +385,7 @@ export default function ProductDetailScreen({ route, navigation }: Props) {
   const [modalQuantity, setModalQuantity] = useState(1);
   const [showVariantFilterModal, setShowVariantFilterModal] = useState(false); // Filter dropdown state
   const [showSizeGuideModal, setShowSizeGuideModal] = useState(false); // Size guide modal state
+  const [showImageZoom, setShowImageZoom] = useState(false);
 
   // Match a variant row against our (possibly swapped) option1/option2 selections
   const matchVariant = (v: any, op1: string | null, op2: string | null) => {
@@ -392,6 +396,28 @@ export default function ProductDetailScreen({ route, navigation }: Props) {
     const op2Match = !op2 || dbAxis2 === n(op2);
     return op1Match && op2Match;
   };
+
+  // Check if an option1 value has ANY in-stock variant (considering current option2 selection)
+  const isOption1Available = useCallback((value: string): boolean => {
+    if (!hasStructuredVariants) return true;
+    const n = (val: any) => String(val || '').trim().toLowerCase();
+    return productVariants.some((v: any) => {
+      const axis1 = n(v.option_1_value || v.size);
+      if (axis1 !== n(value)) return false;
+      return Number(v.stock ?? 0) > 0;
+    });
+  }, [hasStructuredVariants, productVariants]);
+
+  // Check if an option2 value has ANY in-stock variant (considering current option1 selection)
+  const isOption2Available = useCallback((value: string): boolean => {
+    if (!hasStructuredVariants) return true;
+    const n = (val: any) => String(val || '').trim().toLowerCase();
+    return productVariants.some((v: any) => {
+      const axis2 = n(v.option_2_value || v.color);
+      if (axis2 !== n(value)) return false;
+      return Number(v.stock ?? 0) > 0;
+    });
+  }, [hasStructuredVariants, productVariants]);
 
   // Computed modal variant price, stock, and image
   const modalVariantInfo = useMemo(() => {
@@ -541,6 +567,7 @@ export default function ProductDetailScreen({ route, navigation }: Props) {
 
   // Carousel ref for dynamic scrolling
   const imageCarouselRef = useRef<ScrollView>(null);
+  const zoomFlatListRef = useRef<FlatList>(null);
 
   // Menu State
   const [showMenu, setShowMenu] = useState(false);
@@ -573,8 +600,40 @@ export default function ProductDetailScreen({ route, navigation }: Props) {
       .map((v: any) => v.thumbnail_url || v.image)
       .filter(Boolean);
 
-    return Array.from(new Set([...baseImages, ...variantImages]));
-  }, [product.images, product.image, productVariants]);
+    const allImages = Array.from(new Set([...baseImages, ...variantImages]));
+
+    // Filter out broken images
+    const validImages = allImages.filter((_, i) => !brokenImageIndices.has(i));
+
+    // Fallback to placeholder if no valid images
+    return validImages.length > 0 ? validImages : [PLACEHOLDER_IMAGE];
+  }, [product.images, product.image, productVariants, brokenImageIndices]);
+
+  const hasMultipleImages = productImages.length > 1;
+  const isPlaceholderOnly = productImages.length === 1 && productImages[0] === PLACEHOLDER_IMAGE;
+
+  const scrollToImage = useCallback((index: number) => {
+    const clampedIndex = Math.max(0, Math.min(index, productImages.length - 1));
+    // Set index immediately so thumbnails update without waiting for scroll animation
+    setCurrentImageIndex(clampedIndex);
+    imageCarouselRef.current?.scrollTo({ x: clampedIndex * (width - 32), animated: true });
+  }, [productImages.length]);
+
+  const handlePrevImage = useCallback(() => {
+    if (currentImageIndex > 0) scrollToImage(currentImageIndex - 1);
+  }, [currentImageIndex, scrollToImage]);
+
+  const handleNextImage = useCallback(() => {
+    if (currentImageIndex < productImages.length - 1) scrollToImage(currentImageIndex + 1);
+  }, [currentImageIndex, productImages.length, scrollToImage]);
+
+  const handleImageError = useCallback((index: number) => {
+    setBrokenImageIndices(prev => {
+      const next = new Set(prev);
+      next.add(index);
+      return next;
+    });
+  }, []);
 
   // Stores
   const addItem = useCartStore((state) => state.addItem);
@@ -584,8 +643,7 @@ export default function ProductDetailScreen({ route, navigation }: Props) {
     if (selectedVariantInfo.image) {
       const imgIndex = productImages.findIndex(img => img === selectedVariantInfo.image);
       if (imgIndex !== -1 && imgIndex !== currentImageIndex) {
-        imageCarouselRef.current?.scrollTo({ x: imgIndex * (width - 32), animated: true });
-        setCurrentImageIndex(imgIndex);
+        scrollToImage(imgIndex);
       }
     }
   }, [selectedVariantInfo.image, productImages]);
@@ -1147,16 +1205,45 @@ export default function ProductDetailScreen({ route, navigation }: Props) {
         }}
         contentContainerStyle={{ paddingBottom: 140, paddingTop: 25 }}
       >
-        {/* Back Button & Title Area strictly inside Rounded Container */}
+        {/* Back Button & Product Summary (Name → Price → Rating → Stock) */}
         <View style={{ paddingHorizontal: 20, marginBottom: 15 }}>
           <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 15 }}>
             <Pressable onPress={() => navigation.goBack()}>
               <ArrowLeft size={24} color="#78350F" strokeWidth={2.5} />
             </Pressable>
+            <Pressable onPress={() => handleWishlistAction()} style={{ width: 44, height: 44, alignItems: 'center', justifyContent: 'center' }}>
+              <Heart size={24} color={BRAND_ACCENT} strokeWidth={1.5} fill={isFavorite ? BRAND_ACCENT : "transparent"} />
+            </Pressable>
           </View>
 
+          {/* 1. Product Name */}
           <Text style={[styles.productName, { color: '#431407' }]}>{product.name}</Text>
-          <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+
+          {/* 2. Price (immediately below name) */}
+          <View style={styles.priceRow}>
+            {hasDiscount ? (
+              <View>
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
+                  <Text style={[styles.currentPrice, { color: '#DC2626', fontSize: 28 }]}>
+                    ₱{regularPrice.toLocaleString()}
+                  </Text>
+                  <View style={{ backgroundColor: '#DC2626', paddingHorizontal: 10, paddingVertical: 6, borderRadius: 12 }}>
+                    <Text style={{ color: '#FFF', fontSize: 12, fontWeight: '900' }}>{discountPercent}% OFF</Text>
+                  </View>
+                </View>
+                {originalPrice > 0 && (
+                  <Text style={{ fontSize: 16, color: '#9CA3AF', textDecorationLine: 'line-through', marginTop: 4 }}>
+                    ₱{originalPrice.toLocaleString()}
+                  </Text>
+                )}
+              </View>
+            ) : (
+              <Text style={styles.currentPrice}>₱{regularPrice.toLocaleString()}</Text>
+            )}
+          </View>
+
+          {/* 3. Rating (below price) */}
+          <View style={{ flexDirection: 'row', alignItems: 'center', marginTop: 8 }}>
             <View style={{ flexDirection: 'row', gap: 2, marginRight: 8 }}>
               {[1, 2, 3, 4, 5].map((s) => {
                 const isFilled = s <= Math.round(effectiveAverageRating);
@@ -1177,72 +1264,19 @@ export default function ProductDetailScreen({ route, navigation }: Props) {
               )}
             </Text>
           </View>
-        </View>
 
-        {/* --- IMAGE CAROUSEL --- */}
-        <View style={styles.imageContainer}>
-          <ScrollView
-            ref={imageCarouselRef}
-            horizontal
-            pagingEnabled
-            showsHorizontalScrollIndicator={false}
-            onScroll={(e) => {
-              const contentOffsetX = e.nativeEvent.contentOffset.x;
-              const index = Math.round(contentOffsetX / (width - 32 || 1));
-              setCurrentImageIndex(index);
-            }}
-            scrollEventThrottle={16}
-          >
-            {productImages.map((img: string, index: number) => (
-              <Image key={index} source={{ uri: img }} style={styles.productImage} contentFit="cover" />
-            ))}
-          </ScrollView>
-          <View style={styles.pageIndicator}>
-            <Text style={styles.pageText}>{currentImageIndex + 1}/{productImages.length}</Text>
-          </View>
-        </View>
+          {/* 4. Stock (below rating) */}
+          <AnimatedText style={{
+            fontSize: 13,
+            marginTop: 6,
+            fontWeight: '600',
+            color: Number(selectedVariantInfo.stock ?? 0) <= 0 ? '#DC2626' : '#10B981',
+            ...(Number(selectedVariantInfo.stock ?? 0) <= 0 ? { transform: [{ scale: outOfStockPulse }] } : {}),
+          }}>
+            {Number(selectedVariantInfo.stock ?? 0) <= 0 ? 'Out of Stock' : `${selectedVariantInfo.stock} In Stock`}
+          </AnimatedText>
 
-        <View style={{ padding: 16 }}>
-          {/* Price & Heart */}
-          <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 15 }}>
-            <View>
-              <View style={styles.priceRow}>
-                {hasDiscount ? (
-                  <View>
-                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
-                      <Text style={[styles.currentPrice, { color: '#DC2626', fontSize: 28 }]}>
-                        ₱{regularPrice.toLocaleString()}
-                      </Text>
-                      <View style={{ backgroundColor: '#DC2626', paddingHorizontal: 10, paddingVertical: 6, borderRadius: 12 }}>
-                        <Text style={{ color: '#FFF', fontSize: 12, fontWeight: '900' }}>{discountPercent}% OFF</Text>
-                      </View>
-                    </View>
-                    {originalPrice > 0 && (
-                      <Text style={{ fontSize: 16, color: '#9CA3AF', textDecorationLine: 'line-through', marginTop: 4 }}>
-                        ₱{originalPrice.toLocaleString()}
-                      </Text>
-                    )}
-                  </View>
-                ) : (
-                  <Text style={styles.currentPrice}>₱{regularPrice.toLocaleString()}</Text>
-                )}
-              </View>
-              <AnimatedText style={{
-                fontSize: 13,
-                marginTop: 4,
-                fontWeight: '600',
-                color: Number(selectedVariantInfo.stock ?? 0) <= 0 ? '#DC2626' : '#9CA3AF',
-                ...(Number(selectedVariantInfo.stock ?? 0) <= 0 ? { transform: [{ scale: outOfStockPulse }] } : {}),
-              }}>
-                {Number(selectedVariantInfo.stock ?? 0) <= 0 ? 'Out of Stock' : `${selectedVariantInfo.stock} In Stock`}
-              </AnimatedText>
-            </View>
-            <Pressable onPress={() => handleWishlistAction()} style={{ width: 44, height: 44, alignItems: 'center', justifyContent: 'center' }}>
-              <Heart size={24} color={BRAND_ACCENT} strokeWidth={1.5} fill={isFavorite ? BRAND_ACCENT : "transparent"} />
-            </Pressable>
-          </View>
-
-          {/* --- VARIANT SELECTION (Restored/Restyled & Repositioned) --- */}
+          {/* --- VARIANT SELECTION (directly below product summary) --- */}
           {hasOption1 && (
             <View style={styles.variantSection}>
               <Text style={styles.variantLabel}>
@@ -1251,25 +1285,32 @@ export default function ProductDetailScreen({ route, navigation }: Props) {
               <View style={styles.colorOptions}>
                 {option1Values.filter((c: string) => c.trim() !== '').map((value: string, index: number) => {
                   const isColor = finalVariantLabel1.toLowerCase() === 'color';
-                  const variantImg = isColor
-                    ? productVariants.find((v: any) =>
-                      v.option_1_value === value
-                    )?.thumbnail_url || null
+                  const nVal = value.trim().toLowerCase();
+                  const matchedV = isColor
+                    ? (productVariants.find((v: any) =>
+                      String(v.option_1_value || '').trim().toLowerCase() === nVal &&
+                      (!selectedOption2 || String(v.option_2_value || v.color || '').trim().toLowerCase() === selectedOption2.trim().toLowerCase())
+                    ) || productVariants.find((v: any) =>
+                      String(v.option_1_value || '').trim().toLowerCase() === nVal
+                    ))
                     : null;
+                  const variantImg = matchedV?.thumbnail_url || matchedV?.image || (isColor ? productImages[0] : null) || null;
                   const isSelected = selectedOption1 === value;
+                  const isOOS = !isOption1Available(value);
                   if (isColor) {
                     return (
                       <Pressable
                         key={`${value}-${index}`}
-                        style={[styles.variantImgBtn, isSelected && styles.variantImgBtnSelected]}
-                        onPress={() => handleSelectOption1(value)}
+                        style={[styles.variantImgBtn, isSelected && styles.variantImgBtnSelected, isOOS && { opacity: 0.35 }]}
+                        onPress={() => !isOOS && handleSelectOption1(value)}
+                        disabled={isOOS}
                       >
                         {variantImg ? (
                           <Image source={{ uri: variantImg }} style={styles.variantImgThumb} contentFit="cover" />
                         ) : (
                           <View style={[styles.variantImgThumb, { backgroundColor: getColorHex(value) }]} />
                         )}
-                        {isSelected && (
+                        {isSelected && !isOOS && (
                           <View style={styles.variantImgCheck}>
                             <CheckCircle size={14} color={BRAND_COLOR} fill="#FFF" />
                           </View>
@@ -1280,10 +1321,11 @@ export default function ProductDetailScreen({ route, navigation }: Props) {
                   return (
                     <Pressable
                       key={`${value}-${index}`}
-                      style={[styles.sizeOption, isSelected && styles.sizeOptionSelected]}
-                      onPress={() => handleSelectOption1(value)}
+                      style={[styles.sizeOption, isSelected && styles.sizeOptionSelected, isOOS && { opacity: 0.35, borderStyle: 'dashed' as any }]}
+                      onPress={() => !isOOS && handleSelectOption1(value)}
+                      disabled={isOOS}
                     >
-                      <Text style={[styles.sizeOptionText, isSelected && styles.sizeOptionTextSelected]}>{value}</Text>
+                      <Text style={[styles.sizeOptionText, isSelected && styles.sizeOptionTextSelected, isOOS && { textDecorationLine: 'line-through' }]}>{value}</Text>
                     </Pressable>
                   );
                 })}
@@ -1299,21 +1341,28 @@ export default function ProductDetailScreen({ route, navigation }: Props) {
               <View style={styles.colorOptions}>
                 {option2Values.filter((s: string) => s.trim() !== '').map((value: string, index: number) => {
                   const isSelected = selectedOption2 === value;
-                  const variantImg = productVariants.find((v: any) =>
-                    v.option_2_value === value
-                  )?.thumbnail_url || productImages[0] || null;
+                  const nVal = value.trim().toLowerCase();
+                  const matchedVariant = productVariants.find((v: any) =>
+                    String(v.option_2_value || '').trim().toLowerCase() === nVal &&
+                    (!selectedOption1 || String(v.option_1_value || v.size || '').trim().toLowerCase() === selectedOption1.trim().toLowerCase())
+                  ) || productVariants.find((v: any) =>
+                    String(v.option_2_value || '').trim().toLowerCase() === nVal
+                  );
+                  const variantImg = matchedVariant?.thumbnail_url || matchedVariant?.image || productImages[0] || null;
+                  const isOOS = !isOption2Available(value);
                   return (
                     <Pressable
                       key={`${value}-${index}`}
-                      style={[styles.variantImgBtn, isSelected && styles.variantImgBtnSelected]}
-                      onPress={() => handleSelectOption2(value)}
+                      style={[styles.variantImgBtn, isSelected && styles.variantImgBtnSelected, isOOS && { opacity: 0.35 }]}
+                      onPress={() => !isOOS && handleSelectOption2(value)}
+                      disabled={isOOS}
                     >
                       {variantImg ? (
                         <Image source={{ uri: variantImg }} style={styles.variantImgThumb} contentFit="cover" />
                       ) : (
                         <View style={[styles.variantImgThumb, { backgroundColor: '#E5E7EB' }]} />
                       )}
-                      {isSelected && (
+                      {isSelected && !isOOS && (
                         <View style={styles.variantImgCheck}>
                           <CheckCircle size={14} color={BRAND_COLOR} fill="#FFF" />
                         </View>
@@ -1325,7 +1374,7 @@ export default function ProductDetailScreen({ route, navigation }: Props) {
             </View>
           )}
 
-          {/* Size Guide Button — shown if variantLabel1 is "Size" (matches web pattern) */}
+          {/* Size Guide Button */}
           {product.size_guide_image && (
             <View style={{ marginTop: 16 }}>
               <Pressable
@@ -1338,10 +1387,181 @@ export default function ProductDetailScreen({ route, navigation }: Props) {
               </Pressable>
             </View>
           )}
+        </View>
 
-          <Text style={{ fontSize: 15, color: '#4B5563', lineHeight: 24, marginBottom: 15, marginTop: 20 }}>
-            {product.description || "High-quality wireless earbuds with touch controls and a charging case. Great sound and long battery life."}
-          </Text>
+        {/* --- IMAGE CAROUSEL --- */}
+        <View style={{ paddingHorizontal: 16, marginTop: 10, paddingRight: 35 }}>
+          {/* Main image — full width, tappable for zoom */}
+          <Pressable
+            onPress={() => !isPlaceholderOnly && setShowImageZoom(true)}
+            style={[styles.imageContainer, { width: width - 32, height: width - 32 }]}
+            accessibilityRole="button"
+            accessibilityLabel="Tap to zoom product image"
+          >
+            <ScrollView
+              ref={imageCarouselRef}
+              horizontal
+              pagingEnabled
+              showsHorizontalScrollIndicator={false}
+              scrollEnabled={hasMultipleImages}
+              onMomentumScrollEnd={(e) => {
+                const layoutWidth = e.nativeEvent.layoutMeasurement.width;
+                const contentOffsetX = e.nativeEvent.contentOffset.x;
+                const index = Math.round(contentOffsetX / (layoutWidth || 1));
+                setCurrentImageIndex(index);
+              }}
+            >
+              {productImages.map((img: string, index: number) => (
+                <Image
+                  key={index}
+                  source={{ uri: img }}
+                  style={{ width: width - 32, height: width - 32 }}
+                  contentFit="cover"
+                  onError={() => handleImageError(index)}
+                />
+              ))}
+            </ScrollView>
+
+            {/* Slideshow arrows */}
+            {hasMultipleImages && (
+              <>
+                {currentImageIndex > 0 && (
+                  <Pressable
+                    onPress={(e) => { e.stopPropagation(); handlePrevImage(); }}
+                    style={{
+                      position: 'absolute', left: 8, top: '50%', marginTop: -18,
+                      width: 36, height: 36, borderRadius: 18,
+                      backgroundColor: 'rgba(255,255,255,0.85)',
+                      alignItems: 'center', justifyContent: 'center',
+                      shadowColor: '#000', shadowOpacity: 0.1, shadowRadius: 4, elevation: 3,
+                    }}
+                  >
+                    <ChevronLeft size={20} color="#374151" />
+                  </Pressable>
+                )}
+                {currentImageIndex < productImages.length - 1 && (
+                  <Pressable
+                    onPress={(e) => { e.stopPropagation(); handleNextImage(); }}
+                    style={{
+                      position: 'absolute', right: 8, top: '50%', marginTop: -18,
+                      width: 36, height: 36, borderRadius: 18,
+                      backgroundColor: 'rgba(255,255,255,0.85)',
+                      alignItems: 'center', justifyContent: 'center',
+                      shadowColor: '#000', shadowOpacity: 0.1, shadowRadius: 4, elevation: 3,
+                    }}
+                  >
+                    <ChevronRight size={20} color="#374151" />
+                  </Pressable>
+                )}
+              </>
+            )}
+
+            {/* Image count indicator */}
+            {!isPlaceholderOnly && (
+              <View style={styles.pageIndicator}>
+                <Text style={styles.pageText}>{currentImageIndex + 1}/{productImages.length}</Text>
+              </View>
+            )}
+          </Pressable>
+
+          {/* Thumbnail strip at the bottom */}
+          {hasMultipleImages && (
+            <ScrollView
+              horizontal
+              showsHorizontalScrollIndicator={false}
+              contentContainerStyle={{ gap: 8, paddingVertical: 10 }}
+            >
+              {productImages.map((img: string, index: number) => (
+                <Pressable
+                  key={`thumb-${index}`}
+                  onPress={() => scrollToImage(index)}
+                  style={{
+                    width: 56,
+                    height: 56,
+                    borderRadius: 10,
+                    borderWidth: currentImageIndex === index ? 2.5 : 1.5,
+                    borderColor: currentImageIndex === index ? BRAND_COLOR : '#E5E7EB',
+                    overflow: 'hidden',
+                    opacity: currentImageIndex === index ? 1 : 0.5,
+                  }}
+                >
+                  <Image
+                    source={{ uri: img }}
+                    style={{ width: '100%', height: '100%' }}
+                    contentFit="cover"
+                  />
+                </Pressable>
+              ))}
+            </ScrollView>
+          )}
+        </View>
+
+        {/* --- PRODUCT INFORMATION SECTION --- */}
+        <View style={{ padding: 16 }}>
+          <Text style={{ fontSize: 18, fontWeight: '900', color: COLORS.textPrimary, marginBottom: 12 }}>Product Information</Text>
+
+          {/* Description */}
+          {product.description ? (
+            <View style={{ marginBottom: 16 }}>
+              <Text style={{ fontSize: 14, fontWeight: '700', color: COLORS.textHeadline, marginBottom: 6 }}>Description</Text>
+              <Text style={{ fontSize: 15, color: '#4B5563', lineHeight: 24 }}>
+                {product.description}
+              </Text>
+            </View>
+          ) : null}
+
+          {/* Specifications */}
+          {product.specifications && typeof product.specifications === 'object' && Object.keys(product.specifications).length > 0 && (
+            <View style={{ marginBottom: 16 }}>
+              <Text style={{ fontSize: 14, fontWeight: '700', color: COLORS.textHeadline, marginBottom: 8 }}>Specifications</Text>
+              <View style={{ backgroundColor: '#FFF', borderRadius: 12, borderWidth: 1, borderColor: '#F3F4F6', overflow: 'hidden' }}>
+                {Object.entries(product.specifications)
+                  .filter(([_, val]) => val != null && String(val).trim() !== '')
+                  .map(([key, val], idx, arr) => (
+                    <View
+                      key={key}
+                      style={{
+                        flexDirection: 'row',
+                        paddingVertical: 10,
+                        paddingHorizontal: 14,
+                        backgroundColor: idx % 2 === 0 ? '#FAFAFA' : '#FFF',
+                        borderBottomWidth: idx < arr.length - 1 ? 1 : 0,
+                        borderBottomColor: '#F3F4F6',
+                      }}
+                    >
+                      <Text style={{ flex: 1, fontSize: 13, fontWeight: '600', color: '#6B7280' }}>{key}</Text>
+                      <Text style={{ flex: 1.5, fontSize: 13, color: COLORS.textHeadline }}>{String(val)}</Text>
+                    </View>
+                  ))}
+              </View>
+            </View>
+          )}
+
+          {/* Brand */}
+          {product.brand ? (
+            <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 12 }}>
+              <Text style={{ fontSize: 13, fontWeight: '600', color: '#6B7280', marginRight: 8 }}>Brand:</Text>
+              <Text style={{ fontSize: 13, fontWeight: '700', color: COLORS.textHeadline }}>{product.brand}</Text>
+            </View>
+          ) : null}
+
+          {/* Weight & Dimensions */}
+          {(product.weight || product.dimensions) && (
+            <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 16, marginBottom: 12 }}>
+              {product.weight ? (
+                <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                  <Text style={{ fontSize: 13, fontWeight: '600', color: '#6B7280', marginRight: 6 }}>Weight:</Text>
+                  <Text style={{ fontSize: 13, color: COLORS.textHeadline }}>{product.weight}g</Text>
+                </View>
+              ) : null}
+              {product.dimensions ? (
+                <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                  <Text style={{ fontSize: 13, fontWeight: '600', color: '#6B7280', marginRight: 6 }}>Dimensions:</Text>
+                  <Text style={{ fontSize: 13, color: COLORS.textHeadline }}>{typeof product.dimensions === 'string' ? product.dimensions : JSON.stringify(product.dimensions)}</Text>
+                </View>
+              ) : null}
+            </View>
+          )}
 
           <View style={{ backgroundColor: '#FFF7ED', paddingHorizontal: 12, paddingVertical: 6, borderRadius: 8, alignSelf: 'flex-start', marginBottom: 20 }}>
             <Text style={{ fontSize: 14, fontWeight: '700', color: '#FB8C00' }}>Free Shipping</Text>
@@ -1956,6 +2176,106 @@ export default function ProductDetailScreen({ route, navigation }: Props) {
         </Modal>
       )}
 
+      {/* Fullscreen Image Zoom Modal */}
+      <Modal
+        visible={showImageZoom}
+        transparent={true}
+        animationType="fade"
+        onRequestClose={() => setShowImageZoom(false)}
+        statusBarTranslucent={true}
+      >
+        <View style={{ flex: 1, backgroundColor: '#000' }}>
+          {/* Close button */}
+          <Pressable
+            onPress={() => setShowImageZoom(false)}
+            style={{
+              position: 'absolute', top: insets.top + 12, right: 16, zIndex: 20,
+              width: 40, height: 40, borderRadius: 20,
+              backgroundColor: 'rgba(255,255,255,0.15)',
+              alignItems: 'center', justifyContent: 'center',
+            }}
+          >
+            <X size={22} color="#FFF" />
+          </Pressable>
+
+          {/* Image counter */}
+          <View style={{
+            position: 'absolute', top: insets.top + 18, left: 0, right: 0, zIndex: 10,
+            alignItems: 'center',
+          }}>
+            <Text style={{ color: '#FFF', fontSize: 15, fontWeight: '700' }}>
+              {currentImageIndex + 1} / {productImages.length}
+            </Text>
+          </View>
+
+          {/* Zoomable image pager */}
+          <FlatList
+            ref={zoomFlatListRef}
+            data={productImages}
+            horizontal
+            pagingEnabled
+            showsHorizontalScrollIndicator={false}
+            initialScrollIndex={currentImageIndex}
+            getItemLayout={(_, index) => ({ length: width, offset: width * index, index })}
+            onMomentumScrollEnd={(e) => {
+              const index = Math.round(e.nativeEvent.contentOffset.x / width);
+              setCurrentImageIndex(index);
+            }}
+            keyExtractor={(_, index) => `zoom-${index}`}
+            renderItem={({ item }) => (
+              <ScrollView
+                style={{ width, height: screenHeight }}
+                contentContainerStyle={{ alignItems: 'center', justifyContent: 'center', flex: 1 }}
+                maximumZoomScale={3}
+                minimumZoomScale={1}
+                bouncesZoom={true}
+                showsVerticalScrollIndicator={false}
+                showsHorizontalScrollIndicator={false}
+              >
+                <Image
+                  source={{ uri: item }}
+                  style={{ width, height: width }}
+                  contentFit="contain"
+                />
+              </ScrollView>
+            )}
+          />
+
+          {/* Bottom thumbnails in zoom modal */}
+          {hasMultipleImages && (
+            <View style={{
+              position: 'absolute', bottom: insets.bottom + 16, left: 0, right: 0,
+              alignItems: 'center', zIndex: 10,
+            }}>
+              <ScrollView
+                horizontal
+                showsHorizontalScrollIndicator={false}
+                contentContainerStyle={{ gap: 8, paddingHorizontal: 20 }}
+              >
+                {productImages.map((img: string, index: number) => (
+                  <Pressable
+                    key={`zoom-thumb-${index}`}
+                    onPress={() => {
+                      setCurrentImageIndex(index);
+                      zoomFlatListRef.current?.scrollToIndex({ index, animated: true });
+                    }}
+                    style={{
+                      width: 48, height: 48, borderRadius: 8,
+                      borderWidth: currentImageIndex === index ? 2.5 : 1.5,
+                      borderColor: currentImageIndex === index ? BRAND_COLOR : 'rgba(255,255,255,0.4)',
+                      overflow: 'hidden',
+                      opacity: currentImageIndex === index ? 1 : 0.5,
+                    }}
+                  >
+                    <Image source={{ uri: img }} style={{ width: '100%', height: '100%' }} contentFit="cover" />
+                  </Pressable>
+                ))}
+              </ScrollView>
+            </View>
+          )}
+        </View>
+      </Modal>
+
       {showGuestModal && (
         <GuestLoginModal
           visible={showGuestModal}
@@ -2112,11 +2432,9 @@ const styles = StyleSheet.create({
   imageContainer: {
     width: width - 32,
     height: width - 32,
-    marginHorizontal: 16,
-    borderRadius: 30, // Increased radius
+    borderRadius: 30,
     overflow: 'hidden',
     backgroundColor: '#F9FAFB',
-    marginTop: 10
   },
   productImage: { width: width - 32, height: width - 32 },
   pageIndicator: {
@@ -2402,7 +2720,6 @@ const styles = StyleSheet.create({
   variantImgThumb: {
     width: '100%',
     height: '100%',
-    borderRadius: 6,
   },
   variantImgCheck: {
     position: 'absolute',
