@@ -28,8 +28,12 @@ export default function BuyerLoginPage() {
   const lockoutStore = useLockoutStore();
 
   const queryParams = new URLSearchParams(location.search);
-  const linkError = queryParams.get("error") === "link_required" || queryParams.get("error") === "google_unlinked";
-  const [showLinkNotice, setShowLinkNotice] = useState(linkError);
+  const authError = queryParams.get("error");
+  const isLinkError = authError === "link_required" || authError === "google_unlinked";
+  const isNoAccountError = authError === "google_not_registered";
+  
+  const [showLinkNotice, setShowLinkNotice] = useState(isLinkError);
+  const [showNoAccountNotice, setShowNoAccountNotice] = useState(isNoAccountError);
 
   const isVerified = (location.state as any)?.verified;
   const verifiedEmail = (location.state as any)?.email;
@@ -246,6 +250,35 @@ export default function BuyerLoginPage() {
                   className="w-full py-2 bg-white border border-orange-200 rounded-xl text-orange-600 font-bold text-xs hover:bg-orange-100 transition-colors"
                 >
                   Got it
+                </button>
+              </motion.div>
+            )}
+
+            {showNoAccountNotice && (
+              <motion.div
+                initial={{ opacity: 0, height: 0 }}
+                animate={{ opacity: 1, height: "auto" }}
+                exit={{ opacity: 0, height: 0 }}
+                className="mb-6 p-4 bg-red-50 border border-red-100 rounded-2xl flex flex-col gap-3 text-[var(--text-primary)] text-sm shadow-sm overflow-hidden"
+              >
+                <div className="flex items-center gap-3">
+                  <div className="bg-red-500 rounded-full p-2 text-white">
+                    <AlertCircle size={20} />
+                  </div>
+                  <div>
+                    <p className="font-black text-red-600 uppercase tracking-wider text-[10px]">Access Denied</p>
+                    <p className="font-bold text-sm">Account Not Found</p>
+                  </div>
+                </div>
+                <p className="text-[13px] leading-relaxed opacity-90">
+                  We couldn't find a BazaarX account associated with this Google email. Please <b>sign up with your email</b> first to create a profile.
+                </p>
+                <button 
+                  type="button"
+                  onClick={() => setShowNoAccountNotice(false)}
+                  className="w-full py-2 bg-white border border-red-200 rounded-xl text-red-600 font-bold text-xs hover:bg-red-100 transition-colors"
+                >
+                  Dismiss
                 </button>
               </motion.div>
             )}

@@ -185,6 +185,16 @@ function App() {
           const emailIdentity = identities.find((id: any) => id.provider === 'email');
           const googleIdentity = identities.find((id: any) => id.provider === 'google');
 
+          // 1. PREVENT NEW GOOGLE-ONLY ACCOUNTS (Email-First Policy)
+          // If the user has Google but NO email identity, and isn't currently linking,
+          // it means they tried to sign up via Google directly without a pre-existing email account.
+          if (googleIdentity && !emailIdentity && !isLinking) {
+            console.log('[Auth] 🛡️ Google-only account detected. Rejecting login.');
+            await supabase.auth.signOut();
+            window.location.href = '/login?error=google_not_registered';
+            return;
+          }
+
           if (emailIdentity && googleIdentity) {
             const isExplicitlyLinked = !!user.user_metadata?.google_explicitly_linked;
             
