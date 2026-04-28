@@ -55,7 +55,20 @@ export const CreateRegistryModal = ({
     } else if (isOpen && !initialCategory) {
       setCategory("");
     }
-  }, [isOpen, initialCategory]);
+
+    if (isOpen) {
+      if (addresses.length === 1) {
+        setAddressId(addresses[0].id);
+        setShowAddress(true);
+      } else if (addresses.length > 0) {
+        setAddressId(addresses[0].id);
+        setShowAddress(false);
+      } else {
+        setAddressId("");
+        setShowAddress(false);
+      }
+    }
+  }, [isOpen, initialCategory, addresses.length]);
 
   // Generate share link based on registry name
   useEffect(() => {
@@ -154,12 +167,13 @@ export const CreateRegistryModal = ({
               <div className="space-y-4">
                 {/* Registry Name Input */}
                 <div className="space-y-2">
-                  <Label htmlFor="registryName">Wishlist Name</Label>
+                  <Label htmlFor="registryName">Registry Name</Label>
                   <Input
                     id="registryName"
                     placeholder="e.g., Sarah's Wedding, Baby Doe 2026"
                     value={registryName}
                     onChange={(e) => setRegistryName(e.target.value)}
+                    maxLength={50}
                     className="focus-visible:ring-[var(--brand-primary)]"
                   />
                 </div>
@@ -204,7 +218,7 @@ export const CreateRegistryModal = ({
 
                 {!hideBrowseLink && (
                   <div className="space-y-3">
-                    <Label>Wishlist Products</Label>
+                    <Label>Registry Products</Label>
                     <div className="border border-dashed border-gray-300 rounded-xl p-6 flex flex-col items-center justify-center text-center bg-gray-50/50">
                       <div className="p-4 bg-white rounded-full shadow-sm mb-3">
                         <Gift className="w-6 h-6 text-[var(--brand-primary)]" />
@@ -267,18 +281,36 @@ export const CreateRegistryModal = ({
                 <div className="space-y-4 pt-4 border-t border-gray-100">
                   <div className="space-y-2">
                     <Label>Delivery Preference</Label>
-                    <div className="flex items-center gap-2 text-sm">
-                      <input
-                        id="showAddress"
-                        type="checkbox"
-                        className="h-4 w-4"
-                        checked={showAddress}
-                        onChange={(e) => setShowAddress(e.target.checked)}
-                      />
-                      <Label htmlFor="showAddress" className="text-sm">
-                        Share address with gifters
-                      </Label>
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-2 text-sm">
+                        <input
+                          id="showAddress"
+                          type="checkbox"
+                          className="h-4 w-4"
+                          checked={showAddress}
+                          disabled={addresses.length === 0}
+                          onChange={(e) => setShowAddress(e.target.checked)}
+                        />
+                        <Label htmlFor="showAddress" className={`text-sm ${addresses.length === 0 ? 'text-gray-400' : ''}`}>
+                          Share address with gifters
+                        </Label>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          onClose();
+                          navigate('/profile?tab=addresses');
+                        }}
+                        className="text-xs font-semibold text-[var(--brand-primary)] hover:underline"
+                      >
+                        Manage
+                      </button>
                     </div>
+                    {addresses.length === 0 && (
+                      <p className="text-xs text-amber-600">
+                        Please add a delivery address in your profile settings to enable address sharing.
+                      </p>
+                    )}
                     <Select
                       value={addressId}
                       onValueChange={setAddressId}

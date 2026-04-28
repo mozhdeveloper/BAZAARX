@@ -55,7 +55,7 @@ const TEST_ACCOUNTS = [
   { emoji: '👩', label: 'Buyer 3 — Sofia Lim', email: 'buyer3@gmail.com', password: 'Test@123456' },
 ];
 
-export default function LoginScreen({ navigation }: Props) {
+export default function LoginScreen({ navigation, route }: Props) {
   const [showPassword, setShowPassword] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [isGoogleLoading, setIsGoogleLoading] = useState(false);
@@ -191,7 +191,11 @@ export default function LoginScreen({ navigation }: Props) {
         const { useOrderStore } = await import('../src/stores/orderStore');
         useOrderStore.getState().fetchOrders(data.user.id);
 
-        navigation.replace('MainTabs', { screen: 'Home' });
+        if (route.params?.from === 'ProductDetail') {
+          navigation.goBack();
+        } else {
+          navigation.replace('MainTabs', { screen: 'Home' });
+        }
       }
     } catch (err) {
       console.error('Login error:', err);
@@ -308,7 +312,11 @@ export default function LoginScreen({ navigation }: Props) {
 
           const isComplete = await authService.isOnboardingComplete(userId);
           if (isComplete) {
-            navigation.replace('MainTabs', { screen: 'Home' });
+            if (route.params?.from === 'ProductDetail') {
+              navigation.goBack();
+            } else {
+              navigation.replace('MainTabs', { screen: 'Home' });
+            }
           } else {
             const signupData = { 
               email: session.user.email || '',

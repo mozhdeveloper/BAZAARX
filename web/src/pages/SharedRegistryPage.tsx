@@ -4,6 +4,7 @@ import { useBuyerStore } from "../stores/buyerStore";
 import Header from "../components/Header";
 import { Gift, ShoppingBag } from "lucide-react";
 import { Button } from "../components/ui/button";
+import { cn } from "../lib/utils";
 
 const SharedRegistryPage = () => {
   const { id } = useParams();
@@ -83,7 +84,7 @@ const SharedRegistryPage = () => {
           <div className="p-8 border-b border-gray-100">
             <div className="flex flex-wrap items-center gap-3 mb-2">
               <span className="bg-[var(--brand-wash)] text-[var(--brand-primary)] px-3 py-1 rounded-full text-xs font-semibold uppercase tracking-wider">
-                {registry.category || "Gift List"}
+                {registry.category === 'baby' ? "BABY SHOWER" : (registry.category?.toUpperCase() || "GIFT LIST")}
               </span>
               <span className="text-sm text-gray-500">
                 Shared on {registry.sharedDate}
@@ -132,16 +133,28 @@ const SharedRegistryPage = () => {
                     className="flex flex-col p-4 border border-gray-100 rounded-xl hover:shadow-md transition-shadow bg-white"
                   >
                     <div className="aspect-square bg-gray-100 rounded-lg flex items-center justify-center mb-4 overflow-hidden">
-                      {product.image ? (
+                      {/* Fix: fallback to images[0] when image is empty — mirrors mobile's item.image || item.images?.[0] */}
+                      {(product.image || product.images?.[0]) ? (
                         <img loading="lazy" 
-                          src={product.image}
+                          src={product.image || product.images?.[0]}
                           alt={product.name}
                           className="w-full h-full object-cover"
+                          onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = 'none'; }}
                         />
                       ) : (
                         <Gift className="w-12 h-12 text-gray-300" />
                       )}
                     </div>
+                    {product.status && product.status !== 'available' && (
+                      <div className={cn(
+                        "text-[10px] font-bold px-2 py-1 rounded-md uppercase tracking-wide mb-2 w-fit",
+                        product.status === 'out_of_stock' ? "bg-red-100 text-red-600" :
+                        product.status === 'seller_on_vacation' ? "bg-amber-100 text-amber-600" :
+                        "bg-gray-100 text-gray-600"
+                      )}>
+                        {product.status.replace(/_/g, ' ')}
+                      </div>
+                    )}
                     <h4 className="font-semibold text-gray-900 mb-1">
                       {product.name}
                     </h4>
@@ -163,14 +176,22 @@ const SharedRegistryPage = () => {
                       <span>Received: {product.receivedQty || 0}</span>
                     </div>
 
-                    {(product.receivedQty || 0) >=
-                    (product.requestedQty || 1) ? (
+                    {(product.receivedQty || 0) >= (product.requestedQty || 1) ? (
                       <Button
                         className="w-full mt-auto bg-gray-100 text-gray-500 hover:bg-gray-200 cursor-not-allowed"
                         size="sm"
                         disabled
                       >
                         Fulfilled
+                      </Button>
+                    ) : product.status && product.status !== 'available' ? (
+                      <Button
+                        className="w-full mt-auto bg-gray-50 text-gray-400 cursor-not-allowed border-gray-200"
+                        variant="outline"
+                        size="sm"
+                        disabled
+                      >
+                        Unavailable
                       </Button>
                     ) : (
                       <Button
