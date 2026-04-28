@@ -1,0 +1,14 @@
+{
+  // Disable VS Code's built-in CSS validator — it doesn't understand
+  // Tailwind's @tailwind and @apply directives, which causes false-positive
+  // "Unknown at rule" warnings on every @tailwind base/components/utilities
+  // and every @apply usage in globals.css.
+  //
+  // The Tailwind CSS IntelliSense extension (bradlc.vscode-tailwindcss)
+  // provides its own, Tailwind-aware CSS language service that correctly
+  // validates these directives, so disabling the built-in validator here
+  // has zero practical downside.
+  "css.validate": false,
+  "less.validate": false,
+  "scss.validate": false
+}

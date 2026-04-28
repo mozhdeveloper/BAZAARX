@@ -789,12 +789,17 @@ export default function CheckoutScreen({ navigation, route }: Props) {
     setVoucherCode('');
   }, []);
 
-  // Open LocationModal (map-first flow like HomeScreen)
-  const handleOpenAddressModalForAdd = useCallback(() => {
-    // Close the selection sheet first
+  // ---------------------------------------------------------------------------
+  // handleAddNew — opens AddressFormModal in a guaranteed blank create mode.
+  // Explicitly nulls out editingAddressForForm so there is zero chance of
+  // stale data leaking into the "Add New Address" form.
+  // ---------------------------------------------------------------------------
+  const handleAddNew = useCallback(() => {
+    // 1. Close the address-selection sheet first.
     handleCloseAddressModal();
-    // Open the shared AddressFormModal with a blank form
+    // 2. Hard-reset the editing reference so initialData will be null.
     setEditingAddressForForm(null);
+    // 3. Open the form after the slide-down animation completes (300 ms).
     setTimeout(() => setShowAddressFormModal(true), 300);
   }, []);
 
@@ -2620,7 +2625,7 @@ export default function CheckoutScreen({ navigation, route }: Props) {
                   borderWidth: 1,
                   borderColor: '#FED7AA'
                 }}
-                onPress={handleOpenAddressModalForAdd}
+                onPress={handleAddNew}
               >
                 <Plus size={20} color={COLORS.primary} />
                 <Text style={{ fontSize: 15, fontWeight: '700', color: COLORS.primary }}>Add New Address</Text>
@@ -2704,10 +2709,14 @@ export default function CheckoutScreen({ navigation, route }: Props) {
       </Modal>
 
       {/* --- SHARED ADDRESS FORM MODAL (Add New / Fix Address) --- */}
+      {/* forceCreateMode is derived inside AddressFormModal from !initialData,
+          but we pass it explicitly here so the checkout's "Add New" path can
+          never accidentally show the saved-address chip strip. */}
       <AddressFormModal
         visible={showAddressFormModal}
         onClose={() => setShowAddressFormModal(false)}
         initialData={editingAddressForForm}
+        forceCreateMode={editingAddressForForm === null}
         userId={user?.id ?? ''}
         existingCount={addresses.length}
         context="buyer"

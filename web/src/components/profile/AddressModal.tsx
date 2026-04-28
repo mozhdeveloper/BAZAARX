@@ -362,7 +362,7 @@ export const AddressModal = ({ isOpen, onClose, address, onAddressAdded, onAddre
               <Button
                 variant="outline"
                 onClick={() => setIsMapOpen(true)}
-                className="border-[#F97316] text-[#F97316] hover:bg-orange-50 h-9 px-4 shrink-0 rounded-lg font-medium shadow-sm"
+                className="border-[#F97316] text-[#F97316] hover:bg-[#F97316] hover:text-white hover:border-[#F97316] active:scale-95 h-9 px-4 shrink-0 rounded-lg font-medium shadow-sm transition-all duration-150"
               >
                 <LocateFixed className="w-4 h-4 mr-2" />
                 {newAddress.coordinates.lat !== 0 ? "Change Pin" : "Open Map"}
@@ -426,10 +426,11 @@ export const AddressModal = ({ isOpen, onClose, address, onAddressAdded, onAddre
                         setIsOtherLabel(false);
                         updateField("label", "Home");
                       }}
-                      className={`flex-1 rounded-lg h-full px-0 transition-all ${!isOtherLabel && newAddress.label === "Home"
-                        ? "bg-[#F97316] border-[#F97316] text-white shadow-sm"
-                        : "bg-white border-gray-200 text-gray-500 hover:border-[#F97316] hover:text-[#F97316]"
-                        }`}
+                      className={`flex-1 rounded-lg h-full px-0 transition-all duration-150 ${
+                        !isOtherLabel && newAddress.label === "Home"
+                          ? "bg-[#F97316] border-[#F97316] text-white shadow-sm"
+                          : "bg-white border-gray-200 text-gray-500 hover:bg-[#F97316] hover:border-[#F97316] hover:text-white"
+                      }`}
                     >
                       Home
                     </Button>
@@ -440,10 +441,11 @@ export const AddressModal = ({ isOpen, onClose, address, onAddressAdded, onAddre
                         setIsOtherLabel(false);
                         updateField("label", "Office");
                       }}
-                      className={`flex-1 rounded-lg h-full px-0 transition-all ${!isOtherLabel && newAddress.label === "Office"
-                        ? "bg-[#F97316] border-[#F97316] text-white shadow-sm"
-                        : "bg-white border-gray-200 text-gray-500 hover:border-[#F97316] hover:text-[#F97316]"
-                        }`}
+                      className={`flex-1 rounded-lg h-full px-0 transition-all duration-150 ${
+                        !isOtherLabel && newAddress.label === "Office"
+                          ? "bg-[#F97316] border-[#F97316] text-white shadow-sm"
+                          : "bg-white border-gray-200 text-gray-500 hover:bg-[#F97316] hover:border-[#F97316] hover:text-white"
+                      }`}
                     >
                       Office
                     </Button>
@@ -464,18 +466,19 @@ export const AddressModal = ({ isOpen, onClose, address, onAddressAdded, onAddre
                   onClick={() => {
                     if (isOtherLabel) {
                       setIsOtherLabel(false);
-                      updateField("label", ""); // Clear selection instead of forcing "Home"
+                      updateField("label", "");
                     } else {
                       setIsOtherLabel(true);
                       if (["Home", "Office"].includes(newAddress.label)) {
-                        updateField("label", ""); // Clear input so they can type immediately
+                        updateField("label", "");
                       }
                     }
                   }}
-                  className={`px-3 shrink-0 rounded-lg h-full transition-all ${isOtherLabel
-                    ? "bg-[#F97316] border-[#F97316] text-white shadow-sm"
-                    : "bg-white border-gray-200 text-gray-500 hover:border-[#F97316] hover:text-[#F97316]"
-                    }`}
+                  className={`px-3 shrink-0 rounded-lg h-full transition-all duration-150 ${
+                    isOtherLabel
+                      ? "bg-[#F97316] border-[#F97316] text-white shadow-sm"
+                      : "bg-white border-gray-200 text-gray-500 hover:bg-[#F97316] hover:border-[#F97316] hover:text-white"
+                  }`}
                 >
                   {isOtherLabel ? "Cancel" : "Other"}
                 </Button>
