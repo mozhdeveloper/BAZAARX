@@ -54,13 +54,21 @@ supabase.auth.onAuthStateChange(async (event, session) => {
 // that, wipe the stale tokens and let the app redirect to sign-in.
 (async () => {
   try {
-    const { error } = await supabase.auth.getSession();
+    const { data, error } = await supabase.auth.getSession();
     if (error) {
-      console.log('[Auth] Stale session cleared on startup');
+      if (error.message?.includes('Refresh Token Not Found') || error.message?.includes('Invalid Refresh Token')) {
+        console.log('[Auth] Stale session detected and cleared on startup');
+      } else {
+        console.warn('[Auth] Session validation error:', error.message);
+      }
       await clearAuthStorage();
       await supabase.auth.signOut().catch(() => { });
+    } else if (!data.session) {
+      // Normal state: no session in storage
+      // console.log('[Auth] No session to restore');
     }
-  } catch {
+  } catch (err: any) {
+    console.error('[Auth] Unexpected error during session validation:', err?.message);
     await clearAuthStorage();
     await supabase.auth.signOut().catch(() => { });
   }
