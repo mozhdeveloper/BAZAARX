@@ -275,14 +275,22 @@ export class SellerService {
                     *,
                     profile:profiles(first_name, last_name),
                     business_profile:seller_business_profiles(*),
-                    payout_account:seller_payout_settings(seller_id, bank_name, bank_account_name, bank_account_number, payout_method),
                     verification_documents:seller_verification_documents(*)
                 `)
                 .eq('id', sellerId)
                 .single();
 
             if (error) throw error;
-            return this.transformSeller(data);
+
+            // Query payout settings separately (FK references profiles.id, not sellers.id,
+            // so PostgREST cannot resolve the embedded join automatically).
+            const { data: payoutData } = await supabase
+                .from('seller_payout_settings')
+                .select('seller_id, bank_name, bank_account_name, bank_account_number, payout_method')
+                .eq('seller_id', sellerId)
+                .maybeSingle();
+
+            return this.transformSeller({ ...data, payout_account: payoutData });
         } catch (error) {
             console.error('Error fetching seller:', error);
             throw new Error('Failed to fetch seller information.');
@@ -646,6 +654,13 @@ export class SellerService {
             if (error) throw error;
             if (!seller) return null;
 
+            // Query payout settings separately (FK references profiles.id, not sellers.id)
+            const { data: payoutData } = await supabase
+                .from('seller_payout_settings')
+                .select('seller_id, bank_name, bank_account_name, bank_account_number, payout_method')
+                .eq('seller_id', storeId)
+                .maybeSingle();
+
             const metricsMap = await this.getSellerReviewMetrics([storeId]);
             const metrics = metricsMap.get(storeId) || {
                 rating: 0,
@@ -655,6 +670,7 @@ export class SellerService {
 
             return this.transformSeller({
                 ...(seller as any),
+                payout_account: payoutData,
                 rating: metrics.rating,
                 total_reviews: metrics.total_reviews,
                 review_count: metrics.total_reviews,

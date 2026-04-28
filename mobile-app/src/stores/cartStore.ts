@@ -4,6 +4,7 @@ import { persist, createJSONStorage } from 'zustand/middleware';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { CartItem, Product } from '../types';
 import { cartService } from '../services/cartService';
+import { discountService } from '../services/discountService';
 import { useAuthStore } from './authStore';
 import { PLACEHOLDER_PRODUCT } from '../utils/imageUtils';
 
@@ -252,10 +253,31 @@ export const useCartStore = create<CartStore>()(
         set({ isValidatingCheckout: true, checkoutErrors: {} });
         try {
           const result = await cartService.validateCheckoutItems(selectedIds);
-          if (!result.isValid) {
-            set({ checkoutErrors: result.errors });
+          const errors: Record<string, string> = { ...result.errors };
+
+          // Flash sale expiry check
+          const { items } = get();
+          const selectedItems = items.filter(
+            i => selectedIds.includes(i.cartItemId) || selectedIds.includes(i.id)
+          );
+          const productIds = [...new Set(selectedItems.map(i => i.id).filter(Boolean))];
+
+          if (productIds.length > 0) {
+            const freshDiscounts = await discountService.getActiveDiscountsForProducts(productIds);
+            for (const item of selectedItems) {
+              const hadDiscount = !!(item as any).campaignDiscount;
+              const stillActive = !!freshDiscounts[item.id];
+              if (hadDiscount && !stillActive && !errors[item.cartItemId]) {
+                errors[item.cartItemId] = 'The flash sale for this item has ended. Price updated — please review before checkout.';
+                result.isValid = false;
+              }
+            }
           }
-          return result.isValid;
+
+          if (!result.isValid || Object.keys(errors).length > 0) {
+            set({ checkoutErrors: errors });
+          }
+          return result.isValid && Object.keys(errors).length === 0;
         } catch (e: any) {
           set({ error: e.message || 'Validation failed' });
           return false;
@@ -286,7 +308,36 @@ export const useCartStore = create<CartStore>()(
             const rawItems = await cartService.getCartItems(cartId);
             const dbItems = mapDbCartItemsToCartItems(rawItems);
             const mergedItems = mergeDbAndLocalItems(dbItems, get().items);
-            set({ items: mergedItems });
+
+            // Refresh flash sale prices so items added before a flash sale starts
+            // display the correct flash sale price once the sale goes live.
+            let finalItems = mergedItems;
+            const cartProductIds = [...new Set(mergedItems.map(i => i.id).filter(Boolean))];
+            if (cartProductIds.length > 0) {
+              try {
+                const flashProducts = await discountService.getGlobalFlashSaleProducts();
+                const flashPriceMap = new Map(
+                  flashProducts
+                    .filter((p: any) => p.id && p.price != null)
+                    .map((p: any) => [p.id, {
+                      price: Number(p.price),
+                      originalPrice: Number(p.originalPrice) || Number(p.price),
+                    }])
+                );
+                if (flashPriceMap.size > 0) {
+                  finalItems = mergedItems.map(item => {
+                    const fp = flashPriceMap.get(item.id);
+                    if (!fp) return item;
+                    const origPrice = fp.originalPrice || item.originalPrice || item.price || 0;
+                    if (fp.price >= origPrice) return item;
+                    return { ...item, price: fp.price, originalPrice: origPrice };
+                  });
+                }
+              } catch (_) {
+                // keep existing prices on flash sale fetch error
+              }
+            }
+            set({ items: finalItems });
           }
         } catch (e: any) {
           set({ error: e?.message || 'Failed to load cart', items: [] });

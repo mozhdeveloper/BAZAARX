@@ -42,13 +42,37 @@ export class CartService {
       const { data: latestItems, error } = await supabase
         .from('cart_items')
         .select(`
-          id, quantity,
+          id, quantity, variant_id,
           product:products ( id, approval_status, disabled_at, deleted_at, seller_id ),
           variant:product_variants ( id, stock )
         `)
         .in('id', validUuids);
 
       if (error) throw error;
+
+      // For cart items that have NO variant_id (null), the variant join returns null
+      // and we must look up total available stock from all of the product's variants.
+      // This prevents false "out of stock" errors for products added to cart without
+      // a specific variant selection.
+      const nullVariantProductIds = [
+        ...new Set(
+          (latestItems || [])
+            .filter(item => !(item as any).variant_id)
+            .map(item => (item.product as any)?.id)
+            .filter(Boolean)
+        )
+      ];
+      let noVariantProductStockMap: Record<string, number> = {};
+      if (nullVariantProductIds.length > 0) {
+        const { data: variantRows } = await supabase
+          .from('product_variants')
+          .select('product_id, stock')
+          .in('product_id', nullVariantProductIds);
+        for (const v of (variantRows || [])) {
+          noVariantProductStockMap[v.product_id] =
+            (noVariantProductStockMap[v.product_id] ?? 0) + (v.stock ?? 0);
+        }
+      }
 
       // Step 2: Extract unique seller IDs and fetch their status separately to bypass strict FK guards
       const sellerIds = [...new Set((latestItems || []).map(item => (item.product as any)?.seller_id).filter(Boolean))];
@@ -91,7 +115,15 @@ export class CartService {
           continue;
         }
 
-        const availableStock = variant?.stock ?? 0; // Web relies heavily on variants
+        // Resolve effective stock:
+        // - If the cart line has a variant_id, use the directly-joined variant's stock.
+        // - If variant_id is null (product added without variant selection), sum all
+        //   of the product's variant stocks (fetched in the batch above).
+        // This prevents false "out of stock" errors at checkout.
+        const hasVariant = !!(item as any).variant_id;
+        const availableStock = hasVariant
+          ? (variant?.stock ?? 0)
+          : (noVariantProductStockMap[(product as any)?.id] ?? 0);
         if (availableStock === 0) {
           errors[item.id] = 'This item just went out of stock.';
           isValid = false;

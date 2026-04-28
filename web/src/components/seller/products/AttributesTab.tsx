@@ -1,5 +1,6 @@
 import { Button } from "@/components/ui/button";
-import { Plus, X, Ruler } from "lucide-react";
+import { Plus, X, Ruler, HelpCircle } from "lucide-react";
+import { useState } from "react";
 import { VariantManager } from "@/components/seller/products/VariantManager";
 import { VariantConfig } from "@/types";
 
@@ -105,10 +106,35 @@ export function AttributesTab({
     setErrors,
     addVariant,
 }: AttributesTabProps) {
+    const [showAttributeHelp, setShowAttributeHelp] = useState(true);
+
     return (
         <>
             {/* Attributes Section */}
             <div className="space-y-6">
+                {/* Help explainer — dismissable */}
+                {showAttributeHelp && (
+                    <div className="bg-blue-50 border border-blue-100 rounded-xl p-4 flex items-start gap-3 relative">
+                        <HelpCircle className="w-5 h-5 text-blue-500 flex-shrink-0 mt-0.5" />
+                        <div className="text-sm text-blue-800 pr-6">
+                            <p className="font-semibold mb-1">How Attributes & Variants Work</p>
+                            <p className="text-xs text-blue-600 leading-relaxed">
+                                Attributes define the options buyers can choose from (e.g. Size: S, M, L or Color: Red, Blue). 
+                                When you add values to Attribute 1 and/or Attribute 2, the system automatically generates all 
+                                possible variant combinations. Each variant gets its own stock, price, SKU, and image.
+                            </p>
+                        </div>
+                        <button
+                            type="button"
+                            onClick={() => setShowAttributeHelp(false)}
+                            className="absolute top-3 right-3 text-blue-400 hover:text-blue-600 transition-colors p-0.5 rounded-full hover:bg-blue-100"
+                            title="Dismiss"
+                        >
+                            <X className="w-4 h-4" />
+                        </button>
+                    </div>
+                )}
+
                 {/* First Attribute (Variations) */}
                 <div className="space-y-3">
                     <div className="flex items-center justify-between">
@@ -152,6 +178,13 @@ export function AttributesTab({
                                     <label className="block text-sm font-semibold text-gray-800">
                                         {firstAttributeName}
                                     </label>
+                                    <div className="relative group">
+                                        <HelpCircle className="w-3.5 h-3.5 text-gray-400 hover:text-blue-500 cursor-help transition-colors" />
+                                        <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 px-3 py-2 bg-gray-900 text-white text-xs rounded-lg shadow-lg opacity-0 pointer-events-none group-hover:opacity-100 transition-opacity whitespace-nowrap z-50">
+                                            Primary variation axis (e.g. Size, Storage, Flavor)
+                                            <div className="absolute top-full left-1/2 -translate-x-1/2 w-2 h-2 bg-gray-900 rotate-45 -mt-1" />
+                                        </div>
+                                    </div>
                                     <button
                                         type="button"
                                         onClick={() =>
@@ -258,6 +291,13 @@ export function AttributesTab({
                                     <label className="block text-sm font-semibold text-gray-800">
                                         {secondAttributeName}
                                     </label>
+                                    <div className="relative group">
+                                        <HelpCircle className="w-3.5 h-3.5 text-gray-400 hover:text-blue-500 cursor-help transition-colors" />
+                                        <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 px-3 py-2 bg-gray-900 text-white text-xs rounded-lg shadow-lg opacity-0 pointer-events-none group-hover:opacity-100 transition-opacity whitespace-nowrap z-50">
+                                            Secondary variation axis (e.g. Color, Material)
+                                            <div className="absolute top-full left-1/2 -translate-x-1/2 w-2 h-2 bg-gray-900 rotate-45 -mt-1" />
+                                        </div>
+                                    </div>
                                     <button
                                         type="button"
                                         onClick={() =>

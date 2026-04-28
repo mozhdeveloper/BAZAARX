@@ -31,6 +31,8 @@ import { regions, provinces, cities, barangays } from 'select-philippines-addres
 import { COLORS } from '@/constants/theme';
 import { addressService, type Address } from '@/services/addressService';
 import { useAuthStore } from '@/stores/authStore';
+import { useAddressForm, coordsInMetroManila, reverseGeoMatchesMetroManila } from '@/hooks/useAddressForm';
+import { useGeoLocation, type GeoCascadeResult } from '@/hooks/useGeoLocation';
 
 // ---------------------------------------------------------------------------
 // Types
@@ -39,15 +41,23 @@ import { useAuthStore } from '@/stores/authStore';
 export interface AddressFormModalProps {
     visible: boolean;
     onClose: () => void;
-    onSaved: (address: Address) => void;
+    onSaved: (address: Address) => void | Promise<void>;
     initialData?: Partial<Address> | Record<string, any> | null;
     userId: string;
     existingCount?: number;
     /** 'buyer' hides isPickup / isReturn toggles. Default: 'buyer' */
     context?: 'buyer' | 'seller';
     readOnly?: boolean;
-    lockName?: boolean; // NEW: Locks only the name fields post-checkout
-    isOrderEdit?: boolean; // NEW: Bypasses DB save and duplicate checks
+    lockName?: boolean; // Locks only the name fields post-checkout
+    isOrderEdit?: boolean; // Bypasses DB save and duplicate checks
+    /**
+     * When true the form opens in pure-create mode:
+     *  - The "Saved Addresses" quick-fill strip is hidden
+     *  - State is always blank (no prefill from existing records)
+     *  - The save path always calls INSERT, never UPSERT
+     * Defaults to `!initialData` when omitted.
+     */
+    forceCreateMode?: boolean;
 }
 
 const DEFAULT_REGION: Region = {
@@ -96,10 +106,15 @@ export default function AddressFormModal({
     context = 'buyer',
     readOnly = false,
     lockName = false,
-    isOrderEdit = false, // ADD THIS
+    isOrderEdit = false,
+    forceCreateMode,
 }: AddressFormModalProps) {
     const insets = useSafeAreaInsets();
     const isMounted = useRef(true);
+
+    // Derive whether we are in "add new" vs "edit" mode.
+    // forceCreateMode prop wins; otherwise fall back to !initialData.
+    const isCreateMode = forceCreateMode ?? !initialData;
 
     // Form state
     const [form, setForm] = useState<Omit<Address, 'id'>>(
@@ -115,6 +130,68 @@ export default function AddressFormModal({
     const [savedAddresses, setSavedAddresses] = useState<Address[]>([]);
     const [selectedSavedAddressId, setSelectedSavedAddressId] = useState<string | null>(null);
     const [isLoadingSavedData, setIsLoadingSavedData] = useState(false);
+    // Metro Manila smart-lock
+    const [isMetroManilaLocked, setIsMetroManilaLocked] = useState(false);
+
+    const { checkDuplicate, checkLabelDuplicate } = useAddressForm();
+
+    // ─── Optimised Geolocation Hook ──────────────────────────────────────────
+    // Applies patterns from MOBILE_PERFORMANCE_OPTIMIZATION.md:
+    //  • §2B  Parallel fetch — Nominatim + PH regions run concurrently
+    //  • §2A  Parallel cities — Metro Manila province cities via Promise.all
+    //  • SWR  3-minute GPS cache prevents redundant high-accuracy pings
+    //  • Accuracy ladder — Balanced fix first, high-accuracy upgrade in BG
+    //  • AbortController — stale requests cancelled on unmount / re-trigger
+    const applyCascade = useCallback((cascade: GeoCascadeResult) => {
+        if (!isMounted.current) return;
+
+        setIsMetroManilaLocked(cascade.isMetroManila);
+
+        setForm(prev => ({
+            ...prev,
+            street: cascade.nominatim.street || prev.street,
+            barangay: cascade.barangayName ?? cascade.nominatim.barangay,
+            city: cascade.cityName ?? cascade.nominatim.city,
+            province: cascade.isMetroManila ? 'Metro Manila' : (cascade.provinceName ?? cascade.nominatim.province),
+            region: cascade.regionName || cascade.nominatim.region,
+            zipCode: cascade.nominatim.zipCode || prev.zipCode,
+        }));
+
+        setGeoCodes(prev => ({
+            ...prev,
+            regionCode: cascade.regionCode,
+            ...(cascade.provinceCode && { provinceCode: cascade.provinceCode }),
+            ...(cascade.cityCode && { cityCode: cascade.cityCode }),
+            ...(cascade.barangayCode && { barangayCode: cascade.barangayCode }),
+        }));
+
+        if (cascade.provinceList.length) setProvinceList(cascade.provinceList);
+        if (cascade.cityList.length) setCityList(cascade.cityList);
+        if (cascade.barangayList.length) setBarangayList(cascade.barangayList);
+    }, []);
+
+    const { requestLocation, geocodeCoords, cancelAll } = useGeoLocation({
+        onFastFix: (lat, lng) => {
+            if (!isMounted.current) return;
+            setForm(prev => ({ ...prev, coordinates: { latitude: lat, longitude: lng } }));
+            setMapRegion({ latitude: lat, longitude: lng, latitudeDelta: 0.005, longitudeDelta: 0.005 });
+        },
+        onGeoCascadeComplete: (cascade) => {
+            if (!isMounted.current) return;
+            applyCascade(cascade);
+            setIsReverseGeocoding(false);
+        },
+        onAccuracyUpgrade: (lat, lng) => {
+            if (!isMounted.current) return;
+            setForm(prev => ({ ...prev, coordinates: { latitude: lat, longitude: lng } }));
+            setMapRegion(prev => ({ ...prev, latitude: lat, longitude: lng }));
+        },
+        setIsGettingLocation: (v) => { if (isMounted.current) setIsGettingLocation(v); },
+        setIsReverseGeocoding: (v) => { if (isMounted.current) setIsReverseGeocoding(v); },
+    });
+
+    // Cancel in-flight geocoding when the modal closes
+    useEffect(() => { if (!visible) cancelAll(); }, [visible, cancelAll]);
 
     // Dropdown state
     const [regionList, setRegionList] = useState<any[]>([]);
@@ -206,6 +283,8 @@ export default function AddressFormModal({
             setCityList([]);
             setBarangayList([]);
             setMapRegion(DEFAULT_REGION);
+            // Always reset Metro Manila lock for a fresh entry.
+            setIsMetroManilaLocked(false);
         }
         setOpenDropdown(null);
     }, [visible, initialData]);
@@ -256,29 +335,26 @@ export default function AddressFormModal({
                 const addresses = await addressService.getAddresses(userId);
                 if (!isMounted.current) return;
 
+                // Always load the list so duplicate-checks work.
                 setSavedAddresses(addresses || []);
 
-                // Prefill only for add mode; edit mode should keep initialData intact.
-                if (!initialData) {
-                    const defaultAddress = (addresses || []).find(a => a.isDefault) || (addresses || [])[0];
-
-                    if (defaultAddress) {
-                        setSelectedSavedAddressId(defaultAddress.id);
-                        applySavedAddress(defaultAddress);
-                    } else if (authUser) {
-                        const fullName = (authUser.name || '').trim();
-                        const nameParts = fullName.length > 0 ? fullName.split(/\s+/) : [];
-                        const firstName = nameParts[0] || '';
-                        const lastName = nameParts.slice(1).join(' ');
-
-                        setForm(prev => ({
-                            ...prev,
-                            firstName: prev.firstName || firstName,
-                            lastName: prev.lastName || lastName,
-                            phone: prev.phone || authUser.phone || '',
-                        }));
-                    }
+                // --- FRESH ENTRY LOGIC ---
+                // In ADD mode, NEVER auto-apply a saved address to the form.
+                // Only fill contact details from the user's profile so the
+                // name/phone fields aren't blank, but leave all location fields
+                // empty so the user consciously types a new address.
+                if (!initialData && authUser) {
+                    const fullName = (authUser.name || '').trim();
+                    const nameParts = fullName.length > 0 ? fullName.split(/\s+/) : [];
+                    setForm(prev => ({
+                        ...prev,
+                        firstName: prev.firstName || nameParts[0] || '',
+                        lastName: prev.lastName || nameParts.slice(1).join(' ') || '',
+                        phone: prev.phone || authUser.phone || '',
+                    }));
                 }
+                // In EDIT mode, initialData already populated the form via the
+                // earlier useEffect — nothing extra needed here.
             } catch (error) {
                 console.error('[AddressFormModal] Failed to load saved profile/address data:', error);
             } finally {
@@ -287,7 +363,7 @@ export default function AddressFormModal({
         };
 
         loadSavedData();
-    }, [visible, userId, initialData, applySavedAddress]);
+    }, [visible, userId, initialData]);
 
     // ---------------------------------------------------------------------------
     // Geocoding helpers
@@ -316,140 +392,21 @@ export default function AddressFormModal({
         }
     };
 
-    const reverseGeocodeAndFill = async (lat: number, lng: number) => {
-        if (!isMounted.current) return;
-        setIsReverseGeocoding(true);
-        try {
-            const res = await fetch(
-                `https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lng}&addressdetails=1`,
-                { headers: { 'User-Agent': 'BazaarXApp/1.0' } },
-            );
-            const data = await res.json();
-            if (!data?.address || !isMounted.current) return;
-
-            const a = data.address;
-            const gStreet = a.road || a.pedestrian || '';
-            const gBarangay = a.neighbourhood || a.suburb || a.village || '';
-            const gCity = a.city || a.municipality || a.town || '';
-            const gProvince = a.county || a.state || '';
-            const gRegion = a.region || a.state || '';
-            const gZip = a.postcode || '';
-
-            setForm(prev => ({
-                ...prev,
-                street: gStreet || prev.street,
-                barangay: gBarangay,
-                city: gCity,
-                province: gProvince,
-                region: gRegion,
-                zipCode: gZip || prev.zipCode,
-                coordinates: { latitude: lat, longitude: lng },
-            }));
-
-            // Match to PH address API and cascade dropdowns
-            let regList = regionList;
-            if (regList.length === 0) {
-                regList = await regions();
-                if (isMounted.current) setRegionList(regList);
-            }
-
-            const metroCities = ['manila', 'quezon', 'makati', 'pasig', 'taguig', 'marikina', 'paranaque',
-                'pasay', 'caloocan', 'malabon', 'navotas', 'valenzuela', 'muntinlupa',
-                'las piñas', 'san juan', 'mandaluyong', 'pateros'];
-
-            const matchedRegion = regList.find((r: any) => {
-                const rName = r.region_name?.toLowerCase() || '';
-                const gR = gRegion.toLowerCase();
-                const gC = gCity.toLowerCase();
-                if (rName.includes('metro manila') || rName.includes('ncr') || rName.includes('national capital')) {
-                    return gR.includes('metro manila') || gR.includes('ncr') || gR.includes('national capital') ||
-                        metroCities.some(c => gC.includes(c));
-                }
-                return rName.includes(gR) || gR.includes(rName);
-            });
-
-            if (!matchedRegion || !isMounted.current) return;
-
-            const newCodes: typeof geoCodes = { regionCode: matchedRegion.region_code };
-            setForm(prev => ({ ...prev, region: matchedRegion.region_name }));
-
-            const provList = await provinces(matchedRegion.region_code);
-            if (!isMounted.current) return;
-            setProvinceList(provList);
-
-            const isMetroManila = matchedRegion.region_name?.toLowerCase().includes('metro manila') ||
-                matchedRegion.region_name?.toLowerCase().includes('ncr') ||
-                matchedRegion.region_code === '13';
-
-            if (isMetroManila) {
-                let allCities: any[] = [];
-                for (const prov of provList) {
-                    const pc = await cities(prov.province_code);
-                    allCities = [...allCities, ...pc];
-                }
-                if (!isMounted.current) return;
-                setCityList(allCities);
-
-                const matchedCity = allCities.find((c: any) => {
-                    const cN = c.city_name?.toLowerCase() || '';
-                    return cN.includes(gCity.toLowerCase()) || gCity.toLowerCase().includes(cN.split(' ')[0]);
-                });
-                if (matchedCity) {
-                    newCodes.cityCode = matchedCity.city_code;
-                    setForm(prev => ({ ...prev, city: matchedCity.city_name }));
-                    const bList = await barangays(matchedCity.city_code);
-                    if (!isMounted.current) return;
-                    setBarangayList(bList);
-                    const matchedBrgy = bList.find((b: any) => {
-                        const bN = b.brgy_name?.toLowerCase() || '';
-                        return bN.includes(gBarangay.toLowerCase()) || gBarangay.toLowerCase().includes(bN);
-                    });
-                    if (matchedBrgy) {
-                        newCodes.barangayCode = matchedBrgy.brgy_code;
-                        setForm(prev => ({ ...prev, barangay: matchedBrgy.brgy_name }));
-                    }
-                }
-            } else {
-                const matchedProv = provList.find((p: any) => {
-                    const pN = p.province_name?.toLowerCase() || '';
-                    return pN.includes(gProvince.toLowerCase()) || gProvince.toLowerCase().includes(pN);
-                });
-                if (matchedProv) {
-                    newCodes.provinceCode = matchedProv.province_code;
-                    setForm(prev => ({ ...prev, province: matchedProv.province_name }));
-                    const cList = await cities(matchedProv.province_code);
-                    if (!isMounted.current) return;
-                    setCityList(cList);
-                    const matchedCity = cList.find((c: any) => {
-                        const cN = c.city_name?.toLowerCase() || '';
-                        return cN.includes(gCity.toLowerCase()) || gCity.toLowerCase().includes(cN.split(' ')[0]);
-                    });
-                    if (matchedCity) {
-                        newCodes.cityCode = matchedCity.city_code;
-                        setForm(prev => ({ ...prev, city: matchedCity.city_name }));
-                        const bList = await barangays(matchedCity.city_code);
-                        if (!isMounted.current) return;
-                        setBarangayList(bList);
-                        const matchedBrgy = bList.find((b: any) => {
-                            const bN = b.brgy_name?.toLowerCase() || '';
-                            return bN.includes(gBarangay.toLowerCase()) || gBarangay.toLowerCase().includes(bN);
-                        });
-                        if (matchedBrgy) {
-                            newCodes.barangayCode = matchedBrgy.brgy_code;
-                            setForm(prev => ({ ...prev, barangay: matchedBrgy.brgy_name }));
-                        }
-                    }
-                }
-            }
-
-            if (isMounted.current) setGeoCodes(newCodes);
-        } catch { /* silent */ } finally {
-            if (isMounted.current) setIsReverseGeocoding(false);
-        }
-    };
-
+    /**
+     * reverseGeocodeAndFill — now delegates to the optimised useGeoLocation hook.
+     * Called when the user confirms a map pin (not a GPS request).
+     * Uses the hook's geocodeCoords() path:
+     *  - Nominatim result is cached by rounded coord key (no duplicate API calls)
+     *  - PH regions list is pre-warmed in parallel
+     *  - Metro Manila city fetches run concurrently via Promise.all (§2A)
+     */
+    const reverseGeocodeAndFill = useCallback((lat: number, lng: number) => {
+        setForm(prev => ({ ...prev, coordinates: { latitude: lat, longitude: lng } }));
+        geocodeCoords(lat, lng);
+    }, [geocodeCoords]);
     // ---------------------------------------------------------------------------
     // Dropdown cascade handlers
+
     // ---------------------------------------------------------------------------
 
     const toggleDropdown = (name: typeof openDropdown) => {
@@ -547,49 +504,18 @@ export default function AddressFormModal({
     };
 
     // ---------------------------------------------------------------------------
-    // GPS — "Use My Location" with permission prompt
+    // GPS — "Use My Location" — delegates to useGeoLocation hook
     // ---------------------------------------------------------------------------
 
-    const handleUseMyLocation = useCallback(async () => {
-        if (isGettingLocation) return;
-        setIsGettingLocation(true);
-        try {
-            const { status } = await Location.requestForegroundPermissionsAsync();
-            if (status !== 'granted') {
-                Alert.alert(
-                    'Location Permission Required',
-                    'We need access to your location to accurately place your address on the map. Please enable Location in your device Settings.',
-                    [{ text: 'OK' }],
-                );
-                return;
-            }
-
-            const position = await Location.getCurrentPositionAsync({
-                accuracy: 3 as any, // LocationAccuracy.High = 3; named export missing from installed type defs
-            });
-            const { latitude, longitude } = position.coords;
-
-            setForm(prev => ({ ...prev, coordinates: { latitude, longitude } }));
-            setMapRegion({
-                latitude,
-                longitude,
-                latitudeDelta: 0.005,
-                longitudeDelta: 0.005,
-            });
-
-            // Reverse geocode to auto-fill all fields
-            reverseGeocodeAndFill(latitude, longitude);
-        } catch (error) {
-            console.error('[AddressFormModal] Location error:', error);
-            Alert.alert(
-                'Could not get location',
-                'Please make sure your GPS is turned on and try again.',
-                [{ text: 'OK' }],
-            );
-        } finally {
-            if (isMounted.current) setIsGettingLocation(false);
-        }
-    }, [isGettingLocation, reverseGeocodeAndFill]);
+    const handleUseMyLocation = useCallback(() => {
+        // requestLocation() handles:
+        //  1. Permission request
+        //  2. SWR cache check (3-min TTL)
+        //  3. Fast balanced GPS fix → onFastFix updates map immediately
+        //  4. Nominatim + PH regions fetched in parallel
+        //  5. Background high-accuracy upgrade (non-blocking)
+        requestLocation();
+    }, [requestLocation]);
 
     // ---------------------------------------------------------------------------
     // Save
@@ -602,46 +528,49 @@ export default function AddressFormModal({
         // If editing an order, just pass the form data back to the order and close.
         // Do NOT save it to the global address book to avoid duplicate errors!
         if (isOrderEdit) {
-            onSaved(form as Address);
-            onClose();
+            setIsSaving(true);
+            try {
+                await (onSaved(form as Address) as Promise<void> | void);
+                if (isMounted.current) onClose();
+            } catch (error: any) {
+                console.error('[AddressFormModal] Save error:', error);
+                Alert.alert('Update Failed', error?.message || 'Could not save address changes. Please try again.');
+            } finally {
+                if (isMounted.current) setIsSaving(false);
+            }
             return;
         }
 
-        // --- UX SECURITY: DUPLICATE CHECKS ---
-        const normalize = (s?: string) => (s || '').trim().toLowerCase().replace(/[^a-z0-9]/g, '');
-        
+        // --- DUPLICATE CHECKS ---
         // 1. Duplicate Label Check
         if (form.label && form.label.trim().length > 0) {
-            const normalizedInputLabel = form.label.trim().toLowerCase();
-            const isDuplicateLabel = savedAddresses.some(addr => {
-                if (initialData?.id && addr.id === initialData.id) return false; // Ignore if editing self
-                if (selectedSavedAddressId && addr.id === selectedSavedAddressId) return false; // Ignore if using this exact saved address
-                return addr.label?.trim().toLowerCase() === normalizedInputLabel;
+            const conflictingLabel = checkLabelDuplicate(form.label, {
+                existingAddresses: savedAddresses,
+                editingId: initialData?.id as string | null,
             });
-
-            if (isDuplicateLabel) {
-                Alert.alert('Label Already Exists', `You already have a saved address with the label "${form.label.trim()}". Please choose a different name.`);
+            if (conflictingLabel) {
+                Alert.alert(
+                    'Label Already Exists',
+                    `You already have a saved address with the label "${form.label.trim()}". Please choose a different name.`,
+                );
                 return;
             }
         }
 
-        // 2. Duplicate Location Check (Street + Barangay + City)
-        const currentLocStr = normalize(form.street) + normalize(form.barangay) + normalize(form.city);
-        if (currentLocStr.length > 0) {
-            const duplicateLocation = savedAddresses.find(addr => {
-                if (initialData?.id && addr.id === initialData.id) return false; // Ignore if editing self
-                if (selectedSavedAddressId && addr.id === selectedSavedAddressId) return false; // Ignore if using this exact saved address
-                const addrLocStr = normalize(addr.street) + normalize(addr.barangay) + normalize(addr.city);
-                return addrLocStr === currentLocStr;
-            });
+        // 2. Duplicate Location Check (Street + City + Province)
+        // Province is included so that e.g. "123 Rizal St, San Pedro, Laguna"
+        // is NOT flagged as a duplicate of "123 Rizal St, San Pedro, Metro Manila".
+        const { isDuplicate, conflicting: duplicateLocation } = checkDuplicate(
+            { street: form.street, city: form.city, province: form.province },
+            { existingAddresses: savedAddresses, editingId: initialData?.id as string | null },
+        );
 
-            if (duplicateLocation) {
-                Alert.alert(
-                    'Address Already Exists', 
-                    `This exact location is already saved in your profile${duplicateLocation.label ? ` under the label "${duplicateLocation.label}"` : ''}. Please use that saved address instead to avoid duplicates.`
-                );
-                return;
-            }
+        if (isDuplicate && duplicateLocation) {
+            Alert.alert(
+                'Address Already Exists',
+                `This exact location (street, city, and province) is already saved in your address book${duplicateLocation.label ? ` under "${duplicateLocation.label}"` : ''}. Please edit that entry instead of creating a duplicate.`,
+            );
+            return;
         }
 
         setIsSaving(true);
@@ -781,7 +710,7 @@ export default function AddressFormModal({
                 <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={{ flex: 1, backgroundColor: '#FFF' }}>
                     {/* Header */}
                     <View style={[s.header, { paddingTop: insets.top > 0 ? insets.top : 20 }]}>
-                        <Text style={s.headerTitle}>{initialData ? 'Edit Address' : 'Add Address'}</Text>
+                        <Text style={s.headerTitle}>{!isCreateMode ? 'Edit Address' : 'Add Address'}</Text>
                         <Pressable onPress={onClose} style={s.closeBtn}>
                             <X size={22} color="#1F2937" />
                         </Pressable>
@@ -820,7 +749,11 @@ export default function AddressFormModal({
                            </Text>
                         )}
 
-                        {!readOnly && savedAddresses.length > 0 && (
+                        {/* Saved Addresses quick-fill strip.
+                         * HIDDEN in create mode — showing saved chips in "Add New"
+                         * would confuse users into thinking they are editing an
+                         * existing record. Only shown when explicitly editing. */}
+                        {!readOnly && !isCreateMode && savedAddresses.length > 0 && (
                             <View style={{ marginBottom: 14 }}>
                                 <Text style={s.inputLabel}>Saved Addresses</Text>
                                 <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={s.savedAddressRow}>
@@ -867,6 +800,15 @@ export default function AddressFormModal({
                                         );
                                     })}
                                 </ScrollView>
+                            </View>
+                        )}
+
+                        {/* Create-mode hint banner — only shown when adding a brand-new address */}
+                        {!readOnly && isCreateMode && savedAddresses.length > 0 && (
+                            <View style={s.createModeBanner}>
+                                <Text style={s.createModeBannerText}>
+                                    ✦ Fill in the fields below to add a new address. It will be saved separately from your existing ones.
+                                </Text>
                             </View>
                         )}
 
@@ -958,13 +900,31 @@ export default function AddressFormModal({
                         <TextInput editable={!readOnly} value={form.label} onChangeText={t => setForm(prev => ({ ...prev, label: t }))} style={[s.input, readOnly && { backgroundColor: '#F9FAFB', color: '#6B7280' }]} placeholder="Home, Office..." />
 
                         {renderDropdown({ label: 'Region', type: 'region', value: form.region, list: regionList, disabled: readOnly })}
-                        {renderDropdown({ label: 'Province', type: 'province', value: form.province, list: provinceList, disabled: readOnly || !form.region })}
+
+                        {/* Province: locked when Metro Manila detected via GPS/pin — prevents user error. */}
+                        {isMetroManilaLocked && !readOnly ? (
+                            <View style={{ marginBottom: 12 }}>
+                                <Text style={s.inputLabel}>Province</Text>
+                                <View style={[s.dropdownTrigger, s.dropdownDisabled, { justifyContent: 'space-between' }]}>
+                                    <Text style={[s.dropdownTextInput, { color: '#1F2937' }]}>Metro Manila</Text>
+                                    <View style={{ backgroundColor: '#FFF7ED', paddingHorizontal: 8, paddingVertical: 3, borderRadius: 8 }}>
+                                        <Text style={{ fontSize: 11, color: COLORS.primary, fontWeight: '700' }}>Auto-detected</Text>
+                                    </View>
+                                </View>
+                                <Text style={{ fontSize: 11, color: '#9CA3AF', marginTop: 4, marginBottom: 12 }}>
+                                    Province locked to Metro Manila based on your pinned location.
+                                </Text>
+                            </View>
+                        ) : (
+                            renderDropdown({ label: 'Province', type: 'province', value: form.province, list: provinceList, disabled: readOnly || !form.region })
+                        )}
+
                         {renderDropdown({
                             label: 'City / Municipality',
                             type: 'city',
                             value: form.city,
                             list: cityList,
-                            disabled: readOnly || (!form.province && !form.region?.toLowerCase().includes('ncr') && !form.region?.toLowerCase().includes('metro manila')),
+                            disabled: readOnly || (!form.province && !isMetroManilaLocked && !form.region?.toLowerCase().includes('ncr') && !form.region?.toLowerCase().includes('metro manila')),
                         })}
                         {renderDropdown({ label: 'Barangay', type: 'barangay', value: form.barangay, list: barangayList, disabled: readOnly || !form.city })}
 
@@ -1189,6 +1149,25 @@ const s = StyleSheet.create({
     },
     savedAddressChipTextActive: {
         color: COLORS.primary,
+    },
+    // Create-mode hint banner (replaces saved-address chips when forceCreateMode/add mode)
+    createModeBanner: {
+        flexDirection: 'row',
+        alignItems: 'flex-start',
+        backgroundColor: '#EFF6FF',
+        borderWidth: 1,
+        borderColor: '#BFDBFE',
+        borderRadius: 12,
+        paddingVertical: 10,
+        paddingHorizontal: 14,
+        marginBottom: 14,
+    },
+    createModeBannerText: {
+        fontSize: 12,
+        color: '#1E40AF',
+        fontWeight: '500',
+        lineHeight: 18,
+        flex: 1,
     },
 }); 
 

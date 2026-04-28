@@ -1,6 +1,7 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 import { cartService } from '@/services/cartService';
+import { discountService } from '@/services/discountService';
 import { getCurrentUser, supabase } from '@/lib/supabase';
 import { productService } from '@/services/productService';
 import { AddressService } from '@/services/addressService';
@@ -239,9 +240,20 @@ export const useBuyerStore = create<BuyerStore>()(persist(
         }
 
         // 3) Update local Zustand state only after remote writes succeed
-        set((state) => ({
-          profile: state.profile ? { ...state.profile, ...updates } : null
-        }));
+        set((state) => {
+          if (!state.profile) return { profile: null };
+          
+          // Deep merge preferences if they are being updated
+          const updatedProfile = { ...state.profile, ...updates };
+          if (updates.preferences && state.profile.preferences) {
+            updatedProfile.preferences = {
+              ...state.profile.preferences,
+              ...updates.preferences
+            };
+          }
+          
+          return { profile: updatedProfile };
+        });
       } catch (err) {
         console.error("Failed to update profile in database:", err);
         // Optional: Add toast notification for error
@@ -815,6 +827,7 @@ export const useBuyerStore = create<BuyerStore>()(persist(
         item.id === productId && item.selectedVariant?.id === newVariant.id && item.selectedVariant?.id !== oldVariantId
       );
 
+      // Optimistic local update so the UI reflects the merge immediately
       let nextCartItems = [...cartItems];
 
       if (existingNewVariantIndex !== -1) {
@@ -832,26 +845,40 @@ export const useBuyerStore = create<BuyerStore>()(persist(
           selectedVariant: newVariant,
           price: newVariant.price,
           quantity: finalQuantity,
-          image: newVariant.image || newVariant.thumbnail_url || currentItem.image
+          image: newVariant.image || (newVariant as any).thumbnail_url || currentItem.image
         };
-      }
-
-      // 3. Sync with DB (Handle deletion/update logic)
-      if (user) {
-        try {
-          const cart = await cartService.getOrCreateCart(user.id);
-          if (cart) {
-            // If merging, you would delete the old record and update the quantity of the new one
-            // If simply updating, call the existing update service
-            await get().initializeCart(); // Simplest way to re-sync complex merges from DB truth
-          }
-        } catch (error) {
-          console.error('Error syncing variant merge:', error);
-        }
       }
 
       set({ cartItems: nextCartItems });
       get().groupCartBySeller();
+
+      // 3. Persist to DB. The previous implementation only re-read DB without writing,
+      // which meant a refresh would re-show the un-merged cart.
+      if (user && currentItem.cartItemId) {
+        try {
+          // updateCartItemVariant atomically handles the merge case in DB
+          // (sums qty into the existing target row and deletes the old row).
+          await cartService.updateCartItemVariant(currentItem.cartItemId, newVariant.id);
+
+          // If the user also changed the quantity (not just merged), update the surviving row.
+          if (quantity !== undefined && quantity !== currentItem.quantity) {
+            const cart = await cartService.getCart(user.id);
+            if (cart) {
+              const items = await cartService.getCartItems(cart.id);
+              const survivor = (items as any[]).find(it =>
+                it.product_id === productId && it.variant_id === newVariant.id
+              );
+              if (survivor) {
+                await cartService.updateCartItemQuantity(survivor.id, finalQuantity);
+              }
+            }
+          }
+        } catch (error) {
+          console.error('Error syncing variant change to DB:', error);
+        }
+        // Always re-sync from DB truth so cartItemIds, merged quantities, etc. are accurate.
+        await get().initializeCart();
+      }
     },
 
     updateCartNotes: (productId, notes) => {
@@ -868,8 +895,43 @@ export const useBuyerStore = create<BuyerStore>()(persist(
       set({ isValidatingCheckout: true, checkoutErrors: {} });
       try {
         const result = await cartService.validateCheckoutItems(selectedIds);
-        if (!result.isValid) set({ checkoutErrors: result.errors });
-        return result.isValid;
+        const errors: Record<string, string> = { ...result.errors };
+
+        // Flash sale expiry check: re-fetch active discounts for selected products
+        const { cartItems, campaignDiscountCache } = get();
+        const selectedItems = cartItems.filter(
+          i => selectedIds.includes(i.cartItemId || '') || selectedIds.includes(i.id)
+        );
+        const productIds = [...new Set(selectedItems.map(i => i.id).filter(Boolean))];
+
+        if (productIds.length > 0) {
+          const freshDiscounts = await discountService.getActiveDiscountsForProducts(productIds);
+
+          // Remove expired discounts from cache so cart UI reflects updated prices
+          set((state) => {
+            const newCache = { ...state.campaignDiscountCache };
+            for (const pid of productIds) {
+              if (!freshDiscounts[pid]) delete newCache[pid];
+            }
+            return { campaignDiscountCache: newCache };
+          });
+
+          // Flag items whose flash sale just ended
+          for (const item of selectedItems) {
+            const hadDiscount = !!campaignDiscountCache[item.id];
+            const stillActive = !!freshDiscounts[item.id];
+            const errorKey = item.cartItemId || item.id;
+            if (hadDiscount && !stillActive && !errors[errorKey]) {
+              errors[errorKey] = 'The flash sale for this item has ended. Price updated — please review before checkout.';
+              result.isValid = false;
+            }
+          }
+        }
+
+        if (!result.isValid || Object.keys(errors).length > 0) {
+          set({ checkoutErrors: errors });
+        }
+        return result.isValid && Object.keys(errors).length === 0;
       } catch (e: any) {
         set({ checkoutErrors: { 'global': 'Validation failed.' }});
         return false;
@@ -1562,8 +1624,28 @@ export const useBuyerStore = create<BuyerStore>()(persist(
           console.warn('Non-fatal: failed to backfill profile first/last name', backfillError);
         }
 
+        const dbPreferences = buyerData.preferences || {};
+        const mergedPreferences = {
+          language: dbPreferences.language || 'en',
+          currency: dbPreferences.currency || 'PHP',
+          notifications: {
+            email: true,
+            sms: false,
+            push: true,
+            ...(dbPreferences.notifications || {})
+          },
+          privacy: {
+            showProfile: true,
+            showPurchases: false,
+            showFollowing: true,
+            ...(dbPreferences.privacy || {})
+          },
+          interestedCategories: dbPreferences.interestedCategories || [],
+        };
+
         const buyerInfo = {
           ...buyerData,
+          preferences: mergedPreferences,
           firstName,
           lastName,
           email: profileInfo?.email || '',

@@ -1,6 +1,6 @@
  /* eslint-disable @typescript-eslint/no-explicit-any */
 import { useState, useEffect, useMemo, useCallback, lazy, Suspense } from "react";
-import { useParams, useNavigate } from "react-router-dom";
+import { useParams, useNavigate, useLocation } from "react-router-dom";
 import { motion } from "framer-motion";
 import { toast } from "../hooks/use-toast";
 import {
@@ -37,6 +37,7 @@ import { cn } from "../lib/utils";
 import { productService } from "../services/productService";
 import { discountService } from "@/services/discountService";
 import { warrantyService, type WarrantyInfo } from "@/services/warrantyService";
+import { supabase } from "@/lib/supabase";
 export interface ProductWithSeller {
   id: string;
   name: string;
@@ -140,6 +141,7 @@ const StoreIcon = ({ className }: { className?: string }) => (
 export default function ProductDetailPage({ }: ProductDetailPageProps) {
     const { id } = useParams<{ id: string }>();
     const navigate = useNavigate();
+    const location = useLocation();
     const {
         addToCart,
         setQuickOrder,
@@ -173,7 +175,7 @@ export default function ProductDetailPage({ }: ProductDetailPageProps) {
     const [warrantyInfo, setWarrantyInfo] = useState<WarrantyInfo | null>(null);
     const [isWarrantyLoading, setIsWarrantyLoading] = useState(false);
     const [activeCampaignDiscount, setActiveCampaignDiscount] = useState<ActiveDiscount | null>(
-        () => (id ? campaignDiscountCache[id] : null) || null
+        () => (id ? campaignDiscountCache[id] : null) || (location.state as any)?.flashDiscount || null
     );
     const [showCartModal, setShowCartModal] = useState(false);
     const [showBuyNowModal, setShowBuyNowModal] = useState(false);
@@ -205,6 +207,49 @@ export default function ProductDetailPage({ }: ProductDetailPageProps) {
             }
         };
         fetchProduct();
+    }, [id]);
+
+    // Keep stock fresh without requiring a manual page refresh:
+    // 1. Subscribe to realtime updates on this product and its variants.
+    // 2. Re-fetch when the tab regains focus (visibilitychange / focus).
+    useEffect(() => {
+        if (!id || id.length < 10) return;
+
+        const refetch = async () => {
+            try {
+                const fresh = await productService.getProductById(id);
+                if (fresh) setDbProduct(fresh);
+            } catch (e) {
+                console.warn('[PDP] silent refetch failed:', e);
+            }
+        };
+
+        // Realtime channel — listens to product + variant stock changes.
+        const channel = supabase
+            .channel(`pdp-stock-${id}`)
+            .on(
+                'postgres_changes',
+                { event: 'UPDATE', schema: 'public', table: 'products', filter: `id=eq.${id}` },
+                () => { void refetch(); }
+            )
+            .on(
+                'postgres_changes',
+                { event: '*', schema: 'public', table: 'product_variants', filter: `product_id=eq.${id}` },
+                () => { void refetch(); }
+            )
+            .subscribe();
+
+        const onVisible = () => {
+            if (document.visibilityState === 'visible') void refetch();
+        };
+        document.addEventListener('visibilitychange', onVisible);
+        window.addEventListener('focus', onVisible);
+
+        return () => {
+            try { supabase.removeChannel(channel); } catch { /* noop */ }
+            document.removeEventListener('visibilitychange', onVisible);
+            window.removeEventListener('focus', onVisible);
+        };
     }, [id]);
 
     // ALL useMemo HOOKS SECOND

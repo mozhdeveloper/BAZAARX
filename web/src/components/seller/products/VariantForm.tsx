@@ -24,6 +24,7 @@ interface VariantFormProps {
     errors: {
         variant?: string;
         variants?: string;
+        variantImages?: string;
     };
     setErrors: (
         errors:
@@ -309,6 +310,12 @@ export function VariantForm({
                 <p className="text-sm text-red-600 flex items-center gap-1">
                     <AlertTriangle className="h-4 w-4" />
                     {errors.variants}
+                </p>
+            )}
+            {errors.variantImages && (
+                <p className="text-sm text-red-600 flex items-center gap-1">
+                    <AlertTriangle className="h-4 w-4" />
+                    {errors.variantImages}
                 </p>
             )}
         </div>

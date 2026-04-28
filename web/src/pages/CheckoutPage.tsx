@@ -8,7 +8,6 @@ import { paymentService } from "@/services/paymentService";
 import { BASIC_TEST_CARDS, THREE_DS_TEST_CARDS, SCENARIO_TEST_CARDS, getTestCardByNumber } from "@/constants/testCards";
 import { validateTestCard } from "@/utils/testCardValidator";
 import {
-  ArrowLeft,
   ChevronLeft,
   MapPin,
   CreditCard,
@@ -16,18 +15,10 @@ import {
   Banknote,
   Shield,
   Check,
-  Tag,
-  X,
   Plus,
   ChevronRight,
-  LocateFixed,
-  Map,
   Pencil,
   Trash2,
-  Palmtree,
-  Store,
-  Truck,
-  AlertCircle,
 } from "lucide-react";
 import {
   Dialog,
@@ -46,6 +37,7 @@ import { Button } from "../components/ui/button";
 import Header from "../components/Header";
 import { BazaarFooter } from "../components/ui/bazaar-footer";
 import { ShippingMethodPicker } from "../components/ShippingMethodPicker";
+import { CheckoutOrderSummary } from "../components/checkout/CheckoutOrderSummary";
 import { cn } from "@/lib/utils";
 import { Badge } from "@/components/ui/badge";
 import { Label } from "@/components/ui/label";
@@ -936,13 +928,15 @@ export default function CheckoutPage() {
         notes: item.notes || null
       }));
 
-      // BX-09-001 — Map shipping selections to order_shipments format
       const shippingBreakdown = shippingResults.map(result => ({
         seller_id: result.sellerId,
         shipping_method: selectedMethods[result.sellerId] || result.defaultMethod?.method || 'standard',
         calculated_fee: perStoreShippingFees[result.sellerId] ?? 0,
-        zone: result.zone,
-        estimated_days: result.methods.find(m => m.method === selectedMethods[result.sellerId])?.estimatedDays || 3,
+        zone: result.originZone,                    // SellerShippingResult has originZone, not zone
+        estimated_days: parseInt(                   // ShippingMethodOption.estimatedDays is string — coerce to number
+          String(result.methods.find(m => m.method === selectedMethods[result.sellerId])?.estimatedDays ?? '3'),
+          10
+        ) || 3,
       }));
 
       const payload = {
@@ -1626,353 +1620,46 @@ export default function CheckoutPage() {
               </motion.section>
             </div>
 
-            {/* Order Summary */}
-            <motion.div
-              initial={{ opacity: 0, x: 20 }}
-              animate={{ opacity: 1, x: 0 }}
-              className="min-w-0"
-            >
-              <div className="bg-white shadow-md rounded-xl p-6 sticky top-24">
-                <h3 className="text-lg font-semibold text-gray-900 mb-4">
-                  Order Summary
-                </h3>
-
-                {/* BX-09-001 — Seller-grouped items with per-seller shipping */}
-                <div className="space-y-4 mb-6">
-                  {Object.entries(groupedCheckoutItems).map(([sellerId, items]) => {
-                    const result = shippingResults.find(r => r.sellerId === sellerId);
-                    const selectedMethod = selectedMethods[sellerId];
-
-                    return (
-                      <div key={sellerId} className="border border-gray-200 rounded-lg p-4 space-y-3">
-                        {/* Seller Header */}
-                        <div className="flex items-center gap-2 pb-3 border-b border-gray-100">
-                          <Store className="w-4 h-4 text-[var(--brand-primary)]" />
-                          <h4 className="text-sm font-semibold text-gray-900">
-                            {getSellerDisplayName(sellerId, items)}
-                          </h4>
-                        </div>
-
-                        {/* Seller Items */}
-                        <div className="space-y-2">
-                          {items.map((item, idx) => {
-                            const variant = item.selectedVariant as any;
-                            const originalUnitPrice = getOriginalUnitPrice(item);
-                            const activeDiscount = activeCampaignDiscounts[item.id] || null;
-                            const calculation = discountService.calculateLineDiscount(originalUnitPrice, item.quantity, activeDiscount);
-                            const discountedUnitPrice = calculation.discountedUnitPrice;
-
-                            // Build variant display from available fields
-                            let variantParts: string[] = [];
-                            if (variant) {
-                              const vName = (variant.variant_name || variant.name || '').trim();
-                              const vSize = (variant.size || variant.option_1_value || '').trim();
-                              const vColor = (variant.color || variant.option_2_value || '').trim();
-
-                              if (vName) variantParts.push(vName);
-                              if (vSize && !vName.toLowerCase().includes(vSize.toLowerCase())) {
-                                variantParts.push(`Size: ${vSize}`);
-                              }
-                              if (vColor && !vName.toLowerCase().includes(vColor.toLowerCase()) && vColor.toLowerCase() !== 'default') {
-                                variantParts.push(`Color: ${vColor}`);
-                              }
-                              if (variantParts.length === 0) {
-                                if (variant.sku) variantParts.push(`SKU: ${variant.sku}`);
-                                else if (variant.id) variantParts.push(`#${variant.id.slice(0, 8)}`);
-                              }
-                            }
-                            const variantInfo = variantParts.length > 0 ? variantParts.join(' / ') : null;
-
-                            return (
-                              <div key={`${item.id}-${variant?.id || 'no-variant'}-${idx}`} className="flex items-start gap-2 text-xs">
-                                <div className="w-10 h-10 rounded border border-gray-100 bg-white overflow-hidden flex-shrink-0">
-                                  <img loading="lazy" 
-                                    src={variant?.thumbnail_url || item.image || (item.images && item.images[0])}
-                                    alt={item.name}
-                                    className="w-full h-full object-contain"
-                                  />
-                                </div>
-                                <div className="flex-1 min-w-0">
-                                  <p className="text-gray-900 font-medium line-clamp-1 text-xs">
-                                    {item.name}
-                                  </p>
-                                  {variantInfo && (
-                                    <p className="text-gray-500 text-xs mb-0.5">
-                                      {variantInfo}
-                                    </p>
-                                  )}
-                                  <div className="flex items-center gap-1">
-                                    {originalUnitPrice > discountedUnitPrice && (
-                                      <span className="text-gray-400 line-through text-xs">
-                                        ₱{originalUnitPrice.toLocaleString()}
-                                      </span>
-                                    )}
-                                    <p className="text-[var(--brand-primary)] font-bold text-xs">
-                                      ₱{discountedUnitPrice.toLocaleString()}
-                                    </p>
-                                    <span className="text-gray-400 text-xs">x{item.quantity}</span>
-                                  </div>
-                                </div>
-                              </div>
-                            );
-                          })}
-                        </div>
-
-                        {/* Shipping Method Picker */}
-                        {result && (
-                          <div className="mt-3 pt-3 border-t border-gray-100">
-                            <ShippingMethodPicker
-                              methods={result.methods}
-                              selectedMethod={selectedMethod}
-                              onSelectMethod={(method) => setSelectedMethods(prev => ({ ...prev, [sellerId]: method }))}
-                              isLoading={isCalculatingShipping}
-                              error={result.error}
-                              warning={result.warning}
-                              onRetry={retryShipping}
-                            />
-                          </div>
-                        )}
-
-                        {/* ✨ Per-seller subtotal breakdown */}
-                        <div className="mt-3 pt-3 border-t border-gray-100 bg-orange-50/30 rounded-lg p-3 space-y-2">
-                          <div className="flex justify-between items-center text-xs">
-                            <span className="text-gray-600">Products:</span>
-                            <span className="font-medium text-gray-900">
-                              ₱{calculateSellerItemsOriginalPrice(sellerId).toLocaleString()}
-                            </span>
-                          </div>
-                          
-                          {calculateSellerCampaignDiscount(sellerId) > 0 && (
-                            <div className="flex justify-between items-center text-xs">
-                              <span className="text-gray-600">Campaign Discount:</span>
-                              <span className="font-medium text-[var(--brand-primary)]">
-                                -₱{calculateSellerCampaignDiscount(sellerId).toLocaleString()}
-                              </span>
-                            </div>
-                          )}
-                          
-                          <div className="flex justify-between items-center text-xs">
-                            <span className="text-gray-600">Shipping:</span>
-                            <span className="font-medium text-gray-900">
-                              {(perStoreShippingFees[sellerId] || 0) === 0 ? 'Free' : `+₱${(perStoreShippingFees[sellerId] || 0).toLocaleString()}`}
-                            </span>
-                          </div>
-                          
-                          <div className="flex justify-between items-center text-xs font-semibold border-t border-orange-200 pt-2">
-                            <span className="text-gray-700">Seller Total:</span>
-                            <span className="text-[var(--brand-primary)]">
-                              ₱{(calculateSellerSubtotal(sellerId) + (perStoreShippingFees[sellerId] || 0)).toLocaleString()}
-                            </span>
-                          </div>
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
-
-                {/* Voucher Code Section */}
-                <div className="mb-6 pb-4 border-b border-gray-200">
-                  <div className="flex items-center gap-2 mb-3">
-                    <Tag className="w-4 h-4 text-[var(--brand-primary)]" />
-                    <h4 className="text-sm font-semibold text-gray-900">
-                      Have a Voucher?
-                    </h4>
-                  </div>
-
-                  {appliedVoucher ? (
-                    <div className="flex items-center justify-between bg-orange-50 border-2 border-[var(--brand-primary)] rounded-lg p-3">
-                      <div className="flex items-center gap-2">
-                        <Tag className="w-4 h-4 text-[var(--brand-primary)]" />
-                        <div>
-                          <p className="text-sm font-bold text-[var(--brand-primary)]">
-                            {appliedVoucher.code}
-                          </p>
-                          <p className="text-xs text-gray-600">
-                            {appliedVoucher.description}
-                          </p>
-                        </div>
-                      </div>
-                      <button
-                        type="button"
-                        onClick={handleRemoveVoucher}
-                        className="p-1 rounded-full hover:bg-gray-200 transition-colors"
-                      >
-                        <X className="w-4 h-4 text-gray-600" />
-                      </button>
-                    </div>
-                  ) : (
-                    <>
-                      <div className="flex gap-2">
-                        <input
-                          type="text"
-                          value={voucherCode}
-                          onChange={(e) =>
-                            setVoucherCode(e.target.value.toUpperCase())
-                          }
-                          placeholder="Enter voucher code"
-                          className="flex-1 px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-1 focus:ring-[var(--brand-primary)] focus:border-transparent text-sm"
-                        />
-                        <button
-                          type="button"
-                          onClick={handleApplyVoucher}
-                          disabled={!voucherCode.trim()}
-                          className="px-4 py-2 bg-[var(--brand-primary)] text-white rounded-lg hover:bg-[var(--brand-accent)] disabled:opacity-50 disabled:cursor-not-allowed text-sm font-medium transition-colors"
-                        >
-                          Apply
-                        </button>
-                      </div>
-                      <p className="text-xs text-gray-500 mt-2 italic">
-                        Try: WELCOME10, SAVE50, FREESHIP
-                      </p>
-                    </>
-                  )}
-                </div>
-
-                {/* Bazcoins Redemption */}
-                <motion.section
-                  initial={{ opacity: 0, y: 20 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  transition={{ delay: 0.2 }}
-                  className="bg-white border-b border-gray-200 p-2 mb-6 -mt-4"
-                >
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-3">
-                      <div className="w-8 h-8 bg-[var(--brand-accent)] rounded-full flex items-center justify-center">
-                        <span className="text-white font-bold">B</span>
-                      </div>
-                      <div>
-                        <p className="font-semibold text-gray-900">Bazcoins</p>
-                        <p className="text-sm text-gray-500">Balance: {availableBazcoins}</p>
-                      </div>
-                    </div>
-                    {availableBazcoins > 0 ? (
-                      <div className="flex items-center gap-2">
-                        <div className="text-right mr-2">
-                          <p className="text-sm font-medium text-gray-900">-₱{maxRedeemableBazcoins}</p>
-                          <p className="text-xs text-gray-500">{useBazcoins ? "Applied" : "Available"}</p>
-                        </div>
-                        <button
-                          type="button"
-                          onClick={() => setUseBazcoins(!useBazcoins)}
-                          className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none focus:ring-0 ${useBazcoins ? 'bg-[var(--brand-primary)]' : 'bg-gray-200'
-                            }`}
-                        >
-                          <span
-                            className={`${useBazcoins ? 'translate-x-6' : 'translate-x-1'
-                              } inline-block h-4 w-4 transform rounded-full bg-white transition-transform`}
-                          />
-                        </button>
-                      </div>
-                    ) : (
-                      <span className="text-sm text-gray-400">No coins available</span>
-                    )}
-                  </div>
-                </motion.section>
-
-                <div className="space-y-3 mb-6">
-                  <div className="flex justify-between text-sm">
-                    <span className="text-gray-600">Subtotal</span>
-                    <span className="text-gray-600 font-medium">₱{originalSubtotal.toLocaleString()}</span>
-                  </div>
-
-                  {campaignDiscountTotal > 0 && (
-                    <div className="flex justify-between text-sm">
-                      <span className="text-gray-600">Campaign Discount</span>
-                      <span className="text-[var(--brand-primary)] font-medium">-₱{campaignDiscountTotal.toLocaleString()}</span>
-                    </div>
-                  )}
-
-                  <div className="flex justify-between text-sm">
-                    <span className="text-gray-600">Shipping</span>
-                    <span className="text-gray-600 font-medium">
-                      {shippingFee === 0 ? (
-                        <span>Free</span>
-                      ) : (
-                        `₱${shippingFee}`
-                      )}
-                    </span>
-                  </div>
-
-                  {discount > 0 && (
-                    <div className="flex justify-between text-sm">
-                      <span className="text-gray-600">Voucher Discount</span>
-                      <span className="text-[var(--brand-primary)] font-medium">-₱{discount.toLocaleString()}</span>
-                    </div>
-                  )}
-
-                  {bazcoinDiscount > 0 && (
-                    <div className="flex justify-between text-sm">
-                      <span className="text-gray-600">BazCoins Applied</span>
-                      <span className="text-[var(--brand-primary)] font-medium">-₱{bazcoinDiscount.toLocaleString()}</span>
-                    </div>
-                  )}
-
-                  <div className="flex justify-between text-sm">
-                    <span className="text-gray-600">Tax (12% VAT)</span>
-                    <span className="text-gray-600 font-medium">₱{tax.toLocaleString()}</span>
-                  </div>
-                  <hr className="border-gray-300" />
-                  <div className="flex justify-between text-md font-bold text-gray-900">
-                    <span>Total</span>
-                    <span className="text-[var(--brand-primary)]">
-                      ₱{finalTotal.toLocaleString()}
-                    </span>
-                  </div>
-                  {grandTotalSavings > 0 && (
-                    <div className="text-right">
-                      <p className="text-xs text-[var(--brand-primary-dark)]">
-                        Saved ₱{grandTotalSavings.toLocaleString()}!
-                      </p>
-                    </div>
-                  )}
-                </div>
-
-                <div className="bg-[var(--brand-wash)] border border-[var(--brand-accent)] rounded-lg p-4 mb-6 flex items-start gap-3">
-                  <div className="bg-[var(--brand-accent)] rounded-full w-5 h-5 flex items-center justify-center mt-0.5">
-                    <span className="text-white text-xs font-bold">B</span>
-                  </div>
-                  <div>
-                    <p className="text-sm font-semibold text-[var(--brand-primary)]">You will earn {earnedBazcoins} Bazcoins</p>
-                    <p className="text-xs text-[var(--text-muted)]">Receive coins upon successful delivery</p>
-                  </div>
-                </div>
-
-                {hasVacationSeller && (
-                  <div className="mb-4 p-3 bg-orange-50 border border-orange-200 rounded-xl flex items-start gap-3">
-                    <Palmtree className="w-5 h-5 text-orange-500 flex-shrink-0 mt-0.5" />
-                    <div>
-                      <p className="text-sm font-bold text-orange-700">Some sellers are currently unavailable</p>
-                      <p className="text-xs text-orange-600">
-                        The following seller(s) are on vacation: <span className="font-semibold">{vacationSellers.join(', ')}</span>.
-                        Please remove their items from your cart to proceed.
-                      </p>
-                    </div>
-                  </div>
-                )}
-
-                <Button
-                  type="submit"
-                  disabled={isLoading || !selectedAddress || hasVacationSeller}
-                  className="w-full bg-[var(--brand-primary)] hover:bg-[var(--brand-accent)] text-white disabled:opacity-50 disabled:cursor-not-allowed"
-                >
-                  {isLoading ? (
-                    <span className="flex items-center justify-center gap-2">
-                      <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin" />
-                      Processing Payment...
-                    </span>
-                  ) : (
-                    <span className="flex items-center justify-center gap-2">
-                      Place Order
-                    </span>
-                  )}
-                </Button>
-
-                <div className="mt-4 flex items-center justify-center gap-2 text-xs text-gray-500">
-                  <Shield className="w-4 h-4" />
-                  <span>Secure checkout with 256-bit SSL encryption</span>
-                </div>
-              </div>
-            </motion.div>
+            {/* Order Summary — extracted into CheckoutOrderSummary component */}
+            <CheckoutOrderSummary
+              groupedCheckoutItems={groupedCheckoutItems}
+              activeCampaignDiscounts={activeCampaignDiscounts}
+              getOriginalUnitPrice={getOriginalUnitPrice}
+              getSellerDisplayName={getSellerDisplayName}
+              calculateSellerItemsOriginalPrice={calculateSellerItemsOriginalPrice}
+              calculateSellerCampaignDiscount={calculateSellerCampaignDiscount}
+              calculateSellerSubtotal={calculateSellerSubtotal}
+              shippingResults={shippingResults}
+              selectedMethods={selectedMethods}
+              onSelectMethod={(sellerId, method) =>
+                setSelectedMethods((prev) => ({ ...prev, [sellerId]: method }))
+              }
+              isCalculatingShipping={isCalculatingShipping}
+              perStoreShippingFees={perStoreShippingFees}
+              onRetryShipping={retryShipping}
+              voucherCode={voucherCode}
+              setVoucherCode={setVoucherCode}
+              appliedVoucher={appliedVoucher}
+              onApplyVoucher={handleApplyVoucher}
+              onRemoveVoucher={handleRemoveVoucher}
+              useBazcoins={useBazcoins}
+              setUseBazcoins={setUseBazcoins}
+              availableBazcoins={availableBazcoins}
+              maxRedeemableBazcoins={maxRedeemableBazcoins}
+              bazcoinDiscount={bazcoinDiscount}
+              earnedBazcoins={earnedBazcoins}
+              originalSubtotal={originalSubtotal}
+              campaignDiscountTotal={campaignDiscountTotal}
+              shippingFee={shippingFee}
+              discount={discount}
+              tax={tax}
+              finalTotal={finalTotal}
+              grandTotalSavings={grandTotalSavings}
+              hasVacationSeller={hasVacationSeller}
+              vacationSellers={vacationSellers}
+              isLoading={isLoading}
+              selectedAddress={selectedAddress}
+            />
           </div>
         </form>
       </div>
@@ -1990,9 +1677,11 @@ export default function CheckoutPage() {
               <div
                 key={addr.id}
                 onClick={() => setTempSelected(addr)}
-                className={cn(
-                  "p-4 border-2 rounded-xl cursor-pointer transition-all",
-                  tempSelected?.id === addr.id ? "border-[var(--brand-primary)] bg-orange-50/50" : "border-gray-100"
+              className={cn(
+                  "group p-4 border-2 rounded-xl cursor-pointer transition-all duration-150",
+                  tempSelected?.id === addr.id
+                    ? "border-[var(--brand-primary)] bg-orange-50/50"
+                    : "border-gray-100 hover:border-[var(--brand-primary)]/40 hover:bg-orange-50/20"
                 )}
               >
                 {deleteConfirmId === addr.id ? (
@@ -2049,7 +1738,12 @@ export default function CheckoutPage() {
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-2 mb-1">
                         <span className="font-bold text-gray-900">{addr.firstName} {addr.lastName}</span>
-                        <Badge variant="outline" className="text-[10px] h-4 px-1.5 uppercase font-bold border-gray-300">{addr.label}</Badge>
+                        <Badge
+                          variant="outline"
+                          className="text-[10px] h-4 px-1.5 uppercase font-bold border-gray-300 transition-colors duration-150 group-hover:border-[var(--brand-primary)] group-hover:text-[var(--brand-primary)]"
+                        >
+                          {addr.label}
+                        </Badge>
                         {addr.isDefault && (
                           <Badge className="text-[10px] h-4 px-1.5 bg-green-100 text-green-700 border-0">Default</Badge>
                         )}
@@ -2064,7 +1758,7 @@ export default function CheckoutPage() {
                           setEditingAddress(addr);
                           setIsEditorModalOpen(true);
                         }}
-                        className="p-1.5 rounded-lg hover:bg-gray-100 transition-colors"
+                        className="p-1.5 rounded-lg text-gray-400 hover:text-[var(--brand-primary)] hover:bg-orange-50 transition-colors duration-150"
                         title="Edit address"
                       >
                         <Pencil className="w-4 h-4 text-gray-500" />
