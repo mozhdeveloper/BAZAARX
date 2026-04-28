@@ -15,6 +15,8 @@ import {
     Package,
     Plus,
     Search,
+    ShoppingBag,
+    Star,
     Timer,
     TrendingUp
 } from 'lucide-react-native';
@@ -190,7 +192,7 @@ export default function HomeScreen({ navigation }: Props) {
   const CATEGORY_ITEM_WIDTH = (screenWidth - (HORIZONTAL_PADDING * 2) - (GRID_GAP * 4) - 4) / 5;
 
   const BRAND_COLOR = COLORS.primary;
-  const { user, isGuest } = useAuthStore();
+  const { user, isGuest, isAuthenticated, hasCompletedOnboarding } = useAuthStore();
 
   // Log user data for debugging (moved from render level to avoid repeated logs)
   useEffect(() => {
@@ -1000,6 +1002,48 @@ export default function HomeScreen({ navigation }: Props) {
           </View>
         ) : activeTab === 'Home' ? (
           <>
+            {/* ONBOARDING BANNER */}
+            {isAuthenticated && !hasCompletedOnboarding && !isGuest && (
+              <Pressable
+                onPress={() => navigation.navigate('CategoryPreference', { signupData: undefined })}
+                style={({ pressed }) => [styles.onboardingBanner, pressed && { opacity: 0.95 }]}
+              >
+                <LinearGradient
+                  colors={['#EA580C', '#F59E0B']}
+                  start={{ x: 0, y: 0 }}
+                  end={{ x: 1, y: 1 }}
+                  style={styles.onboardingGradient}
+                >
+                  {/* Decorative Elements */}
+                  <View style={styles.onboardingGlowTop} />
+                  <View style={styles.onboardingGlowBottom} />
+
+                  <View style={styles.onboardingContent}>
+                    <View style={styles.onboardingLeft}>
+                      <Text style={styles.onboardingEyebrow}>ALMOST THERE!</Text>
+                      <Text style={styles.onboardingTitle}>Unlock Your BazaarX Experience</Text>
+                      <Text style={styles.onboardingSub}>Complete your onboarding to get personalized products.</Text>
+                      
+                      <View style={styles.onboardingButton}>
+                        <Text style={styles.onboardingButtonText}>Complete Profile</Text>
+                        <ChevronRight size={14} color="#FFF" />
+                      </View>
+                    </View>
+
+                    <View style={styles.onboardingRight}>
+                      <View style={styles.onboardingIconWrapper}>
+                        <ShoppingBag size={32} color="#FFF" strokeWidth={1.5} />
+                      </View>
+                      {/* Mini floating elements */}
+                      <View style={styles.onboardingMiniFloating}>
+                        <Star size={10} color="#FDE68A" fill="#FDE68A" />
+                      </View>
+                    </View>
+                  </View>
+                </LinearGradient>
+              </Pressable>
+            )}
+
             {/* CAROUSEL */}
             <View style={styles.carouselContainer}>
               <ScrollView
@@ -1750,5 +1794,125 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: '700',
     color: '#FFFFFF',
+  },
+
+  /* ── Onboarding Banner ── */
+  onboardingBanner: {
+    marginHorizontal: 20,
+    marginTop: 12,
+    marginBottom: 8,
+    borderRadius: 20,
+    overflow: 'hidden',
+    shadowColor: '#EA580C',
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.2,
+    shadowRadius: 15,
+    elevation: 8,
+  },
+  onboardingGradient: {
+    padding: 20,
+    position: 'relative',
+  },
+  onboardingGlowTop: {
+    position: 'absolute',
+    top: -40,
+    right: -40,
+    width: 120,
+    height: 120,
+    borderRadius: 60,
+    backgroundColor: 'rgba(255, 255, 255, 0.15)',
+  },
+  onboardingGlowBottom: {
+    position: 'absolute',
+    bottom: -20,
+    left: -20,
+    width: 80,
+    height: 80,
+    borderRadius: 40,
+    backgroundColor: 'rgba(0, 0, 0, 0.05)',
+  },
+  onboardingContent: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: 16,
+  },
+  onboardingLeft: {
+    flex: 1,
+  },
+  onboardingEyebrow: {
+    fontSize: 10,
+    fontWeight: '800',
+    color: 'rgba(255, 255, 255, 0.8)',
+    letterSpacing: 1.5,
+    marginBottom: 4,
+  },
+  onboardingTitle: {
+    fontSize: 20,
+    fontWeight: '900',
+    color: '#FFFFFF',
+    lineHeight: 24,
+    marginBottom: 6,
+  },
+  onboardingSub: {
+    fontSize: 12,
+    color: 'rgba(255, 255, 255, 0.9)',
+    lineHeight: 18,
+    marginBottom: 16,
+    fontWeight: '500',
+  },
+  onboardingButton: {
+    backgroundColor: '#7C2D12',
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    borderRadius: 20,
+    flexDirection: 'row',
+    alignItems: 'center',
+    alignSelf: 'flex-start',
+    gap: 6,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.2,
+    shadowRadius: 8,
+    elevation: 4,
+  },
+  onboardingButtonText: {
+    fontSize: 12,
+    fontWeight: '800',
+    color: '#FFFFFF',
+  },
+  onboardingRight: {
+    width: 80,
+    height: 80,
+    alignItems: 'center',
+    justifyContent: 'center',
+    position: 'relative',
+  },
+  onboardingIconWrapper: {
+    width: 64,
+    height: 64,
+    backgroundColor: 'rgba(255, 255, 255, 0.2)',
+    borderRadius: 18,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.3)',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 10 },
+    shadowOpacity: 0.2,
+    shadowRadius: 20,
+  },
+  onboardingMiniFloating: {
+    position: 'absolute',
+    top: 4,
+    right: 4,
+    width: 20,
+    height: 20,
+    backgroundColor: 'rgba(255, 255, 255, 0.3)',
+    borderRadius: 10,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.4)',
   },
 });

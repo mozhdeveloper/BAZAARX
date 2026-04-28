@@ -155,6 +155,12 @@ export const useAuthStore = create<AuthState>()(
               // Existing accounts without this metadata field default to accepted.
               hasAcceptedTerms: result.user.user_metadata?.has_accepted_terms !== false
             };
+            const preferences = buyer?.preferences as any;
+            const hasOnboarding = !!(
+              (preferences?.interests && Array.isArray(preferences.interests) && preferences.interests.length > 0) ||
+              (preferences?.interestedCategories && Array.isArray(preferences.interestedCategories) && preferences.interestedCategories.length > 0)
+            );
+
             // Determine active role from roles
             const isSeller = roles.includes('seller');
             set({
@@ -162,6 +168,7 @@ export const useAuthStore = create<AuthState>()(
               profile,
               isAuthenticated: true,
               isGuest: false,
+              hasCompletedOnboarding: hasOnboarding,
               activeRole: isSeller ? 'seller' : 'buyer',
               loading: false,
             });
@@ -265,7 +272,10 @@ export const useAuthStore = create<AuthState>()(
               hasAcceptedTerms: sessionResult.user.user_metadata?.has_accepted_terms !== false
             };
             const preferences = buyer?.preferences as any;
-            const hasOnboarding = !!(preferences?.interests && Array.isArray(preferences.interests) && preferences.interests.length >= 3);
+            const hasOnboarding = !!(
+              (preferences?.interests && Array.isArray(preferences.interests) && preferences.interests.length > 0) ||
+              (preferences?.interestedCategories && Array.isArray(preferences.interestedCategories) && preferences.interestedCategories.length > 0)
+            );
 
             set({
               user,
@@ -273,7 +283,7 @@ export const useAuthStore = create<AuthState>()(
               isAuthenticated: true,
               isGuest: false,
               hasCompletedOnboarding: hasOnboarding,
-              activeRole: roles.includes('seller') ? 'seller' : 'buyer',
+              activeRole: get().activeRole === 'seller' && roles.includes('seller') ? 'seller' : 'buyer',
               sessionVerified: true,
             });
             // Load wishlist from Supabase after session restore
