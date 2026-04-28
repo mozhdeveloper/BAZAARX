@@ -1,58 +1,26 @@
-import React, { useState } from 'react';
-import { View, Text, StyleSheet, ScrollView, StatusBar, Dimensions, Pressable, Image, Alert } from 'react-native';
+import React, { useEffect, useMemo, useState } from 'react';
+import { View, Text, StyleSheet, ScrollView, StatusBar, Dimensions, Pressable, Image, Alert, ActivityIndicator } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { ArrowLeft, Gift, Share2, ShieldCheck, MapPin, CheckCircle } from 'lucide-react-native';
 import { useNavigation, useRoute } from '@react-navigation/native';
 import { COLORS } from '../src/constants/theme';
 import { useCartStore } from '../src/stores/cartStore';
 import { safeImageUri, PLACEHOLDER_AVATAR } from '../src/utils/imageUtils';
+import { wishlistService } from '../src/services/wishlistService';
 
 const { width } = Dimensions.get('window');
 
-// Mock data for shared wishlist - Enhanced with registry data
-const MOCK_SHARED_USER = {
-    name: "Maria Santos",
-    avatar: "https://images.unsplash.com/photo-1494790108755-2616b612b5e5?w=150",
-    registryAddress: {
-        city: "Makati City",
-        province: "Metro Manila"
-    },
-    items: [
-        {
-            id: "fake_1",
-            name: "Premium Wireless Headphones",
-            price: 5499,
-            image: "https://images.unsplash.com/photo-1505740420928-5e560c06d30e?w=500",
-            seller: "TechHub Manila",
-            priority: "high",
-            desiredQty: 1,
-            purchasedQty: 0,
-            status: 'active'
-        },
-        {
-            id: "fake_2",
-            name: "Ergonomic Office Chair",
-            price: 8999,
-            image: "https://images.unsplash.com/photo-1592078615290-033ee584e267?w=500",
-            seller: "Home Comforts",
-            priority: "medium",
-            desiredQty: 2,
-            purchasedQty: 1, // 1 bought, 1 still needed
-            status: 'active'
-        },
-        {
-            id: "fake_3",
-            name: "Ceramic Coffee Set",
-            price: 1299,
-            image: "https://images.unsplash.com/photo-1517256064527-09c73fc73e38?w=500",
-            seller: "Home & Hearth",
-            priority: "low",
-            desiredQty: 1,
-            purchasedQty: 1,
-            status: 'purchased',
-            isPrivate: true // Hidden from shared view
-        }
-    ]
+type SharedRegistryItem = {
+    id: string;
+    name: string;
+    price: number;
+    image?: string;
+    priority: 'low' | 'medium' | 'high';
+    desiredQty: number;
+    purchasedQty: number;
+    isPrivate?: boolean;
+    product: any;
+    status?: 'available' | 'out_of_stock' | 'seller_on_vacation' | 'restricted' | 'deleted';
 };
 
 export default function SharedWishlistScreen() {
@@ -61,12 +29,77 @@ export default function SharedWishlistScreen() {
     const route = useRoute();
     const setQuickOrder = useCartStore((state) => state.setQuickOrder);
     const params = route.params as any;
+    const [isLoading, setIsLoading] = useState(true);
+    const [registry, setRegistry] = useState<any>(null);
 
-    // Use passed preview data if available, otherwise mock
-    const wishlistOwner = params?.wishlistData || MOCK_SHARED_USER;
+    useEffect(() => {
+        const load = async () => {
+            const registryId = params?.wishlistId;
+            if (!registryId) {
+                setRegistry(null);
+                setIsLoading(false);
+                return;
+            }
+
+            try {
+                const found = await wishlistService.getPublicRegistry(registryId);
+                setRegistry(found);
+            } catch (error) {
+                console.error('[SharedWishlistScreen] load failed:', error);
+                setRegistry(null);
+            } finally {
+                setIsLoading(false);
+            }
+        };
+
+        load();
+    }, [params?.wishlistId]);
+
+    const wishlistOwner = useMemo(() => {
+        if (!registry) return null;
+
+        const delivery = registry.delivery || {};
+        return {
+            name: registry.title || 'Shared Registry',
+            avatar: undefined,
+            registryAddress: delivery?.showAddress ? { city: 'Address Shared', province: '' } : null,
+        };
+    }, [registry]);
+
+    const registryItems: SharedRegistryItem[] = useMemo(() => {
+        if (!registry?.registry_items) return [];
+
+        return registry.registry_items
+            .map((item: any) => {
+                const snapshot = item.product_snapshot || {};
+                const requestedQty = item.requested_qty ?? item.quantity_desired ?? 1;
+                const receivedQty = item.received_qty ?? 0;
+                return {
+                    id: item.id,
+                    name: item.product_name || snapshot.name || 'Registry Item',
+                    price: Number(snapshot.price || snapshot.originalPrice || 0),
+                    image: snapshot.image || snapshot.images?.[0],
+                    priority: (item.priority || 'medium') as 'low' | 'medium' | 'high',
+                    desiredQty: requestedQty,
+                    purchasedQty: receivedQty,
+                    isPrivate: !!item.is_private,
+                    product: {
+                        price: Number(snapshot.price || snapshot.originalPrice || 0),
+                        image: snapshot.image || snapshot.images?.[0],
+                    },
+                    status: item.product?.approval_status === 'suspended' ? 'restricted' : 
+                            item.product?.seller?.on_vacation ? 'seller_on_vacation' :
+                            (item.product?.stock ?? snapshot.stock ?? 0) <= 0 ? 'out_of_stock' : 
+                            !item.product_id ? 'deleted' : 'available',
+                };
+            })
+            .filter((item: SharedRegistryItem) => !item.isPrivate);
+    }, [registry]);
 
 
     const handleBuyAsGift = (product: any) => {
+        if (!wishlistOwner) return;
+
         Alert.alert(
             "Buy as Gift",
             `Do you want to buy "${product.name}" as a gift for ${wishlistOwner.name}?`,
@@ -75,12 +108,10 @@ export default function SharedWishlistScreen() {
                 { 
                     text: "Proceed to Checkout", 
                     onPress: () => {
-                        // Mark as gift in cart/checkout
                         setQuickOrder({ ...product, isGift: true }, 1);
                         navigation.navigate('Checkout', { 
                             isGift: true, 
                             recipientName: wishlistOwner.name,
-                            // Pass masked address info if available
                             registryLocation: wishlistOwner.registryAddress ? `${wishlistOwner.registryAddress.city}, ${wishlistOwner.registryAddress.province}` : undefined
                         });
                     } 
@@ -88,6 +119,38 @@ export default function SharedWishlistScreen() {
             ]
         );
     };
+
+    if (isLoading) {
+        return (
+            <View style={[styles.container, { alignItems: 'center', justifyContent: 'center' }]}>
+                <ActivityIndicator size="large" color={COLORS.primary} />
+                <Text style={{ marginTop: 12, color: '#6B7280' }}>Loading shared registry...</Text>
+            </View>
+        );
+    }
+
+    if (!registry || !wishlistOwner) {
+        return (
+            <View style={styles.container}>
+                <StatusBar barStyle="light-content" />
+                <View style={[styles.headerContainer, { paddingTop: insets.top + 10, backgroundColor: COLORS.primary }]}>
+                    <View style={styles.headerTop}>
+                        <Pressable onPress={() => navigation.goBack()} style={styles.headerIconButton}>
+                            <ArrowLeft size={24} color="#FFF" strokeWidth={2.5} />
+                        </Pressable>
+                        <View style={styles.titleContainer}>
+                            <Text style={styles.headerTitle}>Shared Registry</Text>
+                        </View>
+                        <View style={{ width: 40 }} />
+                    </View>
+                </View>
+                <View style={[styles.scrollContent, { alignItems: 'center', justifyContent: 'center', flex: 1 }]}>
+                    <Text style={styles.emptyTitle}>Registry not found</Text>
+                    <Text style={styles.emptyText}>This shared registry link may be invalid or private.</Text>
+                </View>
+            </View>
+        );
+    }
 
     return (
         <View style={styles.container}>
@@ -113,9 +176,9 @@ export default function SharedWishlistScreen() {
                 <View style={styles.profileSection}>
                     <Image source={{ uri: safeImageUri(wishlistOwner.avatar, PLACEHOLDER_AVATAR) }} style={styles.avatar} />
                     <View style={{ flex: 1 }}>
-                        <Text style={styles.ownerName}>{wishlistOwner.name}'s Registry</Text>
+                        <Text style={styles.ownerName}>{wishlistOwner.name}</Text>
                         <View style={styles.registryMeta}>
-                            <Text style={styles.itemCount}>{wishlistOwner.items.length} Items</Text>
+                            <Text style={styles.itemCount}>{registryItems.length} Items</Text>
                             {wishlistOwner.registryAddress && (
                                 <View style={styles.dotSeparator} />
                             )}
@@ -129,7 +192,7 @@ export default function SharedWishlistScreen() {
                     </View>
                 </View>
                 <View style={styles.grid}>
-                    {wishlistOwner.items.filter((item: any) => !item.isPrivate).map((item: any) => {
+                    {registryItems.map((item) => {
                         const isFullyPurchased = item.purchasedQty >= item.desiredQty;
                         
                         return (
@@ -145,6 +208,19 @@ export default function SharedWishlistScreen() {
                                     <View style={[styles.priorityTag, { backgroundColor: item.priority === 'high' ? '#DC2626' : item.priority === 'medium' ? '#D97706' : '#2563EB' }]}>
                                         <Text style={styles.priorityTagText}>{item.priority.toUpperCase()}</Text>
                                     </View>
+                                    {item.status && item.status !== 'available' && (
+                                        <View style={[
+                                            styles.statusBadge,
+                                            { backgroundColor: item.status === 'out_of_stock' ? '#FEE2E2' : item.status === 'seller_on_vacation' ? '#FEF3C7' : '#F3F4F6' }
+                                        ]}>
+                                            <Text style={[
+                                                styles.statusText,
+                                                { color: item.status === 'out_of_stock' ? '#DC2626' : item.status === 'seller_on_vacation' ? '#D97706' : '#4B5563' }
+                                            ]}>
+                                                {item.status.replace(/_/g, ' ').toUpperCase()}
+                                            </Text>
+                                        </View>
+                                    )}
                                 </View>
                                 
                                 <View style={styles.cardContent}>
@@ -161,13 +237,19 @@ export default function SharedWishlistScreen() {
                                     </View>
                                     
                                     {!isFullyPurchased ? (
-                                        <Pressable 
-                                            style={styles.giftButton}
-                                            onPress={() => handleBuyAsGift(item)}
-                                        >
-                                            <Gift size={16} color="#FFF" style={{ marginRight: 6 }} />
-                                            <Text style={styles.giftButtonText}>Buy as Gift</Text>
-                                        </Pressable>
+                                        item.status && item.status !== 'available' ? (
+                                            <View style={styles.unavailableBadge}>
+                                                <Text style={styles.unavailableText}>Unavailable</Text>
+                                            </View>
+                                        ) : (
+                                            <Pressable 
+                                                style={styles.giftButton}
+                                                onPress={() => handleBuyAsGift(item.product)}
+                                            >
+                                                <Gift size={16} color="#FFF" style={{ marginRight: 6 }} />
+                                                <Text style={styles.giftButtonText}>Buy as Gift</Text>
+                                            </Pressable>
+                                        )
                                     ) : (
                                         <View style={styles.giftedBadge}>
                                             <CheckCircle size={14} color="#059669" style={{ marginRight: 4 }} />
@@ -178,6 +260,12 @@ export default function SharedWishlistScreen() {
                             </View>
                         );
                     })}
+                    {registryItems.length === 0 && (
+                        <View style={{ width: '100%', paddingVertical: 32, alignItems: 'center' }}>
+                            <Text style={styles.emptyTitle}>No items yet</Text>
+                            <Text style={styles.emptyText}>This shared registry is currently empty.</Text>
+                        </View>
+                    )}
                 </View>
             </ScrollView>
         </View>
@@ -254,5 +342,44 @@ const styles = StyleSheet.create({
         backgroundColor: '#ECFDF5',
         paddingVertical: 10, borderRadius: 12,
     },
+    emptyTitle: {
+        fontSize: 20,
+        fontWeight: '700',
+        color: '#111827',
+        marginBottom: 8,
+        textAlign: 'center',
+    },
+    emptyText: {
+        fontSize: 14,
+        color: '#6B7280',
+        textAlign: 'center',
+    },
     giftedText: { color: '#059669', fontSize: 12, fontWeight: '700' },
+    statusBadge: {
+        position: 'absolute',
+        bottom: 8,
+        left: 8,
+        paddingHorizontal: 6,
+        paddingVertical: 3,
+        borderRadius: 4,
+    },
+    statusText: {
+        fontSize: 9,
+        fontWeight: '800',
+    },
+    unavailableBadge: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'center',
+        backgroundColor: '#F3F4F6',
+        paddingVertical: 10,
+        borderRadius: 12,
+        borderWidth: 1,
+        borderColor: '#E5E7EB',
+    },
+    unavailableText: {
+        color: '#6B7280',
+        fontSize: 12,
+        fontWeight: '700',
+    },
 });

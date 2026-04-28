@@ -261,13 +261,19 @@ export const EditRegistryItemModal = ({
 
                 {/* Actions */}
                 <div className="mt-8 flex items-center justify-between pt-4 border-t border-gray-100">
-                  <Button
-                    variant="outline"
-                    onClick={handleRemove}
-                    className="text-red-500 hover:text-red-600 hover:bg-red-50 border-gray-200"
-                  >
-                    Remove from registry
-                  </Button>
+                  <div className="flex flex-col gap-1">
+                    <Button
+                      variant="outline"
+                      onClick={handleRemove}
+                      disabled={item.receivedQty > 0}
+                      className="text-red-500 hover:text-red-600 hover:bg-red-50 border-gray-200 disabled:opacity-40"
+                    >
+                      Remove from registry
+                    </Button>
+                    {item.receivedQty > 0 && (
+                      <span className="text-[10px] text-amber-600 font-medium">Cannot remove item with received gifts.</span>
+                    )}
+                  </div>
                   <Button
                     onClick={handleSave}
                     className="bg-[var(--brand-primary)] hover:bg-[var(--brand-primary)]/90 text-white font-semibold rounded-full px-8"

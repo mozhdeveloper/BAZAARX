@@ -7,26 +7,7 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { useNavigation } from '@react-navigation/native';
 import { COLORS } from '../src/constants/theme';
 import { safeImageUri, PLACEHOLDER_AVATAR } from '../src/utils/imageUtils';
-
-// Mock Search Results
-const MOCK_RESULTS = [
-    {
-        id: 'u1',
-        name: 'Maria Santos',
-        email: 'maria.santos@email.com',
-        avatar: 'https://images.unsplash.com/photo-1494790108755-2616b612b5e5?w=150',
-        itemCount: 8,
-        location: 'Makati City'
-    },
-    {
-        id: 'u2',
-        name: 'Mario Cruz',
-        email: 'mario.cruz@email.com',
-        avatar: 'https://images.unsplash.com/photo-1599566150163-29194dcaad36?w=150',
-        itemCount: 3,
-        location: 'Quezon City'
-    }
-];
+import { wishlistService, PublicRegistrySearchResult } from '../src/services/wishlistService';
 
 export default function FindRegistryScreen() {
     const insets = useSafeAreaInsets();
@@ -34,44 +15,44 @@ export default function FindRegistryScreen() {
     
     const [query, setQuery] = useState('');
     const [loading, setLoading] = useState(false);
-    const [results, setResults] = useState<typeof MOCK_RESULTS>([]);
+    const [results, setResults] = useState<PublicRegistrySearchResult[]>([]);
     const [hasSearched, setHasSearched] = useState(false);
 
-    const handleSearch = () => {
+    const handleSearch = async () => {
         if (!query.trim()) return;
-        
+
         setLoading(true);
         setHasSearched(true);
-        
-        // Simulate API delay
-        setTimeout(() => {
-            // Simple mock filter
-            const filtered = MOCK_RESULTS.filter(u => 
-                u.name.toLowerCase().includes(query.toLowerCase())
-            );
-            setResults(filtered);
+
+        try {
+            const found = await wishlistService.searchPublicRegistries(query);
+            setResults(found);
+        } catch (error) {
+            console.error('[FindRegistryScreen] search failed:', error);
+            setResults([]);
+        } finally {
             setLoading(false);
-        }, 1000);
+        }
     };
 
-    const handleSelectUser = (user: any) => {
-        // Navigate to shared wishlist passing the user ID
-        // In a real app we'd fetch that user's specific list
-        navigation.navigate('SharedWishlist', { userId: user.id });
+    const handleSelectRegistry = (registry: PublicRegistrySearchResult) => {
+        navigation.navigate('SharedWishlist', { wishlistId: registry.id });
     };
 
-    const renderRegistryItem = useCallback(({ item }: { item: typeof MOCK_RESULTS[0] }) => (
-        <Pressable style={styles.userCard} onPress={() => handleSelectUser(item)}>
-            <Image source={{ uri: safeImageUri(item.avatar, PLACEHOLDER_AVATAR) }} style={styles.avatar} contentFit="cover" cachePolicy="memory-disk" />
+    const renderRegistryItem = useCallback(({ item }: { item: PublicRegistrySearchResult }) => (
+        <Pressable style={styles.userCard} onPress={() => handleSelectRegistry(item)}>
+            <Image source={{ uri: safeImageUri(undefined, PLACEHOLDER_AVATAR) }} style={styles.avatar} contentFit="cover" cachePolicy="memory-disk" />
             <View style={styles.userInfo}>
-                <Text style={styles.userName}>{item.name}</Text>
-                <Text style={styles.userLocation}>{item.location} • {item.itemCount} Items</Text>
+                <Text style={styles.userName}>{item.title}</Text>
+                <Text style={styles.userLocation}>
+                    {(item.category || item.event_type || 'Registry')} • {item.itemCount} Items
+                </Text>
             </View>
             <ChevronRight size={20} color="#9CA3AF" />
         </Pressable>
     ), []);
 
-    const keyExtractor = useCallback((item: typeof MOCK_RESULTS[0]) => item.id, []);
+    const keyExtractor = useCallback((item: PublicRegistrySearchResult) => item.id, []);
 
     return (
         <View style={styles.container}>
@@ -97,7 +78,7 @@ export default function FindRegistryScreen() {
                     <Search size={20} color="#9CA3AF" />
                     <TextInput
                         style={styles.input}
-                        placeholder="Search by name or email"
+                        placeholder="Search by registry name"
                         value={query}
                         onChangeText={setQuery}
                         onSubmitEditing={handleSearch}
@@ -110,7 +91,7 @@ export default function FindRegistryScreen() {
                         </Pressable>
                     )}
                 </View>
-                <Text style={styles.helperText}>Find public wishlists/registries of your friends.</Text>
+                <Text style={styles.helperText}>Find shared Registry & Gifting lists.</Text>
             </View>
 
             {/* Results */}

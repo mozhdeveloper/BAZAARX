@@ -34,6 +34,7 @@ interface ProductFilterModalProps {
   initialFilters: ProductFilters;
   availableCategories?: CategoryOption[];
   availableBrands?: BrandOption[];
+  hideCategoryFilter?: boolean;
 }
 
 export default function ProductFilterModal({
@@ -43,6 +44,7 @@ export default function ProductFilterModal({
   initialFilters,
   availableCategories = [],
   availableBrands = [],
+  hideCategoryFilter = false,
 }: ProductFilterModalProps) {
   const [filters, setFilters] = useState<ProductFilters>(initialFilters);
   const [selectedFilterGroup, setSelectedFilterGroup] = useState<FilterCategory | null>(null);
@@ -514,8 +516,8 @@ export default function ProductFilterModal({
           {/* Filter Groups */}
           <ScrollView style={styles.modalBody} showsVerticalScrollIndicator={false}>
             {/* Category */}
-            {renderFilterHeader('Category', 'category')}
-            {renderCategorySection()}
+            {!hideCategoryFilter && renderFilterHeader('Category', 'category')}
+            {!hideCategoryFilter && renderCategorySection()}
 
             {/* Price Range */}
             {renderFilterHeader('Price Range', 'price')}

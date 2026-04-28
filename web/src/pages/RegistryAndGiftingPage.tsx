@@ -24,6 +24,21 @@ import { RegistryItem, Product } from "../stores/buyerStore";
 // OR update RegistryDetailModal to accept store types.
 // Updating RegistryDetailModal is cleaner but might break other things.
 // Casting in RegistryAndGiftingPage is safer for now.
+const CATEGORY_LABELS: Record<string, string> = {
+  wedding: 'Wedding',
+  baby: 'Baby Shower',
+  birthday: 'Birthday',
+  graduation: 'Graduation',
+  housewarming: 'Housewarming',
+  christmas: 'Christmas',
+  other: 'Other',
+};
+
+const getCategoryLabel = (category: string | null | undefined): string => {
+  if (!category) return 'Other';
+  return CATEGORY_LABELS[category.toLowerCase()] || category;
+};
+
 const RegistryAndGiftingPage = () => {
   const { registries, createRegistry, addToRegistry, deleteRegistry, loadRegistries } =
     useBuyerStore();
@@ -237,7 +252,7 @@ const RegistryAndGiftingPage = () => {
           <div className="flex items-center space-x-3 mb-4">
             <h3 className="text-xl font-bold">
               {activeCategory
-                ? `${activeCategory.charAt(0).toUpperCase() + activeCategory.slice(1)} Registries`
+                ? `${getCategoryLabel(activeCategory)} Registries`
                 : "Your registries and gift lists"}
             </h3>
             <button
@@ -264,12 +279,13 @@ const RegistryAndGiftingPage = () => {
                   className="product-card-premium product-card-premium-interactive flex-row items-center w-full md:w-80 p-3 relative group"
                 >
                   <div className="absolute top-3 right-3 text-[9px] font-black uppercase tracking-widest text-gray-400 group-hover:text-[var(--brand-primary)] transition-colors">
-                    {list.category}
+                    {getCategoryLabel(list.category)}
                   </div>
                   <img loading="lazy" 
-                    src={list.imageUrl}
+                    src={list.imageUrl || '/gradGift.jpeg'}
                     alt="Gift list"
                     className="w-12 h-12 rounded object-cover mr-4"
+                    onError={(e) => { (e.currentTarget as HTMLImageElement).src = '/gradGift.jpeg'; }}
                   />
                   <div>
                     <h4 className="font-semibold text-[var(--brand-primary)] text-sm">
