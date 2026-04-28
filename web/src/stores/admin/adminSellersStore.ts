@@ -34,7 +34,6 @@ export const useAdminSellers = create<SellersState>()(
                 blacklisted_at, suspended_at, suspension_reason,
                 profiles:profiles!sellers_id_fkey(id, first_name, last_name, email),
                 business_profile:seller_business_profiles(seller_id, business_type, address_line_1, city, province, postal_code),
-                payout_account:seller_payout_settings(seller_id, bank_account_name, bank_name, bank_account_number),
                 verification_documents:seller_verification_documents(seller_id, business_permit_url, valid_id_url, proof_of_address_url, dti_registration_url, tax_id_url),
                 tier:seller_tiers(tier_level, bypasses_assessment)
               `)
@@ -68,8 +67,18 @@ export const useAdminSellers = create<SellersState>()(
             const sellerIds = (sellersData || []).map((seller) => seller.id).filter(Boolean);
             const latestRejectionsBySeller = new Map<string, SellerRejectionRecord>();
             const verificationDocsBySeller = new Map<string, any>();
+            const payoutBySellerId = new Map<string, any>();
 
             if (sellerIds.length > 0) {
+              // Fetch payout settings separately (FK on seller_payout_settings.seller_id
+              // references profiles.id, not sellers.id — PostgREST cannot auto-join).
+              const { data: payoutRows } = await supabase
+                .from('seller_payout_settings')
+                .select('seller_id, bank_account_name, bank_name, bank_account_number')
+                .in('seller_id', sellerIds);
+              for (const row of payoutRows || []) {
+                if (row?.seller_id) payoutBySellerId.set(row.seller_id, row);
+              }
               const { data: verificationRows, error: verificationError } = await supabase
                 .from('seller_verification_documents')
                 .select('seller_id, business_permit_url, valid_id_url, proof_of_address_url, dti_registration_url, tax_id_url, created_at')
@@ -114,7 +123,7 @@ export const useAdminSellers = create<SellersState>()(
               const profileRaw = seller.profiles || seller.profile || null;
               const profile = Array.isArray(profileRaw) ? profileRaw[0] : profileRaw;
               const businessProfile = seller.business_profile || seller.seller_business_profiles || {};
-              const payoutAccount = seller.payout_account || seller.seller_payout_settings || seller.seller_payout_accounts || {};
+              const payoutAccount = payoutBySellerId.get(seller.id) || seller.payout_account || seller.seller_payout_settings || seller.seller_payout_accounts || {};
               const embeddedVerificationDocuments =
                 seller.verification_documents || seller.seller_verification_documents || null;
               const verificationDocuments = Array.isArray(embeddedVerificationDocuments)
