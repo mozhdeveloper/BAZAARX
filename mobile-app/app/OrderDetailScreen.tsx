@@ -543,63 +543,44 @@ export default function OrderDetailScreen({ route, navigation }: Props) {
   };
 
   const handleSaveNewAddress = async (modalData: any) => {
-    try {
-      // Properly combine the First and Last name from the modal
-      const newName = [modalData.firstName, modalData.lastName].filter(Boolean).join(' ').trim();
-      
-      const formattedAddress = {
-        name: newName || modalData.name || modalData.contactPerson || (order.shippingAddress as any)?.name || 'Buyer',
-        fullName: newName || modalData.name || modalData.contactPerson || (order.shippingAddress as any)?.name || 'Buyer', // Passes to orderMutationService!
-        phone: modalData.phone || modalData.contactNumber || order.shippingAddress?.phone || '',
-        address: modalData.street || modalData.address || order.shippingAddress?.address || '',
-        city: modalData.city || order.shippingAddress?.city || '',
-        region: modalData.province || modalData.region || order.shippingAddress?.region || '',
-        postalCode: modalData.zipCode || modalData.postalCode || order.shippingAddress?.postalCode || '',
-        barangay: modalData.barangay || (order.shippingAddress as any)?.barangay || '',
-      };
+    // Properly combine the First and Last name from the modal
+    const newName = [modalData.firstName, modalData.lastName].filter(Boolean).join(' ').trim();
+    
+    const formattedAddress = {
+      name: newName || modalData.name || modalData.contactPerson || (order.shippingAddress as any)?.name || 'Buyer',
+      fullName: newName || modalData.name || modalData.contactPerson || (order.shippingAddress as any)?.name || 'Buyer', // Passes to orderMutationService!
+      phone: modalData.phone || modalData.contactNumber || order.shippingAddress?.phone || '',
+      address: modalData.street || modalData.address || order.shippingAddress?.address || '',
+      city: modalData.city || order.shippingAddress?.city || '',
+      region: modalData.province || modalData.region || order.shippingAddress?.region || '',
+      postalCode: modalData.zipCode || modalData.postalCode || order.shippingAddress?.postalCode || '',
+      barangay: modalData.barangay || (order.shippingAddress as any)?.barangay || '',
+    };
 
-      const { editPendingOrder } = useOrderStore.getState();
+    const { editPendingOrder } = useOrderStore.getState();
 
-      // Safely extract the true database UUID.
-      // Fallback to order.id just in case it is already a UUID.
-      // Safely extract the true database UUID.
-      // Fallback to order.id just in case it is already a UUID.
-      const trueDatabaseId = (order as any).order_id || (order as any).orderId || (order as any).db_id || order.id;
+    // Safely extract the true database UUID.
+    // Fallback to order.id just in case it is already a UUID.
+    const trueDatabaseId = (order as any).order_id || (order as any).orderId || (order as any).db_id || order.id;
 
-      // Pass the true UUID to the store
-      await editPendingOrder(trueDatabaseId, { shippingAddress: formattedAddress as any });
+    // Pass the true UUID to the store — let errors propagate to the modal's catch
+    await editPendingOrder(trueDatabaseId, { shippingAddress: formattedAddress as any });
 
-      // PERMANENT DB UPDATE: Save the audit log to Supabase so the Orders tab knows it was edited!
-      try {
-        await supabase.from('order_status_history').insert({
-          order_id: trueDatabaseId,
-          status: order.status || 'pending',
-          note: 'Address Updated'
-        });
-      } catch (historyErr) {
-        console.warn('[Audit Log] Failed to save address edit history:', historyErr);
-      }
+    // INSTANT UI UPDATE: Tell React Navigation to update the parameters
+    navigation.setParams({
+      order: {
+        ...order,
+        shippingAddress: {
+          ...(order.shippingAddress as any),
+          ...formattedAddress
+        },
+        // Instantly inject the audit log into local memory so the Edit button disappears!
+        history: [...((order as any).history || []), { note: 'Address Updated' }]
+      } as any
+    });
 
-      // INSTANT UI UPDATE: Tell React Navigation to update the parameters
-      navigation.setParams({
-        order: {
-          ...order,
-          shippingAddress: {
-            ...(order.shippingAddress as any),
-            ...formattedAddress
-          },
-          // Instantly inject the audit log into local memory so the Edit button disappears!
-          history: [...((order as any).history || []), { note: 'Address Updated' }]
-        } as any
-      });
-
-      Alert.alert('Success', 'Order shipping address updated!');
-      setIsAddressModalVisible(false);
-    } catch (error: any) {
-      console.error('Failed to save address:', error);
-      // QA Requirement: Show the specific reason the change was blocked
-      Alert.alert('Update Failed', error.message || 'Could not update the address.');
-    }
+    Alert.alert('Success', 'Order shipping address updated!');
+    setIsAddressModalVisible(false);
   };
 
   const uiStatus = order.buyerUiStatus || order.status;
@@ -668,6 +649,7 @@ export default function OrderDetailScreen({ route, navigation }: Props) {
     firstName: derivedFirstName,
     lastName: derivedLastName,
     contactPerson: fullNameStr, // Kept as a fallback
+    phone: orderAddr?.phone || orderAddr?.contactNumber || defaultUserAddress?.phone || user?.phone || '',
     contactNumber: orderAddr?.phone || orderAddr?.contactNumber || defaultUserAddress?.phone || user?.phone || '',
     street: orderAddr?.address || orderAddr?.street || defaultUserAddress?.street || '',
     city: orderAddr?.city || defaultUserAddress?.city || '',

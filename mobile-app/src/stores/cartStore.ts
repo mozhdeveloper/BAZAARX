@@ -328,7 +328,7 @@ export const useCartStore = create<CartStore>()(
                   finalItems = mergedItems.map(item => {
                     const fp = flashPriceMap.get(item.id);
                     if (!fp) return item;
-                    const origPrice = fp.originalPrice || item.originalPrice || item.price;
+                    const origPrice = fp.originalPrice || item.originalPrice || item.price || 0;
                     if (fp.price >= origPrice) return item;
                     return { ...item, price: fp.price, originalPrice: origPrice };
                   });
