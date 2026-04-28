@@ -638,8 +638,7 @@ export class SellerService {
                 .from('sellers')
                 .select(`
                     *,
-                    business_profile:seller_business_profiles(*),
-                    payout_account:seller_payout_settings(seller_id, bank_name, bank_account_name, bank_account_number, payout_method)
+                    business_profile:seller_business_profiles(*)
                 `)
                 .eq('id', storeId)
                 .single();
@@ -752,9 +751,9 @@ export class SellerService {
                 .upsert({
                     buyer_id: buyerId,
                     seller_id: sellerId,
-                }, { 
+                }, {
                     onConflict: 'buyer_id,seller_id',
-                    ignoreDuplicates: true 
+                    ignoreDuplicates: true
                 });
 
             if (error) throw error;

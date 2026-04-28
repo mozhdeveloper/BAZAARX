@@ -17,6 +17,7 @@ import { chatService, Conversation as DBConversation, Message as DBMessage } fro
 import { validateChatMedia, type ChatMediaType } from '../utils/chatMediaUtils';
 import ChatListSkeleton from '../components/skeletons/ChatListSkeleton';
 import { useToast } from '../hooks/use-toast';
+import InvalidFileModal from '../components/InvalidFileModal';
 
 // Extract original filename from Supabase storage URL (strips timestamp prefix)
 const extractFileName = (url: string, fallback = 'Document.pdf') => {
@@ -64,6 +65,8 @@ export default function SellerMessages() {
   const docInputRef = useRef<HTMLInputElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const chatContainerRef = useRef<HTMLDivElement>(null);
+  const inputBarRef = useRef<HTMLDivElement>(null);
+  const isSendingMediaRef = useRef(false);
 
   const [dbConversations, setDbConversations] = useState<DBConversation[]>([]);
   const [dbMessages, setDbMessages] = useState<DBMessage[]>([]);
@@ -74,6 +77,17 @@ export default function SellerMessages() {
   const [replyingTo, setReplyingTo] = useState<DBMessage | null>(null);
   const [sellerSuspended, setSellerSuspended] = useState(false);
   const [showJumpToLatest, setShowJumpToLatest] = useState(false);
+  const [inputBarHeight, setInputBarHeight] = useState(120);
+  const [invalidFileError, setInvalidFileError] = useState<string | null>(null);
+
+  // Track input bar height instantly via ResizeObserver so Jump button repositions without delay
+  useEffect(() => {
+    const el = inputBarRef.current;
+    if (!el) return;
+    const ro = new ResizeObserver(([entry]) => setInputBarHeight(entry.borderBoxSize?.[0]?.blockSize ?? el.offsetHeight));
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, [selectedConversation]);
 
   // Smart date formatter
   const formatSmartDate = useCallback((dateStr: string | Date) => {
@@ -294,7 +308,7 @@ export default function SellerMessages() {
     const file = files[0];
     const { valid, mediaType, error } = validateChatMedia(file);
     if (!valid || !mediaType) {
-      toast({ title: 'Invalid file', description: error || 'File type not supported.', variant: 'destructive' });
+      setInvalidFileError(error || 'File type not supported.');
       if (fileInputRef.current) fileInputRef.current.value = '';
       if (docInputRef.current) docInputRef.current.value = '';
       return;
@@ -315,7 +329,8 @@ export default function SellerMessages() {
   };
 
   const confirmSendMedia = async () => {
-    if (!pendingMedia || !selectedConversation || !seller?.id) return;
+    if (!pendingMedia || !selectedConversation || !seller?.id || isSendingMediaRef.current) return;
+    isSendingMediaRef.current = true;
     const { file, mediaType } = pendingMedia;
     setPendingMedia(null);
 
@@ -348,6 +363,7 @@ export default function SellerMessages() {
         )
       );
     }
+    isSendingMediaRef.current = false;
   };
 
   const filteredConversations = normalizedDbConversations.filter(conv =>
@@ -480,15 +496,7 @@ export default function SellerMessages() {
                         lastDateLabel = dateLabel;
                       }
                       if (msg.message_type === 'system') {
-                        items.push(
-                          <div key={msg.id} className="flex justify-center items-center my-6 w-full opacity-90 pointer-events-none">
-                            <div className="h-px bg-orange-200 flex-1"></div>
-                            <div className="mx-4 bg-orange-50 text-orange-600 px-4 py-1.5 rounded-full text-xs font-bold uppercase tracking-widest border border-orange-100 shadow-sm">
-                              {msg.text || msg.message_content}
-                            </div>
-                            <div className="h-px bg-orange-200 flex-1"></div>
-                          </div>
-                        );
+                        // System separators duplicate seller chat bubbles — skip entirely
                         return;
                       }
                       const isSeller = msg.senderId === 'seller';
@@ -591,13 +599,14 @@ export default function SellerMessages() {
                 {showJumpToLatest && (
                   <button
                     onClick={() => chatContainerRef.current?.scrollTo({ top: 0, behavior: 'smooth' })}
-                    className="absolute bottom-24 left-1/2 -translate-x-1/2 z-20 bg-[var(--brand-primary)] text-white px-4 py-2 rounded-full shadow-lg flex items-center gap-1.5 text-sm font-medium hover:bg-[var(--brand-primary-dark)] transition-colors"
+                    className="absolute left-1/2 -translate-x-1/2 z-20 bg-[var(--brand-primary)] text-white px-4 py-2 rounded-full shadow-lg flex items-center gap-1.5 text-sm font-medium hover:bg-[var(--brand-primary-dark)] transition-colors"
+                    style={{ bottom: `${inputBarHeight + 16}px` }}
                   >
                     <ChevronDown className="w-4 h-4" /> Jump to latest
                   </button>
                 )}
 
-                <div className="p-4 bg-white border-t border-orange-100">
+                <div ref={inputBarRef} className="p-4 bg-white border-t border-orange-100">
                   {/* Reply preview bar */}
                   {replyingTo && (
                     <div className="flex items-center gap-2 px-3 py-2 mb-3 bg-orange-50 rounded-xl border border-orange-100">
@@ -716,7 +725,8 @@ export default function SellerMessages() {
                 </button>
                 <button
                   onClick={confirmSendMedia}
-                  className="px-5 py-2.5 rounded-xl bg-[var(--brand-primary)] hover:bg-[var(--brand-primary-dark)] text-white font-semibold text-sm shadow-sm hover:shadow-md transition-all flex items-center gap-2"
+                  disabled={uploading}
+                  className="px-5 py-2.5 rounded-xl bg-[var(--brand-primary)] hover:bg-[var(--brand-primary-dark)] text-white font-semibold text-sm shadow-sm hover:shadow-md transition-all flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                   <Send className="w-4 h-4" />
                   Send
@@ -728,6 +738,7 @@ export default function SellerMessages() {
       </AnimatePresence>
 
       <ChatMediaModal media={previewMedia} onClose={() => setPreviewMedia(null)} />
+      <InvalidFileModal error={invalidFileError} onClose={() => setInvalidFileError(null)} />
     </div>
   );
 }

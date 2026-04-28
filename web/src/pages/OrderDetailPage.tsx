@@ -47,6 +47,7 @@ import { ORDER_STATUS_MESSAGES } from "../services/orderNotificationService";
 import ChatMediaModal, { type MediaPreview } from '../components/ChatMediaModal';
 import { validateChatMedia, type ChatMediaType } from '../utils/chatMediaUtils';
 import ChatMessagesSkeleton from '../components/skeletons/ChatMessagesSkeleton';
+import InvalidFileModal from '../components/InvalidFileModal';
 
 interface ChatMessage {
   id: string;
@@ -98,6 +99,8 @@ export default function OrderDetailPage() {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const docInputRef = useRef<HTMLInputElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const isSendingMediaRef = useRef(false);
+  const [invalidFileError, setInvalidFileError] = useState<string | null>(null);
 
   // Review modal state
   const [showReviewModal, setShowReviewModal] = useState(false);
@@ -591,7 +594,7 @@ export default function OrderDetailPage() {
     const file = files[0];
     const { valid, mediaType, error } = validateChatMedia(file);
     if (!valid || !mediaType) {
-      toast({ title: 'Invalid file', description: error || 'File type not supported.', variant: 'destructive' });
+      setInvalidFileError(error || 'File type not supported.');
       if (fileInputRef.current) fileInputRef.current.value = '';
       if (docInputRef.current) docInputRef.current.value = '';
       return;
@@ -605,7 +608,8 @@ export default function OrderDetailPage() {
   const cancelPendingMedia = () => { if (pendingMedia) { URL.revokeObjectURL(pendingMedia.previewUrl); setPendingMedia(null); } };
 
   const confirmSendMedia = async () => {
-    if (!pendingMedia || !conversation || !profile?.id) return;
+    if (!pendingMedia || !conversation || !profile?.id || isSendingMediaRef.current) return;
+    isSendingMediaRef.current = true;
     const { file, mediaType } = pendingMedia;
     setPendingMedia(null);
     setUploading(true);
@@ -620,6 +624,7 @@ export default function OrderDetailPage() {
     if (result) {
       setChatMessages(prev => prev.some(m => m.id === result.id) ? prev.filter(m => m.id !== tempId) : prev.map(m => m.id === tempId ? { ...m, id: result.id } : m));
     }
+    isSendingMediaRef.current = false;
   };
 
   // Extract filename from URL
@@ -2043,7 +2048,7 @@ export default function OrderDetailPage() {
               </div>
               <div className="flex items-center justify-end gap-3 px-5 py-4 border-t border-gray-100">
                 <button onClick={cancelPendingMedia} className="px-5 py-2.5 rounded-xl text-gray-600 hover:bg-gray-100 font-medium text-sm transition-colors">Cancel</button>
-                <button onClick={confirmSendMedia} className="px-5 py-2.5 rounded-xl bg-[var(--brand-primary)] hover:bg-[var(--brand-primary-dark)] text-white font-semibold text-sm shadow-sm hover:shadow-md transition-all flex items-center gap-2">
+                <button onClick={confirmSendMedia} disabled={uploading} className="px-5 py-2.5 rounded-xl bg-[var(--brand-primary)] hover:bg-[var(--brand-primary-dark)] text-white font-semibold text-sm shadow-sm hover:shadow-md transition-all flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed">
                   <Send className="w-4 h-4" /> Send
                 </button>
               </div>
@@ -2053,6 +2058,7 @@ export default function OrderDetailPage() {
       </AnimatePresence>
 
       <ChatMediaModal media={previewMedia} onClose={() => setPreviewMedia(null)} />
+      <InvalidFileModal error={invalidFileError} onClose={() => setInvalidFileError(null)} />
       <BazaarFooter />
     </div>
   );

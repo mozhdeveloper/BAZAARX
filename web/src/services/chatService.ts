@@ -78,7 +78,6 @@ class ChatService {
     sellerId: string,
     orderId?: string
   ): Promise<{ id: string } | null> {
-    // Fast path: direct lookup by orderId (single indexed query)
     if (orderId) {
       const { data: existing } = await supabase
         .from('conversations')
@@ -90,11 +89,9 @@ class ChatService {
       if (existing) return existing;
     }
 
-    // Fallback: find conversation with this seller via messages.
-    // Two parallel IN queries replace the old O(N×2) serial loop.
     const { data: convList } = await supabase
       .from('conversations')
-      .select('id')
+      .select('id, order_id')
       .eq('buyer_id', buyerId);
 
     if (convList && convList.length > 0) {
@@ -119,9 +116,36 @@ class ChatService {
         targetMsgs.data?.[0]?.conversation_id;
 
       if (matchId) return { id: matchId };
+
+      const convsWithOrders = convList.filter(c => (c as any).order_id);
+      if (convsWithOrders.length > 0) {
+        const oIds = [...new Set(convsWithOrders.map(c => (c as any).order_id!).filter(Boolean))];
+        const { data: orderItems } = await supabase
+          .from('order_items')
+          .select('order_id, product_id')
+          .in('order_id', oIds);
+
+        const productIds = [...new Set((orderItems || []).map((i: any) => i.product_id).filter(Boolean))];
+        const sellerByProductId = new Map<string, string>();
+        if (productIds.length > 0) {
+          const { data: products } = await supabase
+            .from('products')
+            .select('id, seller_id')
+            .in('id', productIds);
+          for (const p of (products || []) as any[]) {
+            if (p.id && p.seller_id) sellerByProductId.set(p.id, p.seller_id);
+          }
+        }
+
+        for (const item of (orderItems || []) as any[]) {
+          if (sellerByProductId.get(item.product_id) === sellerId) {
+            const conv = convsWithOrders.find(c => (c as any).order_id === item.order_id);
+            if (conv) return { id: conv.id };
+          }
+        }
+      }
     }
 
-    // Create new conversation
     const { data: newConv, error } = await supabase
       .from('conversations')
       .insert({ buyer_id: buyerId, order_id: orderId || null })
@@ -140,20 +164,22 @@ class ChatService {
    * Helper: Get seller ID from order
    */
   private async getSellerIdFromOrder(orderId: string): Promise<string | null> {
-    // Get seller from order items (first product's seller)
-    const { data } = await supabase
+    const { data: item } = await supabase
       .from('order_items')
-      .select(`
-        product:products (
-          seller_id
-        )
-      `)
+      .select('product_id')
       .eq('order_id', orderId)
       .limit(1)
       .maybeSingle();
 
-    // Note: If products don't have seller_id, this might need adjustment
-    return (data?.product as any)?.seller_id || null;
+    if (!item?.product_id) return null;
+
+    const { data: product } = await supabase
+      .from('products')
+      .select('seller_id')
+      .eq('id', item.product_id)
+      .maybeSingle();
+
+    return (product as any)?.seller_id || null;
   }
 
   /**
@@ -416,37 +442,43 @@ class ChatService {
     }
     if (!conversations || conversations.length === 0) return [];
 
+
+
     const convIds = conversations.map((c) => c.id);
 
-    // --- 5 parallel bulk queries instead of N×8 sequential ones ---
     const [
       sellerMsgsResult,
       targetSellerResult,
-      recentMsgsResult,
+      buyerMetaMsgsResult,
+      latestMsgsResult,
       unreadMsgsResult,
     ] = await Promise.all([
-      // Q2: One seller-sender message per conversation (gives us seller IDs)
       supabase
         .from('messages')
         .select('conversation_id, sender_id')
         .in('conversation_id', convIds)
         .eq('sender_type', 'seller')
         .order('created_at', { ascending: false }),
-      // Q2b: target_seller_id fallback (buyer messaged seller, seller hasn't replied)
       supabase
         .from('messages')
         .select('conversation_id, target_seller_id')
         .in('conversation_id', convIds)
         .not('target_seller_id', 'is', null)
         .order('created_at', { ascending: false }),
-      // Q3: Recent messages for "last message" preview
       supabase
         .from('messages')
-        .select('conversation_id, content, created_at, sender_type')
+        .select('conversation_id, message_content')
+        .in('conversation_id', convIds)
+        .eq('sender_type', 'buyer')
+        .not('message_content', 'is', null)
+        .order('created_at', { ascending: false })
+        .limit(Math.max(convIds.length * 8, 160)),
+      supabase
+        .from('messages')
+        .select('conversation_id, content, message_content, message_type, created_at, sender_type')
         .in('conversation_id', convIds)
         .order('created_at', { ascending: false })
-        .limit(200),
-      // Q4: Unread seller messages per conversation (for badge counts)
+        .limit(Math.max(convIds.length * 12, 240)),
       supabase
         .from('messages')
         .select('conversation_id')
@@ -455,29 +487,82 @@ class ChatService {
         .eq('is_read', false),
     ]);
 
-    // Build convId → sellerId map (first seller msg per conv, fallback to target_seller_id)
     const sellerIdByConvId = new Map<string, string>();
     for (const msg of sellerMsgsResult.data || []) {
       if (!sellerIdByConvId.has(msg.conversation_id)) {
         sellerIdByConvId.set(msg.conversation_id, msg.sender_id);
       }
     }
-    // Fallback: use target_seller_id for conversations where seller hasn't replied yet
     for (const msg of (targetSellerResult.data || []) as any[]) {
       if (!sellerIdByConvId.has(msg.conversation_id) && msg.target_seller_id) {
         sellerIdByConvId.set(msg.conversation_id, msg.target_seller_id);
       }
     }
+    for (const msg of (buyerMetaMsgsResult.data || []) as any[]) {
+      if (sellerIdByConvId.has(msg.conversation_id)) continue;
+      try {
+        const parsed = JSON.parse(msg.message_content || '{}');
+        const sid = parsed?.targetSellerId || parsed?.target_seller_id;
+        if (sid) sellerIdByConvId.set(msg.conversation_id, sid);
+      } catch {}
+    }
 
-    // Build convId → last message map
-    const lastMsgByConvId = new Map<string, { content: string; created_at: string; sender_type: string }>();
-    for (const msg of recentMsgsResult.data || []) {
+    const unresolvedWithOrders = conversations.filter(c => (c as any).order_id && !sellerIdByConvId.has(c.id));
+    if (unresolvedWithOrders.length > 0) {
+      const orderIds = [...new Set(unresolvedWithOrders.map(c => (c as any).order_id!).filter(Boolean))];
+      const { data: orderItems } = await supabase
+        .from('order_items')
+        .select('order_id, product_id')
+        .in('order_id', orderIds);
+
+      const productIds = [...new Set((orderItems || []).map((i: any) => i.product_id).filter(Boolean))];
+      const sellerByProductId = new Map<string, string>();
+      if (productIds.length > 0) {
+        const { data: products } = await supabase
+          .from('products')
+          .select('id, seller_id')
+          .in('id', productIds);
+        for (const p of (products || []) as any[]) {
+          if (p.id && p.seller_id) sellerByProductId.set(p.id, p.seller_id);
+        }
+      }
+
+      const sellerByOrderId = new Map<string, string>();
+      for (const item of (orderItems || []) as any[]) {
+        if (!item.order_id || sellerByOrderId.has(item.order_id)) continue;
+        const sid = sellerByProductId.get(item.product_id);
+        if (sid) sellerByOrderId.set(item.order_id, sid);
+      }
+      for (const conv of unresolvedWithOrders) {
+        const sid = sellerByOrderId.get((conv as any).order_id!);
+        if (sid) sellerIdByConvId.set(conv.id, sid);
+      }
+    }
+
+
+
+    const lastMsgByConvId = new Map<string, any>();
+    for (const msg of (latestMsgsResult.data || []) as any[]) {
       if (!lastMsgByConvId.has(msg.conversation_id)) {
         lastMsgByConvId.set(msg.conversation_id, msg);
       }
     }
 
-    // Build convId → unread count map
+    const missingLatestIds = convIds.filter(id => !lastMsgByConvId.has(id));
+    if (missingLatestIds.length > 0) {
+      const { data: fallbackRows } = await supabase
+        .from('messages')
+        .select('conversation_id, content, message_content, message_type, created_at, sender_type')
+        .in('conversation_id', missingLatestIds)
+        .order('created_at', { ascending: false })
+        .limit(Math.max(missingLatestIds.length * 12, 120));
+      for (const msg of (fallbackRows || []) as any[]) {
+        if (!lastMsgByConvId.has(msg.conversation_id)) {
+          lastMsgByConvId.set(msg.conversation_id, msg);
+        }
+      }
+    }
+
     const unreadByConvId = new Map<string, number>();
     for (const msg of unreadMsgsResult.data || []) {
       unreadByConvId.set(msg.conversation_id, (unreadByConvId.get(msg.conversation_id) || 0) + 1);
@@ -485,7 +570,6 @@ class ChatService {
 
     const sellerIds = [...new Set(sellerIdByConvId.values())];
 
-    // Q5 + Q6 in parallel: seller info & presence
     const [sellersResult, presenceResult] = await Promise.all([
       sellerIds.length > 0
         ? supabase.from('sellers').select('id, store_name, avatar_url').in('id', sellerIds)
@@ -501,6 +585,15 @@ class ChatService {
     const presenceById = new Map<string, boolean>();
     for (const p of (presenceResult as any).data || []) presenceById.set(p.user_id, p.is_online === true);
 
+    const mediaPreviewMap: Record<string, string> = { image: '📷 Photo', video: '🎬 Video', document: '📄 Document' };
+    const toPreview = (msg: any): string => {
+      if (!msg) return '';
+      if (msg.message_type === 'system') return msg.message_content || '';
+      return mediaPreviewMap[msg.message_type || ''] ||
+        (['[Image]', '[Video]', '[Document]'].includes(msg.content || '') ? mediaPreviewMap[msg.message_type || ''] || msg.content : null) ||
+        msg.content || msg.message_content || '';
+    };
+
     return conversations
       .map((conv) => {
         const sellerId = sellerIdByConvId.get(conv.id);
@@ -512,7 +605,7 @@ class ChatService {
           seller_id: sellerId,
           seller_store_name: seller?.store_name,
           seller_avatar: seller?.avatar_url,
-          last_message: lastMsg ? (lastMsg.content === '[Image]' ? '📷 Photo' : lastMsg.content || '') : '',
+          last_message: toPreview(lastMsg),
           last_message_at: lastMsg?.created_at || conv.updated_at,
           last_sender_type: lastMsg?.sender_type,
           buyer_unread_count: unreadByConvId.get(conv.id) || 0,
