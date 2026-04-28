@@ -57,7 +57,7 @@ const ProductCard: React.FC<ProductCardProps> = ({ product, index = 0, isFlash =
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.3, delay: index * 0.1 }}
       className="product-card-premium product-card-premium-interactive shadow-golden h-full"
-      onClick={() => navigate(`/product/${product.id}`)}
+      onClick={() => navigate(`/product/${product.id}`, { state: { flashDiscount: (product as any).activeCampaignDiscount ?? null } })}
     >
       <div className="relative aspect-square overflow-hidden bg-[#FFF6E5]">
         <img

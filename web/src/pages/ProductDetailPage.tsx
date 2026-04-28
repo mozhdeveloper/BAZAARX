@@ -1,6 +1,6 @@
  /* eslint-disable @typescript-eslint/no-explicit-any */
 import { useState, useEffect, useMemo, useCallback, lazy, Suspense } from "react";
-import { useParams, useNavigate } from "react-router-dom";
+import { useParams, useNavigate, useLocation } from "react-router-dom";
 import { motion } from "framer-motion";
 import { toast } from "../hooks/use-toast";
 import {
@@ -141,6 +141,7 @@ const StoreIcon = ({ className }: { className?: string }) => (
 export default function ProductDetailPage({ }: ProductDetailPageProps) {
     const { id } = useParams<{ id: string }>();
     const navigate = useNavigate();
+    const location = useLocation();
     const {
         addToCart,
         setQuickOrder,
@@ -174,7 +175,7 @@ export default function ProductDetailPage({ }: ProductDetailPageProps) {
     const [warrantyInfo, setWarrantyInfo] = useState<WarrantyInfo | null>(null);
     const [isWarrantyLoading, setIsWarrantyLoading] = useState(false);
     const [activeCampaignDiscount, setActiveCampaignDiscount] = useState<ActiveDiscount | null>(
-        () => (id ? campaignDiscountCache[id] : null) || null
+        () => (id ? campaignDiscountCache[id] : null) || (location.state as any)?.flashDiscount || null
     );
     const [showCartModal, setShowCartModal] = useState(false);
     const [showBuyNowModal, setShowBuyNowModal] = useState(false);

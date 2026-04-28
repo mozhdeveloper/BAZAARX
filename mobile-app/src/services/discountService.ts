@@ -578,14 +578,16 @@ export class DiscountService {
           campaignDiscountValue: discountPct > 0 ? discountPct : undefined,
           discountBadgePercent: discountPct > 0 ? discountPct : undefined,
           // Include activeCampaignDiscount so ProductDetail can apply it to cart
-          activeCampaignDiscount: discountPct > 0 ? {
+          activeCampaignDiscount: basePrice < originalPrice ? {
             campaignId: sub.slot_id,
             campaignName: slot?.name || 'Flash Sale',
-            discountType: 'percentage' as const,
-            discountValue: discountPct,
+            // Use fixed_amount (not percentage) so calculateLineDiscount returns exactly
+            // submitted_price without rounding drift when re-applied to originalPrice.
+            discountType: 'fixed_amount' as const,
+            discountValue: originalPrice - basePrice,
             discountedPrice: basePrice,
             originalPrice: originalPrice,
-            badgeText: `${discountPct}% OFF`,
+            badgeText: discountPct > 0 ? `${discountPct}% OFF` : 'SALE',
             badgeColor: '#FF6A00',
             endsAt: new Date(slot?.end_time || Date.now())
           } : undefined,

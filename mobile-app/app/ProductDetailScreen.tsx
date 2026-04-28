@@ -169,7 +169,9 @@ export default function ProductDetailScreen({ route, navigation }: Props) {
     fetchFullProduct();
   }, [product.id]);
 
-  const [activeCampaignDiscount, setActiveCampaignDiscount] = useState<ActiveDiscount | null>(null);
+  const [activeCampaignDiscount, setActiveCampaignDiscount] = useState<ActiveDiscount | null>(
+    (product as any).activeCampaignDiscount ?? null
+  );
 
   useEffect(() => {
     const loadDiscount = async () => {
@@ -371,6 +373,7 @@ export default function ProductDetailScreen({ route, navigation }: Props) {
   };
   const [showCameraSearch, setShowCameraSearch] = useState(false);
   const [chatLoading, setChatLoading] = useState(false);
+  const [isAddingToCart, setIsAddingToCart] = useState(false);
   const [currentImageIndex, setCurrentImageIndex] = useState(0);
   const [brokenImageIndices, setBrokenImageIndices] = useState<Set<number>>(new Set());
   const [isSearchFocused, setIsSearchFocused] = useState(false);
@@ -933,6 +936,7 @@ export default function ProductDetailScreen({ route, navigation }: Props) {
     }
 
     try {
+      setIsAddingToCart(true);
       // Add to cart with discount info embedded so it persists in the cart
       // Use the same regularPrice and originalPrice calculated for display
       const addItemResult = await addItem({
@@ -959,6 +963,8 @@ export default function ProductDetailScreen({ route, navigation }: Props) {
       }
     } catch {
       Alert.alert('Unable to add to cart', useCartStore.getState().error || 'This item is no longer available.');
+    } finally {
+      setIsAddingToCart(false);
     }
   }, [hasVariants, isGuest, product, quantity, activeCampaignDiscount, productImages, addItem, isSellerRestricted]);
 
@@ -1848,11 +1854,14 @@ export default function ProductDetailScreen({ route, navigation }: Props) {
 
         <View style={styles.actionButtonsContainer}>
           <Pressable
-            style={[styles.addToCartBtn, ((Number(selectedVariantInfo.stock ?? 0) <= 0) || isSellerRestricted) && styles.disabledBtn]}
+            style={[styles.addToCartBtn, ((Number(selectedVariantInfo.stock ?? 0) <= 0) || isSellerRestricted || isAddingToCart) && styles.disabledBtn]}
             onPress={handleAddToCart}
-            disabled={false}
+            disabled={isAddingToCart}
           >
-            <ShoppingCart size={20} color={((Number(selectedVariantInfo.stock ?? 0) > 0) && !isSellerRestricted) ? COLORS.primary : COLORS.gray400} />
+            {isAddingToCart
+              ? <ActivityIndicator size="small" color={COLORS.primary} />
+              : <ShoppingCart size={20} color={((Number(selectedVariantInfo.stock ?? 0) > 0) && !isSellerRestricted) ? COLORS.primary : COLORS.gray400} />
+            }
           </Pressable>
 
           <Pressable
