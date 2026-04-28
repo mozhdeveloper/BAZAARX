@@ -926,6 +926,7 @@ export const useOrderStore = create<OrderStore>()(
                     region: updates.shippingAddress.region,
                     postalCode: updates.shippingAddress.postalCode,
                     phone: updates.shippingAddress.phone,
+                    barangay: (updates.shippingAddress as any).barangay || null,
                   }
                 : undefined,
               paymentMethod: updates.paymentMethod,

@@ -152,10 +152,11 @@ class OrderMutationService {
             .eq('id', orderData.address_id)
             .single();
 
-          if (currentAddress) {
+          if (currentAddress && currentAddress.province && currentAddress.city) {
+            const normalize = (s: string | null | undefined) => (s || '').toLowerCase().trim();
             if (
-              updates.shippingAddress.province !== currentAddress.province ||
-              updates.shippingAddress.city !== currentAddress.city
+              normalize(updates.shippingAddress.province) !== normalize(currentAddress.province) ||
+              normalize(updates.shippingAddress.city) !== normalize(currentAddress.city)
             ) {
               throw new Error('Updated address increases shipping fee or is outside coverage. You can only modify the street or barangay within the same city/province.');
             }
