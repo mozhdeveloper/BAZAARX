@@ -826,6 +826,7 @@ export const useBuyerStore = create<BuyerStore>()(persist(
         item.id === productId && item.selectedVariant?.id === newVariant.id && item.selectedVariant?.id !== oldVariantId
       );
 
+      // Optimistic local update so the UI reflects the merge immediately
       let nextCartItems = [...cartItems];
 
       if (existingNewVariantIndex !== -1) {
@@ -843,26 +844,40 @@ export const useBuyerStore = create<BuyerStore>()(persist(
           selectedVariant: newVariant,
           price: newVariant.price,
           quantity: finalQuantity,
-          image: newVariant.image || newVariant.thumbnail_url || currentItem.image
+          image: newVariant.image || (newVariant as any).thumbnail_url || currentItem.image
         };
-      }
-
-      // 3. Sync with DB (Handle deletion/update logic)
-      if (user) {
-        try {
-          const cart = await cartService.getOrCreateCart(user.id);
-          if (cart) {
-            // If merging, you would delete the old record and update the quantity of the new one
-            // If simply updating, call the existing update service
-            await get().initializeCart(); // Simplest way to re-sync complex merges from DB truth
-          }
-        } catch (error) {
-          console.error('Error syncing variant merge:', error);
-        }
       }
 
       set({ cartItems: nextCartItems });
       get().groupCartBySeller();
+
+      // 3. Persist to DB. The previous implementation only re-read DB without writing,
+      // which meant a refresh would re-show the un-merged cart.
+      if (user && currentItem.cartItemId) {
+        try {
+          // updateCartItemVariant atomically handles the merge case in DB
+          // (sums qty into the existing target row and deletes the old row).
+          await cartService.updateCartItemVariant(currentItem.cartItemId, newVariant.id);
+
+          // If the user also changed the quantity (not just merged), update the surviving row.
+          if (quantity !== undefined && quantity !== currentItem.quantity) {
+            const cart = await cartService.getCart(user.id);
+            if (cart) {
+              const items = await cartService.getCartItems(cart.id);
+              const survivor = (items as any[]).find(it =>
+                it.product_id === productId && it.variant_id === newVariant.id
+              );
+              if (survivor) {
+                await cartService.updateCartItemQuantity(survivor.id, finalQuantity);
+              }
+            }
+          }
+        } catch (error) {
+          console.error('Error syncing variant change to DB:', error);
+        }
+        // Always re-sync from DB truth so cartItemIds, merged quantities, etc. are accurate.
+        await get().initializeCart();
+      }
     },
 
     updateCartNotes: (productId, notes) => {
