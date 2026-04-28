@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo, useCallback } from "react";
-import { Link, useNavigate } from "react-router-dom";
+import { Link, useNavigate, useParams } from "react-router-dom";
 import { motion } from "framer-motion";
 import {
     Plus,
@@ -21,6 +21,8 @@ import {
     Users,
     Zap,
     ShieldCheck,
+    PackageX,
+    Ban,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { SellerSidebar } from "@/components/seller/SellerSidebar";
@@ -64,42 +66,17 @@ import { AttributesTab } from "@/components/seller/products/AttributesTab";
 import { WarrantyTab } from "@/components/seller/products/WarrantyTab";
 import { uploadProductImages, validateImageFile, compressImage } from "@/utils/storage";
 import { categoryService } from "@/services/categoryService";
+import { supabase } from "@/lib/supabase";
+import { useProductQAStore } from "@/stores/productQAStore";
+import { SampleQAResultModal } from "@/components/seller/SampleQAResultModal";
+import { prepareImageForUpload, isAcceptedImageFormat, isHeicFile } from "@/utils/imageConversion";
 
 export function SellerProducts() {
     const [searchQuery, setSearchQuery] = useState("");
     const [filterStatus, setFilterStatus] = useState("all");
-    const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
     const [isBulkUploadOpen, setIsBulkUploadOpen] = useState(false);
-    const [editingProduct, setEditingProduct] = useState<SellerProduct | null>(
-        null,
-    );
     const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
     const [productToDelete, setProductToDelete] = useState<string | null>(null);
-    const [editFormData, setEditFormData] = useState({
-        name: "",
-        price: 0,
-        stock: 0,
-    });
-    const [editWarrantyData, setEditWarrantyData] = useState({
-        hasWarranty: false,
-        warrantyType: "local_manufacturer",
-        warrantyDurationMonths: "",
-        warrantyProviderName: "",
-        warrantyProviderContact: "",
-        warrantyProviderEmail: "",
-        warrantyTermsUrl: "",
-        warrantyPolicy: "",
-    });
-    const [editVariants, setEditVariants] = useState<
-        Array<{
-            id: string;
-            name?: string;
-            variantLabel1Value?: string;
-            variantLabel2Value?: string;
-            price: number;
-            stock: number;
-        }>
-    >([]);
 
     const { seller, logout } = useAuthStore();
     const { products, updateProduct, deleteProduct, bulkAddProducts } =
@@ -164,9 +141,11 @@ export function SellerProducts() {
         // 3. Existing status filter logic
         const matchesFilter =
             filterStatus === "all" ||
-            (filterStatus === "active" && product.isActive) ||
+            (filterStatus === "active" && product.isActive && product.approvalStatus !== "draft") ||
             (filterStatus === "inactive" && !product.isActive) ||
-            (filterStatus === "pending" && product.approvalStatus === "pending");
+            (filterStatus === "pending" && product.approvalStatus === "pending") ||
+            (filterStatus === "draft" && product.approvalStatus === "draft") ||
+            (filterStatus === "out_of_stock" && product.stock === 0);
 
         // Only return true if it belongs to the seller AND matches search/filters
         return matchesSeller && matchesSearch && matchesFilter;
@@ -217,106 +196,6 @@ export function SellerProducts() {
         }
     }, [productToDelete, deleteProduct, toast]);
 
-    const handleEditClick = useCallback((product: SellerProduct) => {
-        setEditingProduct(product);
-        setEditFormData({
-            name: product.name,
-            price: product.price,
-            stock: product.stock,
-        });
-        // Copy warranty data for editing
-        setEditWarrantyData({
-            hasWarranty: product.hasWarranty || false,
-            warrantyType: product.warrantyType || "local_manufacturer",
-            warrantyDurationMonths: product.warrantyDurationMonths?.toString() || "",
-            warrantyProviderName: product.warrantyProviderName || "",
-            warrantyProviderContact: product.warrantyProviderContact || "",
-            warrantyProviderEmail: product.warrantyProviderEmail || "",
-            warrantyTermsUrl: product.warrantyTermsUrl || "",
-            warrantyPolicy: product.warrantyPolicy || "",
-        });
-        // Copy variants for editing
-        setEditVariants(
-            (product.variants || []).map((v) => ({
-                id: v.id,
-                name: v.name,
-                variantLabel1Value: v.variantLabel1Value,
-                variantLabel2Value: v.variantLabel2Value,
-                price: v.price,
-                stock: v.stock,
-            })),
-        );
-        setIsEditDialogOpen(true);
-    }, []);
-
-    const handleSaveEdit = useCallback(async () => {
-        if (editingProduct) {
-            try {
-                // If there are variants, update them via productService
-                if (editVariants.length > 0) {
-                    await productService.updateVariants(
-                        editVariants.map((v) => ({
-                            id: v.id,
-                            price: v.price,
-                            stock: v.stock,
-                        })),
-                    );
-                }
-
-                // Call the store function to update product name/price
-                await updateProduct(editingProduct.id, {
-                    name: editFormData.name,
-                    price: editFormData.price,
-                    // Only update stock if no variants (otherwise stock is from variants)
-                    stock:
-                        editVariants.length > 0
-                            ? editVariants.reduce((sum, v) => sum + v.stock, 0)
-                            : editFormData.stock,
-                    // Update warranty information
-                    hasWarranty: editWarrantyData.hasWarranty,
-                    warrantyType: editWarrantyData.hasWarranty ? editWarrantyData.warrantyType : undefined,
-                    warrantyDurationMonths: editWarrantyData.hasWarranty && editWarrantyData.warrantyDurationMonths ? parseInt(editWarrantyData.warrantyDurationMonths) : undefined,
-                    warrantyProviderName: editWarrantyData.hasWarranty ? editWarrantyData.warrantyProviderName || null : null,
-                    warrantyProviderContact: editWarrantyData.hasWarranty ? editWarrantyData.warrantyProviderContact || null : null,
-                    warrantyProviderEmail: editWarrantyData.hasWarranty ? editWarrantyData.warrantyProviderEmail || null : null,
-                    warrantyTermsUrl: editWarrantyData.hasWarranty ? editWarrantyData.warrantyTermsUrl || null : null,
-                    warrantyPolicy: editWarrantyData.hasWarranty ? editWarrantyData.warrantyPolicy || null : null,
-                });
-
-                // Refetch products to get updated data
-                if (seller?.id) {
-                    await fetchProducts({ sellerId: seller.id });
-                }
-
-                toast({
-                    title: "Product Updated",
-                    description: `${editFormData.name} has been successfully updated.`,
-                });
-
-                setIsEditDialogOpen(false);
-                setEditingProduct(null);
-                setEditVariants([]);
-                setEditWarrantyData({
-                    hasWarranty: false,
-                    warrantyType: "local_manufacturer",
-                    warrantyDurationMonths: "",
-                    warrantyProviderName: "",
-                    warrantyProviderContact: "",
-                    warrantyProviderEmail: "",
-                    warrantyTermsUrl: "",
-                    warrantyPolicy: "",
-                });
-            } catch (error) {
-                console.error("Error updating product.", error);
-                toast({
-                    title: "Update Failed",
-                    description:
-                        "There was an error updating the product. Please try again.",
-                    variant: "destructive",
-                });
-            }
-        }
-    }, [editingProduct, editVariants, editFormData, editWarrantyData, updateProduct, fetchProducts, seller?.id, toast]);
 
     const handleBulkUpload = useCallback(async (products: BulkProductData[]) => {
         try {
@@ -370,8 +249,10 @@ export function SellerProducts() {
                                     <SelectContent className="rounded-xl border-gray-100 bg-[var(--bg-secondary)]">
                                         <SelectItem value="all" className="text-xs">All Products</SelectItem>
                                         <SelectItem value="active" className="text-xs">Active</SelectItem>
-                                        <SelectItem value="inactive" className="text-xs">Inactive</SelectItem>
+                                        <SelectItem value="inactive" className="text-xs">Disabled</SelectItem>
                                         <SelectItem value="pending" className="text-xs">Pending Approval</SelectItem>
+                                        <SelectItem value="draft" className="text-xs">Drafts</SelectItem>
+                                        <SelectItem value="out_of_stock" className="text-xs">Out of Stock</SelectItem>
                                     </SelectContent>
                                 </Select>
                                 <div className="flex-1 w-full relative group">
@@ -421,7 +302,7 @@ export function SellerProducts() {
                                     >
                                         <div className="relative overflow-hidden">
                                             <div className="absolute inset-0 bg-gradient-to-t from-black/50 to-transparent opacity-0 group-hover:opacity-100 transition-opacity z-10" />
-                                            <img loading="lazy" 
+                                            <img loading="lazy"
                                                 src={product.images[0]}
                                                 alt={product.name}
                                                 className="w-full h-40 object-cover transition-transform duration-700 group-hover:scale-110"
@@ -440,6 +321,22 @@ export function SellerProducts() {
                                                     <div className="inline-flex items-center px-2 py-0.5 rounded-lg bg-red-500/90 backdrop-blur-sm text-white">
                                                         <AlertTriangle className="w-3 h-3 mr-1" />
                                                         <span className="text-[10px] font-bold tracking-wide">Rejected</span>
+                                                    </div>
+                                                </div>
+                                            )}
+                                            {product.approvalStatus === "draft" && (
+                                                <div className="absolute top-2 left-2 z-20">
+                                                    <div className="inline-flex items-center px-2 py-0.5 rounded-lg bg-blue-500/90 backdrop-blur-sm text-white">
+                                                        <Clock className="w-3 h-3 mr-1" />
+                                                        <span className="text-[10px] font-bold tracking-wide">Draft</span>
+                                                    </div>
+                                                </div>
+                                            )}
+                                            {!product.isActive && product.approvalStatus !== "pending" && product.approvalStatus !== "draft" && (
+                                                <div className="absolute top-2 left-2 z-20">
+                                                    <div className="inline-flex items-center px-2 py-0.5 rounded-lg bg-gray-600/90 backdrop-blur-sm text-white">
+                                                        <Ban className="w-3 h-3 mr-1" />
+                                                        <span className="text-[10px] font-bold tracking-wide">Disabled</span>
                                                     </div>
                                                 </div>
                                             )}
@@ -499,69 +396,74 @@ export function SellerProducts() {
                                                         )}
                                                     </div>
                                                     <div className="flex items-center gap-1.5">
-                                                        <span className="text-[12px] font-sm text-gray-500">Stock</span>
-                                                        <span className="text-[12px] font-sm text-gray-500">{product.stock}</span>
+                                                        <span className={cn("text-[12px] font-sm", product.stock === 0 ? "text-red-500 font-bold" : "text-gray-500")}>Stock</span>
+                                                        <span className={cn("text-[12px] font-sm", product.stock === 0 ? "text-red-500 font-bold" : "text-gray-500")}>
+                                                            {product.stock === 0 ? "Out of Stock" : product.stock}
+                                                        </span>
                                                     </div>
                                                 </div>
-                                                <div className="flex gap-2">
+                                                <div className="flex flex-col gap-2">
                                                     <button
                                                         onClick={() =>
-                                                            handleEditClick(product)
+                                                            navigate(`/seller/products/edit/${product.id}`)
                                                         }
-                                                        className="flex-1 h-10 flex items-center justify-center bg-orange-50 text-[var(--secondary-foreground)] rounded-xl hover:bg-[var(--brand-primary)] hover:text-white transition-all text-sm font-bold hover:shadow-lg hover:shadow-orange-500/20 active:scale-95"
+                                                        className="w-full h-10 px-4 flex items-center justify-center bg-orange-50 text-[var(--secondary-foreground)] rounded-xl hover:bg-[var(--brand-primary)] hover:text-white transition-all text-sm font-bold hover:shadow-lg hover:shadow-orange-500/20 active:scale-95"
                                                     >
                                                         Edit Product
                                                     </button>
-                                                    {/* Active/Inactive toggle */}
-                                                    {product.approvalStatus !== 'pending' && (
+                                                    <div className="flex gap-8 justify-center">
+                                                        {/* Active/Inactive toggle */}
+                                                        {product.approvalStatus !== 'pending' && product.approvalStatus !== 'draft' && (
+                                                            <button
+                                                                onClick={() => handleToggleStatus(product.id, product.isActive)}
+                                                                title={product.isActive ? "Disable product" : "Enable product"}
+                                                                className={cn(
+                                                                    "h-9 w-9 flex items-center justify-center rounded-xl transition-all active:scale-95",
+                                                                    product.isActive
+                                                                        ? "text-green-600 hover:text-green-700"
+                                                                        : "text-gray-400 hover:text-gray-500"
+                                                                )}
+                                                            >
+                                                                {product.isActive
+                                                                    ? <ToggleRight className="h-5 w-5" />
+                                                                    : <ToggleLeft className="h-5 w-5" />
+                                                                }
+                                                            </button>
+                                                        )}
+                                                        {/* Feature / Unfeature */}
+                                                        {product.approvalStatus === 'approved' && (
+                                                            <button
+                                                                onClick={() => handleToggleFeature(product.id)}
+                                                                title={featuredProductIds.has(product.id) ? 'Remove from Featured' : 'Feature Product'}
+                                                                className={cn(
+                                                                    "h-9 w-9 flex items-center justify-center rounded-xl transition-all active:scale-95",
+                                                                    featuredProductIds.has(product.id)
+                                                                        ? "text-amber-500 bg-amber-50 hover:text-amber-700"
+                                                                        : "text-gray-400 hover:text-amber-500 hover:bg-amber-50"
+                                                                )}
+                                                            >
+                                                                <Star className={cn("h-4 w-4", featuredProductIds.has(product.id) && "fill-amber-500")} />
+                                                            </button>
+                                                        )}
+                                                        {/* Add to Flash Sale */}
                                                         <button
-                                                            onClick={() => handleToggleStatus(product.id, product.isActive)}
-                                                            className={cn(
-                                                                "h-10 w-10 flex items-center justify-center rounded-xl transition-all active:scale-95",
-                                                                product.isActive
-                                                                    ? "text-green-600 hover:text-green-700"
-                                                                    : "text-gray-400 hover:text-gray-500"
-                                                            )}
-                                                        >
-                                                            {product.isActive
-                                                                ? <ToggleRight className="h-5 w-5" />
-                                                                : <ToggleLeft className="h-5 w-5" />
+                                                            onClick={() =>
+                                                                navigate(`/seller/discounts?flash_product=${product.id}&flash_product_name=${encodeURIComponent(product.name)}&flash_product_price=${product.price}`)
                                                             }
-                                                        </button>
-                                                    )}
-                                                    {/* Feature / Unfeature */}
-                                                    {product.approvalStatus === 'approved' && (
-                                                        <button
-                                                            onClick={() => handleToggleFeature(product.id)}
-                                                            title={featuredProductIds.has(product.id) ? 'Remove from Featured' : 'Feature Product'}
-                                                            className={cn(
-                                                                "h-10 w-10 flex items-center justify-center rounded-xl transition-all active:scale-95",
-                                                                featuredProductIds.has(product.id)
-                                                                    ? "text-amber-500 bg-amber-50 hover:text-amber-700"
-                                                                    : "text-gray-400 hover:text-amber-500 hover:bg-amber-50"
-                                                            )}
+                                                            title="Add to Flash Sale"
+                                                            className="h-9 w-9 flex items-center justify-center text-orange-500 rounded-xl hover:text-orange-700 hover:bg-orange-50 transition-all active:scale-95"
                                                         >
-                                                            <Star className={cn("h-4 w-4", featuredProductIds.has(product.id) && "fill-amber-500")} />
+                                                            <Zap className="h-4 w-4" />
                                                         </button>
-                                                    )}
-                                                    {/* Add to Flash Sale */}
-                                                    <button
-                                                        onClick={() =>
-                                                            navigate(`/seller/discounts?flash_product=${product.id}&flash_product_name=${encodeURIComponent(product.name)}&flash_product_price=${product.price}`)
-                                                        }
-                                                        title="Add to Flash Sale"
-                                                        className="h-10 w-10 flex items-center justify-center text-orange-500 rounded-xl hover:text-orange-700 hover:bg-orange-50 transition-all active:scale-95"
-                                                    >
-                                                        <Zap className="h-4 w-4" />
-                                                    </button>
-                                                    <button
-                                                        onClick={() =>
-                                                            handleDeleteClick(product.id)
-                                                        }
-                                                        className="h-10 w-10 flex items-center justify-center text-red-500 rounded-xl hover:text-red-700 transition-all active:scale-95"
-                                                    >
-                                                        <Trash2 className="h-4 w-4" />
-                                                    </button>
+                                                        <button
+                                                            onClick={() =>
+                                                                handleDeleteClick(product.id)
+                                                            }
+                                                            className="h-9 w-9 flex items-center justify-center text-red-500 rounded-xl hover:text-red-700 transition-all active:scale-95"
+                                                        >
+                                                            <Trash2 className="h-4 w-4" />
+                                                        </button>
+                                                    </div>
                                                 </div>
                                             </div>
                                         </div>
@@ -593,326 +495,9 @@ export function SellerProducts() {
                 </div>
             </div>
 
-            {/* Edit Product Dialog */}
-            <Dialog open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen}>
-                <DialogContent
-                    className={cn(
-                        "bg-white border-none shadow-2xl scrollbar-hide focus-visible:ring-0 focus:ring-0",
-                        editVariants.length > 0
-                            ? "sm:max-w-[600px]"
-                            : "sm:max-w-[425px]"
-                    )}
-                >
-                    <DialogHeader>
-                        <DialogTitle>Edit Product</DialogTitle>
-                        <DialogDescription>
-                            {editVariants.length > 0
-                                ? "Update product details and manage variant stock/prices."
-                                : "Update product name, price, and stock quantity."}
-                        </DialogDescription>
-                    </DialogHeader>
-
-                    <div className="py-4 space-y-4 max-h-[60vh] overflow-y-auto scrollbar-hide">
-                        <div>
-                            <Label htmlFor="edit-name" className="mb-2 block">
-                                Product Name
-                            </Label>
-                            <Input
-                                id="edit-name"
-                                value={editFormData.name}
-                                onChange={(e) =>
-                                    setEditFormData({
-                                        ...editFormData,
-                                        name: e.target.value,
-                                    })
-                                }
-                                className="w-full focus-visible:ring-0 focus:ring-0 border-gray-100 focus:border-[var(--brand-primary)] transition-all"
-                                placeholder="Enter product name"
-                            />
-                        </div>
-
-                        <div>
-                            <Label htmlFor="edit-price" className="mb-2 block">
-                                Base Price (₱)
-                            </Label>
-                            <Input
-                                id="edit-price"
-                                type="number"
-                                min="0"
-                                step="0.01"
-                                value={editFormData.price}
-                                onChange={(e) =>
-                                    setEditFormData({
-                                        ...editFormData,
-                                        price: parseFloat(e.target.value) || 0,
-                                    })
-                                }
-                                className="w-full focus-visible:ring-0 focus:ring-0 border-gray-100 focus:border-[var(--brand-primary)] transition-all"
-                                placeholder="Enter price"
-                            />
-                        </div>
-
-                        {/* Show variants or simple stock field */}
-                        {editVariants.length > 0 ? (
-                            <div className="border border-gray-100 rounded-xl p-4 bg-white">
-                                <Label className="mb-2 block font-medium">
-                                    Variants ({editVariants.length})
-                                </Label>
-                                <p className="text-xs text-gray-500 mb-3">
-                                    Total Stock:{" "}
-                                    {editVariants.reduce(
-                                        (sum, v) => sum + v.stock,
-                                        0,
-                                    )}
-                                </p>
-                                <div className="space-y-3 max-h-56 overflow-y-auto scrollbar-hide">
-                                    {editVariants.map((variant, index) => (
-                                        <div
-                                            key={variant.id}
-                                            className="flex items-center gap-3 p-2 bg-white rounded border"
-                                        >
-                                            <div className="flex-1 min-w-0">
-                                                <p className="font-medium text-sm truncate">
-                                                    {variant.name ||
-                                                        [
-                                                            variant.variantLabel1Value,
-                                                            variant.variantLabel2Value,
-                                                        ]
-                                                            .filter(Boolean)
-                                                            .join(" - ") ||
-                                                        `Variant ${index + 1}`}
-                                                </p>
-                                                <div className="flex gap-1 text-xs text-gray-500">
-                                                    {variant.variantLabel1Value && (
-                                                        <span className="bg-blue-100 text-blue-700 px-1 rounded">
-                                                            {variant.variantLabel1Value}
-                                                        </span>
-                                                    )}
-                                                    {variant.variantLabel2Value && (
-                                                        <span className="bg-purple-100 text-purple-700 px-1 rounded">
-                                                            {variant.variantLabel2Value}
-                                                        </span>
-                                                    )}
-                                                </div>
-                                            </div>
-                                            <div className="flex items-center gap-2">
-                                                <div>
-                                                    <Label className="text-xs text-gray-500">
-                                                        Price
-                                                    </Label>
-                                                    <Input
-                                                        type="number"
-                                                        min="0"
-                                                        value={variant.price}
-                                                        onChange={(e) => {
-                                                            const newVariants =
-                                                                [
-                                                                    ...editVariants,
-                                                                ];
-                                                            newVariants[index] =
-                                                            {
-                                                                ...variant,
-                                                                price:
-                                                                    parseFloat(
-                                                                        e
-                                                                            .target
-                                                                            .value,
-                                                                    ) || 0,
-                                                            };
-                                                            setEditVariants(
-                                                                newVariants,
-                                                            );
-                                                        }}
-                                                        className="w-24 h-9 text-sm focus-visible:ring-0 focus:ring-0 border-gray-100 focus:border-[var(--brand-primary)] transition-all"
-                                                    />
-                                                </div>
-                                                <div>
-                                                    <Label className="text-xs text-gray-500">
-                                                        Stock
-                                                    </Label>
-                                                    <Input
-                                                        type="number"
-                                                        min="0"
-                                                        value={variant.stock}
-                                                        onChange={(e) => {
-                                                            const newVariants =
-                                                                [
-                                                                    ...editVariants,
-                                                                ];
-                                                            newVariants[index] =
-                                                            {
-                                                                ...variant,
-                                                                stock:
-                                                                    parseInt(
-                                                                        e
-                                                                            .target
-                                                                            .value,
-                                                                    ) || 0,
-                                                            };
-                                                            setEditVariants(
-                                                                newVariants,
-                                                            );
-                                                        }}
-                                                        className="w-24 h-9 text-sm focus-visible:ring-0 focus:ring-0 border-gray-100 focus:border-[var(--brand-primary)] transition-all"
-                                                    />
-                                                </div>
-                                            </div>
-                                        </div>
-                                    ))}
-                                </div>
-                            </div>
-                        ) : (
-                            <div>
-                                <Label
-                                    htmlFor="edit-stock"
-                                    className="mb-2 block"
-                                >
-                                    Stock Quantity
-                                </Label>
-                                <Input
-                                    id="edit-stock"
-                                    type="number"
-                                    min="0"
-                                    value={editFormData.stock}
-                                    onChange={(e) =>
-                                        setEditFormData({
-                                            ...editFormData,
-                                            stock:
-                                                parseInt(e.target.value) || 0,
-                                        })
-                                    }
-                                    className="w-full focus-visible:ring-0 focus:ring-0 border-gray-100 focus:border-[var(--brand-primary)] transition-all"
-                                    placeholder="Enter stock quantity"
-                                />
-                            </div>
-                        )}
-
-                        {/* Warranty Section */}
-                        <div className="border-t pt-4">
-                            <div className="flex items-center justify-between mb-3">
-                                <div className="flex items-center gap-2">
-                                    <ShieldCheck className="w-4 h-4 text-orange-600" />
-                                    <Label className="text-sm font-semibold">Warranty Information</Label>
-                                </div>
-                                <button
-                                    type="button"
-                                    onClick={() => setEditWarrantyData(prev => ({ ...prev, hasWarranty: !prev.hasWarranty }))}
-                                    className={cn(
-                                        "relative inline-flex h-6 w-10 items-center rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-orange-500 focus:ring-offset-2",
-                                        editWarrantyData.hasWarranty ? "bg-orange-500" : "bg-gray-300"
-                                    )}
-                                >
-                                    <span
-                                        className={cn(
-                                            "inline-block h-4 w-4 transform rounded-full bg-white transition-transform",
-                                            editWarrantyData.hasWarranty ? "translate-x-5" : "translate-x-1"
-                                        )}
-                                    />
-                                </button>
-                            </div>
-
-                            {editWarrantyData.hasWarranty && (
-                                <div className="space-y-3">
-                                    <div>
-                                        <Label htmlFor="edit-warrantyType" className="text-xs text-gray-600">Warranty Type</Label>
-                                        <Select value={editWarrantyData.warrantyType} onValueChange={(val) => setEditWarrantyData(prev => ({ ...prev, warrantyType: val }))}>
-                                            <SelectTrigger className="h-9 text-sm">
-                                                <SelectValue />
-                                            </SelectTrigger>
-                                            <SelectContent>
-                                                <SelectItem value="local_manufacturer">Local Manufacturer</SelectItem>
-                                                <SelectItem value="international_manufacturer">International Manufacturer</SelectItem>
-                                                <SelectItem value="shop_warranty">Shop Warranty</SelectItem>
-                                            </SelectContent>
-                                        </Select>
-                                    </div>
-                                    <div>
-                                        <Label htmlFor="edit-warrantyDurationMonths" className="text-xs text-gray-600">Duration (months)</Label>
-                                        <Input
-                                            id="edit-warrantyDurationMonths"
-                                            type="number"
-                                            min="1"
-                                            value={editWarrantyData.warrantyDurationMonths}
-                                            onChange={(e) => setEditWarrantyData(prev => ({ ...prev, warrantyDurationMonths: e.target.value }))}
-                                            className="h-9 text-sm"
-                                        />
-                                    </div>
-                                    <div>
-                                        <Label htmlFor="edit-warrantyProviderName" className="text-xs text-gray-600">Provider Name</Label>
-                                        <Input
-                                            id="edit-warrantyProviderName"
-                                            value={editWarrantyData.warrantyProviderName}
-                                            onChange={(e) => setEditWarrantyData(prev => ({ ...prev, warrantyProviderName: e.target.value }))}
-                                            className="h-9 text-sm"
-                                        />
-                                    </div>
-                                    <div>
-                                        <Label htmlFor="edit-warrantyProviderContact" className="text-xs text-gray-600">Contact Number</Label>
-                                        <Input
-                                            id="edit-warrantyProviderContact"
-                                            value={editWarrantyData.warrantyProviderContact}
-                                            onChange={(e) => setEditWarrantyData(prev => ({ ...prev, warrantyProviderContact: e.target.value }))}
-                                            className="h-9 text-sm"
-                                        />
-                                    </div>
-                                    <div>
-                                        <Label htmlFor="edit-warrantyProviderEmail" className="text-xs text-gray-600">Email</Label>
-                                        <Input
-                                            id="edit-warrantyProviderEmail"
-                                            type="email"
-                                            value={editWarrantyData.warrantyProviderEmail}
-                                            onChange={(e) => setEditWarrantyData(prev => ({ ...prev, warrantyProviderEmail: e.target.value }))}
-                                            className="h-9 text-sm"
-                                        />
-                                    </div>
-                                </div>
-                            )}
-                        </div>
-                    </div>
-
-                    <DialogFooter className="gap-2 sm:gap-0 mt-2">
-                        <Button
-                            variant="outline"
-                            onClick={() => {
-                                setIsEditDialogOpen(false);
-                                setEditingProduct(null);
-                                setEditVariants([]);
-                                setEditWarrantyData({
-                                    hasWarranty: false,
-                                    warrantyType: "local_manufacturer",
-                                    warrantyDurationMonths: "",
-                                    warrantyProviderName: "",
-                                    warrantyProviderContact: "",
-                                    warrantyProviderEmail: "",
-                                    warrantyTermsUrl: "",
-                                    warrantyPolicy: "",
-                                });
-                            }}
-                            className="rounded-xl border-[var(--btn-border)] font-bold hover:bg-gray-100 hover:text-[var(--text-headline)] active:scale-95 transition-all h-11"
-                        >
-                            Cancel
-                        </Button>
-                        <Button
-                            onClick={handleSaveEdit}
-                            className="bg-[var(--brand-primary)] hover:bg-[var(--brand-accent)] text-white font-bold rounded-xl shadow-lg shadow-orange-500/20 active:scale-95 transition-all px-8 h-11"
-                            disabled={
-                                !editFormData.name.trim() ||
-                                editFormData.price <= 0 ||
-                                (editVariants.length === 0 &&
-                                    editFormData.stock < 0) ||
-                                (editVariants.length > 0 &&
-                                    editVariants.some(
-                                        (v) => v.stock < 0 || v.price < 0,
-                                    ))
-                            }
-                        >
-                            Save Changes
-                        </Button>
-                    </DialogFooter>
-                </DialogContent>
-            </Dialog>
 
             {/* Bulk Upload Modal */}
+
             <BulkUploadModal
                 isOpen={isBulkUploadOpen}
                 onClose={() => setIsBulkUploadOpen(false)}
@@ -959,7 +544,9 @@ export function SellerProducts() {
 
 export function AddProduct() {
     const navigate = useNavigate();
-    const { addProduct } = useProductStore();
+    const { id: editProductId } = useParams<{ id: string }>();
+    const isEditMode = !!editProductId;
+    const { addProduct, updateProduct, products } = useProductStore();
     const { seller } = useAuthStore();
     const { toast } = useToast();
 
@@ -1014,7 +601,9 @@ export function AddProduct() {
         useState(false);
 
     const [isSubmitting, setIsSubmitting] = useState(false);
+    const [isDraftMode, setIsDraftMode] = useState(false);
     const [errors, setErrors] = useState<Record<string, string>>({});
+    const [qaResultOpen, setQaResultOpen] = useState(false);
     const [activeTab, setActiveTab] = useState<"general" | "attributes" | "warranty">(
         "general",
     );
@@ -1063,6 +652,63 @@ export function AddProduct() {
         };
         fetchCategories();
     }, []);
+
+    // BX-03-002: Prefill form state when editing an existing product
+    const [editPrefilled, setEditPrefilled] = useState(false);
+    useEffect(() => {
+        if (!isEditMode || !editProductId || editPrefilled) return;
+        const product = products.find(p => p.id === editProductId);
+        if (!product) {
+            toast({ title: "Product not found", description: "The product you're trying to edit doesn't exist.", variant: "destructive" });
+            navigate("/seller/products");
+            return;
+        }
+
+        // Prefill form data
+        setFormData({
+            name: product.name || "",
+            description: (product as any).description || "",
+            price: product.price?.toString() || "",
+            originalPrice: (product as any).originalPrice?.toString() || "",
+            stock: product.stock?.toString() || "",
+            category: product.category || "",
+            images: product.images?.length ? [...product.images] : [""],
+            variantLabel1Values: [],
+            variantLabel2Values: [],
+            sizesValues: [],
+        });
+
+        // Prefill warranty
+        setWarrantyData({
+            hasWarranty: product.hasWarranty || false,
+            warrantyType: product.warrantyType || "local_manufacturer",
+            warrantyDurationMonths: product.warrantyDurationMonths?.toString() || "",
+            warrantyProviderName: product.warrantyProviderName || "",
+            warrantyProviderContact: product.warrantyProviderContact || "",
+            warrantyProviderEmail: product.warrantyProviderEmail || "",
+            warrantyTermsUrl: product.warrantyTermsUrl || "",
+            warrantyPolicy: product.warrantyPolicy || "",
+        });
+
+        // Prefill variants
+        if (product.variants?.length) {
+            setVariantConfigs(product.variants.map(v => ({
+                id: v.id,
+                variantLabel1Value: v.variantLabel1Value || "",
+                variantLabel2Value: v.variantLabel2Value || "",
+                stock: v.stock || 0,
+                price: v.price || 0,
+                sku: v.sku || "",
+                image: v.thumbnailUrl || "",
+            })));
+        }
+
+        // Prefill attribute names
+        if (product.variantLabel1) setFirstAttributeName(product.variantLabel1);
+        if (product.variantLabel2) setSecondAttributeName(product.variantLabel2);
+
+        setEditPrefilled(true);
+    }, [isEditMode, editProductId, products, editPrefilled]);
 
     useEffect(() => {
         const v1 = formData.variantLabel1Values;
@@ -1436,7 +1082,9 @@ export function AddProduct() {
         if (!formData.description.trim()) {
             newErrors.description = "Description is required";
         }
-        if (!formData.price || parseInt(formData.price) <= 0) {
+        if (!formData.price || formData.price.trim() === "") {
+            newErrors.price = "Display price is required";
+        } else if (parseInt(formData.price) <= 0) {
             newErrors.price = "Price must be greater than 0";
         }
 
@@ -1451,6 +1099,11 @@ export function AddProduct() {
             if (totalStock <= 0) {
                 newErrors.variants =
                     "Total stock must be greater than 0. Add stock to base variant or custom variants.";
+            }
+            // Variant image is required
+            const missingImages = variantConfigs.filter(v => !v.image && !v.file);
+            if (missingImages.length > 0) {
+                newErrors.variantImages = `${missingImages.length} variant(s) missing required image. Click the edit button on each variant to add an image.`;
             }
         } else if (baseStock <= 0) {
             newErrors.stock = "Stock must be greater than 0";
@@ -1616,11 +1269,12 @@ export function AddProduct() {
                 variantLabel2Values: formData.variantLabel2Values,
                 sizesValues: isApparelCategory ? formData.sizesValues : undefined,
                 sizeGuideImage: uploadedSizeGuideUrl,
-                isActive: true,
+                isActive: !isDraftMode,
                 sellerId: seller?.id || "",
                 variantLabel1: resolvedVariantLabel1,
                 variantLabel2: resolvedVariantLabel2,
                 variants: variantsForSubmit,
+                isDraft: isDraftMode,
                 // Warranty information (only included if enabled)
                 ...(warrantyData.hasWarranty && {
                     hasWarranty: true,
@@ -1634,24 +1288,108 @@ export function AddProduct() {
                 }),
             };
 
-            await addProduct(productData);
+            if (isEditMode && editProductId) {
+                // ====== EDIT FLOW ======
+                // Update product fields
+                await updateProduct(editProductId, {
+                    name: productData.name,
+                    description: productData.description,
+                    price: productData.price,
+                    stock: productData.stock,
+                    variantLabel1: productData.variantLabel1,
+                    variantLabel2: productData.variantLabel2,
+                    // Warranty
+                    hasWarranty: warrantyData.hasWarranty,
+                    warrantyType: warrantyData.hasWarranty ? warrantyData.warrantyType : undefined,
+                    warrantyDurationMonths: warrantyData.hasWarranty && warrantyData.warrantyDurationMonths ? parseInt(warrantyData.warrantyDurationMonths) : undefined,
+                    warrantyProviderName: warrantyData.hasWarranty ? warrantyData.warrantyProviderName || null : null,
+                    warrantyProviderContact: warrantyData.hasWarranty ? warrantyData.warrantyProviderContact || null : null,
+                    warrantyProviderEmail: warrantyData.hasWarranty ? warrantyData.warrantyProviderEmail || null : null,
+                    warrantyTermsUrl: warrantyData.hasWarranty ? warrantyData.warrantyTermsUrl || null : null,
+                    warrantyPolicy: warrantyData.hasWarranty ? warrantyData.warrantyPolicy || null : null,
+                });
 
-            toast({
-                title: "Product Added",
-                description: `${formData.name} has been successfully submitted for review.`,
-            });
+                // Update variants if any exist
+                if (variantConfigs.length > 0) {
+                    await productService.updateVariants(
+                        updatedVariants.map((v) => ({
+                            id: v.id,
+                            price: v.price,
+                            stock: v.stock,
+                        })),
+                    );
+                }
+
+                // Image sync: delete existing → re-add
+                try {
+                    await productService.deleteProductImages(editProductId);
+                    if (allImages.length > 0) {
+                        await productService.addProductImages(editProductId,
+                            allImages.map((url, idx) => ({
+                                product_id: editProductId,
+                                image_url: url,
+                                alt_text: "",
+                                sort_order: idx,
+                                is_primary: idx === 0,
+                            }))
+                        );
+                    }
+                } catch (imgErr) {
+                    console.warn('Image update partially failed:', imgErr);
+                }
+
+                // Audit log
+                try {
+                    await supabase.from('admin_audit_logs').insert({
+                        admin_id: seller?.id || null,
+                        action: 'product_updated',
+                        target_table: 'products',
+                        target_id: editProductId,
+                        new_values: {
+                            seller_id: seller?.id,
+                            seller_name: seller?.name,
+                            seller_store_name: seller?.storeName,
+                            name: productData.name,
+                            description: productData.description,
+                            price: productData.price,
+                            stock: productData.stock,
+                        },
+                        user_agent: navigator.userAgent,
+                    });
+                } catch (auditErr) {
+                    console.warn('Audit log insert failed (non-critical):', auditErr);
+                }
+
+                toast({
+                    title: "Product Updated",
+                    description: `${formData.name} has been updated successfully.`,
+                });
+            } else {
+                // ====== CREATE FLOW (existing) ======
+                await addProduct(productData);
+                toast({
+                    title: isDraftMode ? "Draft Saved" : "Product Added",
+                    description: isDraftMode
+                        ? `${formData.name} has been saved as a draft.`
+                        : `${formData.name} has been successfully submitted for review.`,
+                });
+            }
+
             navigate("/seller/products");
         } catch (error) {
-            console.error("Failed to add product:", error);
+            console.error(isEditMode ? "Failed to update product:" : "Failed to add product:", error);
             toast({
                 title: "Error",
-                description: "Failed to add product. Please check your connection and try again.",
+                description: isEditMode
+                    ? "Failed to update product. Please try again."
+                    : "Failed to add product. Please check your connection and try again.",
                 variant: "destructive",
             });
         } finally {
             setIsSubmitting(false);
         }
     };
+
 
     return (
         <div className="min-h-screen bg-[var(--brand-wash)] font-sans relative overflow-hidden">
@@ -1674,13 +1412,13 @@ export function AddProduct() {
                         <div>
                             <div className="inline-flex items-center gap-2 rounded-lg bg-orange-50 text-[var(--brand-primary)] border border-orange-100 px-3 py-1 text-[10px] font-bold uppercase tracking-widest shadow-sm">
                                 <Plus className="h-3 w-3" />
-                                New Listing
+                                {isEditMode ? "Editing" : "New Listing"}
                             </div>
                             <h1 className="text-3xl font-black text-[var(--text-headline)] mt-2 font-heading tracking-tight">
-                                Add New Product
+                                {isEditMode ? "Edit Product" : "Add New Product"}
                             </h1>
                             <p className="text-[var(--text-secondary)] text-sm font-medium">
-                                Create a compelling product listing to attract buyers.
+                                {isEditMode ? "Update your product details." : "Create a compelling product listing to attract buyers."}
                             </p>
                         </div>
                     </div>
@@ -1697,7 +1435,7 @@ export function AddProduct() {
                                         const filePreview = imageFiles[0] ? URL.createObjectURL(imageFiles[0]) : null;
                                         const previewSrc = urlPreview || filePreview;
                                         return previewSrc ? (
-                                            <img loading="lazy" 
+                                            <img loading="lazy"
                                                 src={previewSrc}
                                                 alt="Preview"
                                                 className="w-full h-full object-cover"
@@ -1786,9 +1524,33 @@ export function AddProduct() {
                                         Set stock quantity
                                     </li>
                                 </ul>
+
+                                {/* QA Result button — only in edit mode */}
+                                {isEditMode && (
+                                    <div className="mt-5 pt-4 border-t border-gray-100">
+                                        <button
+                                            type="button"
+                                            onClick={() => setQaResultOpen(true)}
+                                            className="w-full flex items-center justify-center gap-2 rounded-xl border-2 border-emerald-200 bg-emerald-50 hover:bg-emerald-100 text-emerald-700 font-bold py-3 px-4 transition-all active:scale-[0.98]"
+                                        >
+                                            <ShieldCheck className="w-4 h-4" />
+                                            View QA Result
+                                        </button>
+                                    </div>
+                                )}
                             </div>
                         </div>
                     </div>
+
+                    {/* SAMPLE QA RESULT — Modal (delete when real QA component is ready) */}
+                    {isEditMode && (
+                        <SampleQAResultModal
+                            open={qaResultOpen}
+                            onOpenChange={setQaResultOpen}
+                            productName={formData.name}
+                            sellerName={seller?.storeName || seller?.name}
+                        />
+                    )}
 
                     {/* Form Panel */}
                     <div className="lg:col-span-2">
@@ -1818,6 +1580,29 @@ export function AddProduct() {
                                     addImageFileSlot={addImageFileSlot}
                                     removeImageFileSlot={removeImageFileSlot}
                                     setImageFileError={setImageFileError}
+                                    hideCategory={isEditMode}
+                                    reorderImages={(fromIndex, toIndex) => {
+                                        setFormData(prev => {
+                                            const newImages = [...prev.images];
+                                            const [moved] = newImages.splice(fromIndex, 1);
+                                            newImages.splice(toIndex, 0, moved);
+                                            return { ...prev, images: newImages };
+                                        });
+                                    }}
+                                    reorderImageFile={(fromIndex, toIndex) => {
+                                        setImageFiles(prev => {
+                                            const newFiles = [...prev];
+                                            const [moved] = newFiles.splice(fromIndex, 1);
+                                            newFiles.splice(toIndex, 0, moved);
+                                            return newFiles;
+                                        });
+                                        setImageFileErrors(prev => {
+                                            const newErrors = [...prev];
+                                            const [moved] = newErrors.splice(fromIndex, 1);
+                                            newErrors.splice(toIndex, 0, moved);
+                                            return newErrors;
+                                        });
+                                    }}
                                 />
                             )}
 
@@ -1894,20 +1679,40 @@ export function AddProduct() {
                                     type="button"
                                     variant="outline"
                                     onClick={() => navigate("/seller/products")}
-                                    className="flex-1 rounded-2xl h-14 border-2 border-gray-100 bg-white hover:bg-gray-50 text-gray-600 font-bold transition-all text-base"
+                                    className="flex-1 rounded-2xl h-14 bg-gradient-to-r from-[var(--brand-primary)] to-[var(--brand-primary-dark)] text-white shadow-xl shadow-orange-500/20 hover:shadow-orange-500/30 hover:scale-[1.02] transform transition-all font-bold text-base"
                                 >
                                     Cancel
                                 </Button>
+                                {!isEditMode && (
+                                    <Button
+                                        type="button"
+                                        disabled={isSubmitting}
+                                        onClick={() => {
+                                            setIsDraftMode(true);
+                                            // Trigger form submit after state update
+                                            setTimeout(() => {
+                                                const form = document.querySelector('form');
+                                                form?.requestSubmit();
+                                            }, 0);
+                                        }}
+                                        className="rounded-2xl h-14 px-6 bg-blue-50 text-blue-600 border border-blue-200 hover:bg-blue-100 hover:scale-[1.02] transform transition-all font-bold text-base"
+                                    >
+                                        {isSubmitting && isDraftMode ? "Saving Draft..." : "Save as Draft"}
+                                    </Button>
+                                )}
                                 <Button
                                     type="submit"
                                     disabled={isSubmitting}
+                                    onClick={() => setIsDraftMode(false)}
                                     className="flex-1 rounded-2xl h-14 bg-gradient-to-r from-[var(--brand-primary)] to-[var(--brand-primary-dark)] text-white shadow-xl shadow-orange-500/20 hover:shadow-orange-500/30 hover:scale-[1.02] transform transition-all font-bold text-base"
                                 >
-                                    {isSubmitting
-                                        ? "Publishing..."
-                                        : "Publish Product"}
+                                    {isSubmitting && !isDraftMode
+                                        ? (isEditMode ? "Saving..." : "Publishing...")
+                                        : (isEditMode ? "Save Changes" : "Publish Product")}
                                 </Button>
                             </div>
+
+
                         </form>
                     </div>
                 </div>

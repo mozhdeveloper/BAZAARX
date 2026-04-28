@@ -1,7 +1,7 @@
 import { useState, useRef } from "react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
-import { Plus, Trash2, Upload, Link as LinkIcon, ImagePlus, X } from "lucide-react";
+import { Plus, Trash2, Upload, Link as LinkIcon, ImagePlus, X, Star } from "lucide-react";
 
 interface GeneralInfoTabProps {
     formData: {
@@ -33,6 +33,9 @@ interface GeneralInfoTabProps {
     addImageFileSlot: () => void;
     removeImageFileSlot: (index: number) => void;
     setImageFileError: (index: number, error: string | null) => void;
+    hideCategory?: boolean;
+    reorderImages?: (fromIndex: number, toIndex: number) => void;
+    reorderImageFile?: (fromIndex: number, toIndex: number) => void;
 }
 
 function FileSlot({
@@ -148,6 +151,9 @@ export function GeneralInfoTab({
     addImageFileSlot,
     removeImageFileSlot,
     setImageFileError: _setImageFileError,
+    hideCategory,
+    reorderImages,
+    reorderImageFile,
 }: GeneralInfoTabProps) {
     const [imageUploadMode, setImageUploadMode] = useState<"url" | "upload">("url");
 
@@ -299,7 +305,7 @@ export function GeneralInfoTab({
                         </p>
                     )}
                 </div>
-                <div>
+                {!hideCategory && <div>
                     <label
                         htmlFor="category"
                         className="block text-sm font-semibold text-gray-800 mb-1"
@@ -331,7 +337,7 @@ export function GeneralInfoTab({
                             {errors.category}
                         </p>
                     )}
-                </div>
+                </div>}
             </div>
 
             {/* Images */}
@@ -376,7 +382,7 @@ export function GeneralInfoTab({
                     <div className="space-y-2">
                         {formData.images.map((image, index) => (
                             <div key={index} className="flex gap-3 items-center">
-                                <div className="h-12 w-12 rounded-lg border border-gray-200 bg-gray-50 overflow-hidden flex items-center justify-center text-xs text-gray-400">
+                                <div className="h-12 w-12 rounded-lg border border-gray-200 bg-gray-50 overflow-hidden flex items-center justify-center text-xs text-gray-400 relative">
                                     {image ? (
                                         <img loading="lazy" 
                                             src={image}
@@ -397,6 +403,23 @@ export function GeneralInfoTab({
                                     placeholder="https://..."
                                     required={index === 0}
                                 />
+                                {index === 0 && image.trim() && (
+                                    <span className="text-[10px] font-bold text-orange-500 bg-orange-50 px-2 py-1 rounded-lg flex-shrink-0">
+                                        PRIMARY
+                                    </span>
+                                )}
+                                {index !== 0 && image.trim() && reorderImages && (
+                                    <Button
+                                        type="button"
+                                        variant="ghost"
+                                        size="sm"
+                                        onClick={() => reorderImages(index, 0)}
+                                        title="Set as primary image"
+                                        className="px-2 py-1 text-orange-500 hover:text-orange-600 flex-shrink-0"
+                                    >
+                                        <Star className="h-4 w-4" />
+                                    </Button>
+                                )}
                                 {formData.images.length > 1 && (
                                     <Button
                                         type="button"
@@ -425,15 +448,33 @@ export function GeneralInfoTab({
                 {imageUploadMode === "upload" && (
                     <div className="space-y-3">
                         {imageFiles.map((file, index) => (
-                            <FileSlot
-                                key={index}
-                                index={index}
-                                file={file}
-                                error={imageFileErrors[index] ?? null}
-                                onFileSelect={onFileSelect}
-                                onRemove={() => removeImageFileSlot(index)}
-                                showRemove={imageFiles.length > 1}
-                            />
+                            <div key={index} className="flex gap-3 items-center">
+                                <FileSlot
+                                    index={index}
+                                    file={file}
+                                    error={imageFileErrors[index] ?? null}
+                                    onFileSelect={onFileSelect}
+                                    onRemove={() => removeImageFileSlot(index)}
+                                    showRemove={imageFiles.length > 1}
+                                />
+                                {index === 0 && file && (
+                                    <span className="text-[10px] font-bold text-orange-500 bg-orange-50 px-2 py-1 rounded-lg flex-shrink-0">
+                                        PRIMARY
+                                    </span>
+                                )}
+                                {index !== 0 && file && reorderImageFile && (
+                                    <Button
+                                        type="button"
+                                        variant="ghost"
+                                        size="sm"
+                                        onClick={() => reorderImageFile(index, 0)}
+                                        title="Set as primary image"
+                                        className="px-2 py-1 text-orange-500 hover:text-orange-600 flex-shrink-0"
+                                    >
+                                        <Star className="h-4 w-4" />
+                                    </Button>
+                                )}
+                            </div>
                         ))}
                         <Button
                             type="button"
