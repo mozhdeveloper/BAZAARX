@@ -14,12 +14,13 @@ import {
     Alert,
     ActivityIndicator,
     Dimensions,
+    Modal,
     Image,
 } from 'react-native';
 import * as WebBrowser from 'expo-web-browser';
 import * as AuthSession from 'expo-auth-session';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { Eye, EyeOff, ArrowRight, ArrowLeft } from 'lucide-react-native';
+import { Eye, EyeOff, ArrowRight, ArrowLeft, CheckSquare, Square, X } from 'lucide-react-native';
 import { CardStyleInterpolators } from '@react-navigation/stack';
 import { supabase } from '../src/lib/supabase';
 import { authService } from '../src/services/authService';
@@ -37,12 +38,12 @@ type Props = NativeStackScreenProps<RootStackParamList, 'Signup'>;
 
 export default function SignupScreen({ navigation }: Props) {
     const [loading, setLoading] = useState(false);
-    const [isGoogleLoading, setIsGoogleLoading] = useState(false);
     const [showPassword, setShowPassword] = useState(false);
     const [showConfirmPassword, setShowConfirmPassword] = useState(false);
     const [emailTouched, setEmailTouched] = useState(false);
     const [emailStatus, setEmailStatus] = useState<'idle' | 'checking' | 'available' | 'taken' | 'invalid'>('idle');
     const [emailStatusMessage, setEmailStatusMessage] = useState('');
+    const [showTermsModal, setShowTermsModal] = useState(false);
     const emailCheckRequestIdRef = useRef(0);
 
     const {
@@ -62,6 +63,7 @@ export default function SignupScreen({ navigation }: Props) {
             phone: '',
             password: '',
             confirmPassword: '',
+            acceptTerms: false,
         },
     });
 
@@ -130,146 +132,42 @@ export default function SignupScreen({ navigation }: Props) {
                 email: email.trim(),
                 phone,
                 password,
-                user_type: 'buyer' as const
+                user_type: 'buyer' as const,
+                has_accepted_terms: true,
             };
 
             // Persist signup data to store to survive deep link redirects
             useAuthStore.getState().setPendingSignup(signupData);
 
-            // Navigate to Terms first - THE EMAIL WILL BE SENT FROM THERE
-            navigation.replace('Terms', { signupData });
-        } catch (error: any) {
-            console.error('Signup Preparation Error:', error);
-            Alert.alert('Error', 'Failed to prepare account data.');
-        } finally {
-            setLoading(false);
-        }
-    };
-
-    const handleGoogleSignIn = async () => {
-        setIsGoogleLoading(true);
-        try {
-            console.log('[SignupScreen] Starting Google Sign-In...');
-
-            const redirectUrl = getRedirectUri();
-            const { data, error } = await supabase.auth.signInWithOAuth({
-                provider: 'google',
-                options: {
-                    redirectTo: redirectUrl,
-                    skipBrowserRedirect: false,
-                },
+            setLoading(true);
+            const result = await authService.signUp(email, password, {
+                first_name: firstName,
+                last_name: lastName,
+                phone,
+                user_type: 'buyer',
+                email,
+                password,
+                has_accepted_terms: true,
             });
 
-            if (error) {
-                Alert.alert('Google Sign-In Error', error.message);
-                setIsGoogleLoading(false);
-                return;
+            if (result?.user) {
+                // Navigate to Email Verification
+                navigation.replace('EmailVerification', { 
+                    email: email.trim(),
+                    signupData 
+                });
+            } else {
+                throw new Error('Signup failed: No user returned');
             }
-
-            if (!data?.url) {
-                Alert.alert('Error', 'Failed to initialize Google Sign-In.');
-                setIsGoogleLoading(false);
-                return;
+        } catch (error: any) {
+            console.error('Signup Error:', error);
+            if (error.isAlreadyRegistered) {
+                Alert.alert('Account Exists', 'This email is already registered. Please sign in instead.');
+            } else {
+                Alert.alert('Error', error.message || 'Failed to create account.');
             }
-
-            const result = await WebBrowser.openAuthSessionAsync(data.url, redirectUrl);
-
-            try {
-                if (result.type === 'cancel' || result.type === 'dismiss') {
-                    setIsGoogleLoading(false);
-                    return;
-                }
-
-                // Process the URL returned by openAuthSessionAsync on iOS
-                if (result.type === 'success' && result.url) {
-                    console.log('[SignupScreen] Manual URL processing from AuthSession result...');
-                    await processAuthSessionResultUrl(result.url, supabase);
-                }
-
-                // Wait for session - check immediately, then wait briefly if needed
-                console.log('[SignupScreen] Checking for established session...');
-                let session: any = null;
-                const { data: initialCheck } = await supabase.auth.getSession();
-                session = initialCheck.session;
-
-                if (!session) {
-                    console.log('[SignupScreen] Session not found immediately, waiting for auth event (max 5s)...');
-                    try {
-                        await new Promise<void>((resolve, reject) => {
-                            const timeout = setTimeout(() => reject(new Error('timeout')), 5000);
-                            const { data: { subscription } } = supabase.auth.onAuthStateChange((event, s) => {
-                                if (event === 'SIGNED_IN' && s) {
-                                    session = s;
-                                    clearTimeout(timeout);
-                                    subscription.unsubscribe();
-                                    resolve();
-                                }
-                            });
-                        });
-                    } catch (e) {
-                        console.log('[SignupScreen] Event wait timed out, performing final check...');
-                        const { data: finalCheck } = await supabase.auth.getSession();
-                        session = finalCheck.session;
-                    }
-                }
-
-                if (session) {
-                    console.log('[SignupScreen] ✅ Session confirmed. Processing success logic...');
-                    const userId = session.user.id;
-
-                    // POLICY ENFORCEMENT: Check for unauthorized Google linking
-                    const { data: identityData } = await supabase.auth.getUserIdentities();
-                    const identities = identityData?.identities || [];
-                    const emailIdentity = identities.find(id => id.provider === 'email');
-                    const googleIdentity = identities.find(id => id.provider === 'google');
-
-                    if (emailIdentity && googleIdentity) {
-                        const isExplicitlyLinked = !!session.user.user_metadata?.google_explicitly_linked;
-                        const linkAgeMs = Date.now() - new Date(googleIdentity.created_at || Date.now()).getTime();
-                        if (!isExplicitlyLinked && linkAgeMs < 300000) {
-                            console.log('[SignupScreen] 🛡️ Google Link Policy Blocked');
-                            await supabase.auth.unlinkIdentity(googleIdentity);
-                            await useAuthStore.getState().signOut();
-                            Alert.alert('Security Notice', 'This Google account is not yet linked. Please use email/password.');
-                            setIsGoogleLoading(false);
-                            return;
-                        }
-                    }
-
-                    const isComplete = await authService.isOnboardingComplete(userId);
-                    
-                    const signupData = { 
-                        email: session.user.email || '',
-                        firstName: session.user.user_metadata?.first_name || 
-                                  session.user.user_metadata?.full_name?.split(' ')[0] || '',
-                        lastName: session.user.user_metadata?.last_name || 
-                                 session.user.user_metadata?.full_name?.split(' ').slice(1).join(' ') || '',
-                        phone: session.user.phone || '',
-                        user_type: 'buyer' as const
-                    };
-
-                    // Persist to store so CategoryPreference screen can find it
-                    useAuthStore.getState().setPendingSignup(signupData);
-
-                    if (isComplete) {
-                        Alert.alert('Notice', 'User has already been registered, redirecting to homepage.');
-                        navigation.replace('MainTabs', { screen: 'Home' });
-                    } else {
-                        navigation.replace('Terms', { signupData });
-                    }
-                } else {
-                    Alert.alert('Sign-In Incomplete', 'We were unable to complete the sign-in process. Please try again.');
-                    setIsGoogleLoading(false);
-                }
-            } catch (authError) {
-                console.error('[SignupScreen] Auth process error:', authError);
-                Alert.alert('Error', 'An unexpected error occurred during sign-in.');
-                setIsGoogleLoading(false);
-            }
-        } catch (error) {
-            console.error('[SignupScreen] Google Sign-In exception:', error);
-            Alert.alert('Error', 'An unexpected error occurred. Please try again.');
-            setIsGoogleLoading(false);
+        } finally {
+            setLoading(false);
         }
     };
 
@@ -448,9 +346,39 @@ export default function SignupScreen({ navigation }: Props) {
                             {errors.confirmPassword && <Text style={styles.errorText}>{errors.confirmPassword.message}</Text>}
                         </View>
 
-                        <Pressable 
-                            style={[styles.signupButton, (loading || !isValid || emailStatus === 'taken') && styles.signupButtonDisabled]} 
-                            onPress={handleSubmit(handleSignup)} 
+                        {/* Terms and Conditions Checkbox */}
+                        <View style={styles.checkboxContainer}>
+                            <Controller
+                                control={control}
+                                name="acceptTerms"
+                                render={({ field: { onChange, value } }) => (
+                                    <Pressable
+                                        style={styles.checkboxPressable}
+                                        onPress={() => onChange(!value)}
+                                    >
+                                        {value ? (
+                                            <CheckSquare size={22} color="#D97706" />
+                                        ) : (
+                                            <Square size={22} color="#9CA3AF" />
+                                        )}
+                                        <Text style={styles.checkboxText}>
+                                            I agree to the{' '}
+                                            <Text
+                                                style={styles.termsLink}
+                                                onPress={() => setShowTermsModal(true)}
+                                            >
+                                                Terms and Conditions
+                                            </Text>
+                                        </Text>
+                                    </Pressable>
+                                )}
+                            />
+                            {errors.acceptTerms && <Text style={styles.errorText}>{errors.acceptTerms.message}</Text>}
+                        </View>
+
+                        <Pressable
+                            style={[styles.signupButton, (loading || !isValid || emailStatus === 'taken') && styles.signupButtonDisabled]}
+                            onPress={handleSubmit(handleSignup)}
                             disabled={loading || !isValid || emailStatus === 'taken'}
                         >
                             {loading ? (
@@ -463,29 +391,57 @@ export default function SignupScreen({ navigation }: Props) {
                         </Pressable>
                     </View>
 
-                    <View style={styles.dividerContainer}>
-                        <View style={styles.dividerLine} />
-                        <Text style={styles.dividerText}>OR</Text>
-                        <View style={styles.dividerLine} />
-                    </View>
-
-                    <Pressable
-                        style={styles.googleButton}
-                        onPress={handleGoogleSignIn}
-                        disabled={isGoogleLoading}
+                    {/* Terms Modal */}
+                    <Modal
+                        visible={showTermsModal}
+                        animationType="slide"
+                        transparent={true}
+                        onRequestClose={() => setShowTermsModal(false)}
                     >
-                        {isGoogleLoading ? (
-                            <ActivityIndicator color="#6B7280" />
-                        ) : (
-                            <>
-                                <Image
-                                    source={{ uri: 'https://www.gstatic.com/images/branding/product/2x/googleg_48dp.png' }}
-                                    style={styles.googleIcon}
-                                />
-                                <Text style={styles.googleButtonText}>Sign up with Google</Text>
-                            </>
-                        )}
-                    </Pressable>
+                        <View style={styles.modalOverlay}>
+                            <View style={styles.modalContent}>
+                                <View style={styles.modalHeader}>
+                                    <Text style={styles.modalTitle}>Terms & Conditions</Text>
+                                    <Pressable onPress={() => setShowTermsModal(false)} style={styles.closeModalBtn}>
+                                        <X size={24} color="#374151" />
+                                    </Pressable>
+                                </View>
+                                <ScrollView style={styles.modalBody} showsVerticalScrollIndicator={false}>
+                                    <Text style={styles.sectionTitle}>1. Introduction</Text>
+                                    <Text style={styles.text}>
+                                        Welcome to BazaarX. By accessing or using our mobile application, you agree to be bound by these Terms and Conditions.
+                                    </Text>
+
+                                    <Text style={styles.sectionTitle}>2. Use of Service</Text>
+                                    <Text style={styles.text}>
+                                        You agree to use the service only for lawful purposes and in accordance with the full terms available on our website. You are responsible for maintaining the confidentiality of your account.
+                                    </Text>
+
+                                    <Text style={styles.sectionTitle}>3. Privacy Policy</Text>
+                                    <Text style={styles.text}>
+                                        Your privacy is important to us. Please review our Privacy Policy to understand how we collect and use your information.
+                                    </Text>
+
+                                    <Text style={styles.sectionTitle}>4. User Content</Text>
+                                    <Text style={styles.text}>
+                                        You retain ownership of any content you submit, but you grant BazaarX a license to use, reproduce, and display such content in connection with the service.
+                                    </Text>
+
+                                    <Text style={styles.sectionTitle}>5. Termination</Text>
+                                    <Text style={styles.text}>
+                                        We reserve the right to suspend or terminate your account if you violate these terms or engage in harmful conduct.
+                                    </Text>
+                                    <View style={{ height: 20 }} />
+                                </ScrollView>
+                                <Pressable
+                                    style={styles.closeButton}
+                                    onPress={() => setShowTermsModal(false)}
+                                >
+                                    <Text style={styles.closeButtonText}>Close</Text>
+                                </Pressable>
+                            </View>
+                        </View>
+                    </Modal>
 
                     {/* Footer */}
                     <View style={styles.loginSection}>
@@ -594,42 +550,80 @@ const styles = StyleSheet.create({
         color: '#D97706',
         fontWeight: '700',
     },
-    dividerContainer: {
+    checkboxContainer: {
+        marginBottom: 20,
+    },
+    checkboxPressable: {
         flexDirection: 'row',
         alignItems: 'center',
-        marginVertical: 24,
     },
-    dividerLine: {
-        flex: 1,
-        height: 1,
-        backgroundColor: '#E5E7EB',
+    checkboxText: {
+        marginLeft: 10,
+        fontSize: 14,
+        color: '#4B5563',
     },
-    dividerText: {
-        marginHorizontal: 16,
-        fontSize: 12,
-        fontWeight: '700',
-        color: '#9CA3AF',
-        letterSpacing: 1.2,
-    },
-    googleButton: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        justifyContent: 'center',
-        backgroundColor: '#FFFFFF',
-        paddingVertical: 14,
-        borderRadius: 14,
-        borderWidth: 1,
-        borderColor: '#E5E7EB',
-        gap: 12,
-        marginBottom: 24,
-    },
-    googleIcon: {
-        width: 20,
-        height: 20,
-    },
-    googleButtonText: {
-        fontSize: 15,
+    termsLink: {
+        color: '#D97706',
         fontWeight: '600',
+    },
+    modalOverlay: {
+        flex: 1,
+        backgroundColor: 'rgba(0, 0, 0, 0.5)',
+        justifyContent: 'center',
+        alignItems: 'center',
+        padding: 20,
+    },
+    modalContent: {
+        width: '100%',
+        maxHeight: '80%',
+        backgroundColor: '#FFFFFF',
+        borderRadius: 20,
+        padding: 24,
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 10 },
+        shadowOpacity: 0.25,
+        shadowRadius: 10,
+        elevation: 5,
+    },
+    modalHeader: {
+        flexDirection: 'row',
+        justifyContent: 'space-between',
+        alignItems: 'center',
+        marginBottom: 16,
+    },
+    modalTitle: {
+        fontSize: 20,
+        fontWeight: '700',
         color: '#111827',
+    },
+    closeModalBtn: {
+        padding: 4,
+    },
+    modalBody: {
+        marginBottom: 20,
+    },
+    sectionTitle: {
+        fontSize: 16,
+        fontWeight: '600',
+        color: '#374151',
+        marginTop: 12,
+        marginBottom: 6,
+    },
+    text: {
+        fontSize: 14,
+        color: '#4B5563',
+        lineHeight: 20,
+        marginBottom: 10,
+    },
+    closeButton: {
+        backgroundColor: '#D97706',
+        borderRadius: 12,
+        paddingVertical: 12,
+        alignItems: 'center',
+    },
+    closeButtonText: {
+        color: '#FFFFFF',
+        fontSize: 16,
+        fontWeight: '600',
     },
 });

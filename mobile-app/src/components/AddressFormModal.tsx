@@ -41,7 +41,7 @@ import { useGeoLocation, type GeoCascadeResult } from '@/hooks/useGeoLocation';
 export interface AddressFormModalProps {
     visible: boolean;
     onClose: () => void;
-    onSaved: (address: Address) => void;
+    onSaved: (address: Address) => void | Promise<void>;
     initialData?: Partial<Address> | Record<string, any> | null;
     userId: string;
     existingCount?: number;
@@ -528,8 +528,16 @@ export default function AddressFormModal({
         // If editing an order, just pass the form data back to the order and close.
         // Do NOT save it to the global address book to avoid duplicate errors!
         if (isOrderEdit) {
-            onSaved(form as Address);
-            onClose();
+            setIsSaving(true);
+            try {
+                await (onSaved(form as Address) as Promise<void> | void);
+                if (isMounted.current) onClose();
+            } catch (error: any) {
+                console.error('[AddressFormModal] Save error:', error);
+                Alert.alert('Update Failed', error?.message || 'Could not save address changes. Please try again.');
+            } finally {
+                if (isMounted.current) setIsSaving(false);
+            }
             return;
         }
 

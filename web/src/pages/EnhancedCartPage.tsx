@@ -622,7 +622,16 @@ export default function EnhancedCartPage() {
                                         Only {stock} left
                                       </span>
                                     );
-                                    return null;
+                                    if (stock <= 10) return (
+                                      <span className="text-[10px] text-amber-600 font-semibold shrink-0">
+                                        {stock} left
+                                      </span>
+                                    );
+                                    return (
+                                      <span className="text-[11px] font-bold text-green-600 shrink-0">
+                                        In Stock
+                                      </span>
+                                    );
                                   })()}
                                 </div>
                                 {item.variants &&
@@ -689,6 +698,11 @@ export default function EnhancedCartPage() {
                                         {hasDiscount && (
                                           <span className="text-xs text-gray-400 line-through">
                                             ₱{originalPrice.toLocaleString()}
+                                          </span>
+                                        )}
+                                        {hasDiscount && (
+                                          <span className="text-[10px] font-bold bg-red-600 text-white px-1.5 py-0.5 rounded">
+                                            {Math.round((originalPrice - effectivePrice) / originalPrice * 100)}% OFF
                                           </span>
                                         )}
                                       </>

@@ -40,9 +40,10 @@ interface VariantSelectionModalProps {
       variantId?: string;
       price?: number;
       stock?: number;
+      image?: string | null;
     },
     quantity: number
-  ) => void;
+  ) => void | Promise<void>;
   confirmLabel?: string;
   isBuyNow?: boolean;
   hideQuantity?: boolean;
@@ -81,7 +82,7 @@ const getColorHex = (colorName: string): string => {
   return colorNameToHex[normalized] || '#6B7280';
 };
 
-export const VariantSelectionModal: React.FC<VariantSelectionModalProps> = ({
+export const VariantSelectionModal: React.FC<VariantSelectionModalProps> = React.memo(({
   visible,
   onClose,
   product,
@@ -101,12 +102,9 @@ export const VariantSelectionModal: React.FC<VariantSelectionModalProps> = ({
   const slideAnim = useRef(new Animated.Value(500)).current;
 
   // --- Variant Logic Extraction ---
-
-  // Helpers to safely get product variants array
-  // Handle both Product and CartItem (which might have different structures)
-  // Use provided variants if available, otherwise fallback to product.variants
+  // Skip heavy computation when modal is not visible
   const variants = providedVariants || (product as any).variants || [];
-  const hasStructuredVariants = variants.length > 0;
+  const hasStructuredVariants = visible ? variants.length > 0 : false;
 
   // ─── Refined Variant Logic (Align with Web) ───
 
@@ -196,6 +194,7 @@ export const VariantSelectionModal: React.FC<VariantSelectionModalProps> = ({
         setSelectedOption1(initOp1);
         setSelectedOption2(initOp2);
         setQuantity(initialQuantity);
+        setIsConfirming(false);
       }
 
       Animated.parallel([
@@ -255,6 +254,8 @@ export const VariantSelectionModal: React.FC<VariantSelectionModalProps> = ({
     setQuantity((prev) => Math.max(1, Math.min(prev, maxStock)));
   }, [activeVariantInfo.stock]);
 
+  const [isConfirming, setIsConfirming] = useState(false);
+
   const handleConfirm = () => {
     // Block if seller is on vacation
     if ((product as any).is_vacation_mode) {
@@ -266,80 +267,74 @@ export const VariantSelectionModal: React.FC<VariantSelectionModalProps> = ({
       return;
     }
 
-    // Start smoothing out first
+    // Prevent double-tap
+    if (isConfirming) return;
+    setIsConfirming(true);
+
+    // Close modal immediately, then notify parent
     handleCloseInternal();
 
-    // Notify parent
+    // Fire-and-forget — parent handles async work + loading overlay
     onConfirm({
       option1Value: selectedOption1 || undefined,
       option2Value: selectedOption2 || undefined,
       variantId: activeVariantInfo.variantId,
       price: activeVariantInfo.price,
       stock: activeVariantInfo.stock,
+      image: activeVariantInfo.image || null,
     }, quantity);
-
   };
 
-  // Check if an option should be disabled based on the other selected option
-  const isOptionDisabled = (type: 1 | 2, value: string) => {
-    if (!hasStructuredVariants) return false;
-
-    // Use same normalization for consistency
+  // Pre-compute disabled states for all options to avoid per-chip .find() calls
+  const disabledOption1Map = useMemo(() => {
+    if (!hasStructuredVariants) return new Map<string, boolean>();
     const normalize = (val: any) => String(val || '').trim().toLowerCase();
-    const targetVal = normalize(value);
-
-    // If checking Option 1, we look at Selected Option 2
-    if (type === 1) {
-      if (hasOption2 && !selectedOption2) {
-        return !variants.some((v: any) => {
-          const val = v.option_1_value || v.size;
-          return normalize(val) === targetVal && Number(v.stock || 0) > 0;
+    const map = new Map<string, boolean>();
+    for (const val of option1Values) {
+      const targetVal = normalize(val);
+      if (hasOption2 && selectedOption2) {
+        const normSel2 = normalize(selectedOption2);
+        const matchingVariant = variants.find((v: any) => {
+          const v1 = v.option_1_value || v.size;
+          const v2 = v.option_2_value || v.color;
+          return normalize(v1) === targetVal && normalize(v2) === normSel2;
         });
-      }
-
-      if (!hasOption2) {
-        return !variants.some((v: any) => {
-          const val = v.option_1_value || v.size;
-          return normalize(val) === targetVal && Number(v.stock || 0) > 0;
+        map.set(val, !matchingVariant || Number(matchingVariant.stock || 0) <= 0);
+      } else {
+        const hasStock = variants.some((v: any) => {
+          const v1 = v.option_1_value || v.size;
+          return normalize(v1) === targetVal && Number(v.stock || 0) > 0;
         });
+        map.set(val, !hasStock);
       }
-
-      const normSel2 = normalize(selectedOption2);
-      const matchingVariant = variants.find((v: any) => {
-        const v1 = v.option_1_value || v.size;
-        const v2 = v.option_2_value || v.color;
-        return normalize(v1) === targetVal && normalize(v2) === normSel2;
-      });
-      return !matchingVariant || Number(matchingVariant.stock || 0) <= 0;
     }
+    return map;
+  }, [hasStructuredVariants, variants, option1Values, hasOption2, selectedOption2]);
 
-    // If checking Option 2, we look at Selected Option 1
-    if (type === 2) {
-      if (hasOption1 && !selectedOption1) {
-        return !variants.some((v: any) => {
-          const val = v.option_2_value || v.color;
-          return normalize(val) === targetVal && Number(v.stock || 0) > 0;
+  const disabledOption2Map = useMemo(() => {
+    if (!hasStructuredVariants) return new Map<string, boolean>();
+    const normalize = (val: any) => String(val || '').trim().toLowerCase();
+    const map = new Map<string, boolean>();
+    for (const val of option2Values) {
+      const targetVal = normalize(val);
+      if (hasOption1 && selectedOption1) {
+        const normSel1 = normalize(selectedOption1);
+        const matchingVariant = variants.find((v: any) => {
+          const v1 = v.option_1_value || v.size;
+          const v2 = v.option_2_value || v.color;
+          return normalize(v1) === normSel1 && normalize(v2) === targetVal;
         });
-      }
-
-      if (!hasOption1) {
-        return !variants.some((v: any) => {
-          const val = v.option_2_value || v.color;
-          return normalize(val) === targetVal && Number(v.stock || 0) > 0;
+        map.set(val, !matchingVariant || Number(matchingVariant.stock || 0) <= 0);
+      } else {
+        const hasStock = variants.some((v: any) => {
+          const v2 = v.option_2_value || v.color;
+          return normalize(v2) === targetVal && Number(v.stock || 0) > 0;
         });
+        map.set(val, !hasStock);
       }
-
-      const normSel1 = normalize(selectedOption1);
-      const matchingVariant = variants.find((v: any) => {
-        const v1 = v.option_1_value || v.size;
-        const v2 = v.option_2_value || v.color;
-        return normalize(v1) === normSel1 && normalize(v2) === targetVal;
-      });
-      return !matchingVariant || Number(matchingVariant.stock || 0) <= 0;
     }
-
-    return false;
-  };
+    return map;
+  }, [hasStructuredVariants, variants, option2Values, hasOption1, selectedOption1]);
 
   return (
     <Modal
@@ -421,7 +416,7 @@ export const VariantSelectionModal: React.FC<VariantSelectionModalProps> = ({
                 <View style={styles.optionGrid}>
                   {option1Values.map((val: string, i: number) => {
                     const isSelected = selectedOption1 === val;
-                    const isDisabled = isOptionDisabled(1, val);
+                    const isDisabled = disabledOption1Map.get(val) ?? false;
 
                     return (
                       <Pressable
@@ -457,7 +452,7 @@ export const VariantSelectionModal: React.FC<VariantSelectionModalProps> = ({
                 <View style={styles.optionGrid}>
                   {option2Values.map((val: string, i: number) => {
                     const isSelected = selectedOption2 === val;
-                    const isDisabled = isOptionDisabled(2, val);
+                    const isDisabled = disabledOption2Map.get(val) ?? false;
 
                     return (
                       <Pressable
@@ -519,7 +514,7 @@ export const VariantSelectionModal: React.FC<VariantSelectionModalProps> = ({
             const isVacationMode = (product as any).is_vacation_mode;
             const isSelectionValid = (hasOption1 ? !!selectedOption1 : true) && (hasOption2 ? !!selectedOption2 : true);
             const isOutOfStock = Number(activeVariantInfo.stock || 0) <= 0;
-            const canConfirm = !isVacationMode && isSelectionValid && !isOutOfStock;
+            const canConfirm = !isVacationMode && isSelectionValid && !isOutOfStock && !isConfirming;
             return (
               <Pressable
                 style={[
@@ -545,7 +540,7 @@ export const VariantSelectionModal: React.FC<VariantSelectionModalProps> = ({
       </View>
     </Modal>
   );
-};
+});
 
 const styles = StyleSheet.create({
   modalOverlay: {

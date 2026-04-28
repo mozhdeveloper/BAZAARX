@@ -373,7 +373,6 @@ export default function ProductDetailScreen({ route, navigation }: Props) {
   };
   const [showCameraSearch, setShowCameraSearch] = useState(false);
   const [chatLoading, setChatLoading] = useState(false);
-  const [isAddingToCart, setIsAddingToCart] = useState(false);
   const [currentImageIndex, setCurrentImageIndex] = useState(0);
   const [brokenImageIndices, setBrokenImageIndices] = useState<Set<number>>(new Set());
   const [isSearchFocused, setIsSearchFocused] = useState(false);
@@ -580,7 +579,7 @@ export default function ProductDetailScreen({ route, navigation }: Props) {
   const [showWishlistModal, setShowWishlistModal] = useState(false);
 
   // Carousel ref for dynamic scrolling
-  const imageCarouselRef = useRef<ScrollView>(null);
+  const imageCarouselRef = useRef<FlatList>(null);
   const zoomFlatListRef = useRef<FlatList>(null);
 
   // Menu State
@@ -599,6 +598,8 @@ export default function ProductDetailScreen({ route, navigation }: Props) {
   };
 
   // Memoize product images to avoid sorting + mapping every render
+  // Use spread to convert Set to array for stable memo dep
+  const brokenIndicesArray = useMemo(() => [...brokenImageIndices], [brokenImageIndices]);
   const productImages: string[] = useMemo(() => {
     const raw = product.images;
     const baseImages = (!raw || !Array.isArray(raw) || raw.length === 0)
@@ -617,11 +618,12 @@ export default function ProductDetailScreen({ route, navigation }: Props) {
     const allImages = Array.from(new Set([...baseImages, ...variantImages]));
 
     // Filter out broken images
-    const validImages = allImages.filter((_, i) => !brokenImageIndices.has(i));
+    const brokenSet = new Set(brokenIndicesArray);
+    const validImages = allImages.filter((_, i) => !brokenSet.has(i));
 
     // Fallback to placeholder if no valid images
     return validImages.length > 0 ? validImages : [PLACEHOLDER_IMAGE];
-  }, [product.images, product.image, productVariants, brokenImageIndices]);
+  }, [product.images, product.image, productVariants, brokenIndicesArray]);
 
   const hasMultipleImages = productImages.length > 1;
   const isPlaceholderOnly = productImages.length === 1 && productImages[0] === PLACEHOLDER_IMAGE;
@@ -630,16 +632,56 @@ export default function ProductDetailScreen({ route, navigation }: Props) {
     const clampedIndex = Math.max(0, Math.min(index, productImages.length - 1));
     // Set index immediately so thumbnails update without waiting for scroll animation
     setCurrentImageIndex(clampedIndex);
-    imageCarouselRef.current?.scrollTo({ x: clampedIndex * (width - 32), animated: true });
+    imageCarouselRef.current?.scrollToIndex({ index: clampedIndex, animated: true });
   }, [productImages.length]);
 
+  // Reverse-lookup: when the main image changes, auto-select the matching option2 variant
+  const selectedOption2Ref = useRef(selectedOption2);
+  selectedOption2Ref.current = selectedOption2;
+
+  const syncVariantFromImageIndex = useCallback((index: number) => {
+    if (!hasOption2 || !hasStructuredVariants) return;
+    const currentImg = productImages[index];
+    if (!currentImg) return;
+    const matchedVariant = productVariants.find((v: any) =>
+      (v.thumbnail_url === currentImg || v.image === currentImg)
+    );
+    if (matchedVariant) {
+      const variantOption2 = String(matchedVariant.option_2_value || matchedVariant.color || '').trim();
+      if (variantOption2 && variantOption2.toLowerCase() !== (selectedOption2Ref.current || '').toLowerCase()) {
+        setSelectedOption2(variantOption2);
+      }
+    }
+  }, [hasOption2, hasStructuredVariants, productVariants, productImages]);
+
+  // Track scroll position — only update state when index actually changes
+  const lastScrollIndex = useRef(0);
+  const handleCarouselScroll = useCallback((e: any) => {
+    const layoutWidth = e.nativeEvent.layoutMeasurement.width;
+    const contentOffsetX = e.nativeEvent.contentOffset.x;
+    const index = Math.round(contentOffsetX / (layoutWidth || 1));
+    if (index !== lastScrollIndex.current && index >= 0 && index < productImages.length) {
+      lastScrollIndex.current = index;
+      setCurrentImageIndex(index);
+      syncVariantFromImageIndex(index);
+    }
+  }, [productImages.length, syncVariantFromImageIndex]);
+
   const handlePrevImage = useCallback(() => {
-    if (currentImageIndex > 0) scrollToImage(currentImageIndex - 1);
-  }, [currentImageIndex, scrollToImage]);
+    if (currentImageIndex > 0) {
+      const newIndex = currentImageIndex - 1;
+      scrollToImage(newIndex);
+      syncVariantFromImageIndex(newIndex);
+    }
+  }, [currentImageIndex, scrollToImage, syncVariantFromImageIndex]);
 
   const handleNextImage = useCallback(() => {
-    if (currentImageIndex < productImages.length - 1) scrollToImage(currentImageIndex + 1);
-  }, [currentImageIndex, productImages.length, scrollToImage]);
+    if (currentImageIndex < productImages.length - 1) {
+      const newIndex = currentImageIndex + 1;
+      scrollToImage(newIndex);
+      syncVariantFromImageIndex(newIndex);
+    }
+  }, [currentImageIndex, productImages.length, scrollToImage, syncVariantFromImageIndex]);
 
   const handleImageError = useCallback((index: number) => {
     setBrokenImageIndices(prev => {
@@ -648,6 +690,24 @@ export default function ProductDetailScreen({ route, navigation }: Props) {
       return next;
     });
   }, []);
+
+  // Memoized carousel render item to prevent re-creation on scroll
+  const imageItemWidth = width - 32;
+  const renderCarouselItem = useCallback(({ item, index }: { item: string; index: number }) => (
+    <Image
+      key={index}
+      source={{ uri: item }}
+      style={{ width: imageItemWidth, height: imageItemWidth }}
+      contentFit="cover"
+      onError={() => handleImageError(index)}
+    />
+  ), [imageItemWidth, handleImageError]);
+
+  const carouselGetItemLayout = useCallback((_: any, index: number) => ({
+    length: imageItemWidth,
+    offset: imageItemWidth * index,
+    index,
+  }), [imageItemWidth]);
 
   // Stores
   const addItem = useCartStore((state) => state.addItem);
@@ -747,12 +807,6 @@ export default function ProductDetailScreen({ route, navigation }: Props) {
 
   // Open variant modal
   const openVariantModal = (action: 'cart' | 'buy') => {
-    if (isGuest) {
-      setGuestModalMessage(action === 'cart' ? "Sign up to add items to your cart." : "Sign up to buy items.");
-      setShowGuestModal(true);
-      return;
-    }
-
     // Reset modal selections to current selections
     setModalSelectedOption1(selectedOption1);
     setModalSelectedOption2(selectedOption2);
@@ -763,6 +817,18 @@ export default function ProductDetailScreen({ route, navigation }: Props) {
 
   // Handle variant modal confirm
   const handleVariantModalConfirm = async () => {
+    // Guest users can browse the modal but cannot add to cart or buy
+    if (isGuest) {
+      setShowVariantModal(false);
+      setGuestModalMessage(
+        variantModalAction === 'cart'
+          ? 'Sign up to add items to your cart.'
+          : 'Sign up to buy items.'
+      );
+      setShowGuestModal(true);
+      return;
+    }
+
     // Validate that required variants are selected
     if (hasOption1 && !modalSelectedOption1) {
       Alert.alert(`Select ${finalVariantLabel1}`, `Please select a ${finalVariantLabel1.toLowerCase()} before continuing`);
@@ -839,6 +905,9 @@ export default function ProductDetailScreen({ route, navigation }: Props) {
     // Animation is handled internally by handleCloseInternal and onClose
   };
 
+  // Processing overlay state (shown after modal closes while cart operation runs)
+  const [isProcessingAction, setIsProcessingAction] = useState(false);
+
   // NEW Handle Confirm from Shared Modal
   const handleSharedModalConfirm = async (
     selectedVariant: {
@@ -851,6 +920,18 @@ export default function ProductDetailScreen({ route, navigation }: Props) {
     },
     newQuantity: number
   ) => {
+    // Guest users can browse the modal but cannot add to cart or buy
+    if (isGuest) {
+      setShowVariantModal(false);
+      setGuestModalMessage(
+        variantModalAction === 'cart'
+          ? 'Sign up to add items to your cart.'
+          : 'Sign up to buy items.'
+      );
+      setShowGuestModal(true);
+      return;
+    }
+
     const variantPrice = selectedVariant.price ?? product.price;
     const variantId = selectedVariant.variantId;
 
@@ -860,33 +941,41 @@ export default function ProductDetailScreen({ route, navigation }: Props) {
     const discountedPrice = discountService.calculateLineDiscount(variantPrice || 0, 1, activeCampaignDiscount).discountedUnitPrice;
 
     if (variantModalAction === 'cart') {
-      const addItemResult = await addItem({
-        ...product,
-        originalPrice: variantPrice || 0,
-        price: discountedPrice,
-        activeCampaignDiscount: activeCampaignDiscount || undefined,
-        selectedVariant: {
-          ...variantObj,
-          variantId,
-        },
-        quantity: newQuantity
-      } as any);
+      // Show loading overlay while adding to cart
+      setIsProcessingAction(true);
 
-      if (addItemResult) {
-        // Show Added Modal after exit animation completes
-        setTimeout(() => {
+      try {
+        const addItemResult = await addItem({
+          ...product,
+          originalPrice: variantPrice || 0,
+          price: discountedPrice,
+          activeCampaignDiscount: activeCampaignDiscount || undefined,
+          selectedVariant: {
+            ...variantObj,
+            variantId,
+          },
+          quantity: newQuantity
+        } as any);
+
+        setIsProcessingAction(false);
+
+        if (addItemResult) {
           const variantText = [selectedVariant.option1Value, selectedVariant.option2Value].filter(Boolean).join(', ');
           setAddedProductInfo({
             name: `${product.name}${variantText ? ` (${variantText})` : ''}`,
             image: selectedVariant.image || productImages[0] || product.image || ''
           });
           setShowAddedToCartModal(true);
-        }, 300);
-      } else {
+        } else {
+          Alert.alert('Unable to Add', useCartStore.getState().error || 'Unable to add item.');
+        }
+      } catch {
+        setIsProcessingAction(false);
         Alert.alert('Unable to Add', useCartStore.getState().error || 'Unable to add item.');
       }
 
     } else {
+      // Buy Now — navigate immediately, no overlay needed
       setQuickOrder({
         ...product,
         originalPrice: variantPrice || 0,
@@ -907,17 +996,6 @@ export default function ProductDetailScreen({ route, navigation }: Props) {
   };
 
   const handleAddToCart = useCallback(async () => {
-    if (hasVariants) {
-      openVariantModal('cart');
-      return;
-    }
-
-    if (isGuest) {
-      setGuestModalMessage("Sign up to add items to your cart.");
-      setShowGuestModal(true);
-      return;
-    }
-
     // Check if seller is restricted
     if (isSellerRestricted) {
       triggerOutOfStockPulse();
@@ -925,62 +1003,11 @@ export default function ProductDetailScreen({ route, navigation }: Props) {
       return;
     }
 
-    // Build variant info
-    const selectedVariant = buildSelectedVariant();
-
-    // Validate quantity against product stock (no variants case)
-    if (quantity > (product.stock || 0)) {
-      triggerOutOfStockPulse();
-      Alert.alert('Insufficient Stock', `Only ${product.stock} items available.`);
-      return;
-    }
-
-    try {
-      setIsAddingToCart(true);
-      // Add to cart with discount info embedded so it persists in the cart
-      // Use the same regularPrice and originalPrice calculated for display
-      const addItemResult = await addItem({
-        ...product,
-        originalPrice: originalPrice,
-        price: regularPrice,
-        activeCampaignDiscount: activeCampaignDiscount || undefined,
-        selectedVariant,
-        quantity
-      } as any);
-
-      if (addItemResult) {
-        const variantText = selectedVariant
-          ? ` (${[selectedVariant.color, selectedVariant.size].filter(Boolean).join(', ')})`
-          : '';
-
-        setAddedProductInfo({
-          name: `${product.name}${variantText}`,
-          image: productImages[0] || product.image || ''
-        });
-        setShowAddedToCartModal(true);
-      } else {
-        Alert.alert('Unable to add to cart', useCartStore.getState().error || 'This item is no longer available.');
-      }
-    } catch {
-      Alert.alert('Unable to add to cart', useCartStore.getState().error || 'This item is no longer available.');
-    } finally {
-      setIsAddingToCart(false);
-    }
-  }, [hasVariants, isGuest, product, quantity, activeCampaignDiscount, productImages, addItem, isSellerRestricted]);
+    // Always open the product detail modal — guests can browse but not confirm
+    openVariantModal('cart');
+  }, [isSellerRestricted]);
 
   const handleBuyNow = useCallback(() => {
-    // Bypass variant modal if variants are already selected
-    if (hasVariants) {
-      openVariantModal('buy');
-      return;
-    }
-
-    if (isGuest) {
-      setGuestModalMessage("Sign up to buy items.");
-      setShowGuestModal(true);
-      return;
-    }
-
     // Check if seller is restricted
     if (isSellerRestricted) {
       triggerOutOfStockPulse();
@@ -988,21 +1015,9 @@ export default function ProductDetailScreen({ route, navigation }: Props) {
       return;
     }
 
-    // Build variant info
-    const selectedVariant = buildSelectedVariant(selectedColor, selectedSize);
-
-    const discountedPrice = discountService.calculateLineDiscount(product.price || 0, 1, activeCampaignDiscount).discountedUnitPrice;
-
-    // Set quick order with variant info and discount embedded
-    setQuickOrder({
-      ...product,
-      originalPrice: product.price || 0,
-      price: discountedPrice,
-      activeCampaignDiscount: activeCampaignDiscount || undefined,
-      selectedVariant
-    } as any, quantity);
-    navigation.navigate('Checkout', {});
-  }, [hasVariants, isGuest, product, quantity, activeCampaignDiscount, selectedColor, selectedSize, navigation, setQuickOrder, isSellerRestricted]);
+    // Always open the product detail modal — guests can browse but not confirm
+    openVariantModal('buy');
+  }, [isSellerRestricted]);
 
   const handleShare = async () => {
     await Share.share({ message: `Check out ${product.name} on BazaarX! ₱${product.price}` });
@@ -1210,17 +1225,17 @@ export default function ProductDetailScreen({ route, navigation }: Props) {
           flex: 1,
           backgroundColor: COLORS.background, // Match theme background
           marginTop: -30, // Overlap the header
-          borderTopLeftRadius: 36,
-          borderTopRightRadius: 36,
+          borderTopLeftRadius: 5,
+          borderTopRightRadius: 5,
           zIndex: 11,
           elevation: 5,
           // Removed overflow: 'hidden' to allow card shadows
         }}
-        contentContainerStyle={{ paddingBottom: 140, paddingTop: 25 }}
+        contentContainerStyle={{ paddingBottom: 140, paddingTop: 10 }}
       >
-        {/* Back Button & Product Summary (Name → Price → Rating → Stock) */}
-        <View style={{ paddingHorizontal: 20, marginBottom: 15 }}>
-          <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 15 }}>
+        {/* Back Button & Wishlist */}
+        <View style={{ paddingHorizontal: 20, marginBottom: 10 }}>
+          <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
             <Pressable onPress={() => navigation.goBack()}>
               <ArrowLeft size={24} color="#78350F" strokeWidth={2.5} />
             </Pressable>
@@ -1228,49 +1243,179 @@ export default function ProductDetailScreen({ route, navigation }: Props) {
               <Gift size={24} color={BRAND_ACCENT} strokeWidth={1.5} fill="transparent" />
             </Pressable>
           </View>
+        </View>
 
-          {/* 1. Product Name */}
-          <Text style={[styles.productName, { color: '#431407' }]}>{product.name}</Text>
+        {/* --- MAIN PRODUCT IMAGE (full width, swipeable + arrows) --- */}
+        <View style={{ paddingHorizontal: 16 }}>
+          <Pressable
+            onPress={() => !isPlaceholderOnly && setShowImageZoom(true)}
+            style={[styles.imageContainer, { width: width - 32, height: width - 32, alignSelf: 'center' }]}
+            accessibilityRole="button"
+            accessibilityLabel="Tap to zoom product image"
+          >
+            <FlatList
+              ref={imageCarouselRef as any}
+              data={productImages}
+              horizontal
+              pagingEnabled
+              showsHorizontalScrollIndicator={false}
+              scrollEnabled={hasMultipleImages}
+              keyExtractor={(_, index) => `carousel-${index}`}
+              onScroll={handleCarouselScroll}
+              scrollEventThrottle={100}
+              getItemLayout={carouselGetItemLayout}
+              renderItem={renderCarouselItem}
+              windowSize={3}
+              maxToRenderPerBatch={2}
+              removeClippedSubviews={true}
+            />
 
-          {/* 2. Price (immediately below name) */}
+            {/* Left / Right arrows */}
+            {hasMultipleImages && (
+              <>
+                {currentImageIndex > 0 && (
+                  <Pressable
+                    onPress={(e) => { e.stopPropagation(); handlePrevImage(); }}
+                    style={{
+                      position: 'absolute', left: 8, top: '50%', marginTop: -18,
+                      width: 36, height: 36, borderRadius: 18,
+                      backgroundColor: 'rgba(255,255,255,0.85)',
+                      alignItems: 'center', justifyContent: 'center',
+                      shadowColor: '#000', shadowOpacity: 0.1, shadowRadius: 4, elevation: 3,
+                    }}
+                  >
+                    <ChevronLeft size={20} color="#374151" />
+                  </Pressable>
+                )}
+                {currentImageIndex < productImages.length - 1 && (
+                  <Pressable
+                    onPress={(e) => { e.stopPropagation(); handleNextImage(); }}
+                    style={{
+                      position: 'absolute', right: 8, top: '50%', marginTop: -18,
+                      width: 36, height: 36, borderRadius: 18,
+                      backgroundColor: 'rgba(255,255,255,0.85)',
+                      alignItems: 'center', justifyContent: 'center',
+                      shadowColor: '#000', shadowOpacity: 0.1, shadowRadius: 4, elevation: 3,
+                    }}
+                  >
+                    <ChevronRight size={20} color="#374151" />
+                  </Pressable>
+                )}
+              </>
+            )}
+
+            {/* Image count badge */}
+            {!isPlaceholderOnly && (
+              <View style={styles.pageIndicator}>
+                <Text style={styles.pageText}>{currentImageIndex + 1}/{productImages.length}</Text>
+              </View>
+            )}
+          </Pressable>
+
+          {/* --- VARIANT IMAGE SELECTION (below main image) --- */}
+          {hasOption2 && (
+            <View style={{ marginTop: 10 }}>
+              <ScrollView
+                horizontal
+                showsHorizontalScrollIndicator={false}
+                contentContainerStyle={{ gap: 8 }}
+              >
+                {option2Values.filter((s: string) => s.trim() !== '').map((value: string, index: number) => {
+                  const isSelected = selectedOption2 === value;
+                  const nVal = value.trim().toLowerCase();
+                  const matchedVariant = productVariants.find((v: any) =>
+                    String(v.option_2_value || '').trim().toLowerCase() === nVal &&
+                    (!selectedOption1 || String(v.option_1_value || v.size || '').trim().toLowerCase() === selectedOption1.trim().toLowerCase())
+                  ) || productVariants.find((v: any) =>
+                    String(v.option_2_value || '').trim().toLowerCase() === nVal
+                  );
+                  const variantImg = matchedVariant?.thumbnail_url || matchedVariant?.image || null;
+                  const isOOS = !isOption2Available(value);
+                  return (
+                    <Pressable
+                      key={`variant-${value}-${index}`}
+                      style={{
+                        width: 44,
+                        height: 44,
+                        borderRadius: 8,
+                        borderWidth: isSelected ? 2.5 : 1.5,
+                        borderColor: isSelected ? BRAND_COLOR : '#E5E7EB',
+                        overflow: 'hidden',
+                        position: 'relative',
+                        opacity: isOOS ? 0.35 : 1,
+                      }}
+                      onPress={() => !isOOS && handleSelectOption2(value)}
+                      disabled={isOOS}
+                    >
+                      {variantImg ? (
+                        <Image source={{ uri: variantImg }} style={{ width: '100%', height: '100%' }} contentFit="cover" />
+                      ) : (
+                        <View style={{ width: '100%', height: '100%', backgroundColor: '#E5E7EB', alignItems: 'center', justifyContent: 'center' }}>
+                          <Text style={{ fontSize: 9, color: '#6B7280', fontWeight: '600' }}>{value}</Text>
+                        </View>
+                      )}
+                      {isSelected && !isOOS && (
+                        <View style={{ position: 'absolute', bottom: 2, right: 2, backgroundColor: '#FFF', borderRadius: 8 }}>
+                          <CheckCircle size={14} color={BRAND_COLOR} fill="#FFF" />
+                        </View>
+                      )}
+                    </Pressable>
+                  );
+                })}
+              </ScrollView>
+              {selectedOption2 && (
+                <Text style={{ fontSize: 12, fontWeight: '600', color: '#6B7280', marginTop: 6 }}>
+                  {finalVariantLabel2}: <Text style={{ fontWeight: '700', color: COLORS.textHeadline }}>{selectedOption2}</Text>
+                </Text>
+              )}
+            </View>
+          )}
+        </View>
+
+        {/* --- PRODUCT DETAILS (below image) --- */}
+        <View style={{ paddingHorizontal: 20, marginTop: 12, marginBottom: 15 }}>
+          {/* 1. Price (first thing below image) */}
           <View style={styles.priceRow}>
             {hasDiscount ? (
               <View>
-                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
-                  <Text style={[styles.currentPrice, { color: '#DC2626', fontSize: 28 }]}>
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                  <Text style={[styles.currentPrice, { color: '#DC2626', fontSize: 18 }]}>
                     ₱{regularPrice.toLocaleString()}
                   </Text>
-                  <View style={{ backgroundColor: '#DC2626', paddingHorizontal: 10, paddingVertical: 6, borderRadius: 12 }}>
-                    <Text style={{ color: '#FFF', fontSize: 12, fontWeight: '900' }}>{discountPercent}% OFF</Text>
+                  <View style={{ backgroundColor: '#DC2626', paddingHorizontal: 8, paddingVertical: 3, borderRadius: 10 }}>
+                    <Text style={{ color: '#FFF', fontSize: 10, fontWeight: '900' }}>{discountPercent}% OFF</Text>
                   </View>
                 </View>
                 {originalPrice > 0 && (
-                  <Text style={{ fontSize: 16, color: '#9CA3AF', textDecorationLine: 'line-through', marginTop: 4 }}>
+                  <Text style={{ fontSize: 12, color: '#9CA3AF', textDecorationLine: 'line-through', marginTop: 2 }}>
                     ₱{originalPrice.toLocaleString()}
                   </Text>
                 )}
               </View>
             ) : (
-              <Text style={styles.currentPrice}>₱{regularPrice.toLocaleString()}</Text>
+              <Text style={[styles.currentPrice, { fontSize: 18 }]}>₱{regularPrice.toLocaleString()}</Text>
             )}
           </View>
 
-          {/* 3. Rating (below price) */}
-          <View style={{ flexDirection: 'row', alignItems: 'center', marginTop: 8 }}>
-            <View style={{ flexDirection: 'row', gap: 2, marginRight: 8 }}>
+          {/* 2. Product Name */}
+          <Text style={[styles.productName, { color: '#431407', fontSize: 15, lineHeight: 21, marginBottom: 4 }]}>{product.name}</Text>
+
+          {/* 3. Rating */}
+          <View style={{ flexDirection: 'row', alignItems: 'center', marginTop: 4 }}>
+            <View style={{ flexDirection: 'row', gap: 2, marginRight: 6 }}>
               {[1, 2, 3, 4, 5].map((s) => {
                 const isFilled = s <= Math.round(effectiveAverageRating);
                 return (
                   <Star
                     key={s}
-                    size={15}
+                    size={13}
                     color={isFilled ? '#FB8C00' : '#D1D5DB'}
                     fill={isFilled ? '#FB8C00' : 'transparent'}
                   />
                 );
               })}
             </View>
-            <Text style={{ fontSize: 13, fontWeight: '700', color: '#B45309' }}>
+            <Text style={{ fontSize: 12, fontWeight: '700', color: '#B45309' }}>
               {effectiveAverageRating > 0 ? effectiveAverageRating.toFixed(1) : 'No rating'}
               {effectiveReviewTotal > 0 && (
                 <Text style={{ fontWeight: '400', color: '#6B7280' }}> ({effectiveReviewTotal.toLocaleString()})</Text>
@@ -1278,9 +1423,14 @@ export default function ProductDetailScreen({ route, navigation }: Props) {
             </Text>
           </View>
 
-          {/* 4. Stock (below rating) */}
+          {/* 4. Free Shipping */}
+          <View style={{ backgroundColor: '#FFF7ED', paddingHorizontal: 8, paddingVertical: 3, borderRadius: 6, alignSelf: 'flex-start', marginTop: 6 }}>
+            <Text style={{ fontSize: 11, fontWeight: '700', color: '#FB8C00' }}>Free Shipping</Text>
+          </View>
+
+          {/* 5. Stock */}
           <AnimatedText style={{
-            fontSize: 13,
+            fontSize: 12,
             marginTop: 6,
             fontWeight: '600',
             color: Number(selectedVariantInfo.stock ?? 0) <= 0 ? '#DC2626' : '#10B981',
@@ -1289,7 +1439,7 @@ export default function ProductDetailScreen({ route, navigation }: Props) {
             {Number(selectedVariantInfo.stock ?? 0) <= 0 ? 'Out of Stock' : `${selectedVariantInfo.stock} In Stock`}
           </AnimatedText>
 
-          {/* --- VARIANT SELECTION (directly below product summary) --- */}
+          {/* 6. Option 1 / Size selection (below stock) */}
           {hasOption1 && (
             <View style={styles.variantSection}>
               <Text style={styles.variantLabel}>
@@ -1346,47 +1496,6 @@ export default function ProductDetailScreen({ route, navigation }: Props) {
             </View>
           )}
 
-          {hasOption2 && (
-            <View style={styles.variantSection}>
-              <Text style={styles.variantLabel}>
-                {finalVariantLabel2}: <Text style={styles.variantSelected}>{selectedOption2}</Text>
-              </Text>
-              <View style={styles.colorOptions}>
-                {option2Values.filter((s: string) => s.trim() !== '').map((value: string, index: number) => {
-                  const isSelected = selectedOption2 === value;
-                  const nVal = value.trim().toLowerCase();
-                  const matchedVariant = productVariants.find((v: any) =>
-                    String(v.option_2_value || '').trim().toLowerCase() === nVal &&
-                    (!selectedOption1 || String(v.option_1_value || v.size || '').trim().toLowerCase() === selectedOption1.trim().toLowerCase())
-                  ) || productVariants.find((v: any) =>
-                    String(v.option_2_value || '').trim().toLowerCase() === nVal
-                  );
-                  const variantImg = matchedVariant?.thumbnail_url || matchedVariant?.image || productImages[0] || null;
-                  const isOOS = !isOption2Available(value);
-                  return (
-                    <Pressable
-                      key={`${value}-${index}`}
-                      style={[styles.variantImgBtn, isSelected && styles.variantImgBtnSelected, isOOS && { opacity: 0.35 }]}
-                      onPress={() => !isOOS && handleSelectOption2(value)}
-                      disabled={isOOS}
-                    >
-                      {variantImg ? (
-                        <Image source={{ uri: variantImg }} style={styles.variantImgThumb} contentFit="cover" />
-                      ) : (
-                        <View style={[styles.variantImgThumb, { backgroundColor: '#E5E7EB' }]} />
-                      )}
-                      {isSelected && !isOOS && (
-                        <View style={styles.variantImgCheck}>
-                          <CheckCircle size={14} color={BRAND_COLOR} fill="#FFF" />
-                        </View>
-                      )}
-                    </Pressable>
-                  );
-                })}
-              </View>
-            </View>
-          )}
-
           {/* Size Guide Button */}
           {product.size_guide_image && (
             <View style={{ marginTop: 16 }}>
@@ -1399,113 +1508,6 @@ export default function ProductDetailScreen({ route, navigation }: Props) {
                 <ChevronRight size={16} color={BRAND_COLOR} strokeWidth={2.5} />
               </Pressable>
             </View>
-          )}
-        </View>
-
-        {/* --- IMAGE CAROUSEL --- */}
-        <View style={{ paddingHorizontal: 16, marginTop: 10, paddingRight: 35 }}>
-          {/* Main image — full width, tappable for zoom */}
-          <Pressable
-            onPress={() => !isPlaceholderOnly && setShowImageZoom(true)}
-            style={[styles.imageContainer, { width: width - 32, height: width - 32 }]}
-            accessibilityRole="button"
-            accessibilityLabel="Tap to zoom product image"
-          >
-            <ScrollView
-              ref={imageCarouselRef}
-              horizontal
-              pagingEnabled
-              showsHorizontalScrollIndicator={false}
-              scrollEnabled={hasMultipleImages}
-              onMomentumScrollEnd={(e) => {
-                const layoutWidth = e.nativeEvent.layoutMeasurement.width;
-                const contentOffsetX = e.nativeEvent.contentOffset.x;
-                const index = Math.round(contentOffsetX / (layoutWidth || 1));
-                setCurrentImageIndex(index);
-              }}
-            >
-              {productImages.map((img: string, index: number) => (
-                <Image
-                  key={index}
-                  source={{ uri: img }}
-                  style={{ width: width - 32, height: width - 32 }}
-                  contentFit="cover"
-                  onError={() => handleImageError(index)}
-                />
-              ))}
-            </ScrollView>
-
-            {/* Slideshow arrows */}
-            {hasMultipleImages && (
-              <>
-                {currentImageIndex > 0 && (
-                  <Pressable
-                    onPress={(e) => { e.stopPropagation(); handlePrevImage(); }}
-                    style={{
-                      position: 'absolute', left: 8, top: '50%', marginTop: -18,
-                      width: 36, height: 36, borderRadius: 18,
-                      backgroundColor: 'rgba(255,255,255,0.85)',
-                      alignItems: 'center', justifyContent: 'center',
-                      shadowColor: '#000', shadowOpacity: 0.1, shadowRadius: 4, elevation: 3,
-                    }}
-                  >
-                    <ChevronLeft size={20} color="#374151" />
-                  </Pressable>
-                )}
-                {currentImageIndex < productImages.length - 1 && (
-                  <Pressable
-                    onPress={(e) => { e.stopPropagation(); handleNextImage(); }}
-                    style={{
-                      position: 'absolute', right: 8, top: '50%', marginTop: -18,
-                      width: 36, height: 36, borderRadius: 18,
-                      backgroundColor: 'rgba(255,255,255,0.85)',
-                      alignItems: 'center', justifyContent: 'center',
-                      shadowColor: '#000', shadowOpacity: 0.1, shadowRadius: 4, elevation: 3,
-                    }}
-                  >
-                    <ChevronRight size={20} color="#374151" />
-                  </Pressable>
-                )}
-              </>
-            )}
-
-            {/* Image count indicator */}
-            {!isPlaceholderOnly && (
-              <View style={styles.pageIndicator}>
-                <Text style={styles.pageText}>{currentImageIndex + 1}/{productImages.length}</Text>
-              </View>
-            )}
-          </Pressable>
-
-          {/* Thumbnail strip at the bottom */}
-          {hasMultipleImages && (
-            <ScrollView
-              horizontal
-              showsHorizontalScrollIndicator={false}
-              contentContainerStyle={{ gap: 8, paddingVertical: 10 }}
-            >
-              {productImages.map((img: string, index: number) => (
-                <Pressable
-                  key={`thumb-${index}`}
-                  onPress={() => scrollToImage(index)}
-                  style={{
-                    width: 56,
-                    height: 56,
-                    borderRadius: 10,
-                    borderWidth: currentImageIndex === index ? 2.5 : 1.5,
-                    borderColor: currentImageIndex === index ? BRAND_COLOR : '#E5E7EB',
-                    overflow: 'hidden',
-                    opacity: currentImageIndex === index ? 1 : 0.5,
-                  }}
-                >
-                  <Image
-                    source={{ uri: img }}
-                    style={{ width: '100%', height: '100%' }}
-                    contentFit="cover"
-                  />
-                </Pressable>
-              ))}
-            </ScrollView>
           )}
         </View>
 
@@ -1575,10 +1577,6 @@ export default function ProductDetailScreen({ route, navigation }: Props) {
               ) : null}
             </View>
           )}
-
-          <View style={{ backgroundColor: '#FFF7ED', paddingHorizontal: 12, paddingVertical: 6, borderRadius: 8, alignSelf: 'flex-start', marginBottom: 20 }}>
-            <Text style={{ fontSize: 14, fontWeight: '700', color: '#FB8C00' }}>Free Shipping</Text>
-          </View>
 
           {/* --- WARRANTY INFORMATION SECTION (MODAL TRIGGER) --- */}
           {warrantyInfo?.hasWarranty && (
@@ -1854,14 +1852,11 @@ export default function ProductDetailScreen({ route, navigation }: Props) {
 
         <View style={styles.actionButtonsContainer}>
           <Pressable
-            style={[styles.addToCartBtn, ((Number(selectedVariantInfo.stock ?? 0) <= 0) || isSellerRestricted || isAddingToCart) && styles.disabledBtn]}
+            style={[styles.addToCartBtn, ((Number(selectedVariantInfo.stock ?? 0) <= 0) || isSellerRestricted) && styles.disabledBtn]}
             onPress={handleAddToCart}
-            disabled={isAddingToCart}
+            disabled={false}
           >
-            {isAddingToCart
-              ? <ActivityIndicator size="small" color={COLORS.primary} />
-              : <ShoppingCart size={20} color={((Number(selectedVariantInfo.stock ?? 0) > 0) && !isSellerRestricted) ? COLORS.primary : COLORS.gray400} />
-            }
+            <ShoppingCart size={20} color={((Number(selectedVariantInfo.stock ?? 0) > 0) && !isSellerRestricted) ? COLORS.primary : COLORS.gray400} />
           </Pressable>
 
           <Pressable
@@ -2340,6 +2335,28 @@ export default function ProductDetailScreen({ route, navigation }: Props) {
           </View>
         </TouchableWithoutFeedback>
       </Modal>
+
+      {/* Processing Action Overlay (shown while adding to cart) */}
+      {isProcessingAction && (
+        <View style={{
+          position: 'absolute', top: 0, left: 0, right: 0, bottom: 0,
+          backgroundColor: 'rgba(0,0,0,0.4)',
+          alignItems: 'center', justifyContent: 'center',
+          zIndex: 9999,
+        }}
+          pointerEvents="auto"
+        >
+          <View style={{
+            backgroundColor: '#FFF', borderRadius: 16,
+            paddingHorizontal: 32, paddingVertical: 24,
+            alignItems: 'center', gap: 12,
+            shadowColor: '#000', shadowOpacity: 0.15, shadowRadius: 10, elevation: 10,
+          }}>
+            <ActivityIndicator size="large" color={COLORS.primary} />
+            <Text style={{ fontSize: 14, fontWeight: '600', color: '#374151' }}>Adding to cart...</Text>
+          </View>
+        </View>
+      )}
 
       {/* Added to Cart Success Modal */}
       <AddedToCartModal

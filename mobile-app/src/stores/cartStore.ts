@@ -308,7 +308,36 @@ export const useCartStore = create<CartStore>()(
             const rawItems = await cartService.getCartItems(cartId);
             const dbItems = mapDbCartItemsToCartItems(rawItems);
             const mergedItems = mergeDbAndLocalItems(dbItems, get().items);
-            set({ items: mergedItems });
+
+            // Refresh flash sale prices so items added before a flash sale starts
+            // display the correct flash sale price once the sale goes live.
+            let finalItems = mergedItems;
+            const cartProductIds = [...new Set(mergedItems.map(i => i.id).filter(Boolean))];
+            if (cartProductIds.length > 0) {
+              try {
+                const flashProducts = await discountService.getGlobalFlashSaleProducts();
+                const flashPriceMap = new Map(
+                  flashProducts
+                    .filter((p: any) => p.id && p.price != null)
+                    .map((p: any) => [p.id, {
+                      price: Number(p.price),
+                      originalPrice: Number(p.originalPrice) || Number(p.price),
+                    }])
+                );
+                if (flashPriceMap.size > 0) {
+                  finalItems = mergedItems.map(item => {
+                    const fp = flashPriceMap.get(item.id);
+                    if (!fp) return item;
+                    const origPrice = fp.originalPrice || item.originalPrice || item.price || 0;
+                    if (fp.price >= origPrice) return item;
+                    return { ...item, price: fp.price, originalPrice: origPrice };
+                  });
+                }
+              } catch (_) {
+                // keep existing prices on flash sale fetch error
+              }
+            }
+            set({ items: finalItems });
           }
         } catch (e: any) {
           set({ error: e?.message || 'Failed to load cart', items: [] });

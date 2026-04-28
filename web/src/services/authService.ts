@@ -502,7 +502,10 @@ export class AuthService {
       if (error || !data) return false;
       
       const preferences = (data as any).preferences;
-      return !!(preferences && preferences.interestedCategories && preferences.interestedCategories.length > 0);
+      return !!(
+        (preferences && preferences.interestedCategories && preferences.interestedCategories.length > 0) ||
+        (preferences && preferences.interests && preferences.interests.length > 0)
+      );
     } catch (error) {
       console.error('Error checking onboarding status:', error);
       return false;
