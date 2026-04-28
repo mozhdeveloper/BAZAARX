@@ -318,17 +318,7 @@ export default function LoginScreen({ navigation, route }: Props) {
               navigation.replace('MainTabs', { screen: 'Home' });
             }
           } else {
-            const signupData = { 
-              email: session.user.email || '',
-              firstName: session.user.user_metadata?.first_name || 
-                        session.user.user_metadata?.full_name?.split(' ')[0] || '',
-              lastName: session.user.user_metadata?.last_name || 
-                       session.user.user_metadata?.full_name?.split(' ').slice(1).join(' ') || '',
-              phone: session.user.phone || '',
-              user_type: 'buyer' as const
-            };
-            useAuthStore.getState().setPendingSignup(signupData);
-            navigation.replace('Terms', { signupData });
+            navigation.replace('MainTabs', { screen: 'Home' });
           }
         } else {
           Alert.alert('Sign-In Incomplete', 'We were unable to complete the sign-in process. Please try again.');

@@ -962,8 +962,8 @@ export class AuthService {
       if (error || !buyer) return false;
 
       const preferences = buyer.preferences as Record<string, any>;
-      // If interests array exists and has at least 3 items (as per CategoryPreferenceScreen validation), it's complete
-      return !!(preferences?.interests && Array.isArray(preferences.interests) && preferences.interests.length >= 3);
+      // If interests array exists and has at least one item, it's considered complete for banner dismissal
+      return !!(preferences?.interests && Array.isArray(preferences.interests) && preferences.interests.length > 0);
     } catch (error) {
       // PGRST116 means no row found, which is expected for new users
       return false;
@@ -988,6 +988,7 @@ export class AuthService {
       const updatedPreferences = {
         ...(currentBuyer?.preferences as Record<string, unknown> || {}),
         interests: interests,
+        interestedCategories: interests, // Sync with web
       };
 
       const { error } = await supabase

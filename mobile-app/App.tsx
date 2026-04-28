@@ -4,7 +4,7 @@ import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { StatusBar } from 'expo-status-bar';
 import { Home, MessageCircle, ShoppingCart, Store, User } from 'lucide-react-native';
 import React, { useRef } from 'react';
-import { AppState, AppStateStatus, LogBox, Linking, Platform } from 'react-native';
+import { AppState, AppStateStatus, LogBox, Linking, Platform, Alert } from 'react-native';
 import 'react-native-gesture-handler';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { SafeAreaProvider, useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -23,10 +23,8 @@ import ShopScreen from './app/ShopScreen';
 import SignupScreen from './app/SignupScreen';
 import SplashScreen from './app/SplashScreen';
 
-// Onboarding flow (shown right after signup — keep eager)
 import AddressSetupScreen from './app/onboarding/AddressSetupScreen';
 import CategoryPreferenceScreen from './app/onboarding/CategoryPreferenceScreen';
-import TermsScreen from './app/onboarding/TermsScreen';
 
 // ---------------------------------------------------------------------------
 // ALL other screens use getComponent — loaded only when navigated to
@@ -55,12 +53,12 @@ export type TabParamList = {
 export type RootStackParamList = {
   Splash: undefined;
   Onboarding: undefined;
-  Terms: { signupData: any };
   CategoryPreference: { signupData: any };
   AddressSetup: { signupData: any };
   Login: { from?: string } | undefined;
   Signup: undefined;
   EmailVerification: { email: string; otpAlreadySent?: boolean; signupData?: any };
+  EmailConfirmed: undefined;
   ForgotPassword: undefined;
   ResetPassword: undefined;
   SellerLogin: undefined;
@@ -346,12 +344,24 @@ export default function App() {
         try {
           console.log(`[App] 🔐 Deep link auth attempt ${attempt}/${maxAttempts}...`);
           
-          if (deepLinkUrl.includes('code=')) {
+          if (/[?&#]code=([^&#]+)/.test(deepLinkUrl)) {
             // PKCE Flow
             const { error } = await supabase.auth.exchangeCodeForSession(deepLinkUrl);
             if (error) throw error;
             console.log('[App] ✅ Session established via code exchange.');
             return { success: true };
+          } else if (/[?&#]error=([^&#]+)/.test(deepLinkUrl)) {
+            // Handle deep link errors directly (e.g., expired OTP)
+            const parts = deepLinkUrl.includes('#') ? deepLinkUrl.split('#')[1] : deepLinkUrl.split('?')[1];
+            if (!parts) return { success: false, error: 'Auth error parameter found but URL is malformed' };
+
+            const params: Record<string, string> = {};
+            parts.split('&').forEach(part => {
+              const [key, val] = part.split('=');
+              if (key && val) params[key] = decodeURIComponent(val.replace(/\+/g, ' '));
+            });
+            
+            return { success: false, error: params.error_description || 'Authentication failed (link may be expired)' };
           } else if (deepLinkUrl.includes('access_token=') || deepLinkUrl.includes('refresh_token=')) {
             // Fragment Flow
             const parts = deepLinkUrl.includes('#') ? deepLinkUrl.split('#')[1] : deepLinkUrl.split('?')[1];
@@ -419,11 +429,13 @@ export default function App() {
     const unsubscribeDeepLink = Linking.addEventListener('url', async ({ url }) => {
       console.log('[App] Deep link received:', url);
 
-      if (url.includes('code=') || url.includes('access_token=') || url.includes('refresh_token=')) {
+      if (/[?&#]code=/.test(url) || url.includes('access_token=') || url.includes('refresh_token=') || /[?&#]error=/.test(url)) {
         console.log('[App] 🔐 Processing auth deep link...');
         const result = await processAuthDeepLink(url, 3);
         if (!result.success) {
           console.error('[App] ❌ Deep link auth flow failed:', result.error);
+          Alert.alert('Authentication Failed', result.error);
+          navigationRef.current?.navigate('Login');
         }
       }
     });
@@ -456,15 +468,6 @@ export default function App() {
       navigationRef.current.reset({
         index: 0,
         routes: [{ name: 'Login' }],
-      });
-    } else if (sessionVerified && user.hasAcceptedTerms === false && !user.roles?.includes('seller')) {
-      // Only enforce T&C after checkSession has confirmed fresh session data.
-      // Gating on sessionVerified prevents stale persisted state from triggering
-      // a redirect before the real metadata is fetched from Supabase.
-      console.log('[App] 🛡️ T&C Enforcement: Redirecting to Terms...');
-      navigationRef.current.reset({
-        index: 0,
-        routes: [{ name: 'Terms', params: { signupData: user } }],
       });
     }
   }, [user, sessionVerified]);
@@ -611,9 +614,9 @@ export default function App() {
                 options={{ animation: 'slide_from_right' }}
               />
               <Stack.Screen
-                name="Terms"
-                component={TermsScreen}
-                options={{ animation: 'slide_from_right' }}
+                name="EmailConfirmed"
+                getComponent={() => require('./app/onboarding/EmailConfirmedScreen').default}
+                options={{ animation: 'fade' }}
               />
               <Stack.Screen
                 name="CategoryPreference"

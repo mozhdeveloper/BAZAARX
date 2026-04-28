@@ -61,6 +61,11 @@ export default function SettingsScreen({ navigation }: Props) {
               if (googleIdentity) {
                 const { error } = await supabase.auth.unlinkIdentity(googleIdentity);
                 if (error) throw error;
+                
+                await supabase.auth.updateUser({
+                  data: { google_explicitly_linked: false }
+                });
+
                 setIsGoogleLinked(false);
                 Alert.alert('Success', 'Google account unlinked.');
               }
