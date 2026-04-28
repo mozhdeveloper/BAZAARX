@@ -673,7 +673,16 @@ function App() {
               }
             />
             <Route
+              path="/seller/products/edit/:id"
+              element={
+                <ProtectedSellerRoute>
+                  <AddProduct />
+                </ProtectedSellerRoute>
+              }
+            />
+            <Route
               path="/seller/product-status-qa"
+
               element={
                 <ProtectedSellerRoute>
                   <SellerProductStatus />

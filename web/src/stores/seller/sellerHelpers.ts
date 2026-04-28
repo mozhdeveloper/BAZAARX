@@ -101,7 +101,7 @@ export const buildProductInsert = (
         brand: null,
         sku: null,
         seller_id: sellerId,
-        approval_status: "pending",
+        approval_status: product.isDraft ? "draft" : "pending",
         low_stock_threshold: 10,
         specifications: {},
         variant_label_1: product.variantLabel1 || null,
