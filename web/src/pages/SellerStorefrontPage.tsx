@@ -489,7 +489,7 @@ export default function SellerStorefrontPage() {
       variantLabel2: (p as any).variant_label_2,
       variantLabel1Values: (p as any).variantLabel1Values || (p as any).variant_label_1_values || [],
       variantLabel2Values: (p as any).variantLabel2Values || (p as any).variant_label_2_values || [],
-      stock: (p as any).stock || 99,
+      stock: (p as any).stock ?? 99,
       sellerLocation: seller?.location,
       sellerName: seller?.name,
       isVerified: seller?.isVerified,
@@ -955,7 +955,7 @@ export default function SellerStorefrontPage() {
                 <div></div>
               </div>
 
-              {/* Products Grid */}
+              {/* Products Grid — In Stock */}
               <motion.div
                 initial={{ opacity: 0 }}
                 animate={{ opacity: 1 }}
@@ -964,7 +964,7 @@ export default function SellerStorefrontPage() {
                   viewMode === 'grid' ? 'grid-cols-2 md:grid-cols-3 lg:grid-cols-5' : 'grid-cols-1'
                 )}
               >
-                {filteredProducts.map((product, index) => (
+                {filteredProducts.filter(p => (p.stock ?? 99) > 0).map((product, index) => (
                   <StorefrontProductCard
                     key={product.id}
                     product={product}
@@ -982,6 +982,50 @@ export default function SellerStorefrontPage() {
                   />
                 ))}
               </motion.div>
+
+              {/* Out of Stock Section */}
+              {filteredProducts.filter(p => (p.stock ?? 99) === 0).length > 0 && (
+                <div className="mt-10 pt-8 border-t border-gray-100">
+                  <div className="flex items-center gap-3 mb-4">
+                    <div className="inline-flex items-center px-3 py-1 rounded-lg bg-gray-100 text-gray-600">
+                      <span className="text-xs font-bold uppercase tracking-wider">Out of Stock</span>
+                    </div>
+                    <span className="text-xs text-gray-400 font-medium">
+                      {filteredProducts.filter(p => (p.stock ?? 99) === 0).length} product{filteredProducts.filter(p => (p.stock ?? 99) === 0).length !== 1 ? 's' : ''} currently unavailable
+                    </span>
+                  </div>
+                  <motion.div
+                    initial={{ opacity: 0 }}
+                    animate={{ opacity: 1 }}
+                    className={cn(
+                      "grid gap-4 opacity-60",
+                      viewMode === 'grid' ? 'grid-cols-2 md:grid-cols-3 lg:grid-cols-5' : 'grid-cols-1'
+                    )}
+                  >
+                    {filteredProducts.filter(p => (p.stock ?? 99) === 0).map((product, index) => (
+                      <div key={product.id} className="relative">
+                        <div className="absolute inset-0 z-10 flex items-center justify-center pointer-events-none">
+                          <div className="inline-flex items-center px-3 py-1.5 rounded-xl bg-gray-800/80 backdrop-blur-sm text-white shadow-lg">
+                            <span className="text-xs font-bold tracking-wide">Out of Stock</span>
+                          </div>
+                        </div>
+                        <div className="grayscale pointer-events-none">
+                          <StorefrontProductCard
+                            product={product}
+                            index={index}
+                            seller={seller}
+                            profile={profile}
+                            onAddToCart={() => {}}
+                            onBuyNow={() => {}}
+                            onVariantSelect={() => {}}
+                            onLoginRequired={() => {}}
+                          />
+                        </div>
+                      </div>
+                    ))}
+                  </motion.div>
+                </div>
+              )}
             </div>
           </TabsContent>
 

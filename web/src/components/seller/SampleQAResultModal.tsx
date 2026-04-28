@@ -52,7 +52,7 @@ export function SampleQAResultModal({ open, onOpenChange, productName, sellerNam
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-[520px] p-0 bg-white border-none shadow-2xl rounded-2xl overflow-hidden">
+      <DialogContent className="sm:max-w-3xl md:max-w-4xl p-0 bg-white border-none shadow-2xl rounded-2xl overflow-hidden">
         <DialogHeader className="sr-only">
           <DialogTitle>QA Result</DialogTitle>
         </DialogHeader>
@@ -103,7 +103,7 @@ export function SampleQAResultModal({ open, onOpenChange, productName, sellerNam
           {/* Product Metadata */}
           <div className="p-5 border-b border-gray-100">
             <h3 className="text-sm font-bold text-gray-800 mb-3">Product Metadata</h3>
-            <div className="grid grid-cols-2 gap-3">
+            <div className="grid grid-cols-4 gap-3">
               <div className="flex items-start gap-2">
                 <Package className="w-4 h-4 text-gray-400 mt-0.5 flex-shrink-0" />
                 <div>
@@ -135,53 +135,56 @@ export function SampleQAResultModal({ open, onOpenChange, productName, sellerNam
             </div>
           </div>
 
-          {/* Gap Analysis */}
-          <div className="p-5 border-b border-gray-100">
-            <div className="flex items-center gap-2 mb-3">
-              <AlertTriangle className="w-4 h-4 text-amber-500" />
-              <h3 className="text-sm font-bold text-gray-800">Gap Analysis: Claimed vs. Verified</h3>
-            </div>
-            <div className="space-y-2">
-              {[
-                { claimed: '20,000mAh Battery Capacity', verified: '18,500mAh', note: '(Acceptable Variance: -7.5%)', pass: true },
-                { claimed: 'Fast Charging (18W)', verified: '✓ Confirmed: 18.2W', note: '', pass: true },
-                { claimed: 'Dual USB Output', verified: '✓ Confirmed', note: '', pass: true },
-              ].map((item, i) => (
-                <div key={i} className="flex gap-2">
-                  <div className="flex-1 bg-red-50 border border-red-100 rounded-lg p-2.5">
-                    <p className="text-[9px] font-bold text-red-500 uppercase tracking-wider mb-0.5">Claimed</p>
-                    <p className="text-xs font-semibold text-red-800">{item.claimed}</p>
+          {/* Gap Analysis + Durability — side by side landscape */}
+          <div className="grid grid-cols-2 gap-0">
+            {/* Gap Analysis */}
+            <div className="p-5 border-r border-gray-100">
+              <div className="flex items-center gap-2 mb-3">
+                <AlertTriangle className="w-4 h-4 text-amber-500" />
+                <h3 className="text-sm font-bold text-gray-800">Gap Analysis: Claimed vs. Verified</h3>
+              </div>
+              <div className="space-y-2">
+                {[
+                  { claimed: '20,000mAh Battery Capacity', verified: '18,500mAh', note: '(Acceptable Variance: -7.5%)', pass: true },
+                  { claimed: 'Fast Charging (18W)', verified: '✓ Confirmed: 18.2W', note: '', pass: true },
+                  { claimed: 'Dual USB Output', verified: '✓ Confirmed', note: '', pass: true },
+                ].map((item, i) => (
+                  <div key={i} className="flex gap-2">
+                    <div className="flex-1 bg-red-50 border border-red-100 rounded-lg p-2.5">
+                      <p className="text-[9px] font-bold text-red-500 uppercase tracking-wider mb-0.5">Claimed</p>
+                      <p className="text-xs font-semibold text-red-800">{item.claimed}</p>
+                    </div>
+                    <div className="flex-1 bg-emerald-50 border border-emerald-100 rounded-lg p-2.5">
+                      <p className="text-[9px] font-bold text-emerald-500 uppercase tracking-wider mb-0.5">Verified</p>
+                      <p className="text-xs font-semibold text-emerald-800">{item.verified}</p>
+                      {item.note && <p className="text-[10px] text-emerald-600 mt-0.5">{item.note}</p>}
+                    </div>
                   </div>
-                  <div className="flex-1 bg-emerald-50 border border-emerald-100 rounded-lg p-2.5">
-                    <p className="text-[9px] font-bold text-emerald-500 uppercase tracking-wider mb-0.5">Verified</p>
-                    <p className="text-xs font-semibold text-emerald-800">{item.verified}</p>
-                    {item.note && <p className="text-[10px] text-emerald-600 mt-0.5">{item.note}</p>}
-                  </div>
-                </div>
-              ))}
+                ))}
+              </div>
             </div>
-          </div>
 
-          {/* Durability Score */}
-          <div className="p-5">
-            <div className="flex items-center gap-2 mb-3">
-              <Shield className="w-4 h-4 text-blue-500" />
-              <h3 className="text-sm font-bold text-gray-800">Durability Score</h3>
-            </div>
-            <div className="space-y-2">
-              {[
-                { test: 'Drop Test (3x from 1m height)', result: 'PASS - No visible damage, all functions operational' },
-                { test: 'Charging Cycle Test (10 cycles)', result: 'PASS - Consistent performance, no degradation' },
-                { test: 'Temperature Test (0-45°C)', result: 'PASS - Safe operation across temperature range' },
-              ].map((item, i) => (
-                <div key={i} className="flex items-start gap-3 bg-emerald-50 border border-emerald-100 rounded-xl p-3">
-                  <div className="flex-1">
-                    <p className="text-xs font-bold text-gray-800">{item.test}</p>
-                    <p className="text-[11px] text-gray-500 mt-0.5">{item.result}</p>
+            {/* Durability Score */}
+            <div className="p-5">
+              <div className="flex items-center gap-2 mb-3">
+                <Shield className="w-4 h-4 text-blue-500" />
+                <h3 className="text-sm font-bold text-gray-800">Durability Score</h3>
+              </div>
+              <div className="space-y-2">
+                {[
+                  { test: 'Drop Test (3x from 1m height)', result: 'PASS - No visible damage, all functions operational' },
+                  { test: 'Charging Cycle Test (10 cycles)', result: 'PASS - Consistent performance, no degradation' },
+                  { test: 'Temperature Test (0-45°C)', result: 'PASS - Safe operation across temperature range' },
+                ].map((item, i) => (
+                  <div key={i} className="flex items-start gap-3 bg-emerald-50 border border-emerald-100 rounded-xl p-3">
+                    <div className="flex-1">
+                      <p className="text-xs font-bold text-gray-800">{item.test}</p>
+                      <p className="text-[11px] text-gray-500 mt-0.5">{item.result}</p>
+                    </div>
+                    <CheckCircle2 className="w-5 h-5 text-emerald-500 flex-shrink-0 mt-0.5" />
                   </div>
-                  <CheckCircle2 className="w-5 h-5 text-emerald-500 flex-shrink-0 mt-0.5" />
-                </div>
-              ))}
+                ))}
+              </div>
             </div>
           </div>
 

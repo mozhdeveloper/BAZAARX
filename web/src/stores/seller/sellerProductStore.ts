@@ -318,28 +318,30 @@ export const useProductStore = create<ProductStore>()(
                     // Check for low stock on new product
                     get().checkLowStock();
 
-                    // Also add to QA flow store
-                    try {
-                        const qaStore = useProductQAStore.getState();
-                        await qaStore.addProductToQA({
-                            id: newProduct.id,
-                            name: newProduct.name,
-                            vendor:
-                                authStoreState.seller?.storeName || authStoreState.seller?.name || "Unknown Vendor",
-                            sellerId: resolvedSellerId, // Pass seller ID for proper filtering
-                            price: newProduct.price,
-                            // Use original submitted category (name string) since newProduct
-                            // is mapped from DB which stores category_id, not the name
-                            category: product.category || newProduct.category,
-                            image:
-                                newProduct.images[0] ||
-                                "https://placehold.co/100?text=Product",
-                        });
-                    } catch (qaError) {
-                        console.error(
-                            "Error adding product to QA flow:",
-                            qaError,
-                        );
+                    // Also add to QA flow store (skip for drafts)
+                    if (!(product as any).isDraft) {
+                        try {
+                            const qaStore = useProductQAStore.getState();
+                            await qaStore.addProductToQA({
+                                id: newProduct.id,
+                                name: newProduct.name,
+                                vendor:
+                                    authStoreState.seller?.storeName || authStoreState.seller?.name || "Unknown Vendor",
+                                sellerId: resolvedSellerId, // Pass seller ID for proper filtering
+                                price: newProduct.price,
+                                // Use original submitted category (name string) since newProduct
+                                // is mapped from DB which stores category_id, not the name
+                                category: product.category || newProduct.category,
+                                image:
+                                    newProduct.images[0] ||
+                                    "https://placehold.co/100?text=Product",
+                            });
+                        } catch (qaError) {
+                            console.error(
+                                "Error adding product to QA flow:",
+                                qaError,
+                            );
+                        }
                     }
 
                     // Trigger image embedding generation for visual search (fire-and-forget)
