@@ -23,10 +23,8 @@ import ShopScreen from './app/ShopScreen';
 import SignupScreen from './app/SignupScreen';
 import SplashScreen from './app/SplashScreen';
 
-// Onboarding flow (shown right after signup — keep eager)
 import AddressSetupScreen from './app/onboarding/AddressSetupScreen';
 import CategoryPreferenceScreen from './app/onboarding/CategoryPreferenceScreen';
-import TermsScreen from './app/onboarding/TermsScreen';
 
 // ---------------------------------------------------------------------------
 // ALL other screens use getComponent — loaded only when navigated to
@@ -55,7 +53,6 @@ export type TabParamList = {
 export type RootStackParamList = {
   Splash: undefined;
   Onboarding: undefined;
-  Terms: { signupData: any };
   CategoryPreference: { signupData: any };
   AddressSetup: { signupData: any };
   Login: { from?: string } | undefined;
@@ -458,15 +455,6 @@ export default function App() {
         index: 0,
         routes: [{ name: 'Login' }],
       });
-    } else if (sessionVerified && user.hasAcceptedTerms === false && !user.roles?.includes('seller')) {
-      // Only enforce T&C after checkSession has confirmed fresh session data.
-      // Gating on sessionVerified prevents stale persisted state from triggering
-      // a redirect before the real metadata is fetched from Supabase.
-      console.log('[App] 🛡️ T&C Enforcement: Redirecting to Terms...');
-      navigationRef.current.reset({
-        index: 0,
-        routes: [{ name: 'Terms', params: { signupData: user } }],
-      });
     }
   }, [user, sessionVerified]);
 
@@ -615,11 +603,6 @@ export default function App() {
                 name="EmailConfirmed"
                 getComponent={() => require('./app/onboarding/EmailConfirmedScreen').default}
                 options={{ animation: 'fade' }}
-              />
-              <Stack.Screen
-                name="Terms"
-                component={TermsScreen}
-                options={{ animation: 'slide_from_right' }}
               />
               <Stack.Screen
                 name="CategoryPreference"

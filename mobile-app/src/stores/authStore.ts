@@ -273,7 +273,7 @@ export const useAuthStore = create<AuthState>()(
               isAuthenticated: true,
               isGuest: false,
               hasCompletedOnboarding: hasOnboarding,
-              activeRole: roles.includes('seller') ? 'seller' : 'buyer',
+              activeRole: get().activeRole === 'seller' && roles.includes('seller') ? 'seller' : 'buyer',
               sessionVerified: true,
             });
             // Load wishlist from Supabase after session restore

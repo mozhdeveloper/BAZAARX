@@ -28,10 +28,7 @@ export default function BuyerOnboardingPage() {
     const [step, setStep] = useState(1);
     const [isLoading, setIsLoading] = useState(false);
 
-    // Step 1: Terms
-    const [termsAccepted, setTermsAccepted] = useState(false);
-
-    // Step 2: Categories
+    // Step 1: Categories
     const [selectedCategories, setSelectedCategories] = useState<string[]>([]);
     const [dbCategories, setDbCategories] = useState<Category[]>([]);
     const [loadingCategories, setLoadingCategories] = useState(true);
@@ -56,10 +53,9 @@ export default function BuyerOnboardingPage() {
     }, [step]);
 
     const handleNext = async () => {
-        if (step === 1 && !termsAccepted) return;
-        if (step === 2 && selectedCategories.length < 3) return;
+        if (step === 1 && selectedCategories.length < 3) return;
 
-        if (step === 2) {
+        if (step === 1) {
             // Save categories to preferences if possible
             if (selectedCategories.length > 0 && profile) {
                 try {
@@ -73,8 +69,7 @@ export default function BuyerOnboardingPage() {
                     console.error("Failed to save categories:", error);
                 }
             }
-            // Skip address step, go to finish
-            setStep(3);
+            setStep(2);
             return;
         }
 
@@ -134,7 +129,7 @@ export default function BuyerOnboardingPage() {
                         <div className="h-1 w-full bg-gray-200 rounded-full overflow-hidden">
                             <motion.div
                                 initial={{ width: 0 }}
-                                animate={{ width: `${(step / 3) * 100}%` }}
+                                animate={{ width: `${(step / 2) * 100}%` }}
                                 transition={{ duration: 0.5, ease: "easeInOut" }}
                                 className="h-full bg-orange-500 rounded-full"
                             />
@@ -155,9 +150,8 @@ export default function BuyerOnboardingPage() {
 
                         <div className="flex flex-col items-center mx-auto text-center">
                             <span className="text-xs font-bold text-gray-400 uppercase tracking-widest">
-                                {step === 1 && "Terms & Conditions"}
-                                {step === 2 && "Choose Interests"}
-                                {step === 3 && ""}
+                                {step === 1 && "Choose Interests"}
+                                {step === 2 && ""}
                             </span>
                         </div>
 
@@ -170,57 +164,6 @@ export default function BuyerOnboardingPage() {
 
                         <AnimatePresence mode="wait">
                             {step === 1 && (
-                                <motion.div
-                                    key="step1"
-                                    variants={containerVariants}
-                                    initial="hidden"
-                                    animate="visible"
-                                    exit="exit"
-                                    className="h-full flex flex-col"
-                                >
-                                    <div className="text-center mb-6">
-                                        <h2 className="text-2xl font-bold text-gray-800">Terms & Conditions</h2>
-                                        <p className="text-gray-500 text-sm">Please review and agree to continue.</p>
-                                    </div>
-
-                                    <div className="flex-1 bg-gray-50 rounded-xl p-6 border border-gray-100 overflow-y-auto mb-6 text-sm text-gray-600 leading-relaxed shadow-inner max-h-[300px]">
-                                        <h3 className="font-bold text-gray-800 mb-2">1. Introduction</h3>
-                                        <p className="mb-4">Welcome to BazaarX. By accessing our platform, you agree to these terms.</p>
-                                        <h3 className="font-bold text-gray-800 mb-2">2. User Accounts</h3>
-                                        <p className="mb-4">You are responsible for maintaining the confidentiality of your account credentials.</p>
-                                        <h3 className="font-bold text-gray-800 mb-2">3. Privacy Policy</h3>
-                                        <p className="mb-4">Your privacy is important to us. Please review our Privacy Policy to understand how we collect and use your data.</p>
-                                        <h3 className="font-bold text-gray-800 mb-2">4. Acceptable Use</h3>
-                                        <p className="mb-4">You agree not to misuse the platform or engage in unlawful activities.</p>
-                                        <h3 className="font-bold text-gray-800 mb-2">5. Termination</h3>
-                                        <p>We reserve the right to suspend or terminate your account if you violate these terms.</p>
-                                    </div>
-
-                                    <div className="flex items-center gap-3 mb-8 p-4 bg-orange-50 rounded-lg border border-orange-100">
-                                        <Checkbox
-                                            id="terms"
-                                            checked={termsAccepted}
-                                            onCheckedChange={(c) => setTermsAccepted(!!c)}
-                                            className="w-5 h-5 border-orange-500 data-[state=checked]:bg-orange-500 data-[state=checked]:text-white"
-                                        />
-                                        <label htmlFor="terms" className="text-sm font-medium text-gray-700 cursor-pointer select-none">
-                                            I have read and agree to the Terms & Conditions
-                                        </label>
-                                    </div>
-
-                                    <div className="mt-auto flex justify-center">
-                                        <button
-                                            onClick={handleNext}
-                                            disabled={!termsAccepted}
-                                            className="w-full py-3.5 bg-gradient-to-r from-orange-500 to-orange-600 text-white rounded-xl font-bold shadow-lg shadow-orange-200 disabled:opacity-50 disabled:shadow-none hover:shadow-xl hover:scale-[1.02] transition-all flex items-center justify-center gap-2"
-                                        >
-                                            Agree & Continue
-                                        </button>
-                                    </div>
-                                </motion.div>
-                            )}
-
-                            {step === 2 && (
                                 <motion.div
                                     key="step2"
                                     variants={containerVariants}
@@ -289,7 +232,7 @@ export default function BuyerOnboardingPage() {
                                 </motion.div>
                             )}
 
-                            {step === 3 && (
+                            {step === 2 && (
                                 <motion.div
                                     key="step3"
                                     variants={containerVariants}
