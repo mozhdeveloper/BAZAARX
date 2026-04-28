@@ -4,6 +4,7 @@ import { persist, createJSONStorage } from 'zustand/middleware';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { CartItem, Product } from '../types';
 import { cartService } from '../services/cartService';
+import { discountService } from '../services/discountService';
 import { useAuthStore } from './authStore';
 import { PLACEHOLDER_PRODUCT } from '../utils/imageUtils';
 
@@ -252,10 +253,31 @@ export const useCartStore = create<CartStore>()(
         set({ isValidatingCheckout: true, checkoutErrors: {} });
         try {
           const result = await cartService.validateCheckoutItems(selectedIds);
-          if (!result.isValid) {
-            set({ checkoutErrors: result.errors });
+          const errors: Record<string, string> = { ...result.errors };
+
+          // Flash sale expiry check
+          const { items } = get();
+          const selectedItems = items.filter(
+            i => selectedIds.includes(i.cartItemId) || selectedIds.includes(i.id)
+          );
+          const productIds = [...new Set(selectedItems.map(i => i.id).filter(Boolean))];
+
+          if (productIds.length > 0) {
+            const freshDiscounts = await discountService.getActiveDiscountsForProducts(productIds);
+            for (const item of selectedItems) {
+              const hadDiscount = !!(item as any).campaignDiscount;
+              const stillActive = !!freshDiscounts[item.id];
+              if (hadDiscount && !stillActive && !errors[item.cartItemId]) {
+                errors[item.cartItemId] = 'The flash sale for this item has ended. Price updated — please review before checkout.';
+                result.isValid = false;
+              }
+            }
           }
-          return result.isValid;
+
+          if (!result.isValid || Object.keys(errors).length > 0) {
+            set({ checkoutErrors: errors });
+          }
+          return result.isValid && Object.keys(errors).length === 0;
         } catch (e: any) {
           set({ error: e.message || 'Validation failed' });
           return false;
