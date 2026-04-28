@@ -1,6 +1,7 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 import { cartService } from '@/services/cartService';
+import { discountService } from '@/services/discountService';
 import { getCurrentUser, supabase } from '@/lib/supabase';
 import { productService } from '@/services/productService';
 import { AddressService } from '@/services/addressService';
@@ -894,8 +895,43 @@ export const useBuyerStore = create<BuyerStore>()(persist(
       set({ isValidatingCheckout: true, checkoutErrors: {} });
       try {
         const result = await cartService.validateCheckoutItems(selectedIds);
-        if (!result.isValid) set({ checkoutErrors: result.errors });
-        return result.isValid;
+        const errors: Record<string, string> = { ...result.errors };
+
+        // Flash sale expiry check: re-fetch active discounts for selected products
+        const { cartItems, campaignDiscountCache } = get();
+        const selectedItems = cartItems.filter(
+          i => selectedIds.includes(i.cartItemId || '') || selectedIds.includes(i.id)
+        );
+        const productIds = [...new Set(selectedItems.map(i => i.id).filter(Boolean))];
+
+        if (productIds.length > 0) {
+          const freshDiscounts = await discountService.getActiveDiscountsForProducts(productIds);
+
+          // Remove expired discounts from cache so cart UI reflects updated prices
+          set((state) => {
+            const newCache = { ...state.campaignDiscountCache };
+            for (const pid of productIds) {
+              if (!freshDiscounts[pid]) delete newCache[pid];
+            }
+            return { campaignDiscountCache: newCache };
+          });
+
+          // Flag items whose flash sale just ended
+          for (const item of selectedItems) {
+            const hadDiscount = !!campaignDiscountCache[item.id];
+            const stillActive = !!freshDiscounts[item.id];
+            const errorKey = item.cartItemId || item.id;
+            if (hadDiscount && !stillActive && !errors[errorKey]) {
+              errors[errorKey] = 'The flash sale for this item has ended. Price updated — please review before checkout.';
+              result.isValid = false;
+            }
+          }
+        }
+
+        if (!result.isValid || Object.keys(errors).length > 0) {
+          set({ checkoutErrors: errors });
+        }
+        return result.isValid && Object.keys(errors).length === 0;
       } catch (e: any) {
         set({ checkoutErrors: { 'global': 'Validation failed.' }});
         return false;
