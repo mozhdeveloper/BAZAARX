@@ -170,6 +170,18 @@ function App() {
       // 1. Catch BOTH events: SIGNED_IN (direct login) and INITIAL_SESSION (page load after Google redirect)
       // Only handle buyer record creation for OAuth providers.
       // Email/password signups are finalized by AuthCallbackPage after email verification.
+
+      // Cart re-hydration — runs for ALL authenticated session events (OAuth, email/password,
+      // page reload, token refresh). cartItems are intentionally NOT persisted to localStorage,
+      // so without this the cart appears empty until the user manually re-triggers init.
+      // Fixes: cart becomes empty after a few minutes / page refresh.
+      if (
+        (event === 'SIGNED_IN' || event === 'INITIAL_SESSION' || event === 'TOKEN_REFRESHED') &&
+        session?.user
+      ) {
+        void useBuyerStore.getState().initializeCart();
+      }
+
       if ((event === 'SIGNED_IN' || event === 'INITIAL_SESSION') && session?.user && isOAuthProvider) {
         const { user } = session;
 
