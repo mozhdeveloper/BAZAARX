@@ -20,6 +20,7 @@ import { addressService } from "../services/addressService";
 import { toast } from "../hooks/use-toast";
 import { categoryService } from "../services/categoryService";
 import type { Category } from "@/types/database.types";
+import { getSafeImageUrl, handleImageError } from "../utils/imageUtils";
 
 export default function BuyerOnboardingPage() {
     const navigate = useNavigate();
@@ -191,7 +192,8 @@ export default function BuyerOnboardingPage() {
                                             >
                                                 <div className="absolute inset-0">
                                                     <img loading="lazy" 
-                                                        src={cat.image_url || cat.icon || "/placeholder-category.jpg"} // Use DB image fields
+                                                        src={getSafeImageUrl(cat.image_url || cat.icon)}
+                                                        onError={(e) => handleImageError(e)}
                                                         alt={cat.name}
                                                         className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-110"
                                                     />

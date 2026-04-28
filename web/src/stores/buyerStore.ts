@@ -239,9 +239,20 @@ export const useBuyerStore = create<BuyerStore>()(persist(
         }
 
         // 3) Update local Zustand state only after remote writes succeed
-        set((state) => ({
-          profile: state.profile ? { ...state.profile, ...updates } : null
-        }));
+        set((state) => {
+          if (!state.profile) return { profile: null };
+          
+          // Deep merge preferences if they are being updated
+          const updatedProfile = { ...state.profile, ...updates };
+          if (updates.preferences && state.profile.preferences) {
+            updatedProfile.preferences = {
+              ...state.profile.preferences,
+              ...updates.preferences
+            };
+          }
+          
+          return { profile: updatedProfile };
+        });
       } catch (err) {
         console.error("Failed to update profile in database:", err);
         // Optional: Add toast notification for error
@@ -1562,8 +1573,28 @@ export const useBuyerStore = create<BuyerStore>()(persist(
           console.warn('Non-fatal: failed to backfill profile first/last name', backfillError);
         }
 
+        const dbPreferences = buyerData.preferences || {};
+        const mergedPreferences = {
+          language: dbPreferences.language || 'en',
+          currency: dbPreferences.currency || 'PHP',
+          notifications: {
+            email: true,
+            sms: false,
+            push: true,
+            ...(dbPreferences.notifications || {})
+          },
+          privacy: {
+            showProfile: true,
+            showPurchases: false,
+            showFollowing: true,
+            ...(dbPreferences.privacy || {})
+          },
+          interestedCategories: dbPreferences.interestedCategories || [],
+        };
+
         const buyerInfo = {
           ...buyerData,
+          preferences: mergedPreferences,
           firstName,
           lastName,
           email: profileInfo?.email || '',

@@ -125,50 +125,10 @@ export default function BuyerLoginPage() {
 
       const { user } = result;
 
-      const { data: buyerData, error: buyerError } = await supabase
-        .from("buyers")
-        .select("*")
-        .eq("id", user.id)
-        .maybeSingle();
-
-      if (buyerError || !buyerData) {
-        setError("This account is not registered as a buyer.");
-        await supabase.auth.signOut();
-        setIsLoading(false);
-        return;
-      }
-
       lockoutStore.recordSuccess(trimmedEmail);
-
-      const { data: profileData } = await supabase
-        .from("profiles")
-        .select("*")
-        .eq("id", user.id)
-        .maybeSingle();
-
-      const profileAny = profileData as any;
-      const { firstName, lastName, displayFullName } = deriveBuyerName({
-        first_name: profileAny?.first_name,
-        last_name: profileAny?.last_name,
-        full_name: profileAny?.full_name,
-        email: profileAny?.email || user.email || trimmedEmail,
-      });
-      const bazcoins = (buyerData as any)?.bazcoins ?? 0;
-      const buyerProfile = {
-        id: user.id,
-        email: user.email || trimmedEmail,
-        firstName,
-        lastName,
-        phone: profileAny?.phone || "",
-        avatar: (buyerData as any)?.avatar_url || profileAny?.avatar_url || `https://ui-avatars.com/api/?name=${encodeURIComponent(displayFullName)}&background=FF6B35&color=fff`,
-        preferences: { language: "en", currency: "PHP", notifications: { email: true, sms: true, push: true }, privacy: { showProfile: true, showPurchases: false, showFollowing: true } },
-        memberSince: (profileData as any)?.created_at ? new Date((profileData as any).created_at) : new Date(),
-        totalOrders: 0,
-        totalSpent: 0,
-        bazcoins,
-      };
-
-      setProfile(buyerProfile);
+      
+      // Use initializeBuyerProfile from store to correctly hydrate all fields including preferences
+      await useBuyerStore.getState().initializeBuyerProfile(user.id, {});
       await useBuyerStore.getState().initializeCart();
 
       setIsLoading(false);
