@@ -138,7 +138,6 @@ export class SellerService {
                 .select(`
                     *,
                     business_profile:seller_business_profiles(*),
-                    payout_account:seller_payout_settings(seller_id, bank_name, bank_account_name, bank_account_number, payout_method),
                     verification_documents:seller_verification_documents(*)
                 `)
                 .eq('id', sellerId)
@@ -152,7 +151,16 @@ export class SellerService {
                 }
                 throw error;
             }
-            return this.transformSeller(data);
+
+            // Query payout settings separately (FK references profiles.id, not sellers.id,
+            // so PostgREST cannot resolve the embedded join automatically).
+            const { data: payoutData } = await supabase
+                .from('seller_payout_settings')
+                .select('seller_id, bank_name, bank_account_name, bank_account_number, payout_method')
+                .eq('seller_id', sellerId)
+                .maybeSingle();
+
+            return this.transformSeller({ ...data, payout_account: payoutData });
         } catch (error: any) {
             if (error?.code !== 'PGRST116') {
                 console.error('Error fetching seller:', error);
@@ -477,14 +485,22 @@ export class SellerService {
                 .from('sellers')
                 .select(`
                     *,
-                    business_profile:seller_business_profiles(*),
-                    payout_account:seller_payout_settings(seller_id, bank_name, bank_account_name, bank_account_number, payout_method)
+                    business_profile:seller_business_profiles(*)
                 `)
                 .eq('id', storeId)
                 .single();
 
             if (error) throw error;
             if (!seller) return null;
+
+            // Query payout settings separately (FK references profiles.id, not sellers.id)
+            const { data: payoutData } = await supabase
+                .from('seller_payout_settings')
+                .select('seller_id, bank_name, bank_account_name, bank_account_number, payout_method')
+                .eq('seller_id', storeId)
+                .maybeSingle();
+
+            const sellerWithPayout = { ...seller, payout_account: payoutData };
 
             // Note: products.seller_id may not exist yet (needs migration 003)
             // Return 0 for now, will work after migration
@@ -504,7 +520,7 @@ export class SellerService {
             */
 
             return this.transformSeller({
-                ...seller,
+                ...sellerWithPayout,
                 products_count: 0 // Will be populated after migration 003
             });
         } catch (error) {
