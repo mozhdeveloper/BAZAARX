@@ -34,6 +34,45 @@ const VariantSelectionModal = lazy(() =>
     import("../components/ui/variant-selection-modal").then((m) => ({ default: m.VariantSelectionModal }))
 );
 
+/**
+ * SHIPPING_DISCLAIMER_TEXT
+ * Single source of truth for the cart's shipping message.
+ * Update this string to change the copy everywhere at once.
+ */
+const SHIPPING_DISCLAIMER_TEXT =
+  "Shipping fee will be calculated at the Checkout screen once you provide your delivery address.";
+
+/**
+ * ShippingDisclaimer
+ * A small, self-contained info callout that replaces the old
+ * numeric \"Estimated Shipping Fee\" row in the cart Order Summary.
+ */
+function ShippingDisclaimer() {
+  return (
+    <aside
+      aria-label="Shipping information"
+      className="flex items-start gap-2 rounded-lg border border-amber-200 bg-amber-50/70 px-3 py-2.5"
+    >
+      {/* Info icon — purely decorative */}
+      <svg
+        aria-hidden="true"
+        className="mt-0.5 h-3.5 w-3.5 shrink-0 text-amber-500"
+        fill="currentColor"
+        viewBox="0 0 20 20"
+      >
+        <path
+          fillRule="evenodd"
+          d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a.75.75 0 000 1.5h.253a.25.25 0 01.244.304l-.459 2.066A1.75 1.75 0 0010.747 15H11a.75.75 0 000-1.5h-.253a.25.25 0 01-.244-.304l.459-2.066A1.75 1.75 0 009.253 9H9z"
+          clipRule="evenodd"
+        />
+      </svg>
+      <p className="text-[11px] leading-relaxed text-amber-700 italic">
+        {SHIPPING_DISCLAIMER_TEXT}
+      </p>
+    </aside>
+  );
+}
+
 export default function EnhancedCartPage() {
   const navigate = useNavigate();
   const location = useLocation();
@@ -269,25 +308,9 @@ export default function EnhancedCartPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [cartItems, activeCampaignDiscounts]);
 
-  // BX-09-001 — Compute estimated shipping total based only on selected items
-  // Note: This is an ESTIMATE using default zone (NCR). Actual shipping will be calculated at checkout based on delivery address.
-  const shippingTotal = useMemo(() => {
-    return Object.values(groupedCart).reduce((sum, group) => {
-      const selectedItems = group.items.filter(i => i.selected);
-      if (selectedItems.length === 0) return sum;
-
-      const subtotal = selectedItems.reduce((s, item) => s + getEffectivePrice(item) * item.quantity, 0);
-      const hasFreeShipping = selectedItems.some(i => i.isFreeShipping);
-      const isEligible = hasFreeShipping || subtotal >= 1000;
-
-      // Use new system's default: if eligible for free shipping, 0; otherwise estimate based on default zone
-      // At checkout, this will be recalculated based on actual address
-      return sum + (isEligible ? 0 : 100);
-    }, 0);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [groupedCart, activeCampaignDiscounts]);
-
-  const totalAmount = selectedTotal + shippingTotal; // Use selected total + shipping for display
+  // Cart page shows items subtotal only — shipping is calculated at checkout
+  // after the buyer provides their delivery address (see CheckoutPage).
+  const cartSubtotalOnly = selectedTotal;
 
   // Calculate "Select All" state — out-of-stock items excluded from selectable set
   const selectableItems = useMemo(() => cartItems.filter(i => !isItemOutOfStock(i)), [cartItems, isItemOutOfStock]);
@@ -741,7 +764,7 @@ export default function EnhancedCartPage() {
                         ))}
                       </div>
 
-                      {/* Seller Total - only show if items are selected */}
+                      {/* Seller Total — items only; shipping is shown at checkout */}
                       {group.items.some(i => i.selected) && (
                         <div className="flex justify-end items-center pt-2 border-t border-gray-50 mt-2">
                           <span className="text-sm text-gray-500 mr-2">
@@ -853,10 +876,6 @@ export default function EnhancedCartPage() {
                     sum + getEffectivePrice(item) * item.quantity, 0
                   );
                   
-                  // Estimate per-seller shipping using same logic as overall shippingTotal
-                  const hasFreeShipping = selectedItems.some(i => i.isFreeShipping);
-                  const isEligible = hasFreeShipping || sellerSubtotal >= 1000;
-                  const sellerShipping = isEligible ? 0 : 100;
 
                   return (
                     <div key={sellerId} className="border border-gray-200 rounded-lg p-3 space-y-2">
@@ -894,19 +913,11 @@ export default function EnhancedCartPage() {
                         ))}
                       </div>
 
-                      {/* Per-Seller Shipping */}
-                      <div className="flex justify-between items-center text-xs pt-2 border-t border-gray-100">
-                        <span className="text-gray-600">Estimated Shipping:</span>
-                        <span className="font-semibold text-gray-900">
-                          {sellerShipping === 0 ? 'Free' : `₱${sellerShipping.toLocaleString()}`}
-                        </span>
-                      </div>
-
-                      {/* Seller Subtotal */}
-                      <div className="flex justify-between items-center text-xs font-semibold pt-1">
-                        <span className="text-gray-700">Subtotal:</span>
+                      {/* Seller Items Subtotal (no shipping estimate) */}
+                      <div className="flex justify-between items-center text-xs font-semibold pt-2 border-t border-gray-100">
+                        <span className="text-gray-700">Items Total:</span>
                         <span className="text-[var(--brand-primary)]">
-                          ₱{(sellerSubtotal + sellerShipping).toLocaleString()}
+                          ₱{sellerSubtotal.toLocaleString()}
                         </span>
                       </div>
                     </div>
@@ -919,23 +930,21 @@ export default function EnhancedCartPage() {
                   <span>Selected ({selectedCount})</span>
                   <span>
                     ₱
-                    {/* Only sum selected items subtotal with discounted prices */}
+                    {/* Only sum selected items subtotal with discounted prices — no shipping placeholder */}
                     {cartItems
                       .filter(i => i.selected)
                       .reduce((sum, item) => sum + getEffectivePrice(item) * item.quantity, 0)
                       .toLocaleString()}
                   </span>
                 </div>
-                <div className="flex justify-between text-sm">
-                  <span className="text-gray-600">Estimated Shipping:</span>
-                  <span className="text-gray-600">
-                    ₱{shippingTotal.toLocaleString()}
-                  </span>
-                </div>
+
+                {/* Shipping Disclaimer — replaces the old estimated shipping fee row */}
+                <ShippingDisclaimer />
+
                 <div className="border-t pt-3 flex justify-between font-semibold text-lg">
-                  <span>Total</span>
+                  <span>Subtotal</span>
                   <span className="text-[var(--brand-primary)]">
-                    ₱{totalAmount.toLocaleString()}
+                    ₱{cartSubtotalOnly.toLocaleString()}
                   </span>
                 </div>
               </div>
