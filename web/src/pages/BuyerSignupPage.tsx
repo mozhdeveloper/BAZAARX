@@ -9,35 +9,51 @@ import {
   User,
   Phone,
   AlertCircle,
-  CheckCircle2,
-  ArrowRight,
   ChevronLeft,
 } from "lucide-react";
+import { useForm, Controller } from "react-hook-form";
+import { zodResolver } from "@hookform/resolvers/zod";
+import { signupSchema, type SignupFormData } from "../lib/schemas";
 import { useBuyerStore } from "../stores/buyerStore";
 import { Checkbox } from "../components/ui/checkbox";
 import { authService } from "../services/authService";
 import { supabase } from "../lib/supabase";
-import { validatePassword } from "../utils/validation";
 import {
   clearRoleSwitchContext,
   readRoleSwitchContext,
   type RoleSwitchContext,
 } from "@/services/roleSwitchContext";
+import { LegalModal } from "../components/LegalModal";
+
+
 
 export default function BuyerSignupPage() {
   const navigate = useNavigate();
   const location = useLocation();
-  const { setProfile } = useBuyerStore();
 
-  const [formData, setFormData] = useState({
-    firstName: "",
-    lastName: "",
-    email: "",
-    phone: "",
-    password: "",
-    confirmPassword: "",
-    terms: false,
+
+  const {
+    control,
+    handleSubmit,
+    setValue,
+    setError: setFormError,
+    clearErrors,
+    watch,
+    formState: { errors, isValid },
+  } = useForm<SignupFormData>({
+    resolver: zodResolver(signupSchema),
+    mode: "onChange",
+    defaultValues: {
+      firstName: "",
+      lastName: "",
+      email: "",
+      phone: "",
+      password: "",
+      confirmPassword: "",
+      terms: false,
+    },
   });
+
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [error, setError] = useState("");
@@ -45,18 +61,19 @@ export default function BuyerSignupPage() {
   const [emailCheckState, setEmailCheckState] = useState<"idle" | "checking" | "available" | "taken" | "error">("idle");
   const [emailCheckMessage, setEmailCheckMessage] = useState("");
   const [switchContext, setSwitchContext] = useState<RoleSwitchContext | null>(null);
+  const [legalModal, setLegalModal] = useState<{ isOpen: boolean; type: "terms" | "privacy" }>({
+    isOpen: false,
+    type: "terms",
+  });
+
+  
   const isSwitchMode = switchContext?.targetMode === "buyer";
-  const livePasswordValidation =
-    !isSwitchMode && formData.password.length > 0
-      ? validatePassword(formData.password)
-      : null;
-  const livePasswordError =
-    livePasswordValidation && !livePasswordValidation.valid
-      ? livePasswordValidation.errors[0]
-      : "";
-  const hasPasswordMismatch =
-    formData.confirmPassword.length > 0 &&
-    formData.password !== formData.confirmPassword;
+  const watchedEmail = watch("email");
+  const watchedPassword = watch("password");
+  const watchedConfirmPassword = watch("confirmPassword");
+
+  const isSwitchModeRef = !!switchContext;
+  const hasPasswordMismatch = watchedConfirmPassword && watchedPassword !== watchedConfirmPassword;
 
   useEffect(() => {
     const state = location.state as { roleSwitchContext?: RoleSwitchContext } | null;
@@ -71,118 +88,66 @@ export default function BuyerSignupPage() {
     if (!context || context.targetMode !== "buyer") return;
 
     setSwitchContext(context);
-    setFormData((prev) => ({
-      ...prev,
-      email: context.email || prev.email,
-      phone: context.phone || prev.phone,
-      terms: true,
-    }));
-  }, [location.state]);
+    setValue("email", context.email || "", { shouldValidate: true });
+    setValue("phone", context.phone || "", { shouldValidate: true });
+    setValue("terms", true, { shouldValidate: true });
+  }, [location.state, setValue]);
 
-  const validateEmail = (email: string) => {
-    return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
-  };
-
-  const validatePhone = (phone: string) => {
-    // Philippine phone number format
-    return /^(\+63|0)?9\d{9}$/.test(phone.replace(/\s/g, ""));
-  };
-
-  const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    if (e.target.name === "email") {
+  // Email availability check effect
+  useEffect(() => {
+    if (isSwitchMode || !watchedEmail) {
       setEmailCheckState("idle");
       setEmailCheckMessage("");
-    }
-    setFormData({
-      ...formData,
-      [e.target.name]: e.target.value,
-    });
-  };
-
-  const runEmailCheck = async () => {
-    if (isSwitchMode) return false;
-
-    const email = formData.email.trim();
-    if (!email) {
-      setEmailCheckState("idle");
-      setEmailCheckMessage("");
-      return false;
+      return;
     }
 
-    if (!validateEmail(email)) {
+    // Basic format check
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(watchedEmail)) {
       setEmailCheckState("error");
       setEmailCheckMessage("Please enter a valid email format.");
-      return false;
+      return;
     }
 
-    setEmailCheckState("checking");
-    const exists = await authService.checkEmailExists(email);
-    if (exists) {
-      setEmailCheckState("taken");
-      setEmailCheckMessage("This email is already registered. Please sign in instead.");
-      return true;
-    }
+    const timer = setTimeout(async () => {
+      setEmailCheckState("checking");
+      const exists = await authService.checkEmailExists(watchedEmail);
+      
+      if (exists) {
+        setEmailCheckState("taken");
+        setEmailCheckMessage("This email is already registered. Please sign in instead.");
+        setFormError("email", { type: "manual", message: "Email is already taken" });
+      } else {
+        setEmailCheckState("available");
+        setEmailCheckMessage("Email is available.");
+        if (errors.email?.type === "manual") {
+          clearErrors("email");
+        }
+      }
+    }, 500);
 
-    setEmailCheckState("available");
-    setEmailCheckMessage("Email is available.");
-    return false;
-  };
+    return () => clearTimeout(timer);
+  }, [watchedEmail, isSwitchMode, setFormError, clearErrors, errors.email?.type]);
 
-  const handleSignup = async (e: React.FormEvent) => {
-    e.preventDefault();
+  const onSignupSubmit = async (data: SignupFormData) => {
+    const { firstName, lastName, email, phone, password } = data;
     setError("");
 
-    // Validation
-    if (!formData.firstName || !formData.lastName) {
-      setError("Please enter your full name.");
-      return;
-    }
-
-    if (!formData.email || !validateEmail(formData.email)) {
-      setError("Please enter a valid email address.");
-      return;
-    }
-
-    if (!isSwitchMode) {
-      const taken = await runEmailCheck();
-      if (taken) {
-        setError("This email is already registered. Please sign in instead.");
-        return;
-      }
-    }
-
-    if (!formData.phone || !validatePhone(formData.phone)) {
-      setError("Please enter a valid Philippine phone number.");
-      return;
-    }
-
-    const passwordValidation = validatePassword(formData.password);
-    if (!passwordValidation.valid) {
-      setError(passwordValidation.errors[0] || "Password does not meet minimum security requirements.");
-      return;
-    }
-
-    if (formData.password !== formData.confirmPassword) {
-      setError("Passwords do not match.");
-      return;
-    }
-
-    if (!formData.terms) {
-      setError("Please agree to the Terms of Service and Privacy Policy.");
+    if (emailCheckState === "taken") {
+      setError("This email is already registered. Please sign in instead.");
       return;
     }
 
     setIsLoading(true);
 
     try {
-      const fullName = `${formData.firstName} ${formData.lastName}`;
+      const fullName = `${firstName} ${lastName}`;
 
       if (isSwitchMode) {
         try {
           const { data: authData, error: authError } =
             await supabase.auth.signInWithPassword({
-              email: formData.email,
-              password: formData.password,
+              email: email,
+              password: password,
             });
           if (authError || !authData.user?.id) {
             setError("Incorrect password. Please enter your current account password.");
@@ -202,10 +167,10 @@ export default function BuyerSignupPage() {
         }
 
         const result = await authService.upgradeCurrentUserToBuyer({
-          first_name: formData.firstName,
-          last_name: formData.lastName,
-          phone: formData.phone,
-          email: formData.email,
+          first_name: firstName,
+          last_name: lastName,
+          phone: phone,
+          email: email,
         });
 
         await useBuyerStore
@@ -218,68 +183,35 @@ export default function BuyerSignupPage() {
         return;
       }
 
-      const result = await authService.signUp(
-        formData.email,
-        formData.password,
+      // --- Phase 1: Initiate signup (creates auth.users, sends verification email) ---
+      // DB records (profiles, buyers, user_roles) are created in AuthCallbackPage after verification.
+      const signupResult = await authService.initiateSignUp(
+        email,
+        password,
         {
+          first_name: firstName,
+          last_name: lastName,
           full_name: fullName,
-          phone: formData.phone,
+          phone: phone,
           user_type: "buyer",
-          email: formData.email,
-          password: formData.password,
-        },
+        } as any,
       );
 
-      if (!result || !result.user) {
-        setError("Signup failed. Please try again.");
-        setIsLoading(false);
-        return;
-      }
+      // Persist form data so AuthCallbackPage can finalize DB writes after email verification.
+      sessionStorage.setItem(
+        "pendingBuyerSignup",
+        JSON.stringify({
+          userId: signupResult?.userId,
+          firstName: firstName,
+          lastName: lastName,
+          email: email,
+          phone: phone,
+          user_type: "buyer",
+        }),
+      );
 
-      const { user } = result;
-
-      // Buyer record is already created by authService.signUp()
-      const { data: buyerRow } = await supabase
-        .from("buyers")
-        .select("bazcoins")
-        .eq("id", user.id)
-        .single();
-      const bazcoins = (buyerRow as any)?.bazcoins ?? 0;
-      const buyerProfile = {
-        id: user.id,
-        email: formData.email,
-        firstName: formData.firstName,
-        lastName: formData.lastName,
-        phone: formData.phone,
-        avatar: `https://ui-avatars.com/api/?name=${fullName}&background=FF6B35&color=fff&size=150`,
-        preferences: {
-          language: "en",
-          currency: "PHP",
-          notifications: {
-            email: true,
-            sms: true,
-            push: true,
-          },
-          privacy: {
-            showProfile: true,
-            showPurchases: false,
-            showFollowing: true,
-          },
-        },
-        memberSince: new Date(),
-        totalOrders: 0,
-        totalSpent: 0,
-        bazcoins,
-      };
-
-      setProfile(buyerProfile);
-      // Initialize cart from database
-      await useBuyerStore.getState().initializeCart();
-      clearRoleSwitchContext();
       setIsLoading(false);
-
-      // Redirect to onboarding
-      navigate("/buyer-onboarding");
+      navigate("/verify-email", { state: { email: email } });
     } catch (err: any) {
       console.error("Signup exception:", err);
       if (err.message?.includes("User already registered") || err.message?.includes("already exists")) {
@@ -291,37 +223,6 @@ export default function BuyerSignupPage() {
     }
   };
 
-  const handleGoogleSignup = async () => {
-    setError("");
-    setIsLoading(true);
-    try {
-      const result = await authService.signInWithProvider("google");
-      if (result?.url) {
-        sessionStorage.setItem('oauth_intent', 'buyer');
-        sessionStorage.removeItem('oauth_redirect_done');
-        window.location.assign(result.url); // Manually trigger the redirect
-      }
-    } catch (err) {
-      setError("Failed to initialize Google Sign-In.");
-      setIsLoading(false);
-    }
-  };
-
-  const handleFacebookSignup = async () => {
-    setError("");
-    setIsLoading(true);
-    try {
-      const result = await authService.signInWithProvider("facebook");
-      if (result?.url) {
-        sessionStorage.setItem('oauth_intent', 'buyer');
-        sessionStorage.removeItem('oauth_redirect_done');
-        window.location.assign(result.url); // Manually trigger the redirect
-      }
-    } catch (err) {
-      setError("Failed to initialize Facebook Sign-In.");
-      setIsLoading(false);
-    }
-  };
 
   return (
 
@@ -411,7 +312,7 @@ export default function BuyerSignupPage() {
             </AnimatePresence>
           )}
 
-          <form onSubmit={handleSignup} className="space-y-3">
+          <form onSubmit={handleSubmit(onSignupSubmit)} className="space-y-3">
             {/* First Name */}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
               <div className="space-y-1">
@@ -423,17 +324,22 @@ export default function BuyerSignupPage() {
                 </label>
                 <div className="relative">
                   <User className="absolute left-4 top-1/2 -translate-y-1/2 text-[var(--text-muted)] w-4 h-4" />
-                  <input
-                    id="firstName"
+                  <Controller
                     name="firstName"
-                    type="text"
-                    placeholder="Juan"
-                    value={formData.firstName}
-                    onChange={handleChange}
-                    className="w-full pl-11 pr-4 py-3 bg-[var(--secondary)]/10 border border-[var(--border)] rounded-[var(--radius-md)] focus:ring-0 focus:ring-[var(--primary)]/10 focus:bg-white focus:border-[var(--brand-primary)] outline-none transition-all text-sm"
-                    disabled={isLoading}
+                    control={control}
+                    render={({ field }) => (
+                      <input
+                        {...field}
+                        id="firstName"
+                        type="text"
+                        placeholder="Juan"
+                        className={`w-full pl-11 pr-4 py-3 bg-[var(--secondary)]/10 border ${errors.firstName ? 'border-red-500' : 'border-[var(--border)]'} rounded-[var(--radius-md)] focus:ring-0 focus:ring-[var(--primary)]/10 focus:bg-white focus:border-[var(--brand-primary)] outline-none transition-all text-sm`}
+                        disabled={isLoading}
+                      />
+                    )}
                   />
                 </div>
+                {errors.firstName && <p className="text-xs text-red-600 ml-1">{errors.firstName.message}</p>}
               </div>
 
               {/* Last Name */}
@@ -446,17 +352,22 @@ export default function BuyerSignupPage() {
                 </label>
                 <div className="relative">
                   <User className="absolute left-4 top-1/2 -translate-y-1/2 text-[var(--text-muted)] w-4 h-4" />
-                  <input
-                    id="lastName"
+                  <Controller
                     name="lastName"
-                    type="text"
-                    placeholder="Dela Cruz"
-                    value={formData.lastName}
-                    onChange={handleChange}
-                    className="w-full pl-11 pr-4 py-3 bg-[var(--secondary)]/10 border border-[var(--border)] rounded-[var(--radius-md)] focus:ring-0 focus:ring-[var(--primary)]/10 focus:bg-white focus:border-[var(--brand-primary)] outline-none transition-all text-sm"
-                    disabled={isLoading}
+                    control={control}
+                    render={({ field }) => (
+                      <input
+                        {...field}
+                        id="lastName"
+                        type="text"
+                        placeholder="Dela Cruz"
+                        className={`w-full pl-11 pr-4 py-3 bg-[var(--secondary)]/10 border ${errors.lastName ? 'border-red-500' : 'border-[var(--border)]'} rounded-[var(--radius-md)] focus:ring-0 focus:ring-[var(--primary)]/10 focus:bg-white focus:border-[var(--brand-primary)] outline-none transition-all text-sm`}
+                        disabled={isLoading}
+                      />
+                    )}
                   />
                 </div>
+                {errors.lastName && <p className="text-xs text-red-600 ml-1">{errors.lastName.message}</p>}
               </div>
             </div>
 
@@ -469,32 +380,33 @@ export default function BuyerSignupPage() {
               </label>
               <div className="relative">
                 <Mail className="absolute left-4 top-1/2 -translate-y-1/2 text-[var(--text-muted)] w-4 h-4" />
-                <input
-                  id="email"
+                <Controller
                   name="email"
-                  type="email"
-                  placeholder="you@example.com"
-                  value={formData.email}
-                  onChange={handleChange}
-                  onBlur={() => {
-                    void runEmailCheck();
-                  }}
-                  readOnly={isSwitchMode}
-                  className="w-full pl-11 pr-4 py-3 bg-[var(--secondary)]/10 border border-[var(--border)] rounded-[var(--radius-md)] focus:ring-0 focus:ring-[var(--primary)]/10 focus:bg-white focus:border-[var(--brand-primary)] outline-none transition-all text-sm"
-                  disabled={isLoading}
+                  control={control}
+                  render={({ field }) => (
+                    <input
+                      {...field}
+                      id="email"
+                      type="email"
+                      placeholder="you@example.com"
+                      readOnly={isSwitchMode}
+                      className={`w-full pl-11 pr-4 py-3 bg-[var(--secondary)]/10 border ${errors.email ? 'border-red-500' : 'border-[var(--border)]'} rounded-[var(--radius-md)] focus:ring-0 focus:ring-[var(--primary)]/10 focus:bg-white focus:border-[var(--brand-primary)] outline-none transition-all text-sm`}
+                      disabled={isLoading}
+                    />
+                  )}
                 />
               </div>
-              {!isSwitchMode && emailCheckState !== "idle" && (
+              {!isSwitchMode && (errors.email || emailCheckState !== "idle") && (
                 <p
                   className={`text-xs mt-1 ${
-                    emailCheckState === "available"
-                      ? "text-green-600"
+                    errors.email || emailCheckState === "taken" || emailCheckState === "error"
+                      ? "text-red-600"
                       : emailCheckState === "checking"
                         ? "text-[var(--text-muted)]"
-                        : "text-red-600"
+                        : "text-green-600"
                   }`}
                 >
-                  {emailCheckState === "checking" ? "Checking email availability..." : emailCheckMessage}
+                  {errors.email?.message || (emailCheckState === "checking" ? "Checking email availability..." : emailCheckMessage)}
                 </p>
               )}
             </div>
@@ -508,18 +420,23 @@ export default function BuyerSignupPage() {
               </label>
               <div className="relative">
                 <Phone className="absolute left-4 top-1/2 -translate-y-1/2 text-[var(--text-muted)] w-4 h-4" />
-                <input
-                  id="phone"
+                <Controller
                   name="phone"
-                  type="tel"
-                  placeholder="+63 912 345 6789"
-                  value={formData.phone}
-                  onChange={handleChange}
-                  readOnly={isSwitchMode}
-                  className="w-full pl-11 pr-4 py-3 bg-[var(--secondary)]/10 border border-[var(--border)] rounded-[var(--radius-md)] focus:ring-0 focus:ring-[var(--primary)]/10 focus:bg-white focus:border-[var(--brand-primary)] outline-none transition-all text-sm"
-                  disabled={isLoading}
+                  control={control}
+                  render={({ field }) => (
+                    <input
+                      {...field}
+                      id="phone"
+                      type="tel"
+                      placeholder="09123456789"
+                      readOnly={isSwitchMode}
+                      className={`w-full pl-11 pr-4 py-3 bg-[var(--secondary)]/10 border ${errors.phone ? 'border-red-500' : 'border-[var(--border)]'} rounded-[var(--radius-md)] focus:ring-0 focus:ring-[var(--primary)]/10 focus:bg-white focus:border-[var(--brand-primary)] outline-none transition-all text-sm`}
+                      disabled={isLoading}
+                    />
+                  )}
                 />
               </div>
+              {errors.phone && <p className="text-xs text-red-600 ml-1">{errors.phone.message}</p>}
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
@@ -532,15 +449,19 @@ export default function BuyerSignupPage() {
                 </label>
                 <div className="relative">
                   <Lock className="absolute left-4 top-1/2 -translate-y-1/2 text-[var(--text-muted)] w-4 h-4" />
-                  <input
-                    id="password"
+                  <Controller
                     name="password"
-                    type={showPassword ? "text" : "password"}
-                    placeholder="••••••••"
-                    value={formData.password}
-                    onChange={handleChange}
-                    className="w-full pl-11 pr-11 py-3 bg-[var(--secondary)]/10 border border-[var(--border)] rounded-[var(--radius-md)] focus:ring-0 focus:ring-[var(--primary)]/10 focus:bg-white focus:border-[var(--brand-primary)] outline-none transition-all text-sm"
-                    disabled={isLoading}
+                    control={control}
+                    render={({ field }) => (
+                      <input
+                        {...field}
+                        id="password"
+                        type={showPassword ? "text" : "password"}
+                        placeholder="••••••••"
+                        className={`w-full pl-11 pr-11 py-3 bg-[var(--secondary)]/10 border ${errors.password ? 'border-red-500' : 'border-[var(--border)]'} rounded-[var(--radius-md)] focus:ring-0 focus:ring-[var(--primary)]/10 focus:bg-white focus:border-[var(--brand-primary)] outline-none transition-all text-sm`}
+                        disabled={isLoading}
+                      />
+                    )}
                   />
                   <button
                     type="button"
@@ -551,9 +472,7 @@ export default function BuyerSignupPage() {
                     {showPassword ? <Eye size={18} /> : <EyeOff size={18} />}
                   </button>
                 </div>
-                {!isSwitchMode && livePasswordError && (
-                  <p className="text-xs text-red-600 ml-1">{livePasswordError}</p>
-                )}
+                {errors.password && <p className="text-xs text-red-600 ml-1">{errors.password.message}</p>}
               </div>
 
               <div className="space-y-1">
@@ -565,15 +484,19 @@ export default function BuyerSignupPage() {
                 </label>
                 <div className="relative">
                   <Lock className="absolute left-4 top-1/2 -translate-y-1/2 text-[var(--text-muted)] w-4 h-4" />
-                  <input
-                    id="confirmPassword"
+                  <Controller
                     name="confirmPassword"
-                    type={showConfirmPassword ? "text" : "password"}
-                    placeholder="••••••••"
-                    value={formData.confirmPassword}
-                    onChange={handleChange}
-                    className="w-full pl-11 pr-11 py-3 bg-[var(--secondary)]/10 border border-[var(--border)] rounded-[var(--radius-md)] focus:ring-0 focus:ring-[var(--primary)]/10 focus:bg-white focus:border-[var(--brand-primary)] outline-none transition-all text-sm"
-                    disabled={isLoading}
+                    control={control}
+                    render={({ field }) => (
+                      <input
+                        {...field}
+                        id="confirmPassword"
+                        type={showConfirmPassword ? "text" : "password"}
+                        placeholder="••••••••"
+                        className={`w-full pl-11 pr-11 py-3 bg-[var(--secondary)]/10 border ${errors.confirmPassword ? 'border-red-500' : 'border-[var(--border)]'} rounded-[var(--radius-md)] focus:ring-0 focus:ring-[var(--primary)]/10 focus:bg-white focus:border-[var(--brand-primary)] outline-none transition-all text-sm`}
+                        disabled={isLoading}
+                      />
+                    )}
                   />
                   <button
                     type="button"
@@ -584,44 +507,54 @@ export default function BuyerSignupPage() {
                     {showConfirmPassword ? <Eye size={18} /> : <EyeOff size={18} />}
                   </button>
                 </div>
-                {hasPasswordMismatch && (
-                  <p className="text-xs text-red-600 ml-1">Passwords do not match.</p>
-                )}
+                {errors.confirmPassword && <p className="text-xs text-red-600 ml-1">{errors.confirmPassword.message}</p>}
               </div>
             </div>
 
-            <div className="flex items-start gap-2 pt-1">
-              <Checkbox
-                id="terms"
-                checked={formData.terms}
-                onCheckedChange={(checked) =>
-                  setFormData((prev) => ({ ...prev, terms: !!checked }))
-                }
-                className="rounded-md border-[var(--border)] text-[var(--brand-primary)] focus:ring-[var(--brand-primary)] cursor-pointer"
-                disabled={isLoading}
-              />
-              <label htmlFor="terms" className="flex-1 text-sm text-[var(--text-primary)] cursor-pointer select-none">
-                I agree to the{" "}
-                <Link
-                  to="/terms"
-                  className="font-bold text-[var(--brand-primary)] hover:underline"
-                >
-                  Terms of Service
-                </Link>{" "}
-                and{" "}
-                <Link
-                  to="/privacy"
-                  className="font-bold text-[var(--brand-primary)] hover:underline"
-                >
-                  Privacy Policy
-                </Link>
-              </label>
+            <div className="flex flex-col gap-1 pt-1">
+              <div className="flex items-start gap-2">
+                <Controller
+                  name="terms"
+                  control={control}
+                  render={({ field }) => (
+                    <Checkbox
+                      id="terms"
+                      checked={field.value}
+                      onCheckedChange={field.onChange}
+                      className={`rounded-md border ${errors.terms ? 'border-red-500' : 'border-[var(--border)]'} text-[var(--brand-primary)] focus:ring-[var(--brand-primary)] cursor-pointer`}
+                      disabled={isLoading}
+                    />
+                  )}
+                />
+                <label htmlFor="terms" className="flex-1 text-sm text-[var(--text-primary)] cursor-pointer select-none">
+                  I agree to the{" "}
+                  <button
+                    type="button"
+                    onClick={() => setLegalModal({ isOpen: true, type: "terms" })}
+                    className="font-bold text-[var(--brand-primary)] hover:underline"
+                  >
+                    Terms of Service
+                  </button>{" "}
+                  and{" "}
+                  <button
+                    type="button"
+                    onClick={() => setLegalModal({ isOpen: true, type: "privacy" })}
+                    className="font-bold text-[var(--brand-primary)] hover:underline"
+                  >
+                    Privacy Policy
+                  </button>
+                </label>
+
+              </div>
+              {errors.terms && <p className="text-xs text-red-600 ml-7">{errors.terms.message}</p>}
             </div>
 
             <button
               type="submit"
-              disabled={isLoading || hasPasswordMismatch || (!isSwitchMode && !!livePasswordError)}
-              className="btn-primary w-full h-14 text-md uppercase rounded-[var(--radius-md)] shadow-[var(--shadow-medium)] flex items-center justify-center gap-2 mt-2"
+              disabled={isLoading || !isValid || emailCheckState === "taken"}
+              className={`btn-primary w-full h-14 text-md uppercase rounded-[var(--radius-md)] shadow-[var(--shadow-medium)] flex items-center justify-center gap-2 mt-2 ${
+                (isLoading || !isValid || emailCheckState === "taken") ? 'opacity-50 cursor-not-allowed grayscale-[0.5]' : ''
+              }`}
             >
               {isLoading ? (
                 <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
@@ -630,48 +563,6 @@ export default function BuyerSignupPage() {
               )}
             </button>
 
-            {!isSwitchMode && (
-              <>
-                <div className="relative my-6">
-                  <div className="absolute inset-0 flex items-center">
-                    <div className="w-full border-t border-[var(--border)]"></div>
-                  </div>
-                  <div className="relative flex justify-center text-sm">
-                    <span className="px-4 bg-white text-sm text-[var(--text-muted)]">or sign up with</span>
-                  </div>
-                </div>
-
-                <div className="grid grid-cols-2 gap-3">
-                  <button
-                    type="button"
-                    onClick={handleGoogleSignup}
-                    className="w-full h-12 text-sm flex items-center border border-[var(--border)] hover:border-[var(--brand-primary)] hover:bg-[var(--secondary)]/5 rounded-[var(--radius-md)] justify-center gap-2 transition-all duration-200"
-                    disabled={isLoading}
-                  >
-                    <img loading="lazy" 
-                      src="https://www.svgrepo.com/show/475656/google-color.svg"
-                      className="w-4 h-4"
-                      alt="Google"
-                    />
-                    <span>Google</span>
-                  </button>
-
-                  <button
-                    type="button"
-                    onClick={handleFacebookSignup}
-                    className="w-full h-12 text-sm flex items-center border border-[var(--border)] hover:border-[var(--brand-primary)] hover:bg-[var(--secondary)]/5 rounded-[var(--radius-md)] justify-center gap-2 transition-all duration-200"
-                    disabled={isLoading}
-                  >
-                    <img loading="lazy" 
-                      src="https://www.svgrepo.com/show/475647/facebook-color.svg"
-                      className="w-4 h-4"
-                      alt="Facebook"
-                    />
-                    <span>Facebook</span>
-                  </button>
-                </div>
-              </>
-            )}
           </form>
 
           {!isSwitchMode && (
@@ -681,6 +572,13 @@ export default function BuyerSignupPage() {
           )}
         </motion.div>
       </div>
+
+      <LegalModal
+        isOpen={legalModal.isOpen}
+        onClose={() => setLegalModal((prev) => ({ ...prev, isOpen: false }))}
+        type={legalModal.type}
+      />
     </div>
+
   );
 }

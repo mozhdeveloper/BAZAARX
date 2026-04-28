@@ -1,6 +1,6 @@
 import React from 'react';
 import { View, Pressable, StyleSheet, Text } from 'react-native';
-import { Home, Store, ShoppingCart, MessageCircle, User } from 'lucide-react-native';
+import { Home, Store, ShoppingCart, MessageCircle, User, Gift } from 'lucide-react-native';
 import { useNavigation, useRoute } from '@react-navigation/native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { COLORS } from '../constants/theme';
@@ -17,6 +17,7 @@ const navItems: NavItem[] = [
   { name: 'Shop', icon: Store, screen: 'MainTabs', tabScreen: 'Shop' },
   { name: 'Cart', icon: ShoppingCart, screen: 'MainTabs', tabScreen: 'Cart' },
   { name: 'Messages', icon: MessageCircle, screen: 'MainTabs', tabScreen: 'Messages' },
+  { name: 'Registry', icon: Gift, screen: 'Wishlist', tabScreen: 'Wishlist' },
   { name: 'Profile', icon: User, screen: 'MainTabs', tabScreen: 'Profile' },
 ];
 

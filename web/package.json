@@ -47,6 +47,7 @@
     "seed:database": "tsx scripts/seed-complete-database.ts"
   },
   "dependencies": {
+    "@hookform/resolvers": "^5.2.2",
     "@lottiefiles/react-lottie-player": "^3.6.0",
     "@radix-ui/react-accordion": "^1.2.12",
     "@radix-ui/react-alert-dialog": "^1.1.15",
@@ -96,6 +97,7 @@
     "react-dom": "^19.2.4",
     "react-dropzone": "^14.3.8",
     "react-error-boundary": "^6.1.1",
+    "react-hook-form": "^7.74.0",
     "react-intersection-observer": "^10.0.0",
     "react-leaflet": "^5.0.0",
     "react-router-dom": "^7.10.1",
@@ -106,6 +108,7 @@
     "three": "^0.182.0",
     "uuid": "^13.0.0",
     "vaul": "^1.1.2",
+    "zod": "^4.3.6",
     "zustand": "^5.0.9"
   },
   "devDependencies": {

@@ -12,12 +12,12 @@
  * (DB, sellerStore, buyerStore demo data).
  */
 
-import type { SellerProduct } from "@/stores/sellerStore";
-import type { ProductWithSeller, ProductImage } from "@/types/database.types";
 import type {
     Product as BuyerProduct,
     Seller as BuyerSeller,
 } from "@/stores/buyerStore";
+import type { SellerProduct } from "@/stores/sellerStore";
+import type { ProductImage, ProductWithSeller } from "@/types/database.types";
 import { getSafeImageUrl, PLACEHOLDER_IMAGE } from "@/utils/imageUtils";
 
 // ─── Variant Shape ────────────────────────────────────────────────────────────
@@ -212,6 +212,11 @@ export const mapDbProductToSellerProduct = (p: any): SellerProduct => {
         discountBadgeTooltip: p.discountBadgeTooltip || undefined,
         campaignDiscount: p.campaignDiscount || undefined,
         isVacationMode: (p.seller as any)?.is_vacation_mode === true || false,
+        sellerApprovalStatus: (p.seller as any)?.approval_status || undefined,
+        sellerSuspendedAt: (p.seller as any)?.suspended_at || undefined,
+        sellerBlacklistedAt: (p.seller as any)?.blacklisted_at || undefined,
+        sellerIsPermBlacklisted: (p.seller as any)?.is_permanently_blacklisted || false,
+        sellerTempBlacklistUntil: (p.seller as any)?.temp_blacklist_until || undefined,
         // Warranty fields
         hasWarranty: p.has_warranty || false,
         warrantyType: p.warranty_type || undefined,

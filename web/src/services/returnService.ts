@@ -42,6 +42,9 @@ export type ReturnStatus =
 export type ReturnReason =
   | "damaged"
   | "wrong_item"
+  | "did_not_receive_empty"
+  | "did_not_receive_not_delivered"
+  | "did_not_receive_missing_items"
   | "not_as_described"
   | "defective"
   | "missing_parts"
@@ -49,7 +52,7 @@ export type ReturnReason =
   | "duplicate_order"
   | "other";
 
-export type ReturnType = "return_refund" | "refund_only" | "replacement";
+export type ReturnType = "return_refund" | "refund_only" | "partial_refund" | "replacement";
 
 export type ResolutionPath = "instant" | "seller_review" | "return_required";
 
@@ -59,7 +62,79 @@ export const EVIDENCE_REQUIRED_REASONS: ReturnReason[] = [
   "not_as_described",
   "defective",
   "missing_parts",
+  "did_not_receive_empty",
+  "did_not_receive_missing_items",
 ];
+
+// ---------------------------------------------------------------------------
+// Evidence requirement helpers
+// ---------------------------------------------------------------------------
+export interface EvidenceRequirements {
+  descriptionRequired: boolean;
+  photoRequired: boolean;
+  videoRequired: boolean;
+  itemSelectionRequired: boolean;
+}
+
+export function getEvidenceRequirements(reason: ReturnReason): EvidenceRequirements {
+  switch (reason) {
+    case "damaged":
+      return { descriptionRequired: true, photoRequired: true, videoRequired: false, itemSelectionRequired: false };
+    case "wrong_item":
+      return { descriptionRequired: true, photoRequired: true, videoRequired: false, itemSelectionRequired: false };
+    case "did_not_receive_empty":
+      return { descriptionRequired: true, photoRequired: true, videoRequired: true, itemSelectionRequired: false };
+    case "did_not_receive_not_delivered":
+      return { descriptionRequired: true, photoRequired: false, videoRequired: false, itemSelectionRequired: false };
+    case "did_not_receive_missing_items":
+      return { descriptionRequired: false, photoRequired: true, videoRequired: false, itemSelectionRequired: true };
+    default:
+      return { descriptionRequired: true, photoRequired: false, videoRequired: false, itemSelectionRequired: false };
+  }
+}
+
+export function getAllowedResolutions(reason: ReturnReason): ReturnType[] {
+  switch (reason) {
+    case "damaged":
+    case "wrong_item":
+      return ["return_refund", "replacement"];
+    case "did_not_receive_empty":
+    case "did_not_receive_not_delivered":
+      return ["refund_only"];
+    case "did_not_receive_missing_items":
+      return ["partial_refund", "return_refund"];
+    default:
+      return ["return_refund", "replacement"];
+  }
+}
+
+export async function getReturnWindowDeadline(orderDbId: string): Promise<Date | null> {
+  if (!isSupabaseConfigured()) return null;
+  if (!ORDER_ID_UUID_REGEX.test(orderDbId)) return null;
+  try {
+    const { data, error } = await supabase
+      .from("orders")
+      .select("created_at, shipments:order_shipments(delivered_at, created_at)")
+      .eq("id", orderDbId)
+      .single();
+    if (error || !data) return null;
+    const shipments = Array.isArray((data as any).shipments) ? (data as any).shipments : [];
+    const deliveredTs = shipments
+      .map((s: any) => s?.delivered_at)
+      .filter((v: any): v is string => Boolean(v))
+      .sort((a: string, b: string) => new Date(b).getTime() - new Date(a).getTime())[0];
+    const shipmentCreatedTs = shipments
+      .map((s: any) => s?.created_at)
+      .filter((v: any): v is string => Boolean(v))
+      .sort((a: string, b: string) => new Date(b).getTime() - new Date(a).getTime())[0];
+    const baseline = new Date(deliveredTs || shipmentCreatedTs || (data as any).created_at);
+    const deadline = new Date(baseline);
+    deadline.setDate(deadline.getDate() + RETURN_WINDOW_DAYS);
+    return deadline;
+  } catch {
+    return null;
+  }
+}
 
 // ---------------------------------------------------------------------------
 // Interfaces
@@ -108,6 +183,7 @@ export interface ReturnRequest {
   escalatedAt: string | null;
   resolvedAt: string | null;
   resolvedBy: string | null;
+  resolutionSource: string | null;
   returnLabelUrl: string | null;
   returnTrackingNumber: string | null;
   buyerShippedAt: string | null;
@@ -271,6 +347,7 @@ class ReturnService {
       escalatedAt: row.escalated_at || null,
       resolvedAt: row.resolved_at || null,
       resolvedBy: row.resolved_by || null,
+      resolutionSource: row.resolution_source || null,
       returnLabelUrl: row.return_label_url || null,
       returnTrackingNumber: row.return_tracking_number || null,
       buyerShippedAt: row.buyer_shipped_at || null,
@@ -373,7 +450,17 @@ class ReturnService {
         .select()
         .single();
 
-      if (returnError) throw returnError;
+      if (returnError) {
+        // Migration 043a added UNIQUE(order_id) on refund_return_periods.
+        // Translate the 23505 unique_violation to the same friendly error the
+        // app-side pre-check raises, so a race condition (concurrent submissions
+        // or a network retry that already succeeded server-side) returns a
+        // user-friendly message instead of a raw 500.
+        if ((returnError as any)?.code === "23505") {
+          throw new Error("A return request already exists for this order");
+        }
+        throw returnError;
+      }
 
       // Update order
       const orderUpdate: Record<string, any> = {
@@ -648,7 +735,7 @@ class ReturnService {
           status: "approved",
           ...(isReplacement ? {} : { refund_date: now }),
           resolved_at: now,
-          resolved_by: "seller",
+          resolution_source: "seller",
         })
         .eq("id", returnId);
       if (refundError) throw refundError;
@@ -723,7 +810,7 @@ class ReturnService {
           is_returnable: false,
           rejected_reason: reason || null,
           resolved_at: new Date().toISOString(),
-          resolved_by: "seller",
+          resolution_source: "seller",
         })
         .eq("id", returnId);
       if (refundError) throw refundError;
@@ -807,7 +894,7 @@ class ReturnService {
         refund_amount: ret?.counter_offer_amount,
         refund_date: now,
         resolved_at: now,
-        resolved_by: "buyer",
+        resolution_source: "buyer",
       })
       .eq("id", returnId);
 
@@ -1003,7 +1090,7 @@ class ReturnService {
         return_received_at: now,
         ...(isReplacement ? {} : { refund_date: now }),
         resolved_at: now,
-        resolved_by: "seller",
+        resolution_source: "seller",
       })
       .eq("id", returnId);
 
@@ -1052,9 +1139,9 @@ class ReturnService {
   }
 
   /**
-   * Best-effort write to admin_action_log so that every refund-impacting action
-   * leaves a trail. Silently no-ops if the table doesn't exist or the user
-   * isn't authenticated (the row won't satisfy RLS).
+   * Best-effort write to admin_audit_logs so that every refund-impacting action
+   * leaves a trail. Silently no-ops if the user isn't authenticated (the row
+   * won't satisfy RLS).
    */
   private async logAuditAction(
     action: string,
@@ -1064,15 +1151,15 @@ class ReturnService {
     try {
       const { data: userData } = await supabase.auth.getUser();
       const adminId = userData?.user?.id ?? null;
-      const { error } = await supabase.from('admin_action_log').insert({
+      const { error } = await supabase.from('admin_audit_logs').insert({
         admin_id: adminId,
         action,
-        target_type: 'refund_return_period',
+        target_table: 'return_requests',
         target_id: returnId,
-        metadata,
+        new_values: metadata,
       });
-      // 42P01 = table missing, 42501 = RLS denial: both are non-fatal here.
-      if (error && !['42P01', '42501', 'PGRST205'].includes((error as { code?: string }).code || '')) {
+      // 42501 = RLS denial: non-fatal here.
+      if (error && !['42501', 'PGRST205'].includes((error as { code?: string }).code || '')) {
         console.warn('audit log write failed:', error.message);
       }
     } catch (err) {

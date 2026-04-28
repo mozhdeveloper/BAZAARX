@@ -22,7 +22,7 @@ export interface FeaturedProductMobile {
     disabled_at: string | null;
     images: { id: string; image_url: string; is_primary: boolean }[];
     category: { id: string; name: string } | null;
-    seller: { id: string; store_name: string; avatar_url: string | null; is_vacation_mode?: boolean } | null;
+    seller: { id: string; store_name: string; avatar_url: string | null; is_vacation_mode?: boolean; approval_status?: string } | null;
     reviews: { rating: number }[];
     variants: { stock: number }[];
     sold_count?: number;
@@ -43,7 +43,7 @@ class FeaturedProductService {
             id, name, price, seller_id, approval_status, disabled_at,
             images:product_images(id, image_url, is_primary),
             category:categories(id, name),
-            seller:sellers(id, store_name, avatar_url, is_vacation_mode),
+            seller:sellers(id, store_name, avatar_url, is_vacation_mode, approval_status, blacklisted_at, suspended_at, is_permanently_blacklisted, temp_blacklist_until),
             reviews(rating),
             variants:product_variants(stock)
           )
@@ -61,7 +61,18 @@ class FeaturedProductService {
       }
 
       const now = new Date().toISOString();
-      const filtered = (data || []).filter((fp: any) => !fp.expires_at || fp.expires_at > now);
+      const filtered = (data || []).filter((fp: any) => {
+        if (fp.expires_at && fp.expires_at <= now) return false;
+        // Filter out products from non-verified, blacklisted, or suspended sellers
+        const seller = fp.product?.seller;
+        if (!seller) return false;
+        if (seller.approval_status && seller.approval_status !== 'verified') return false;
+        if (seller.suspended_at) return false;
+        if (seller.blacklisted_at) return false;
+        if (seller.is_permanently_blacklisted) return false;
+        if (seller.temp_blacklist_until && new Date(seller.temp_blacklist_until) > new Date()) return false;
+        return true;
+      });
 
       if (filtered.length === 0) return filtered as unknown as FeaturedProductMobile[];
 

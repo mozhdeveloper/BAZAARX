@@ -48,6 +48,7 @@ export interface SellerReturnRequest {
   returnReceivedAt: string | null;
   resolvedAt: string | null;
   resolvedBy: string | null;
+  resolutionSource: string | null;
 }
 
 interface SellerReturnStore {
@@ -100,6 +101,7 @@ function mapToSellerReturn(r: ReturnRequest): SellerReturnRequest {
     returnReceivedAt: r.returnReceivedAt,
     resolvedAt: r.resolvedAt,
     resolvedBy: r.resolvedBy,
+    resolutionSource: (r as any).resolutionSource ?? null,
   };
 }
 

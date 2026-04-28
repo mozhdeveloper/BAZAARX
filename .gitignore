@@ -34,3 +34,13 @@ docs/plans/
 *.sln
 *.sw?
 
+# Lint and build reports
+web/eslint_output.txt
+web/eslint_report.json
+web/lint_results.json
+web/lint_results.txt
+web/build_error*.txt
+web/error.txt
+web/vite.config.ts.timestamp-*
+
+

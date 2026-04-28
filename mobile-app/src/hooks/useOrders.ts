@@ -127,7 +127,7 @@ interface MappedOrderItem {
   selectedVariant: Record<string, unknown> | null;
 }
 
-type BuyerUiStatus = 'pending' | 'confirmed' | 'shipped' | 'delivered' | 'received' | 'returned' | 'cancelled' | 'reviewed';
+type BuyerUiStatus = 'pending' | 'processing' | 'shipped' | 'delivered' | 'received' | 'returned' | 'cancelled' | 'reviewed';
 
 function mapBuyerUiStatus(
   paymentStatus?: string | null,
@@ -141,7 +141,7 @@ function mapBuyerUiStatus(
   if (shipmentStatus === 'received') return 'received';
   if (shipmentStatus === 'delivered') return 'delivered';
   if (shipmentStatus === 'shipped' || shipmentStatus === 'out_for_delivery') return 'shipped';
-  if (shipmentStatus === 'processing' || shipmentStatus === 'ready_to_ship') return 'confirmed';
+  if (shipmentStatus === 'processing' || shipmentStatus === 'ready_to_ship') return 'processing';
   if (shipmentStatus === 'failed_to_deliver') return 'cancelled';
   if (shipmentStatus === 'returned') return hasCancellationRecord ? 'cancelled' : 'returned';
   if (paymentStatus === 'refunded' || paymentStatus === 'partially_refunded') return hasCancellationRecord ? 'cancelled' : 'returned';
@@ -183,7 +183,7 @@ function mapOrderRow(order: SupabaseOrderRow, user: OrderUser | null): Order & {
   );
 
   const statusMap: Record<string, Order['status']> = {
-    pending: 'pending', confirmed: 'processing', shipped: 'shipped',
+    pending: 'pending', processing: 'processing', shipped: 'shipped',
     delivered: 'delivered', received: 'delivered', reviewed: 'delivered',
     returned: 'delivered', cancelled: 'cancelled',
   };

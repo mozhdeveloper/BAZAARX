@@ -40,6 +40,18 @@ export interface EmailRoleStatus {
   roles: UserRole[];
 }
 
+export interface PendingSignup {
+  email: string;
+  user_type: UserRole;
+  firstName: string;
+  lastName: string;
+  phone?: string;
+  // Seller specific
+  storeName?: string;
+  storeDescription?: string;
+  storeAddress?: string;
+}
+
 const defaultBuyerPreferences = {
   language: 'en',
   currency: 'PHP',
@@ -218,6 +230,61 @@ export class AuthService {
         throw authError;
       }
 
+      throw new Error('Failed to create account. Please try again.');
+    }
+  }
+
+  /**
+   * Phase 1 signup — creates auth.users entry and sends verification email.
+   * Does NOT create profiles, user_roles, or buyers records.
+   * DB writes are deferred to AuthCallbackPage after email verification.
+   * @param email - User email address
+   * @param password - User password
+   * @param metadata - Auth metadata (first_name, last_name, phone, user_type)
+   */
+  async initiateSignUp(
+    email: string,
+    password: string,
+    metadata: {
+      first_name?: string;
+      last_name?: string;
+      phone?: string;
+      user_type: string;
+    }
+  ): Promise<{ userId: string; session: any | null } | null> {
+    if (!isSupabaseConfigured()) {
+      console.warn('Supabase not configured - cannot initiate signup');
+      return { userId: crypto.randomUUID(), session: null };
+    }
+
+    const passwordValidation = validatePassword(password);
+    if (!passwordValidation.valid) {
+      throw new Error(passwordValidation.errors[0] || 'Password does not meet minimum security requirements.');
+    }
+
+    try {
+      const { data, error } = await supabase.auth.signUp({
+        email,
+        password,
+        options: { 
+          data: metadata,
+          emailRedirectTo: `${window.location.origin}/auth/callback`
+        },
+      });
+
+      if (error) {
+        if (error?.message?.includes('User already registered') || (error as any)?.status === 422) {
+          const already = new Error('User already registered');
+          (already as any).isAlreadyRegistered = true;
+          throw already;
+        }
+        throw error;
+      }
+
+      return data.user ? { userId: data.user.id, session: data.session } : null;
+    } catch (error: any) {
+      console.error('Error initiating signup:', error);
+      if ((error as any).isAlreadyRegistered) throw error;
       throw new Error('Failed to create account. Please try again.');
     }
   }
@@ -420,6 +487,29 @@ export class AuthService {
   }
 
   /**
+   * Check if user onboarding is complete (preferences exist)
+   */
+  async isOnboardingComplete(userId: string): Promise<boolean> {
+    if (!isSupabaseConfigured()) return false;
+
+    try {
+      const { data, error } = await supabase
+        .from('buyers')
+        .select('preferences')
+        .eq('id', userId)
+        .maybeSingle();
+
+      if (error || !data) return false;
+      
+      const preferences = (data as any).preferences;
+      return !!(preferences && preferences.interestedCategories && preferences.interestedCategories.length > 0);
+    } catch (error) {
+      console.error('Error checking onboarding status:', error);
+      return false;
+    }
+  }
+
+  /**
    * Sign in with email and password
    * @param email - User email
    * @param password - User password
@@ -509,7 +599,7 @@ export class AuthService {
       return { user: data.user, session: data.session };
     } catch (error) {
       console.error('Error signing in:', error);
-      throw new Error('Failed to sign in. Please check your credentials.');
+      throw error;
     }
   }
 
@@ -591,10 +681,10 @@ export class AuthService {
       const { data, error } = await supabase.auth.signInWithOAuth({
         provider,
         options: {
-          redirectTo: `${window.location.origin}/`,
+          redirectTo: `${window.location.origin}/auth/callback`,
           queryParams: {
             access_type: 'offline',
-            prompt: 'consent',
+            prompt: 'select_account',
           },
         },
       });
@@ -689,15 +779,16 @@ export class AuthService {
         .from('sellers')
         .select('*, profile:profiles(*)')
         .eq('id', userId)
-        .single();
+        .maybeSingle();
 
       if (error) throw error;
       return data;
     } catch (error) {
       console.error('Error fetching seller profile:', error);
-      throw new Error('Failed to load seller profile.');
+      return null; // Return null instead of throwing to allow caller to handle missing record
     }
   }
+
 
   /**
    * Get profile contact info by user ID
@@ -884,6 +975,7 @@ export class AuthService {
     store_name: string;
     store_description?: string;
     phone?: string;
+    business_address?: string;
   }): Promise<{ userId: string }> {
     if (!isSupabaseConfigured()) {
       throw new Error('Supabase not configured');
@@ -912,7 +1004,6 @@ export class AuthService {
           id: user.id,
           store_name: payload.store_name,
           store_description: payload.store_description || null,
-          store_contact_number: payload.phone?.trim() || null,
           approval_status: 'pending',
         } as any,
         { onConflict: 'id' },
@@ -1078,6 +1169,69 @@ export class AuthService {
     }
     // Seller records are created separately during registration flow
     // When upgrading to seller, the seller record is created elsewhere
+  }
+
+  /**
+   * Resend verification link using Supabase native auth
+   * @param email - User email
+   */
+  async resendVerificationLink(email: string): Promise<boolean> {
+    if (!isSupabaseConfigured()) {
+      console.warn('Supabase not configured - cannot resend link');
+      return false;
+    }
+
+    try {
+      const { error } = await supabase.auth.resend({
+        type: 'signup',
+        email: email,
+        options: {
+          emailRedirectTo: `${window.location.origin}/auth/callback`,
+        }
+      });
+
+      if (error) throw error;
+      return true;
+    } catch (error: any) {
+      console.error('Error resending verification link:', error);
+      if (error.message?.includes('rate limit exceeded')) {
+        throw new Error('Resend limit reached. Please wait a while before requesting another link.');
+      }
+      throw new Error(error.message || 'Failed to resend verification link. Please try again.');
+    }
+  }
+
+  /**
+   * Check if a user's email is already verified
+   * Used for the "Check Verification Status" button/polling
+   * @param email - User email to check
+   */
+  async checkVerificationStatus(email: string): Promise<boolean> {
+    if (!isSupabaseConfigured()) return false;
+
+    try {
+      const { data } = await supabase.auth.getSession();
+      const sessionUser = data?.session?.user;
+      
+      if (sessionUser?.email_confirmed_at && 
+          sessionUser.email?.toLowerCase() === email.toLowerCase()) {
+        return true;
+      }
+
+      // If no session, the user might have just verified. Let's try to get user.
+      const { data: userData } = await supabase.auth.getUser();
+      const user = userData?.user;
+      
+      if (user?.email_confirmed_at && 
+          user.email?.toLowerCase() === email.toLowerCase()) {
+        return true;
+      }
+
+      return false;
+    } catch (error) {
+      console.error('Error checking verification status:', error);
+      return false;
+    }
   }
 }
 

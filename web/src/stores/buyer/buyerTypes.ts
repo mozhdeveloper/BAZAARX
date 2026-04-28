@@ -23,17 +23,20 @@ export interface RegistryDeliveryPreference {
 }
 
 export interface RegistryProduct extends Product {
+  sourceProductId?: string;
   requestedQty: number;
   receivedQty: number;
   note?: string;
   isMostWanted?: boolean;
   selectedVariant?: ProductVariant; // snapshot of the chosen variant
   delivery?: RegistryDeliveryPreference; // item-level override if ever needed
+  status?: 'available' | 'out_of_stock' | 'seller_on_vacation' | 'restricted' | 'deleted';
 }
 
 export interface RegistryItem {
   id: string;
   title: string;
+  recipientName?: string;
   sharedDate: string;
   imageUrl: string;
   category?: string;
@@ -116,6 +119,10 @@ export interface CartItem extends Product {
   selected?: boolean;
   registryId?: string;
   createdAt?: string;
+  // Added for BX-06 OrdersPage UI mapping compatibility:
+  warranty?: any;
+  orderItemId?: string;
+  durationMonths?: number;
 }
 
 export interface GroupedCart {

@@ -1,7 +1,7 @@
 import { useNavigation } from '@react-navigation/native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Image } from 'expo-image';
-import { ChevronDown, ChevronLeft, ChevronRight, ChevronUp, Edit2, FolderHeart, Heart, Share, Star, Trash2, X } from 'lucide-react-native';
+import { ChevronDown, ChevronLeft, ChevronRight, ChevronUp, Edit2, FolderHeart, Gift, Heart, Share, Star, Trash2, X } from 'lucide-react-native';
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Alert, Animated, Dimensions, Keyboard, KeyboardAvoidingView, Modal, Platform, Pressable, ScrollView, Share as ShareApi, StatusBar, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -14,13 +14,21 @@ const { width } = Dimensions.get('window');
 
 const OCCASIONS = [
     { id: 'wedding', label: 'Wedding', icon: 'Gift' },
-    { id: 'baby_shower', label: 'Baby Shower', icon: 'Baby' },
+    { id: 'baby', label: 'Baby Shower', icon: 'Baby' },
     { id: 'birthday', label: 'Birthday', icon: 'Cake' },
     { id: 'graduation', label: 'Graduation', icon: 'GraduationCap' },
     { id: 'housewarming', label: 'Housewarming', icon: 'Home' },
     { id: 'christmas', label: 'Christmas', icon: 'Tree' },
     { id: 'other', label: 'Other', icon: 'MoreHorizontal' },
 ];
+
+export const getOccasionLabel = (id: string | undefined | null) => {
+    if (!id) return '';
+    if (id === 'baby') return 'BABY SHOWER';
+    const occ = OCCASIONS.find(o => o.id === id);
+    if (occ) return occ.label.toUpperCase();
+    return id.replace('_', ' ').toUpperCase();
+};
 
 const BRAND_COLOR = COLORS.primary;
 
@@ -117,6 +125,19 @@ const WishlistListItem = ({
                             <Text style={styles.listItemDiscountText}>{discountPercent}%</Text>
                         </View>
                     )}
+                    {item.status && item.status !== 'available' && (
+                        <View style={[
+                            styles.statusBadge,
+                            { backgroundColor: item.status === 'out_of_stock' ? '#FEE2E2' : item.status === 'seller_on_vacation' ? '#FEF3C7' : '#F3F4F6' }
+                        ]}>
+                            <Text style={[
+                                styles.statusText,
+                                { color: item.status === 'out_of_stock' ? '#DC2626' : item.status === 'seller_on_vacation' ? '#D97706' : '#4B5563' }
+                            ]}>
+                                {item.status.replace(/_/g, ' ').toUpperCase()}
+                            </Text>
+                        </View>
+                    )}
                 </View>
 
                 {/* Middle: Product Details */}
@@ -169,6 +190,18 @@ const WishlistListItem = ({
                     >
                         <ChevronDown size={18} color={desiredQty > 1 ? COLORS.primary : '#D1D5DB'} strokeWidth={2.5} />
                     </Pressable>
+                    <Pressable
+                        style={[styles.listItemDeleteBtn, item.purchasedQty > 0 && { opacity: 0.3 }]}
+                        onPress={() => {
+                            if (item.purchasedQty > 0) {
+                                Alert.alert('Cannot Remove', 'This item has already been partially or fully purchased as a gift.');
+                                return;
+                            }
+                            setShowDeleteModal(true);
+                        }}
+                    >
+                        <Trash2 size={15} color="#DC2626" strokeWidth={2.2} />
+                    </Pressable>
                 </View>
             </Pressable>
 
@@ -215,7 +248,7 @@ const ProductThumbnails = ({ items, totalCount }: { items: WishlistItem[]; total
                     />
                 ) : (
                     <View style={{ width: '100%', height: '100%', justifyContent: 'center', alignItems: 'center', backgroundColor: '#F3F4F6' }}>
-                        <Heart size={12} color="#9CA3AF" />
+                        <Gift size={12} color="#9CA3AF" />
                     </View>
                 )}
             </View>
@@ -351,6 +384,7 @@ const CreateListModal = ({ visible, onClose, onCreate }: any) => {
                         onChangeText={setName}
                         placeholder="e.g., Sarah's Wedding, Baby Doe 2026"
                         placeholderTextColor="#9CA3AF"
+                        maxLength={50}
                         autoFocus
                     />
 
@@ -582,6 +616,7 @@ const EditCategoryModal = ({ visible, onClose, category, onSave, onDelete }: any
                         value={name}
                         onChangeText={setName}
                         placeholder="List Name"
+                        maxLength={50}
                         autoFocus
                     />
 
@@ -829,14 +864,14 @@ export default function WishlistScreen() {
                                                     onPress={() => setSelectedCategoryId(cat.id)}
                                                 >
                                                     {/* Icon */}
-                                                    <FolderHeart size={28} color={BRAND_COLOR} strokeWidth={2} />
+                                                    <Gift size={28} color={BRAND_COLOR} strokeWidth={2} />
 
                                                     {/* Info */}
                                                     <View style={{ flex: 1 }}>
                                                         <Text style={styles.groupedCardTitle}>{cat.name}</Text>
                                                         <View style={styles.groupedCardRatingRow}>
                                                             {cat.occasion && (
-                                                                <Text style={styles.groupedCardDetail}>{cat.occasion.replace('_', ' ')}</Text>
+                                                                <Text style={styles.groupedCardDetail}>{getOccasionLabel(cat.occasion)}</Text>
                                                             )}
                                                             <ProductThumbnails items={categoryItems} totalCount={itemCount} />
                                                         </View>
@@ -859,7 +894,7 @@ export default function WishlistScreen() {
                             {displayedItems.length === 0 ? (
                                 <View style={styles.emptyContainer}>
                                     <View style={[styles.emptyIconCircle, { backgroundColor: '#F3F4F6' }]}>
-                                        <Heart size={48} color="#D1D5DB" fill="#D1D5DB" />
+                                        <Gift size={48} color="#D1D5DB" fill="#D1D5DB" />
                                     </View>
                                     <Text style={styles.emptyTitle}>Ready to add items?</Text>
                                     <Text style={styles.emptyText}>Start building your collection here!</Text>
@@ -1206,6 +1241,29 @@ const styles = StyleSheet.create({
         color: '#FFFFFF',
         fontSize: 10,
         fontWeight: '900',
+    },
+    statusBadge: {
+        position: 'absolute',
+        bottom: 6,
+        left: 6,
+        paddingHorizontal: 5,
+        paddingVertical: 2,
+        borderRadius: 4,
+    },
+    statusText: {
+        fontSize: 9,
+        fontWeight: '800',
+    },
+    listItemDeleteBtn: {
+        width: 28,
+        height: 28,
+        borderRadius: 14,
+        backgroundColor: '#FEF2F2',
+        justifyContent: 'center',
+        alignItems: 'center',
+        borderWidth: 1,
+        borderColor: '#FECACA',
+        marginTop: 4,
     },
     listItemDetails: {
         flex: 1,

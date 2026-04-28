@@ -23,8 +23,14 @@ export const usePaymentMethodManager = (userId: string) => {
         setError(null);
 
         try {
+            const existingMethods = profile?.paymentMethods || [];
+            const existingCardCount = existingMethods.filter((method) => method.type === 'card').length;
+            const shouldBeDefault = methodData.isDefault || existingCardCount === 0;
+
             const newMethod: PaymentMethod = {
                 ...methodData,
+                type: 'card',
+                isDefault: shouldBeDefault,
                 id: `${methodData.type}_${Date.now()}`
             };
 
@@ -32,12 +38,12 @@ export const usePaymentMethodManager = (userId: string) => {
             addCard(newMethod);
 
             // If this is set as default, update the default
-            if (methodData.isDefault) {
+            if (newMethod.isDefault) {
                 setDefaultInStore(newMethod.id);
             }
 
             toast({
-                title: methodData.type === 'card' ? "Card Added" : "Wallet Linked",
+                title: "Card Added",
                 description: `Your ${methodData.brand} has been saved successfully.`,
             });
 

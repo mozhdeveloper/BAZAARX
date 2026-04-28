@@ -342,7 +342,7 @@ export default function ProfileScreen({ navigation }: Props) {
 
   const accountMenuItems = [
     { icon: Clock, label: 'History', onPress: () => navigation.navigate('History') },
-    { icon: Heart, label: 'Wishlist', onPress: () => navigation.navigate('Wishlist') },
+    { icon: Gift, label: 'Registry & Gifting', onPress: () => navigation.navigate('Wishlist') },
     { icon: RotateCcw, label: 'My Returns', onPress: () => navigation.navigate('ReturnOrders') },
     { icon: MapPin, label: 'My Addresses', onPress: () => navigation.navigate('Addresses') },
     { icon: Store, label: 'Following Shops', onPress: () => navigation.navigate('FollowingShops') },
@@ -556,7 +556,7 @@ export default function ProfileScreen({ navigation }: Props) {
             <View style={styles.purchasesGrid}>
               {[
                 { label: 'Pending', tab: 'pending', icon: Wallet },
-                { label: 'Processing', tab: 'confirmed', icon: Package },
+                { label: 'Processing', tab: 'processing', icon: Package },
                 { label: 'Shipped', tab: 'shipped', icon: Truck },
                 { label: 'Delivered', tab: 'delivered', icon: Star, badge: 1 },
               ].map((item, idx) => (

@@ -701,6 +701,17 @@ export default function HomeScreen({ navigation }: Props) {
 
   const verifiedStores = useMemo(() => {
     return (sellers || [])
+      .filter((seller) => {
+        // Only show stores from verified sellers (not blacklisted, suspended, etc.)
+        if (seller.approval_status !== 'verified') return false;
+        // suspended_at is null when not suspended
+        if (seller.suspended_at) return false;
+        // blacklisted_at is null when not blacklisted
+        if (seller.blacklisted_at) return false;
+        if (seller.is_permanently_blacklisted) return false;
+        if (seller.temp_blacklist_until && new Date(seller.temp_blacklist_until) > new Date()) return false;
+        return true;
+      })
       .map((seller) => {
         const storeProducts = (productsBySeller.get(seller.id) || []).slice(0, 2);
 
@@ -811,7 +822,7 @@ export default function HomeScreen({ navigation }: Props) {
         {/* 2. PERSISTENT SEARCH BAR */}
         <View style={styles.searchBarWrapper}>
           <View style={[styles.searchBarInner, { backgroundColor: '#FFFFFF', borderRadius: 24, shadowColor: COLORS.primary, shadowOpacity: 0.1, shadowRadius: 15, elevation: 4 }]}>
-            <Search size={18} color={COLORS.primary} />
+            
             <TextInput
               style={[styles.searchInput, { color: COLORS.textHeadline }]}
               placeholder="Search products..."
@@ -839,9 +850,8 @@ export default function HomeScreen({ navigation }: Props) {
                   navigation.navigate('ProductListing', { searchQuery: trimmedQuery });
                 }
               }}
-              style={styles.searchActionButton}
             >
-              <Text style={styles.searchActionText}>Search</Text>
+              <Search size={18} color={COLORS.primary} />
             </Pressable>
           </View>
           {isSearchFocused && (
@@ -1058,7 +1068,7 @@ export default function HomeScreen({ navigation }: Props) {
               </Pressable>
             </View>
             <View style={styles.categoryGrid}>
-              {dbCategories.slice(0, 10).filter(item => item && item.name).map((item) => (
+              {dbCategories.filter(item => item && item.name && !item.parent_id).slice(0, 10).map((item) => (
                 <Pressable
                   key={item.id}
                   style={[styles.categoryGridItem, { width: CATEGORY_ITEM_WIDTH }]}
@@ -1292,13 +1302,12 @@ export default function HomeScreen({ navigation }: Props) {
               </Pressable>
             </View>
             <View style={styles.categoryGrid}>
-              {dbCategories.map((item) => (
+              {dbCategories.filter(item => !item.parent_id).map((item) => (
                 <Pressable
                   key={item.id}
                   style={[styles.categoryGridItem, { width: CATEGORY_ITEM_WIDTH }]}
                   onPress={() => handleCategoryPress(item)}
                 >
-                  {/* Change iconName to iconValue here */}
                   <CategoryItem label={item.name} iconValue={item.icon} itemWidth={CATEGORY_ITEM_WIDTH} />
                 </Pressable>
               ))}
@@ -1333,12 +1342,12 @@ export default function HomeScreen({ navigation }: Props) {
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#FFFBF0' },
-  headerContainer: { paddingHorizontal: 20, paddingTop: 20, paddingBottom: 10, borderBottomLeftRadius: 30, borderBottomRightRadius: 20, backgroundColor: '#FFFBF0' },
+  headerContainer: { paddingHorizontal: 20, paddingTop: 20, paddingBottom: 10, borderBottomLeftRadius: 30, borderBottomRightRadius: 20, backgroundColor: '#FFFBF0', },
   locationRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 },
   locationLabel: { color: COLORS.textMuted, fontSize: 14, paddingBottom: 5 },
   locationSelector: { flexDirection: 'row', alignItems: 'center', gap: 5 },
   locationText: { color: COLORS.textHeadline, fontWeight: 'bold', fontSize: 16 },
-  headerIconButton: { padding: 4 },
+  headerIconButton: { padding: 4, marginTop: 15},
   notifBadge: {
     position: 'absolute',
     top: -2,

@@ -51,8 +51,8 @@ export const mapDbSellerToSeller = (s: any): Seller => {
         postalCode: bp.postal_code || "",
         storeAddress: bp.business_address || "",
         bankName: pa.bank_name || "",
-        accountName: pa.account_name || "",
-        accountNumber: pa.account_number || "",
+        accountName: pa.bank_account_name || pa.account_name || "",
+        accountNumber: pa.bank_account_number || pa.account_number || "",
         isVerified: Boolean(s.is_verified) || isApprovedStatus,
         approvalStatus: normalizedApprovalStatus,
         rating: 0, // Computed from reviews

@@ -42,9 +42,11 @@ const AdminPayouts: React.FC = () => {
     loadPayouts();
   }, [loadPayouts]);
 
-  // Live updates: payouts derive from order_items + seller_payout_accounts
+  // Live updates: payouts derive from order_items + seller_payout_settings.
+  // NOTE: realtime must subscribe to a base table — `seller_payout_accounts`
+  // is now a view (see migration 040) and emits no logical-replication events.
   useAdminRealtime('order_items', loadPayouts, { channelName: 'admin-payouts-items' });
-  useAdminRealtime('seller_payout_accounts', loadPayouts, { channelName: 'admin-payouts-accounts' });
+  useAdminRealtime('seller_payout_settings', loadPayouts, { channelName: 'admin-payouts-accounts' });
 
   if (!isAuthenticated) {
     return <Navigate to="/admin/login" replace />;
@@ -192,12 +194,12 @@ const AdminPayouts: React.FC = () => {
                   <tr>
                     <th className="px-6 py-3 w-10">
                     </th>
-                    <th className="px-6 py-3 text-sm font-medium text-[var-(--text-secondary)]">Reference / Date</th>
-                    <th className="px-6 py-3 text-sm font-medium text-[var-(--text-secondary)]">Seller</th>
-                    <th className="px-6 py-3 text-sm font-medium text-[var-(--text-secondary)]">Amount</th>
-                    <th className="px-6 py-3 text-sm font-medium text-[var-(--text-secondary)]">Bank Details</th>
-                    <th className="px-6 py-3 text-sm font-medium text-[var-(--text-secondary)]">Status</th>
-                    <th className="px-6 py-3 text-sm font-medium text-[var-(--text-secondary)] text-right">Actions</th>
+                    <th className="px-6 py-3 text-sm font-medium text-[var(--text-secondary)]">Reference / Date</th>
+                    <th className="px-6 py-3 text-sm font-medium text-[var(--text-secondary)]">Seller</th>
+                    <th className="px-6 py-3 text-sm font-medium text-[var(--text-secondary)]">Amount</th>
+                    <th className="px-6 py-3 text-sm font-medium text-[var(--text-secondary)]">Bank Details</th>
+                    <th className="px-6 py-3 text-sm font-medium text-[var(--text-secondary)]">Status</th>
+                    <th className="px-6 py-3 text-sm font-medium text-[var(--text-secondary)] text-right">Actions</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-200">

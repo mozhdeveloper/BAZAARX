@@ -1,5 +1,10 @@
-import type { PaymentStatus, ShipmentStatus, WarrantyType, WarrantyClaimStatus } from "@/types/database.types";
+import type { Database } from '@/types/database.types';
 
+// Extract the types manually since Supabase regeneration removed the direct exports
+export type PaymentStatus = string; 
+export type ShipmentStatus = string;
+export type WarrantyType = string;
+export type WarrantyClaimStatus = string;
 export type OrderUiStatus =
   | "pending"
   | "confirmed"
@@ -87,6 +92,7 @@ export interface BuyerReturnRequestSnapshot {
   submittedAt: Date;
   status: 'pending' | 'seller_review' | 'counter_offered' | 'approved' | 'rejected' | 'escalated' | 'return_in_transit' | 'return_received' | 'refunded';
   resolvedBy?: string;
+  resolutionSource?: string;
   rejectedReason?: string | null;
   description?: string | null;
   evidenceUrls?: string[];

@@ -609,6 +609,89 @@ export class CartService {
     return { subtotal, itemCount, items };
   }
 
+  /**
+   * BX-04-010: Real-time Cart Validation Before Checkout
+   * Revalidates stock, seller status, and product availability server-side.
+   */
+  async validateCheckoutItems(cartItemIds: string[]): Promise<{ isValid: boolean, errors: Record<string, string> }> {
+    if (!isSupabaseConfigured()) throw new Error('Supabase not configured');
+    if (!cartItemIds || cartItemIds.length === 0) return { isValid: true, errors: {} };
+
+    const errors: Record<string, string> = {};
+    let isValid = true;
+
+    try {
+      // 1. Fetch items directly, decoupled from strict FK seller joins to prevent 400 crashes
+      const { data: latestItems, error } = await supabase
+        .from('cart_items')
+        .select(`
+          id, quantity,
+          product:products ( id, approval_status, disabled_at, deleted_at, seller_id ),
+          variant:product_variants ( id, stock )
+        `)
+        .in('id', cartItemIds);
+
+      if (error) throw error;
+
+      // 2. Fetch sellers decoupled to bypass FK trap
+      const sellerIds = [...new Set((latestItems || []).map(item => (item.product as any)?.seller_id).filter(Boolean))];
+      let sellersData: any[] = [];
+      
+      if (sellerIds.length > 0) {
+        const { data: sData } = await supabase
+          .from('sellers')
+          .select('id, is_vacation_mode, approval_status')
+          .in('id', sellerIds);
+        sellersData = sData || [];
+      }
+
+      // 3. Loop through and validate each item against real-time DB values
+      for (const item of (latestItems || [])) {
+        const product = item.product as any;
+        const seller = sellersData.find(s => s.id === product?.seller_id);
+        const variant = item.variant as any;
+
+        // Check 1: Product exists and matches new schema integrity guards
+        const isProductActive = product && !product.disabled_at && !product.deleted_at && product.approval_status !== 'rejected';
+        if (!isProductActive) {
+          errors[item.id] = 'This product is no longer available.';
+          isValid = false;
+          continue;
+        }
+
+        // Check 2: Seller Eligibility
+        const isSellerActive = seller && !seller.is_vacation_mode && seller.approval_status !== 'rejected' && seller.approval_status !== 'suspended';
+        if (!isSellerActive) {
+          errors[item.id] = seller?.is_vacation_mode ? 'Seller is currently on vacation.' : 'Store is temporarily restricted.';
+          isValid = false;
+          continue;
+        }
+
+        // Check 3: Stock validation
+        let availableStock = 0;
+        if (variant) {
+          availableStock = variant.stock || 0;
+        } else {
+          // Fallback to product total stock if no variant
+          availableStock = await this.getAvailableStock(product.id);
+        }
+
+        if (availableStock === 0) {
+          errors[item.id] = 'This item just went out of stock.';
+          isValid = false;
+        } else if (item.quantity > availableStock) {
+          errors[item.id] = `Only ${availableStock} left in stock. Please reduce quantity.`;
+          isValid = false;
+        }
+      }
+
+      return { isValid, errors };
+    } catch (e) {
+      console.error('[CartService] Checkout validation failed:', e);
+      throw new Error('Failed to validate cart. Please try again.');
+    }
+  }
+
   // Convenience wrapper methods for cart store compatibility
   async addItem(cartId: string, productId: string, unitPrice: number, quantity: number, variantId?: string | null, personalizedOptions?: Record<string, unknown> | null, forceNewItem: boolean = false): Promise<CartItem> {
     return this.addToCart(cartId, productId, quantity, variantId || undefined, personalizedOptions || undefined, undefined, forceNewItem);

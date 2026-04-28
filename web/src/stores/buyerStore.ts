@@ -1,6 +1,7 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 import { cartService } from '@/services/cartService';
+import { discountService } from '@/services/discountService';
 import { getCurrentUser, supabase } from '@/lib/supabase';
 import { productService } from '@/services/productService';
 import { AddressService } from '@/services/addressService';
@@ -67,7 +68,12 @@ interface BuyerStore {
   updateCartQuantity: (productId: string, quantity: number, variantId?: string) => void;
   updateItemVariant: (productId: string, oldVariantId: string | undefined, newVariant: ProductVariant, quantity?: number) => Promise<void>;
   updateCartNotes: (productId: string, notes: string) => void;
-  clearCart: () => void;
+  
+  clearCart: () => Promise<void>;
+  isValidatingCheckout: boolean;
+  checkoutErrors: Record<string, string>;
+  validateCheckout: (selectedIds: string[]) => Promise<boolean>;
+  
   getCartTotal: () => number;
   getCartItemCount: () => number;
   getTotalCartItems: () => number;
@@ -810,6 +816,7 @@ export const useBuyerStore = create<BuyerStore>()(persist(
         item.id === productId && item.selectedVariant?.id === newVariant.id && item.selectedVariant?.id !== oldVariantId
       );
 
+      // Optimistic local update so the UI reflects the merge immediately
       let nextCartItems = [...cartItems];
 
       if (existingNewVariantIndex !== -1) {
@@ -827,26 +834,40 @@ export const useBuyerStore = create<BuyerStore>()(persist(
           selectedVariant: newVariant,
           price: newVariant.price,
           quantity: finalQuantity,
-          image: newVariant.image || newVariant.thumbnail_url || currentItem.image
+          image: newVariant.image || (newVariant as any).thumbnail_url || currentItem.image
         };
-      }
-
-      // 3. Sync with DB (Handle deletion/update logic)
-      if (user) {
-        try {
-          const cart = await cartService.getOrCreateCart(user.id);
-          if (cart) {
-            // If merging, you would delete the old record and update the quantity of the new one
-            // If simply updating, call the existing update service
-            await get().initializeCart(); // Simplest way to re-sync complex merges from DB truth
-          }
-        } catch (error) {
-          console.error('Error syncing variant merge:', error);
-        }
       }
 
       set({ cartItems: nextCartItems });
       get().groupCartBySeller();
+
+      // 3. Persist to DB. The previous implementation only re-read DB without writing,
+      // which meant a refresh would re-show the un-merged cart.
+      if (user && currentItem.cartItemId) {
+        try {
+          // updateCartItemVariant atomically handles the merge case in DB
+          // (sums qty into the existing target row and deletes the old row).
+          await cartService.updateCartItemVariant(currentItem.cartItemId, newVariant.id);
+
+          // If the user also changed the quantity (not just merged), update the surviving row.
+          if (quantity !== undefined && quantity !== currentItem.quantity) {
+            const cart = await cartService.getCart(user.id);
+            if (cart) {
+              const items = await cartService.getCartItems(cart.id);
+              const survivor = (items as any[]).find(it =>
+                it.product_id === productId && it.variant_id === newVariant.id
+              );
+              if (survivor) {
+                await cartService.updateCartItemQuantity(survivor.id, finalQuantity);
+              }
+            }
+          }
+        } catch (error) {
+          console.error('Error syncing variant change to DB:', error);
+        }
+        // Always re-sync from DB truth so cartItemIds, merged quantities, etc. are accurate.
+        await get().initializeCart();
+      }
     },
 
     updateCartNotes: (productId, notes) => {
@@ -857,7 +878,69 @@ export const useBuyerStore = create<BuyerStore>()(persist(
       }));
     },
 
-    clearCart: () => set({ cartItems: [], groupedCart: {}, appliedVouchers: {}, platformVoucher: null }),
+    isValidatingCheckout: false,
+    checkoutErrors: {},
+    validateCheckout: async (selectedIds) => {
+      set({ isValidatingCheckout: true, checkoutErrors: {} });
+      try {
+        const result = await cartService.validateCheckoutItems(selectedIds);
+        const errors: Record<string, string> = { ...result.errors };
+
+        // Flash sale expiry check: re-fetch active discounts for selected products
+        const { cartItems, campaignDiscountCache } = get();
+        const selectedItems = cartItems.filter(
+          i => selectedIds.includes(i.cartItemId || '') || selectedIds.includes(i.id)
+        );
+        const productIds = [...new Set(selectedItems.map(i => i.id).filter(Boolean))];
+
+        if (productIds.length > 0) {
+          const freshDiscounts = await discountService.getActiveDiscountsForProducts(productIds);
+
+          // Remove expired discounts from cache so cart UI reflects updated prices
+          set((state) => {
+            const newCache = { ...state.campaignDiscountCache };
+            for (const pid of productIds) {
+              if (!freshDiscounts[pid]) delete newCache[pid];
+            }
+            return { campaignDiscountCache: newCache };
+          });
+
+          // Flag items whose flash sale just ended
+          for (const item of selectedItems) {
+            const hadDiscount = !!campaignDiscountCache[item.id];
+            const stillActive = !!freshDiscounts[item.id];
+            const errorKey = item.cartItemId || item.id;
+            if (hadDiscount && !stillActive && !errors[errorKey]) {
+              errors[errorKey] = 'The flash sale for this item has ended. Price updated — please review before checkout.';
+              result.isValid = false;
+            }
+          }
+        }
+
+        if (!result.isValid || Object.keys(errors).length > 0) {
+          set({ checkoutErrors: errors });
+        }
+        return result.isValid && Object.keys(errors).length === 0;
+      } catch (e: any) {
+        set({ checkoutErrors: { 'global': 'Validation failed.' }});
+        return false;
+      } finally {
+        set({ isValidatingCheckout: false });
+      }
+    },
+
+    clearCart: async () => {
+      const user = await getCurrentUser();
+      if (user) {
+        try {
+          const cart = await cartService.getCart(user.id);
+          if (cart) await cartService.clearCart(cart.id);
+        } catch (e) {
+          console.error('[buyerStore] Failed to clear DB cart', e);
+        }
+      }
+      set({ cartItems: [], groupedCart: {}, appliedVouchers: {}, platformVoucher: null });
+    },
 
     getCartTotal: () => {
       const { groupedCart, appliedVouchers, platformVoucher } = get();
@@ -945,7 +1028,7 @@ export const useBuyerStore = create<BuyerStore>()(persist(
           code: v.code,
           title: v.title,
           description: v.description || '',
-          type: v.voucher_type,
+          type: v.voucher_type as 'percentage' | 'fixed' | 'shipping',
           value: v.value,
           minOrderValue: v.min_order_value,
           maxDiscount: v.max_discount || undefined,
@@ -1010,7 +1093,7 @@ export const useBuyerStore = create<BuyerStore>()(persist(
           code: dbVoucher.code,
           title: dbVoucher.title,
           description: dbVoucher.description || '',
-          type: dbVoucher.voucher_type,
+          type: dbVoucher.voucher_type as 'percentage' | 'fixed' | 'shipping',
           value: dbVoucher.value,
           minOrderValue: dbVoucher.min_order_value,
           maxDiscount: dbVoucher.max_discount || undefined,
@@ -1406,7 +1489,7 @@ export const useBuyerStore = create<BuyerStore>()(persist(
         // First, check if buyer record exists
         const { data: existingBuyer, error: fetchError } = await db
           .from('buyers')
-          .select('*')
+          .select('id, avatar_url, bazcoins, preferences')
           .eq('id', userId)
           .single();
 
@@ -1421,8 +1504,6 @@ export const useBuyerStore = create<BuyerStore>()(persist(
             .from('buyers')
             .insert([{
               id: userId,
-              shipping_addresses: [],
-              payment_methods: [],
               preferences: {
                 language: 'en',
                 currency: 'PHP',
@@ -1437,8 +1518,6 @@ export const useBuyerStore = create<BuyerStore>()(persist(
                   showFollowing: true,
                 },
               },
-              followed_shops: [],
-              total_spent: 0,
               bazcoins: 0,
             }]);
 
@@ -1455,7 +1534,7 @@ export const useBuyerStore = create<BuyerStore>()(persist(
         const { data: buyerWithProfile, error: buyerJoinError } = await db
           .from('buyers')
           .select(`
-            *,
+            id, avatar_url, bazcoins, preferences,
             profile:profiles!id (
               id, email, first_name, last_name, phone, created_at
             )
@@ -1472,7 +1551,7 @@ export const useBuyerStore = create<BuyerStore>()(persist(
           const [{ data: buyerOnly, error: buyerOnlyError }, { data: profileOnly, error: profileOnlyError }] = await Promise.all([
             db
               .from('buyers')
-              .select('*')
+              .select('id, avatar_url, bazcoins, preferences')
               .eq('id', userId)
               .single(),
             db
@@ -1542,7 +1621,7 @@ export const useBuyerStore = create<BuyerStore>()(persist(
           phone: profileInfo?.phone || '',
           avatar: buyerData.avatar_url || '/placeholder-avatar.jpg',
           memberSince: profileInfo?.created_at ? new Date(profileInfo.created_at) : new Date(),
-          totalSpent: buyerData.total_spent || 0,
+          totalSpent: 0,
           bazcoins: buyerData.bazcoins || 0,
           totalOrders: 0,
         };
@@ -1840,6 +1919,7 @@ export const useBuyerStore = create<BuyerStore>()(persist(
 
       const dbUpdate: Record<string, any> = {};
       if (updates.title !== undefined) dbUpdate.title = updates.title;
+      if (updates.recipientName !== undefined) dbUpdate.recipient_name = updates.recipientName;
       if (updates.category !== undefined) { dbUpdate.category = updates.category; dbUpdate.event_type = updates.category; }
       if (updates.imageUrl !== undefined) dbUpdate.image_url = updates.imageUrl;
       if (updates.sharedDate !== undefined) dbUpdate.shared_date = updates.sharedDate;
@@ -1856,8 +1936,23 @@ export const useBuyerStore = create<BuyerStore>()(persist(
 
     addToRegistry: async (registryId, product) => {
       const productWithDefaults = ensureRegistryProductDefaults(product);
+      const normalizedProductId = String(product.id);
+      const targetRegistry = get().registries.find((r) => r.id === registryId);
+      const alreadyExistsInRegistry = !!targetRegistry?.products?.some((p) => {
+        const sourceId = (p as any).sourceProductId;
+        return String(sourceId || p.id) === normalizedProductId;
+      });
+
+      if (alreadyExistsInRegistry) {
+        return;
+      }
+
       const tempId = `temp-${Date.now()}`;
-      const tempProduct = { ...productWithDefaults, id: tempId };
+      const tempProduct = {
+        ...productWithDefaults,
+        sourceProductId: normalizedProductId,
+        id: tempId,
+      };
 
       // Optimistic
       set((state) => ({
@@ -1949,6 +2044,14 @@ export const useBuyerStore = create<BuyerStore>()(persist(
     },
 
     removeRegistryItem: async (registryId, productId) => {
+      const registry = get().registries.find(r => r.id === registryId);
+      const item = registry?.products?.find(p => p.id === productId);
+      
+      if (item && item.receivedQty > 0) {
+        console.warn('[removeRegistryItem] Cannot remove item with gift activity');
+        throw new Error('Cannot remove item with gift activity');
+      }
+
       // Optimistic
       set((state) => ({
         registries: state.registries.map((r) =>

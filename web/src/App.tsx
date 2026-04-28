@@ -1,23 +1,24 @@
 import { lazy, Suspense, useEffect } from "react";
-import { BrowserRouter as Router, Routes, Route, Navigate } from "react-router-dom";
-import "./styles/globals.css";
-import { Toaster } from "./components/ui/toaster";
-import ScrollToTop from "./components/ScrollToTop";
-import { ChatBubble } from "./components/ChatBubbleAI";
-import { ProtectedSellerRoute } from "./components/ProtectedSellerRoute";
-import { ProtectedBuyerRoute } from "./components/ProtectedBuyerRoute";
-import { ProtectedAdminRoute } from "./components/ProtectedAdminRoute";
-import TrackingForm from "./components/TrackingForm";
-import PageLoader from "./components/PageLoader";
-import { usePresence } from './hooks/usePresence'; import { ErrorBoundary } from "react-error-boundary";
-import { OrderErrorFallback } from "./components/OrderErrorFallback";
+import { ErrorBoundary } from "react-error-boundary";
+import { Navigate, Route, BrowserRouter as Router, Routes } from "react-router-dom";
 import { AppErrorFallback } from "./components/AppErrorFallback";
+import { ChatBubble } from "./components/ChatBubbleAI";
+import { OrderErrorFallback } from "./components/OrderErrorFallback";
+import PageLoader from "./components/PageLoader";
+import { ProtectedAdminRoute } from "./components/ProtectedAdminRoute";
+import { ProtectedBuyerRoute } from "./components/ProtectedBuyerRoute";
+import { ProtectedSellerRoute } from "./components/ProtectedSellerRoute";
+import ScrollToTop from "./components/ScrollToTop";
+import TrackingForm from "./components/TrackingForm";
+import { Toaster } from "./components/ui/toaster";
+import { usePresence } from './hooks/usePresence';
 import { supabase } from "./lib/supabase";
 import { webPushService } from "./services/webPushService";
+import "./styles/globals.css";
 
 // for google auth
 import { authService } from "./services/authService";
-import { useBuyerStore, deriveBuyerName } from "./stores/buyerStore";
+import { deriveBuyerName, useBuyerStore } from "./stores/buyerStore";
 
 // ---------------------------------------------------------------------------
 // Lazy-loaded pages — each becomes its own Vite chunk, loaded on first visit
@@ -35,6 +36,7 @@ const SellerLandingPage = lazy(() => import("./pages/SellerLandingPage"));
 const ShopPage = lazy(() => import("./pages/ShopPage"));
 const CategoriesPage = lazy(() => import("./pages/CategoriesPage"));
 const SearchPage = lazy(() => import("./pages/SearchPage"));
+const ProductListingPage = lazy(() => import("./pages/ProductListingPage"));
 const CollectionsPage = lazy(() => import("./pages/CollectionsPage"));
 const StoresPage = lazy(() => import("./pages/StoresPage"));
 const FlashSalesPage = lazy(() => import("./pages/FlashSalesPage"));
@@ -62,7 +64,12 @@ const ProductRequestDetailPage = lazy(() => import("./pages/ProductRequestDetail
 const CommunityRequestsPage = lazy(() => import("./pages/CommunityRequestsPage"));
 const BuyerLoginPage = lazy(() => import("./pages/BuyerLoginPage"));
 const BuyerSignupPage = lazy(() => import("./pages/BuyerSignupPage"));
+const EmailVerificationPage = lazy(() => import("./pages/EmailVerificationPage"));
+const SellerEmailVerificationPage = lazy(() => import("./pages/SellerEmailVerificationPage"));
+const AuthCallbackPage = lazy(() => import("./pages/AuthCallbackPage"));
+const EmailConfirmedPage = lazy(() => import("./pages/EmailConfirmedPage"));
 const ForgotPasswordPage = lazy(() => import("./pages/ForgotPasswordPage"));
+
 const ResetPasswordPage = lazy(() => import("./pages/ResetPasswordPage"));
 const BuyerSupport = lazyNamed(() => import("./pages/BuyerSupport"), "BuyerSupport");
 const MyTickets = lazy(() => import("./pages/MyTickets"));
@@ -146,9 +153,10 @@ function App() {
       };
 
       // Track if this is an OAuth redirect callback (Supabase appends access_token in hash)
+      const isOAuthProvider = session?.user?.app_metadata?.provider && session.user.app_metadata.provider !== 'email';
       const oauthIntent = sessionStorage.getItem('oauth_intent');
       const oauthRedirectDone = sessionStorage.getItem('oauth_redirect_done');
-      const isOAuthRedirect = oauthIntent === 'buyer' || window.location.hash.includes('access_token');
+      const isOAuthRedirect = isOAuthProvider && (oauthIntent === 'buyer' || oauthIntent === 'seller' || oauthIntent === 'link_google' || !oauthIntent);
       debug('onAuthStateChange', {
         event,
         pathname: window.location.pathname,
@@ -160,8 +168,75 @@ function App() {
       });
 
       // 1. Catch BOTH events: SIGNED_IN (direct login) and INITIAL_SESSION (page load after Google redirect)
-      if ((event === 'SIGNED_IN' || event === 'INITIAL_SESSION') && session?.user) {
+      // Only handle buyer record creation for OAuth providers.
+      // Email/password signups are finalized by AuthCallbackPage after email verification.
+
+      // Cart re-hydration — runs for ALL authenticated session events (OAuth, email/password,
+      // page reload, token refresh). cartItems are intentionally NOT persisted to localStorage,
+      // so without this the cart appears empty until the user manually re-triggers init.
+      // Fixes: cart becomes empty after a few minutes / page refresh.
+      if (
+        (event === 'SIGNED_IN' || event === 'INITIAL_SESSION' || event === 'TOKEN_REFRESHED') &&
+        session?.user
+      ) {
+        void useBuyerStore.getState().initializeCart();
+      }
+
+      if ((event === 'SIGNED_IN' || event === 'INITIAL_SESSION') && session?.user && isOAuthProvider) {
         const { user } = session;
+
+        // POLICY ENFORCEMENT: Check for unauthorized Google linking (Mobile Parity)
+        try {
+          const oauthIntent = sessionStorage.getItem('oauth_intent');
+          const isLinking = oauthIntent === 'link_google';
+
+          // fetch identities to be sure we have the latest ones
+          const { data: identityData } = await (supabase.auth as any).getUserIdentities();
+          const identities = identityData?.identities || user.identities || [];
+          
+          const emailIdentity = identities.find((id: any) => id.provider === 'email');
+          const googleIdentity = identities.find((id: any) => id.provider === 'google');
+
+          // 1. PREVENT NEW GOOGLE-ONLY ACCOUNTS (Email-First Policy)
+          // If the user has Google but NO email identity, and isn't currently linking,
+          // it means they tried to sign up via Google directly without a pre-existing email account.
+          if (googleIdentity && !emailIdentity && !isLinking) {
+            console.log('[Auth] 🛡️ Google-only account detected. Rejecting login.');
+            await supabase.auth.signOut();
+            window.location.href = '/login?error=google_not_registered';
+            return;
+          }
+
+          if (emailIdentity && googleIdentity) {
+            const isExplicitlyLinked = !!user.user_metadata?.google_explicitly_linked;
+            // Use the app_metadata provider to see what was used for THIS login
+            const currentProvider = user.app_metadata?.provider;
+
+            // If they are currently linking, mark as explicit
+            if (isLinking && !isExplicitlyLinked) {
+              console.log('[Auth] 🔗 Explicitly linking Google account...');
+              await supabase.auth.updateUser({
+                data: { google_explicitly_linked: true }
+              });
+              sessionStorage.removeItem('oauth_intent');
+              // Proceed as normal
+            } else if (currentProvider === 'google' && emailIdentity && !isExplicitlyLinked) {
+              // BLOCK: They just signed in via Google, but they have an email account
+              // and they never explicitly linked it. This is a silent link (old or new).
+              console.log('[Auth] 🛡️ Google Link Policy Blocked (Silent Link Detected)');
+              
+              // Unlink Google and Sign Out to be safe
+              await (supabase.auth as any).unlinkIdentity(googleIdentity);
+              await supabase.auth.signOut();
+              
+              // Redirect to login with error
+              window.location.href = '/login?error=google_unlinked';
+              return;
+            }
+          }
+        } catch (linkErr) {
+          console.warn('[Auth] Identity check failed:', linkErr);
+        }
 
         try {
           // Extract details provided by Google
@@ -212,14 +287,16 @@ function App() {
           // Redirect immediately once we know first-time vs returning OAuth user.
           // Use BrowserRouter-compatible history navigation (no full reload).
           if (isOAuthRedirect && oauthRedirectDone !== '1') {
-            const targetPath = isFirstOAuthLogin ? '/buyer-onboarding' : '/shop';
-            sessionStorage.setItem('oauth_redirect_done', '1');
-            sessionStorage.removeItem('oauth_intent');
-            debug('immediate oauth navigation', { userId: user.id, targetPath, currentPath: window.location.pathname });
-            if (window.location.pathname !== targetPath) {
-              window.history.replaceState({}, '', targetPath);
-              window.dispatchEvent(new PopStateEvent('popstate'));
+            let targetPath = isFirstOAuthLogin ? '/buyer-onboarding' : '/shop';
+            
+            // If they were linking, send them back to settings (security tab)
+            if (oauthIntent === 'link_google') {
+              targetPath = '/settings?tab=security';
             }
+            
+            sessionStorage.setItem('oauth_redirect_done', '1');
+            window.location.href = targetPath;
+            return;
           }
 
           // 2. CREATE/UPDATE PROFILE: Force insert into the 'profiles' table
@@ -329,7 +406,15 @@ function App() {
             <Route path="/sell" element={<SellerLandingPage />} />
             <Route path="/login" element={<BuyerLoginPage />} />
             <Route path="/signup" element={<BuyerSignupPage />} />
+            <Route path="/verify-email" element={<EmailVerificationPage />} />
+            <Route path="/seller/verify-email" element={<SellerEmailVerificationPage />} />
+            <Route path="/auth/callback" element={<AuthCallbackPage />} />
+            <Route path="/email-confirmed" element={<EmailConfirmedPage />} />
+            <Route path="/seller/email-confirmed" element={<EmailConfirmedPage />} />
             <Route path="/forgot-password" element={<ForgotPasswordPage />} />
+
+
+
             <Route path="/forgot" element={<ForgotPasswordPage />} />
             <Route path="/reset-password" element={<ResetPasswordPage />} />
             <Route
@@ -345,6 +430,7 @@ function App() {
             <Route path="/announcements" element={<BuyerAnnouncementsPage />} />
             <Route path="/flash-sales" element={<FlashSalesPage />} />
             <Route path="/search" element={<SearchPage />} />
+            <Route path="/products" element={<ProductListingPage />} />
             <Route path="/collections" element={<CollectionsPage />} />
             <Route path="/stores" element={<StoresPage />} />
             <Route path="/about-us" element={<AboutUsPage />} />

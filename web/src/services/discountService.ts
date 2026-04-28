@@ -4,14 +4,14 @@
  * Adheres to the Class-based Service Layer Architecture
  */
 
-import { supabase, isSupabaseConfigured } from '@/lib/supabase';
+import { isSupabaseConfigured, supabase } from '@/lib/supabase';
 import type {
-  DiscountCampaign,
-  ProductDiscount,
-  DiscountUsage,
-  ActiveDiscount,
-  GlobalFlashSaleSlot,
-  FlashSaleSubmission
+    ActiveDiscount,
+    DiscountCampaign,
+    DiscountUsage,
+    FlashSaleSubmission,
+    GlobalFlashSaleSlot,
+    ProductDiscount
 } from '@/types/discount';
 
 export class DiscountService {
@@ -902,7 +902,7 @@ export class DiscountService {
             id, name, price, seller_id,
             images:product_images (image_url, is_primary, sort_order),
             variants:product_variants (stock, price),
-            seller:sellers!products_seller_id_fkey (id, store_name),
+            seller:sellers!products_seller_id_fkey (id, store_name, approval_status),
             category:categories!products_category_id_fkey (name),
             reviews(rating)
           )
@@ -912,10 +912,33 @@ export class DiscountService {
 
       if (subError) throw subError;
 
+      // Filter out products from non-verified, blacklisted, or suspended sellers
+      const verifiedSubmissions = (submissions || []).filter((sub: any) => {
+        const seller = sub.product?.seller;
+        if (!seller) return true;
+        if (seller.approval_status && seller.approval_status !== 'verified') return false;
+        if (seller.suspended_at) return false;
+        if (seller.blacklisted_at) return false;
+        if (seller.is_permanently_blacklisted) return false;
+        if (seller.temp_blacklist_until && new Date(seller.temp_blacklist_until) > new Date()) return false;
+        return true;
+      });
+
       // 3. Map to product display objects
       const slotMap = new Map(slots.map((s: any) => [s.id, s]));
 
-      return (submissions || []).map((sub: any) => {
+      // 4. Fetch sold counts for all flash sale products
+      const productIds = verifiedSubmissions.map((sub: any) => sub.product?.id).filter(Boolean);
+      const soldCountsMap = new Map<string, number>();
+      if (productIds.length > 0) {
+        const { data: soldData } = await supabase
+          .from('product_sold_counts')
+          .select('product_id, sold_count')
+          .in('product_id', productIds);
+        (soldData || []).forEach((row: any) => soldCountsMap.set(row.product_id, row.sold_count || 0));
+      }
+
+      return (verifiedSubmissions || []).map((sub: any) => {
         const p = sub.product as any;
         const slot = slotMap.get(sub.slot_id) as any;
         const basePrice = sub.submitted_price || p?.price || 0;
@@ -924,6 +947,9 @@ export class DiscountService {
         const images = p?.images || [];
         const primaryImg = images.find((i: any) => i.is_primary)?.image_url || images[0]?.image_url || 'https://placehold.co/400x400?text=No+Image';
         const totalStock = (p?.variants || []).reduce((sum: number, v: any) => sum + (v.stock || 0), 0);
+        const soldCount = soldCountsMap.get(p?.id) || 0;
+        const submittedStock = Number(sub.submitted_stock) || totalStock || 1;
+        const remainingStock = Math.max(0, submittedStock - soldCount);
         
         // Calculate average rating from reviews
         const avgRating = p?.reviews && p?.reviews.length > 0 
@@ -941,7 +967,9 @@ export class DiscountService {
           sellerId: p?.seller_id,
           category: p?.category?.name || 'General',
           stock: totalStock,
-          sold: 0,
+          sold: soldCount,
+          campaignSold: soldCount,
+          campaignStock: remainingStock,
           campaignId: sub.slot_id,
           campaignName: slot?.name || 'Flash Sale',
           campaignBadgeColor: '#FF6A00',
@@ -949,6 +977,19 @@ export class DiscountService {
           discountBadgePercent: discountPct > 0 ? discountPct : undefined,
           rating: avgRating,
           reviewsCount: p?.reviews?.length || 0,
+          activeCampaignDiscount: basePrice < originalPrice ? {
+            campaignId: sub.slot_id,
+            campaignName: slot?.name || 'Flash Sale',
+            // Use fixed_amount (not percentage) so calculateLineDiscount returns exactly
+            // submitted_price without rounding drift when re-applied to originalPrice.
+            discountType: 'fixed_amount' as const,
+            discountValue: originalPrice - basePrice,
+            discountedPrice: basePrice,
+            originalPrice,
+            badgeText: discountPct > 0 ? `${discountPct}% OFF` : 'SALE',
+            badgeColor: '#FF6A00',
+            endsAt: new Date(slot?.end_time),
+          } : null,
         };
       });
     } catch (error) {

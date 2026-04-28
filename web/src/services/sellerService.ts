@@ -108,6 +108,8 @@ export class SellerService {
      */
     private transformSeller(seller: any): SellerData {
         const bp = seller.business_profile;
+        // Embed may resolve via seller_payout_settings (canonical) or legacy view.
+        // Accept both column-name shapes (bank_account_* and account_*).
         const pa = seller.payout_account;
         const profile = seller.profile;
         const profileFullName = [profile?.first_name, profile?.last_name]
@@ -138,10 +140,11 @@ export class SellerService {
             province: bp?.province || null,
             postal_code: bp?.postal_code || null,
             business_type: bp?.business_type || null,
-            // Flatten payout account for legacy code
+            // Flatten payout account for legacy code (handle both shapes:
+            // canonical seller_payout_settings.bank_account_* OR legacy view aliases).
             bank_name: pa?.bank_name || null,
-            account_name: pa?.account_name || null,
-            account_number: pa?.account_number || null,
+            account_name: pa?.bank_account_name || pa?.account_name || null,
+            account_number: pa?.bank_account_number || pa?.account_number || null,
             // Keep legacy field populated from profile names.
             owner_name: profileFullName || seller.owner_name || null,
         };
@@ -272,7 +275,7 @@ export class SellerService {
                     *,
                     profile:profiles(first_name, last_name),
                     business_profile:seller_business_profiles(*),
-                    payout_account:seller_payout_accounts(*),
+                    payout_account:seller_payout_settings(seller_id, bank_name, bank_account_name, bank_account_number, payout_method),
                     verification_documents:seller_verification_documents(*)
                 `)
                 .eq('id', sellerId)
@@ -636,7 +639,7 @@ export class SellerService {
                 .select(`
                     *,
                     business_profile:seller_business_profiles(*),
-                    payout_account:seller_payout_accounts(*)
+                    payout_account:seller_payout_settings(seller_id, bank_name, bank_account_name, bank_account_number, payout_method)
                 `)
                 .eq('id', storeId)
                 .single();
@@ -700,7 +703,9 @@ export class SellerService {
     }
 
     /**
-     * Update payout account (in seller_payout_accounts table)
+     * Update payout account. Writes to `seller_payout_settings` (canonical).
+     * `seller_payout_accounts` is now a view (migration 040) and does NOT
+     * support INSERT … ON CONFLICT. See POST_MIGRATION_VALIDATION.md.
      */
     async updatePayoutAccount(sellerId: string, payoutData: {
         bank_name?: string;
@@ -712,15 +717,18 @@ export class SellerService {
         }
 
         try {
+            const row: Record<string, any> = {
+                seller_id: sellerId,
+                payout_method: 'bank_transfer',
+                updated_at: new Date().toISOString(),
+            };
+            if (payoutData.bank_name !== undefined) row.bank_name = payoutData.bank_name;
+            if (payoutData.account_name !== undefined) row.bank_account_name = payoutData.account_name;
+            if (payoutData.account_number !== undefined) row.bank_account_number = payoutData.account_number;
+
             const { error } = await (supabase as any)
-                .from('seller_payout_accounts')
-                .upsert({
-                    seller_id: sellerId,
-                    ...payoutData,
-                    updated_at: new Date().toISOString(),
-                }, {
-                    onConflict: 'seller_id',
-                });
+                .from('seller_payout_settings')
+                .upsert(row, { onConflict: 'seller_id' });
 
             if (error) throw error;
         } catch (error) {

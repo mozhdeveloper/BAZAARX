@@ -517,14 +517,18 @@ export default function StoreProfileScreen() {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) return;
 
+      // Write to the canonical settings table; `seller_payout_accounts`
+      // is now a view and ON CONFLICT (used by .upsert) is not supported
+      // on views (migration 040).
       const { data, error } = await supabase
-        .from('seller_payout_accounts')
+        .from('seller_payout_settings')
         .upsert({
           seller_id: user.id,
+          payout_method: 'bank_transfer',
           bank_name: bankingForm.bankName,
-          account_name: bankingForm.accountName,
-          account_number: bankingForm.accountNumber,
-        })
+          bank_account_name: bankingForm.accountName,
+          bank_account_number: bankingForm.accountNumber,
+        }, { onConflict: 'seller_id' })
         .select()
         .single();
 

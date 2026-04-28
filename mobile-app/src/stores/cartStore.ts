@@ -4,6 +4,7 @@ import { persist, createJSONStorage } from 'zustand/middleware';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { CartItem, Product } from '../types';
 import { cartService } from '../services/cartService';
+import { discountService } from '../services/discountService';
 import { useAuthStore } from './authStore';
 import { PLACEHOLDER_PRODUCT } from '../utils/imageUtils';
 
@@ -24,6 +25,14 @@ interface CartStore {
   clearCart: () => void;
   getTotal: () => number;
   getItemCount: () => number;
+
+  // Checkout Validation
+  isValidatingCheckout: boolean;
+  checkoutErrors: Record<string, string>;
+  validateCheckout: (selectedIds: string[]) => Promise<boolean>;
+  
+  hasSeenUnavailableModal: boolean;
+  setHasSeenUnavailableModal: () => void;
 
   // Quick Order (Buy Now)
   quickOrder: CartItem | null;
@@ -235,8 +244,49 @@ export const useCartStore = create<CartStore>()(
       isLoading: false,
       error: null,
       quickOrder: null,
+      isValidatingCheckout: false,
+      checkoutErrors: {},
+      hasSeenUnavailableModal: false,
+      setHasSeenUnavailableModal: () => set({ hasSeenUnavailableModal: true }),
 
-      // HELPER: Calculates the sum of subtotals and updates the carts table
+      validateCheckout: async (selectedIds: string[]) => {
+        set({ isValidatingCheckout: true, checkoutErrors: {} });
+        try {
+          const result = await cartService.validateCheckoutItems(selectedIds);
+          const errors: Record<string, string> = { ...result.errors };
+
+          // Flash sale expiry check
+          const { items } = get();
+          const selectedItems = items.filter(
+            i => selectedIds.includes(i.cartItemId) || selectedIds.includes(i.id)
+          );
+          const productIds = [...new Set(selectedItems.map(i => i.id).filter(Boolean))];
+
+          if (productIds.length > 0) {
+            const freshDiscounts = await discountService.getActiveDiscountsForProducts(productIds);
+            for (const item of selectedItems) {
+              const hadDiscount = !!(item as any).campaignDiscount;
+              const stillActive = !!freshDiscounts[item.id];
+              if (hadDiscount && !stillActive && !errors[item.cartItemId]) {
+                errors[item.cartItemId] = 'The flash sale for this item has ended. Price updated — please review before checkout.';
+                result.isValid = false;
+              }
+            }
+          }
+
+          if (!result.isValid || Object.keys(errors).length > 0) {
+            set({ checkoutErrors: errors });
+          }
+          return result.isValid && Object.keys(errors).length === 0;
+        } catch (e: any) {
+          set({ error: e.message || 'Validation failed' });
+          return false;
+        } finally {
+          set({ isValidatingCheckout: false });
+        }
+      },
+
+      // HELPER: Calculates the sum of subtotals
       syncCartTotal: async (cartId: string) => {
         try {
           await cartService.syncCartTotal(cartId);
@@ -496,13 +546,13 @@ export const useCartStore = create<CartStore>()(
           if (!cartId) return;
 
           const previousItems = get().items;
-          set({ items: [] });
-
+          // BX-04-009: Wipe the cartId from device memory so a fresh cart is created next time
+          set({ items: [], cartId: null });
           try {
             await cartService.clearCart(cartId);
           } catch (e) {
             // Rollback on error
-            set({ items: previousItems });
+            set({ items: previousItems, cartId });
             console.error('[CartStore] Failed to clear cart:', e);
           }
         };

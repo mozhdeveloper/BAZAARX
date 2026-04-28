@@ -63,6 +63,7 @@ export const mapDbReturnRequestToBuyerReturnRequest = (
     submittedAt: new Date(request.createdAt),
     status: request.status,
     resolvedBy: request.resolvedBy ?? undefined,
+    resolutionSource: request.resolutionSource ?? undefined,
     rejectedReason: request.rejectedReason,
     description: request.description ?? null,
     evidenceUrls: request.evidenceUrls ?? [],
@@ -91,8 +92,9 @@ export const mergeBuyerOrdersWithReturnRequests = (
 
     // If the order is already cancelled (from DB status mapping), preserve it.
     // If the return request was rejected by the seller, also show as cancelled.
+    // resolved_by is now a uuid; the role string lives in resolution_source.
     const isSellerCancelled =
-      request.status === 'rejected' && request.resolvedBy === 'seller';
+      request.status === 'rejected' && request.resolutionSource === 'seller';
     const keepCancelled = order.status === 'cancelled';
     return {
       ...order,

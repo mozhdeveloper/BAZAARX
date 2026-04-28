@@ -51,6 +51,7 @@ import { orderMutationService } from '../src/services/orders/orderMutationServic
 import { useAuthStore } from '../src/stores/authStore';
 import { safeImageUri } from '../src/utils/imageUtils';
 import ReviewModal from '../src/components/ReviewModal';
+import AddressFormModal from '../src/components/AddressFormModal';
 import { BuyerBottomNav } from '../src/components/BuyerBottomNav';
 import { reviewService } from '@/services/reviewService';
 import { chatService } from '../src/services/chatService';
@@ -64,6 +65,7 @@ type Props = NativeStackScreenProps<RootStackParamList, 'OrderDetail'>;
 
 export default function OrderDetailScreen({ route, navigation }: Props) {
   const { order } = route.params;
+  const { autoOpenAddressModal } = (route.params as any) || {};
   
   // Comprehensive logging of order object
   console.log('[OrderDetail] Full order object keys:', Object.keys(order || {}).join(', '));
@@ -86,7 +88,8 @@ export default function OrderDetailScreen({ route, navigation }: Props) {
   }
 
   const insets = useSafeAreaInsets();
-  const updateOrderStatus = useOrderStore((state) => state.updateOrderStatus);
+  const { updateOrderStatus } = useOrderStore();
+  const user = useAuthStore((state: any) => state.user);
   const [showReviewModal, setShowReviewModal] = useState(false);
   const [showChatModal, setShowChatModal] = useState(false);
   const [chatMessage, setChatMessage] = useState('');
@@ -110,9 +113,34 @@ export default function OrderDetailScreen({ route, navigation }: Props) {
   const [selectedPhoto, setSelectedPhoto] = useState<string | null>(null);
   const [showReceiptModal, setShowReceiptModal] = useState(false);
   const [isSubmittingReceipt, setIsSubmittingReceipt] = useState(false);
+  const [isAddressModalVisible, setIsAddressModalVisible] = useState(false);
   const getTransactionByOrderId = usePaymentStore((s) => s.getTransactionByOrderId);
   const fetchTrackingByOrderId = useDeliveryStore((s) => s.fetchTrackingByOrderId);
   const deliveryStoreTracking = useDeliveryStore((s) => s.tracking);
+
+  // --- BULLETPROOF GRACE PERIOD LOGIC ---
+  const resolvedUiStatus = String(order?.buyerUiStatus || order?.status || 'pending').toLowerCase();
+  const hasEditedAddress = Array.isArray((order as any).history) && (order as any).history.some((h: any) => h.note === 'Address Updated');
+
+  // Fix iOS/Android Date Parsing Bug from Checkout
+  const rawDate = order?.createdAt || (order as any).created_at;
+  let parsedDate = new Date().getTime();
+  if (rawDate) {
+     const d = new Date(rawDate);
+     if (!isNaN(d.getTime())) {
+         parsedDate = d.getTime();
+     } else {
+         const safeStr = String(rawDate).replace(' ', 'T'); 
+         const d2 = new Date(safeStr);
+         if (!isNaN(d2.getTime())) parsedDate = d2.getTime();
+     }
+  }
+
+  const timeDiff = new Date().getTime() - parsedDate;
+  
+  // Eligibility: 1-Hour Window + Pending/Processing Status + Not Already Edited
+  const isEligibleForEdit = ['pending', 'processing'].includes(resolvedUiStatus) && timeDiff < 3600000 && !hasEditedAddress;
+
 
   // BX-09-003 — Shipment details (method, fee, ETA) from order_shipments table
   // Fixed to store array of shipments for multi-seller order support
@@ -169,6 +197,16 @@ export default function OrderDetailScreen({ route, navigation }: Props) {
       setDeliveryTracking(deliveryStoreTracking);
     }
   }, [deliveryStoreTracking]);
+
+  useEffect(() => {
+    let isMounted = true;
+    if (autoOpenAddressModal && isEligibleForEdit) {
+      setTimeout(() => {
+        if (isMounted) setIsAddressModalVisible(true);
+      }, 600); // Increased delay for smoother transition
+    }
+    return () => { isMounted = false; };
+  }, [autoOpenAddressModal, isEligibleForEdit]);
 
   // Get seller_id from order items via products
   const getSellerIdFromOrder = useCallback(async (): Promise<string | null> => {
@@ -407,7 +445,18 @@ export default function OrderDetailScreen({ route, navigation }: Props) {
 
       await orderMutationService.confirmOrderReceived(realOrderId, buyerId, uploaded.length > 0 ? uploaded : undefined);
 
-      updateOrderStatus(realOrderId, 'delivered');
+      useOrderStore.setState((state: any) => ({
+        orders: state.orders.map((existingOrder: any) =>
+          existingOrder.orderId === realOrderId || existingOrder.id === realOrderId
+            ? {
+                ...existingOrder,
+                status: 'delivered',
+                buyerUiStatus: 'received',
+                isPaid: true,
+              }
+            : existingOrder,
+        ),
+      }));
       setShowReceiptModal(false);
       setReceiptPhotos([]);
       setShowReviewModal(true);
@@ -469,39 +518,88 @@ export default function OrderDetailScreen({ route, navigation }: Props) {
     }
   };
 
-  const { user } = useAuthStore();
+  const handleCancelOrder = async () => {
+    try {
+      console.log('Order Object:', order);
 
-  const handleCancelOrder = () => {
-    Alert.alert(
-      'Cancel Order',
-      "Are you sure you want to cancel? You won't be charged. You can buy these items again later.",
-      [
-        { text: 'Keep Order', style: 'cancel' },
-        {
-          text: 'Yes, Cancel Order',
-          style: 'destructive',
-          onPress: async () => {
-            try {
-              await orderMutationService.cancelOrder({
-                orderId: order.id,
-                reason: 'Cancelled by buyer',
-                cancelledBy: user?.id,
-              });
+      // 1. Tell Supabase to cancel the order
+      await orderMutationService.updateOrderStatus({
+        orderId: (order as any).orderId || order.id,
+        nextStatus: 'cancelled',
+        actorRole: 'buyer',
+        note: 'Cancelled by buyer via app'
+      });
 
-              // Note: Don't call updateOrderStatus here - the database is already updated.
-              // The order list will be refreshed by navigation.
+      // 2. Instantly update the local UI
+      await updateOrderStatus((order as any).orderId || order.id, 'cancelled');
 
-              Alert.alert('Order Cancelled', 'Your order has been cancelled.', [
-                { text: 'OK', onPress: () => navigation.goBack() }
-              ]);
-            } catch (e: any) {
-              console.error('Error cancelling order:', e);
-              Alert.alert('Error', e?.message || 'Failed to cancel order. Please try again.');
-            }
-          }
-        }
-      ]
-    );
+      // 3. Notify the user
+      Alert.alert('Success', 'Your order has been successfully cancelled.');
+
+    } catch (error) {
+      console.error('Cancellation error:', error);
+      Alert.alert('Cancellation Failed', 'There was a problem cancelling your order. Please check your connection and try again.');
+    }
+  };
+
+  const handleSaveNewAddress = async (modalData: any) => {
+    try {
+      // Properly combine the First and Last name from the modal
+      const newName = [modalData.firstName, modalData.lastName].filter(Boolean).join(' ').trim();
+      
+      const formattedAddress = {
+        name: newName || modalData.name || modalData.contactPerson || (order.shippingAddress as any)?.name || 'Buyer',
+        fullName: newName || modalData.name || modalData.contactPerson || (order.shippingAddress as any)?.name || 'Buyer', // Passes to orderMutationService!
+        phone: modalData.phone || modalData.contactNumber || order.shippingAddress?.phone || '',
+        address: modalData.street || modalData.address || order.shippingAddress?.address || '',
+        city: modalData.city || order.shippingAddress?.city || '',
+        region: modalData.province || modalData.region || order.shippingAddress?.region || '',
+        postalCode: modalData.zipCode || modalData.postalCode || order.shippingAddress?.postalCode || '',
+        barangay: modalData.barangay || (order.shippingAddress as any)?.barangay || '',
+      };
+
+      const { editPendingOrder } = useOrderStore.getState();
+
+      // Safely extract the true database UUID.
+      // Fallback to order.id just in case it is already a UUID.
+      // Safely extract the true database UUID.
+      // Fallback to order.id just in case it is already a UUID.
+      const trueDatabaseId = (order as any).order_id || (order as any).orderId || (order as any).db_id || order.id;
+
+      // Pass the true UUID to the store
+      await editPendingOrder(trueDatabaseId, { shippingAddress: formattedAddress as any });
+
+      // PERMANENT DB UPDATE: Save the audit log to Supabase so the Orders tab knows it was edited!
+      try {
+        await supabase.from('order_status_history').insert({
+          order_id: trueDatabaseId,
+          status: order.status || 'pending',
+          note: 'Address Updated'
+        });
+      } catch (historyErr) {
+        console.warn('[Audit Log] Failed to save address edit history:', historyErr);
+      }
+
+      // INSTANT UI UPDATE: Tell React Navigation to update the parameters
+      navigation.setParams({
+        order: {
+          ...order,
+          shippingAddress: {
+            ...(order.shippingAddress as any),
+            ...formattedAddress
+          },
+          // Instantly inject the audit log into local memory so the Edit button disappears!
+          history: [...((order as any).history || []), { note: 'Address Updated' }]
+        } as any
+      });
+
+      Alert.alert('Success', 'Order shipping address updated!');
+      setIsAddressModalVisible(false);
+    } catch (error: any) {
+      console.error('Failed to save address:', error);
+      // QA Requirement: Show the specific reason the change was blocked
+      Alert.alert('Update Failed', error.message || 'Could not update the address.');
+    }
   };
 
   const uiStatus = order.buyerUiStatus || order.status;
@@ -549,6 +647,34 @@ export default function OrderDetailScreen({ route, navigation }: Props) {
   };
 
   const StatusIcon = getStatusIcon();
+
+  // Safely extract default user address whether it's an array or a single object
+  const defaultUserAddress = Array.isArray(user?.addresses) 
+    ? user?.addresses.find((a: any) => a.is_default) || user?.addresses[0] 
+    : user?.address;
+
+  // Extract the order's CURRENT shipping address safely
+  const orderAddr = order.shippingAddress as any || {};
+  
+  // Smart Name Splitter: Separates the full name so the modal can read it perfectly
+  const fullNameStr = orderAddr?.name || orderAddr?.fullName || orderAddr?.contactPerson || defaultUserAddress?.contactPerson || user?.full_name || '';
+  const nameParts = fullNameStr.trim().split(/\s+/);
+  const derivedFirstName = nameParts[0] || '';
+  const derivedLastName = nameParts.slice(1).join(' ');
+
+  const modalInitialData = {
+    // Pass the ID securely to prevent duplicating profile addresses
+    id: orderAddr?.id || (order as any).address?.id || (order as any).address_id || defaultUserAddress?.id,
+    firstName: derivedFirstName,
+    lastName: derivedLastName,
+    contactPerson: fullNameStr, // Kept as a fallback
+    contactNumber: orderAddr?.phone || orderAddr?.contactNumber || defaultUserAddress?.phone || user?.phone || '',
+    street: orderAddr?.address || orderAddr?.street || defaultUserAddress?.street || '',
+    city: orderAddr?.city || defaultUserAddress?.city || '',
+    province: orderAddr?.region || orderAddr?.province || defaultUserAddress?.province || '',
+    barangay: orderAddr?.barangay || defaultUserAddress?.barangay || '',
+    zipCode: orderAddr?.postalCode || orderAddr?.zipCode || defaultUserAddress?.zip_code || '',
+  };
 
   return (
     <View style={styles.container}>
@@ -700,17 +826,39 @@ export default function OrderDetailScreen({ route, navigation }: Props) {
         <View style={styles.consolidatedCard}>
           <Text style={styles.cardSectionHeader}>Shipping & Delivery</Text>
           
-          {/* Shipping Address Sub-section */}
-          {order.shippingAddress && (
-            <View style={{ marginBottom: 16 }}>
-              <Text style={styles.metaLabel}>Recipient</Text>
-              <Text style={styles.primaryInfo}>{order.shippingAddress.name}</Text>
-              <Text style={styles.secondaryInfo}>{order.shippingAddress.phone}</Text>
-              <Text style={styles.secondaryInfo}>
-                {order.shippingAddress.address}, {order.shippingAddress.city}, {order.shippingAddress.region}
-              </Text>
-            </View>
-          )}
+         {/* Shipping Address Sub-section */}
+          {(() => {
+            // Smart Fallback: If coming from checkout, order.shippingAddress might be null, so we pull from the raw DB or user profile.
+            const displayAddr = {
+              name: order?.shippingAddress?.name || (order as any)?.shipping_address?.name || defaultUserAddress?.contactPerson || user?.full_name || 'Buyer',
+              phone: order?.shippingAddress?.phone || (order as any)?.shipping_address?.phone || defaultUserAddress?.phone || user?.phone || '',
+              address: order?.shippingAddress?.address || (order as any)?.shipping_address?.address || defaultUserAddress?.street || '',
+              city: order?.shippingAddress?.city || (order as any)?.shipping_address?.city || defaultUserAddress?.city || '',
+              region: order?.shippingAddress?.region || (order as any)?.shipping_address?.province || defaultUserAddress?.province || ''
+            };
+
+            return (
+              <View style={{ marginBottom: 16 }}>
+                 <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
+                  <Text style={styles.metaLabel}>Recipient</Text>
+                  {isEligibleForEdit ? (
+                     <Pressable onPress={() => setIsAddressModalVisible(true)}>
+                      <Text style={{ fontSize: 13, color: COLORS.primary, fontWeight: '600' }}>Edit</Text>
+                    </Pressable>
+                  ) : (
+                    <Pressable onPress={() => setIsAddressModalVisible(true)}>
+                      <Text style={{ fontSize: 13, color: '#9CA3AF', fontWeight: '600' }}>View Details</Text>
+                    </Pressable>
+                  )}
+                </View>
+                <Text style={styles.primaryInfo}>{displayAddr.name}</Text>
+                <Text style={styles.secondaryInfo}>{displayAddr.phone}</Text>
+                <Text style={styles.secondaryInfo}>
+                  {displayAddr.address}{displayAddr.city ? `, ${displayAddr.city}` : ''}{displayAddr.region ? `, ${displayAddr.region}` : ''}
+                </Text>
+              </View>
+            );
+          })()}
 
           {/* BX-09-003 — Shipping Method & ETA from order_shipments */}
           {shipmentInfos.length > 0 && (
@@ -804,32 +952,33 @@ export default function OrderDetailScreen({ route, navigation }: Props) {
             <>
               <View style={{ gap: 16, marginBottom: 20 }}>
                 {order.items.filter(item => item && item.name).map((item, index) => (
-                  <Pressable 
-                    key={item.id || index} 
-                    style={styles.compactItemRow}
-                    onPress={() => navigation.navigate('ProductDetail', { product: item as any })}
-                  >
-                    <Image source={{ uri: safeImageUri(item.image) }} style={styles.compactItemImage} />
-                    <View style={{ flex: 1 }}>
-                      <Text style={styles.compactItemName} numberOfLines={1}>{item.name}</Text>
-                      {(item as any).selectedVariant && ((item as any).selectedVariant.option1Value || (item as any).selectedVariant.option2Value || (item as any).selectedVariant.size || (item as any).selectedVariant.color) && (
-                        <Text style={{ fontSize: 12, color: '#6B7280', marginTop: 2 }}>
-                          {(item as any).selectedVariant.option1Value || (item as any).selectedVariant.size || (item as any).selectedVariant.color || 'Standard'}
-                        </Text>
-                      )}
-                      {(item as any).selectedVariant && (
-                        <Text style={[styles.metaLabel, { marginBottom: 4, marginTop: 4 }]}>
-                          {(item as any).selectedVariant.option1Value ? `${(item as any).selectedVariant.option1Label || 'Option'}: ${(item as any).selectedVariant.option1Value}` : ''}
-                          {(item as any).selectedVariant.option1Value && (item as any).selectedVariant.option2Value ? ' • ' : ''}
-                          {(item as any).selectedVariant.option2Value ? `${(item as any).selectedVariant.option2Label || 'Option'}: ${(item as any).selectedVariant.option2Value}` : ''}
-                          {!((item as any).selectedVariant.option1Value || (item as any).selectedVariant.option2Value) && (item as any).selectedVariant.size ? (item as any).selectedVariant.size : ''}
-                          {!((item as any).selectedVariant.option1Value || (item as any).selectedVariant.option2Value) && !((item as any).selectedVariant.size) && (item as any).selectedVariant.color ? (item as any).selectedVariant.color : ''}
-                        </Text>
-                      )}
-                      <Text style={styles.metaLabel}>{item.quantity} x ₱{item.price?.toLocaleString()}</Text>
-                    </View>
-                    <Text style={styles.compactItemPrice}>₱{((item.price || 0) * item.quantity).toLocaleString()}</Text>
-                  </Pressable>
+                  <View key={item.id || index}>
+                    <Pressable 
+                      style={styles.compactItemRow}
+                      onPress={() => navigation.navigate('ProductDetail', { product: item as any })}
+                    >
+                      <Image source={{ uri: safeImageUri(item.image) }} style={styles.compactItemImage} />
+                      <View style={{ flex: 1 }}>
+                        <Text style={styles.compactItemName} numberOfLines={1}>{item.name}</Text>
+                        {(item as any).selectedVariant && ((item as any).selectedVariant.option1Value || (item as any).selectedVariant.option2Value || (item as any).selectedVariant.size || (item as any).selectedVariant.color) && (
+                          <Text style={{ fontSize: 12, color: '#6B7280', marginTop: 2 }}>
+                            {(item as any).selectedVariant.option1Value || (item as any).selectedVariant.size || (item as any).selectedVariant.color || 'Standard'}
+                          </Text>
+                        )}
+                        {(item as any).selectedVariant && (
+                          <Text style={[styles.metaLabel, { marginBottom: 4, marginTop: 4 }]}>
+                            {(item as any).selectedVariant.option1Value ? `${(item as any).selectedVariant.option1Label || 'Option'}: ${(item as any).selectedVariant.option1Value}` : ''}
+                            {(item as any).selectedVariant.option1Value && (item as any).selectedVariant.option2Value ? ' • ' : ''}
+                            {(item as any).selectedVariant.option2Value ? `${(item as any).selectedVariant.option2Label || 'Option'}: ${(item as any).selectedVariant.option2Value}` : ''}
+                            {!((item as any).selectedVariant.option1Value || (item as any).selectedVariant.option2Value) && (item as any).selectedVariant.size ? (item as any).selectedVariant.size : ''}
+                            {!((item as any).selectedVariant.option1Value || (item as any).selectedVariant.option2Value) && !((item as any).selectedVariant.size) && (item as any).selectedVariant.color ? (item as any).selectedVariant.color : ''}
+                          </Text>
+                        )}
+                        <Text style={styles.metaLabel}>{item.quantity} x ₱{item.price?.toLocaleString()}</Text>
+                      </View>
+                      <Text style={styles.compactItemPrice}>₱{((item.price || 0) * item.quantity).toLocaleString()}</Text>
+                    </Pressable>
+                  </View>
                 ))}
               </View>
 
@@ -949,49 +1098,50 @@ export default function OrderDetailScreen({ route, navigation }: Props) {
 
       {/* Bottom Action Bar - Follows PH e-commerce standards (Shopee/Lazada) */}
       <View style={styles.bottomBar}>
-        {/* PENDING: Chat only (buyer hasn't paid or order awaiting confirmation) */}
-        {(order.buyerUiStatus || order.status) === 'pending' && (
-          <Pressable
-            onPress={() => setShowChatModal(true)}
-            style={[styles.solidButton, { flex: 1, backgroundColor: COLORS.primary }]}
-          >
-            <MessageCircle size={20} color="#FFFFFF" />
-            <Text style={styles.solidButtonText}>Chat with Seller</Text>
-          </Pressable>
-        )}
-
-        {/* PROCESSING / TO SHIP: Cancel + Chat (seller is preparing the order) */}
-        {(order.buyerUiStatus === 'processing' || order.status === 'processing') && (
+        
+        {/* PENDING: Cancel + Chat */}
+        {resolvedUiStatus === 'pending' && (
           <>
             <Pressable
-              onPress={handleCancelOrder}
+              onPress={() =>
+                Alert.alert(
+                  'Cancel Order',
+                  'Are you sure you want to cancel this order?',
+                  [
+                    { text: 'No, keep it', style: 'cancel' },
+                    { text: 'Yes, cancel', style: 'destructive', onPress: handleCancelOrder },
+                  ]
+                )
+              }
               style={[styles.outlineButton, { flex: 1 }]}
             >
               <Text style={styles.outlineButtonText}>Cancel Order</Text>
             </Pressable>
-            <Pressable
-              onPress={() => setShowChatModal(true)}
-              style={[styles.solidButton, { flex: 1, backgroundColor: COLORS.primary }]}
-            >
+            <Pressable onPress={() => setShowChatModal(true)} style={[styles.solidButton, { flex: 1, backgroundColor: COLORS.primary }]}>
               <MessageCircle size={20} color="#FFFFFF" />
               <Text style={styles.solidButtonText}>Chat with Seller</Text>
             </Pressable>
           </>
         )}
 
+        {/* PROCESSING / TO SHIP: Chat only (cancellation locked) */}
+        {resolvedUiStatus === 'processing' && (
+          <Pressable onPress={() => setShowChatModal(true)} style={[styles.solidButton, { flex: 1, backgroundColor: COLORS.primary }]}>
+            <MessageCircle size={20} color="#FFFFFF" />
+            <Text style={styles.solidButtonText}>Chat with Seller</Text>
+          </Pressable>
+        )}
+
         {/* SHIPPED / TO RECEIVE: Chat only — item is in transit, buyer cannot confirm yet */}
-        {(order.buyerUiStatus === 'shipped' || (order.status === 'shipped' && order.buyerUiStatus !== 'delivered')) && (
-          <Pressable
-            onPress={() => setShowChatModal(true)}
-            style={[styles.solidButton, { flex: 1, backgroundColor: COLORS.primary }]}
-          >
+        {resolvedUiStatus === 'shipped' && (
+          <Pressable onPress={() => setShowChatModal(true)} style={[styles.solidButton, { flex: 1, backgroundColor: COLORS.primary }]}>
             <MessageCircle size={20} color="#FFFFFF" />
             <Text style={styles.solidButtonText}>Chat with Seller</Text>
           </Pressable>
         )}
 
         {/* DELIVERED: Confirm Received — item has arrived, buyer confirms receipt */}
-        {order.buyerUiStatus === 'delivered' && (
+        {resolvedUiStatus === 'delivered' && (
           <>
             <Pressable
               onPress={() => setShowChatModal(true)}
@@ -1284,6 +1434,18 @@ export default function OrderDetailScreen({ route, navigation }: Props) {
           </KeyboardAvoidingView>
         </SafeAreaView>
       </Modal>
+
+      <AddressFormModal 
+        visible={isAddressModalVisible} 
+        onClose={() => setIsAddressModalVisible(false)} 
+        onSaved={handleSaveNewAddress} 
+        initialData={modalInitialData}
+        userId={user?.id}
+        context="buyer"
+        readOnly={!isEligibleForEdit}
+        lockName={true} // Strict Mode: First & Last name are permanently locked post-checkout
+        isOrderEdit={true} // Tells the modal this is a quick-fill, NOT a profile save!
+      />
 
     </View>
   );

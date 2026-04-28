@@ -31,8 +31,12 @@ export const isRealUUID = (id: string) => UUID_REGEX.test(id);
 // Maps a DB registry row (with nested registry_items) to the frontend RegistryItem shape
 export const mapDbToRegistryProduct = (item: any): RegistryProduct => {
   const snapshot = item.product_snapshot || {};
+  // Resolve image: prefer snapshot.image, fallback to first entry in images[] — mirrors mobile's item.image || item.images?.[0]
+  const resolvedImage: string = snapshot.image || snapshot.images?.[0] || '';
   return ensureRegistryProductDefaults({
     ...snapshot,
+    image: resolvedImage,
+    sourceProductId: item.product_id || snapshot.sourceProductId || snapshot.id,
     // Use registry_items.id as the local product identifier so update/delete can target the DB row
     id: item.id,
     name: item.product_name || snapshot.name || '',
@@ -42,6 +46,10 @@ export const mapDbToRegistryProduct = (item: any): RegistryProduct => {
     note: item.notes ?? snapshot.note,
     isMostWanted: item.is_most_wanted ?? false,
     selectedVariant: item.selected_variant ?? snapshot.selectedVariant,
+    status: item.product?.approval_status === 'suspended' ? 'restricted' : 
+            item.product?.seller?.on_vacation ? 'seller_on_vacation' :
+            (item.product?.stock ?? snapshot.stock ?? 0) <= 0 ? 'out_of_stock' : 
+            !item.product_id ? 'deleted' : 'available',
   });
 };
 
@@ -53,6 +61,7 @@ export const mapDbToRegistryItem = (row: any): RegistryItem => {
   const result = ensureRegistryDefaults({
     id: row.id,
     title: row.title,
+    recipientName: row.recipient_name,
     sharedDate:
       row.shared_date ||
       new Date(row.created_at).toLocaleDateString('en-US', {
@@ -60,7 +69,7 @@ export const mapDbToRegistryItem = (row: any): RegistryItem => {
         day: 'numeric',
         year: 'numeric',
       }),
-    imageUrl: row.image_url || '',
+    imageUrl: row.image_url || '/gradGift.jpeg',
     category: row.category || row.event_type || '',
     privacy: (row.privacy as RegistryPrivacy) || 'link',
     delivery: row.delivery || { showAddress: false },

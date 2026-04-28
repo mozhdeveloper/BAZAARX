@@ -8,7 +8,9 @@
  */
 
 import { supabase, isSupabaseConfigured } from '@/lib/supabase';
-import type { Cart, CartItem } from '@/types/database.types';
+import type { Tables } from '@/types/database.types';
+type Cart = Tables<'carts'>;
+type CartItem = Tables<'cart_items'>;
 
 export class CartService {
   private static instance: CartService;
@@ -22,6 +24,121 @@ export class CartService {
     return CartService.instance;
   }
 
+  /**
+   * BX-04-010: Real-time Cart Validation Before Checkout
+   * Revalidates stock, seller status, and product availability server-side.
+   */
+  async validateCheckoutItems(cartItemIds: string[]): Promise<{ isValid: boolean, errors: Record<string, string> }> {
+    if (!isSupabaseConfigured()) throw new Error('Supabase not configured');
+
+    const validUuids = cartItemIds.filter(id => /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id));
+    if (validUuids.length === 0) return { isValid: true, errors: {} };
+
+    const errors: Record<string, string> = {};
+    let isValid = true;
+
+    try {
+      // Step 1: Fetch cart items, products, and variants (Safely skipping the strict seller join)
+      const { data: latestItems, error } = await supabase
+        .from('cart_items')
+        .select(`
+          id, quantity, variant_id,
+          product:products ( id, approval_status, disabled_at, deleted_at, seller_id ),
+          variant:product_variants ( id, stock )
+        `)
+        .in('id', validUuids);
+
+      if (error) throw error;
+
+      // For cart items that have NO variant_id (null), the variant join returns null
+      // and we must look up total available stock from all of the product's variants.
+      // This prevents false "out of stock" errors for products added to cart without
+      // a specific variant selection.
+      const nullVariantProductIds = [
+        ...new Set(
+          (latestItems || [])
+            .filter(item => !(item as any).variant_id)
+            .map(item => (item.product as any)?.id)
+            .filter(Boolean)
+        )
+      ];
+      let noVariantProductStockMap: Record<string, number> = {};
+      if (nullVariantProductIds.length > 0) {
+        const { data: variantRows } = await supabase
+          .from('product_variants')
+          .select('product_id, stock')
+          .in('product_id', nullVariantProductIds);
+        for (const v of (variantRows || [])) {
+          noVariantProductStockMap[v.product_id] =
+            (noVariantProductStockMap[v.product_id] ?? 0) + (v.stock ?? 0);
+        }
+      }
+
+      // Step 2: Extract unique seller IDs and fetch their status separately to bypass strict FK guards
+      const sellerIds = [...new Set((latestItems || []).map(item => (item.product as any)?.seller_id).filter(Boolean))];
+      let sellersData: any[] = [];
+      
+      if (sellerIds.length > 0) {
+        const { data: sData } = await supabase
+          .from('sellers')
+          .select('id, is_vacation_mode, approval_status')
+          .in('id', sellerIds);
+        sellersData = sData || [];
+      }
+
+      // Step 3: Validate everything
+      for (const item of (latestItems || [])) {
+        const product = item.product as any;
+        const variant = item.variant as any;
+        const seller = sellersData.find(s => s.id === product?.seller_id);
+
+        // BX-04-010: Check if product exists and hasn't been disabled, deleted, or rejected
+        const isProductActive = product && !product.disabled_at && !product.deleted_at && product.approval_status !== 'rejected';
+        
+        if (!isProductActive) {
+          errors[item.id] = 'This product is no longer available.';
+          isValid = false;
+          continue;
+        }
+
+        const now = new Date();
+        const tempBlacklist = seller?.temp_blacklist_until ? new Date(seller.temp_blacklist_until) : null;
+        const isSellerActive = !(
+          seller?.is_permanently_blacklisted || seller?.suspended_at || seller?.is_vacation_mode ||
+          seller?.approval_status === 'rejected' || seller?.approval_status === 'suspended' ||
+          (tempBlacklist && now <= tempBlacklist)
+        );
+
+        if (!isSellerActive) {
+          errors[item.id] = seller?.is_vacation_mode ? 'Seller is currently on vacation.' : 'Store is temporarily restricted.';
+          isValid = false;
+          continue;
+        }
+
+        // Resolve effective stock:
+        // - If the cart line has a variant_id, use the directly-joined variant's stock.
+        // - If variant_id is null (product added without variant selection), sum all
+        //   of the product's variant stocks (fetched in the batch above).
+        // This prevents false "out of stock" errors at checkout.
+        const hasVariant = !!(item as any).variant_id;
+        const availableStock = hasVariant
+          ? (variant?.stock ?? 0)
+          : (noVariantProductStockMap[(product as any)?.id] ?? 0);
+        if (availableStock === 0) {
+          errors[item.id] = 'This item just went out of stock.';
+          isValid = false;
+        } else if (item.quantity > availableStock) {
+          errors[item.id] = `Only ${availableStock} left. Please reduce quantity.`;
+          isValid = false;
+        }
+      }
+
+      return { isValid, errors };
+    } catch (e) {
+      console.error('[CartService] Checkout validation failed:', e);
+      throw new Error('Failed to validate cart. Please try again.');
+    }
+  }
   /**
    * Get existing cart for a buyer
    * New schema: carts table only has id, buyer_id, created_at, updated_at
@@ -232,7 +349,7 @@ export class CartService {
           product_id: productId,
           quantity,
           variant_id: variantId || null,
-          personalized_options: personalizedOptions || null,
+          personalized_options: (personalizedOptions as any) || null,
           notes: notes || null,
         })
         .select()
@@ -432,5 +549,6 @@ export class CartService {
     return { subtotal, itemCount, items };
   }
 }
+
 
 export const cartService = CartService.getInstance();

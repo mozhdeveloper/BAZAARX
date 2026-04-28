@@ -4,6 +4,34 @@ import { cartService } from './cartService';
 import { orderNotificationService } from './orderNotificationService';
 import { notificationService } from './notificationService';
 
+/**
+ * ORPHAN-ORDER GUARD (migration 046, 2026-04-24)
+ *
+ * The checkout flow inserts the `orders` row before order_items. Because Supabase
+ * JS auto-commits every statement, a failure on order_items leaves the orders row
+ * orphaned in the database. Migration 046 cleaned up 54 historical orphans and
+ * added a BEFORE-trigger preventing payment_status='paid' on empty orders.
+ *
+ * This helper is the application-side complement: when items insert fails, we
+ * delete the just-created orders row immediately so it never appears in
+ * dashboards or aggregates. Best-effort — if the rollback itself fails the
+ * DB-side trigger is the structural backstop.
+ */
+async function rollbackOrphanOrder(orderId: string, reason: string, originalErr?: unknown): Promise<void> {
+    console.error('[Checkout] Rolling back orphan orders row', { orderId, reason, originalErr });
+    try {
+        // Best-effort dependent cleanup, then orders row.
+        await supabase.from('order_payments').delete().eq('order_id', orderId);
+        await supabase.from('order_shipments').delete().eq('order_id', orderId);
+        const { error } = await supabase.from('orders').delete().eq('id', orderId);
+        if (error) {
+            console.error('[Checkout] Orphan rollback FAILED — manual cleanup needed for order', orderId, error);
+        }
+    } catch (rbErr) {
+        console.error('[Checkout] Orphan rollback threw — manual cleanup needed for order', orderId, rbErr);
+    }
+}
+
 // Define the payload for the checkout process
 export interface CheckoutPayload {
     userId: string;
@@ -626,7 +654,10 @@ export const processCheckout = async (payload: CheckoutPayload): Promise<Checkou
                             .insert(orderItemsData as any);
 
                         if (retryError && !retryError.message?.includes('materialized view')) {
-                            throw retryError; // Real error
+                            // ORPHAN-ORDER GUARD (migration 046, 2026-04-24): roll back the
+                            // just-created orders row so we do not leave a paid-but-empty order.
+                            await rollbackOrphanOrder(orderData.id, 'mobile_items_retry_failed', retryError);
+                            throw retryError;
                         }
 
                         // Check again
@@ -637,6 +668,7 @@ export const processCheckout = async (payload: CheckoutPayload): Promise<Checkou
 
                         if (!retryItems || retryItems.length === 0) {
                             console.error('[Checkout] ❌ Failed to create order items. Database fix required.');
+                            await rollbackOrphanOrder(orderData.id, 'mobile_items_missing_after_retry');
                             throw new Error(
                                 'Order items creation blocked by database trigger. ' +
                                 'Please contact support or run the database migration.'
@@ -645,6 +677,8 @@ export const processCheckout = async (payload: CheckoutPayload): Promise<Checkou
                         if (__DEV__) console.log('[Checkout] ✅ Order items created on retry');
                     }
                 } else {
+                    // Real error and no items inserted — roll back orphan orders row.
+                    await rollbackOrphanOrder(orderData.id, 'mobile_items_insert_failed', itemsError);
                     throw itemsError;
                 }
             }
@@ -777,10 +811,25 @@ export const processCheckout = async (payload: CheckoutPayload): Promise<Checkou
                 const updatePromises: any[] = [];
                 for (const [variantId, quantityToDeduct] of variantUpdateMap) {
                     const currentStock = variantStockMap.get(variantId) || 0;
-                    const updatePromise = (supabase
-                        .from('product_variants')
-                        .update({ stock: Math.max(0, currentStock - quantityToDeduct) })
-                        .eq('id', variantId) as unknown as Promise<any>);
+                    // Atomic, race-safe decrement via RPC (writes inventory_movements ledger).
+                    // Falls back to legacy direct update if RPC unavailable.
+                    const updatePromise = (async () => {
+                        const { error: rpcErr } = await supabase.rpc('decrement_stock_atomic', {
+                            p_variant_id: variantId,
+                            p_qty: quantityToDeduct,
+                            p_order_id: orderData.id,
+                            p_reason: 'order',
+                            p_actor_id: userId,
+                        });
+                        if (rpcErr) {
+                            console.warn('[Checkout] decrement_stock_atomic failed, falling back:', rpcErr.message);
+                            return await supabase
+                                .from('product_variants')
+                                .update({ stock: Math.max(0, currentStock - quantityToDeduct) })
+                                .eq('id', variantId);
+                        }
+                        return { error: null } as any;
+                    })();
                     updatePromises.push(updatePromise);
                 }
 

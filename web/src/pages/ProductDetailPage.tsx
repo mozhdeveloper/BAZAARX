@@ -1,6 +1,6 @@
-/* eslint-disable @typescript-eslint/no-explicit-any */
+ /* eslint-disable @typescript-eslint/no-explicit-any */
 import { useState, useEffect, useMemo, useCallback, lazy, Suspense } from "react";
-import { useParams, useNavigate } from "react-router-dom";
+import { useParams, useNavigate, useLocation } from "react-router-dom";
 import { motion } from "framer-motion";
 import { toast } from "../hooks/use-toast";
 import {
@@ -37,7 +37,18 @@ import { cn } from "../lib/utils";
 import { productService } from "../services/productService";
 import { discountService } from "@/services/discountService";
 import { warrantyService, type WarrantyInfo } from "@/services/warrantyService";
-import { ProductWithSeller } from "../types/database.types";
+import { supabase } from "@/lib/supabase";
+export interface ProductWithSeller {
+  id: string;
+  name: string;
+  description?: string;
+  price: number;
+  stock?: number;
+  is_active?: boolean;
+  seller_id?: string;
+  category_id?: string;
+  [key: string]: any; // Catch-all for joined seller/variant data
+}
 import type { ActiveDiscount } from "@/types/discount";
 // Lazily loaded — these are only needed on interaction or scroll, not initial render
 const ProductReviews = lazy(() =>
@@ -130,6 +141,7 @@ const StoreIcon = ({ className }: { className?: string }) => (
 export default function ProductDetailPage({ }: ProductDetailPageProps) {
     const { id } = useParams<{ id: string }>();
     const navigate = useNavigate();
+    const location = useLocation();
     const {
         addToCart,
         setQuickOrder,
@@ -137,7 +149,6 @@ export default function ProductDetailPage({ }: ProductDetailPageProps) {
         registries,
         createRegistry,
         addToRegistry,
-        removeRegistryItem,
         cartItems,
         followShop,
         unfollowShop,
@@ -164,7 +175,7 @@ export default function ProductDetailPage({ }: ProductDetailPageProps) {
     const [warrantyInfo, setWarrantyInfo] = useState<WarrantyInfo | null>(null);
     const [isWarrantyLoading, setIsWarrantyLoading] = useState(false);
     const [activeCampaignDiscount, setActiveCampaignDiscount] = useState<ActiveDiscount | null>(
-        () => (id ? campaignDiscountCache[id] : null) || null
+        () => (id ? campaignDiscountCache[id] : null) || (location.state as any)?.flashDiscount || null
     );
     const [showCartModal, setShowCartModal] = useState(false);
     const [showBuyNowModal, setShowBuyNowModal] = useState(false);
@@ -198,6 +209,49 @@ export default function ProductDetailPage({ }: ProductDetailPageProps) {
         fetchProduct();
     }, [id]);
 
+    // Keep stock fresh without requiring a manual page refresh:
+    // 1. Subscribe to realtime updates on this product and its variants.
+    // 2. Re-fetch when the tab regains focus (visibilitychange / focus).
+    useEffect(() => {
+        if (!id || id.length < 10) return;
+
+        const refetch = async () => {
+            try {
+                const fresh = await productService.getProductById(id);
+                if (fresh) setDbProduct(fresh);
+            } catch (e) {
+                console.warn('[PDP] silent refetch failed:', e);
+            }
+        };
+
+        // Realtime channel — listens to product + variant stock changes.
+        const channel = supabase
+            .channel(`pdp-stock-${id}`)
+            .on(
+                'postgres_changes',
+                { event: 'UPDATE', schema: 'public', table: 'products', filter: `id=eq.${id}` },
+                () => { void refetch(); }
+            )
+            .on(
+                'postgres_changes',
+                { event: '*', schema: 'public', table: 'product_variants', filter: `product_id=eq.${id}` },
+                () => { void refetch(); }
+            )
+            .subscribe();
+
+        const onVisible = () => {
+            if (document.visibilityState === 'visible') void refetch();
+        };
+        document.addEventListener('visibilitychange', onVisible);
+        window.addEventListener('focus', onVisible);
+
+        return () => {
+            try { supabase.removeChannel(channel); } catch { /* noop */ }
+            document.removeEventListener('visibilitychange', onVisible);
+            window.removeEventListener('focus', onVisible);
+        };
+    }, [id]);
+
     // ALL useMemo HOOKS SECOND
     const storeProduct = useMemo(() => 
         sellerProducts.find((p) => p.id === id),
@@ -223,8 +277,11 @@ export default function ProductDetailPage({ }: ProductDetailPageProps) {
 
     const isInRegistry = useMemo(() => {
         if (!normalizedProduct) return false;
+        const normalizedProductId = String((normalizedProduct as any).id);
         return registries.some(reg =>
-            reg.products?.some(p => p.id === (normalizedProduct as any).id)
+            reg.products?.some((p: any) =>
+                String(p.sourceProductId || p.id) === normalizedProductId
+            )
         );
     }, [registries, normalizedProduct]);
 
@@ -1109,33 +1166,21 @@ export default function ProductDetailPage({ }: ProductDetailPageProps) {
                             <button
                                 onClick={(e) => {
                                     e.stopPropagation();
-                                    if (isInRegistry) {
-                                        // Remove from all registries it belongs to
-                                        registries.forEach(reg => {
-                                            if (reg.products?.some(p => p.id === (normalizedProduct as any).id)) {
-                                                removeRegistryItem(reg.id, (normalizedProduct as any).id);
-                                            }
-                                        });
-                                        toast({
-                                            title: "Removed from Registry",
-                                            description: "The item has been removed from your registries.",
-                                        });
+                                    if (!profile) {
+                                        navigate("/login", { state: { from: location.pathname } });
+                                        return;
+                                    }
+                                    if (!registries || registries.length === 0) {
+                                        setIsCreateRegistryModalOpen(true);
                                     } else {
-                                        if (!registries || registries.length === 0) {
-                                            setIsCreateRegistryModalOpen(true);
-                                        } else {
-                                            setShowRegistryModal(true);
-                                        }
+                                        setShowRegistryModal(true);
                                     }
                                 }}
                                 className="p-3 text-[var(--brand-primary)] transition-transform active:scale-95 disabled:opacity-40 disabled:cursor-not-allowed disabled:pointer-events-none hover:scale-110 disabled:hover:scale-100"
-                                title={isInRegistry ? "In Registry" : "Add to Registry"}
+                                title="Add to Registry"
                             >
-                                <Heart
-                                    className={cn(
-                                        "w-8 h-8 transition-colors duration-300",
-                                        isInRegistry ? "fill-[var(--brand-primary)] text-[var(--brand-primary)]" : "text-[var(--brand-primary)]"
-                                    )}
+                                <Gift
+                                    className="w-8 h-8 transition-colors duration-300 text-[var(--brand-primary)]"
                                 />
                             </button>
 
@@ -1453,6 +1498,20 @@ export default function ProductDetailPage({ }: ProductDetailPageProps) {
                                 <button
                                     key={registry.id}
                                     onClick={() => {
+                                        const normalizedProductId = String((normalizedProduct as any).id);
+                                        const alreadyInSelectedRegistry = registry.products?.some((p: any) =>
+                                            String(p.sourceProductId || p.id) === normalizedProductId
+                                        );
+
+                                        if (alreadyInSelectedRegistry) {
+                                            toast({
+                                                title: "Already Added",
+                                                description: "This product is already in that registry folder.",
+                                                variant: "destructive",
+                                            });
+                                            return;
+                                        }
+
                                         const productToAdd =
                                             mapNormalizedToBuyerProduct(
                                                 normalizedProduct!,
@@ -1482,9 +1541,27 @@ export default function ProductDetailPage({ }: ProductDetailPageProps) {
                                         />
                                     </div>
                                     <div className="flex-1">
-                                        <h3 className="font-black text-[var(--text-headline)] group-hover:text-[var(--brand-primary)] transition-colors text-base uppercase tracking-tight">
-                                            {registry.title}
-                                        </h3>
+                                        <div className="flex items-center justify-between">
+                                            <h3 className="font-black text-[var(--text-headline)] group-hover:text-[var(--brand-primary)] transition-colors text-base uppercase tracking-tight">
+                                                {registry.title}
+                                            </h3>
+                                            {registry.category && (
+                                                <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-[var(--brand-wash)] text-[var(--brand-primary)] uppercase tracking-wider">
+                                                    {(() => {
+                                                        const labels: Record<string, string> = {
+                                                            wedding: 'Wedding',
+                                                            baby: 'Baby Shower',
+                                                            birthday: 'Birthday',
+                                                            graduation: 'Graduation',
+                                                            housewarming: 'Housewarming',
+                                                            christmas: 'Christmas',
+                                                            other: 'Other'
+                                                        };
+                                                        return labels[registry.category as string] || registry.category;
+                                                    })()}
+                                                </span>
+                                            )}
+                                        </div>
                                         <p className="text-xs text-[var(--text-muted)] font-bold mt-0.5">
                                             {registry.products?.length || 0}{" "}
                                             items • Shared {registry.sharedDate}

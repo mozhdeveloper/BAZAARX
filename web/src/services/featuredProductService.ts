@@ -3,7 +3,7 @@
  * Handles seller product advertising / featured products
  */
 
-import { supabase, isSupabaseConfigured } from '@/lib/supabase';
+import { isSupabaseConfigured, supabase } from '@/lib/supabase';
 
 export interface FeaturedProduct {
   id: string;
@@ -106,7 +106,7 @@ class FeaturedProductService {
             id, name, price, description, seller_id, approval_status, disabled_at,
             images:product_images(id, image_url, is_primary),
             category:categories(id, name),
-            seller:sellers(id, store_name, avatar_url, is_vacation_mode),
+            seller:sellers(id, store_name, avatar_url, is_vacation_mode, approval_status, blacklisted_at, suspended_at, is_permanently_blacklisted, temp_blacklist_until),
             reviews(rating),
             variants:product_variants(stock)
           )
@@ -123,10 +123,21 @@ class FeaturedProductService {
         return [];
       }
 
-      // Filter out expired features
+      // Filter out expired features and products from non-verified sellers
       const now = new Date().toISOString();
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const filtered = (data || []).filter((fp: any) => !fp.expires_at || fp.expires_at > now);
+      const filtered = (data || []).filter((fp: any) => {
+        if (fp.expires_at && fp.expires_at <= now) return false;
+        // Filter out products from non-verified, blacklisted, or suspended sellers
+        const seller = fp.product?.seller;
+        if (!seller) return false;
+        if (seller.approval_status && seller.approval_status !== 'verified') return false;
+        if (seller.suspended_at) return false;
+        if (seller.blacklisted_at) return false;
+        if (seller.is_permanently_blacklisted) return false;
+        if (seller.temp_blacklist_until && new Date(seller.temp_blacklist_until) > new Date()) return false;
+        return true;
+      });
 
       if (filtered.length === 0) return filtered;
 

@@ -1,9 +1,10 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useFocusEffect } from '@react-navigation/native';
-import { Check, ChevronLeft, ChevronRight } from 'lucide-react-native';
+import { Check, ChevronLeft, ChevronRight, AlertCircle, Trash2 } from 'lucide-react-native';
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   Alert,
+  Image,
   Pressable,
   ScrollView,
   StatusBar,
@@ -22,7 +23,7 @@ import type { ActiveDiscount } from '../src/types/discount';
 
 
 export default function CartScreen({ navigation, route }: any) {
-  const { items, removeItem, updateQuantity, clearCart, initializeForCurrentUser, clearQuickOrder, updateItemVariant, removeItems, error } = useCartStore();
+  const { items, removeItem, updateQuantity, clearCart, initializeForCurrentUser, clearQuickOrder, updateItemVariant, removeItems, error, validateCheckout, isValidatingCheckout, checkoutErrors, hasSeenUnavailableModal, setHasSeenUnavailableModal } = useCartStore();
   const insets = useSafeAreaInsets();
 
   // Use global theme color
@@ -211,14 +212,45 @@ export default function CartScreen({ navigation, route }: any) {
     return isOutOfStock || isSellerInactive;
   }, [getItemStock]);
 
+  // BX-04-005: Segregate valid items from unavailable items
+  const validItems = useMemo(() => items.filter(i => !isItemUnavailable(i)), [items, isItemUnavailable]);
+  const unavailableItems = useMemo(() => items.filter(i => isItemUnavailable(i)), [items, isItemUnavailable]);
+
   const groupedItems = useMemo(() => {
-    return items.reduce((groups, item) => {
+    return validItems.reduce((groups, item) => {
       const seller = item.seller || 'Verified Seller';
       if (!groups[seller]) groups[seller] = [];
       groups[seller].push(item);
       return groups;
-    }, {} as Record<string, typeof items>);
-  }, [items]);
+    }, {} as Record<string, typeof validItems>);
+  }, [validItems]);
+
+  // BX-04-005: Unavailable items session modal
+  useEffect(() => {
+    if (items.length > 0 && !hasSeenUnavailableModal) {
+      const hasUnavailable = items.some(i => isItemUnavailable(i));
+      if (hasUnavailable) {
+        setHasSeenUnavailableModal();
+        Alert.alert(
+          'Items Unavailable',
+          'Some items in your cart are no longer available or went out of stock while you were away. They have been moved to the "Unavailable Items" section at the bottom of your cart.',
+          [{ text: 'I Understand' }]
+        );
+      }
+    }
+  }, [items, hasSeenUnavailableModal, isItemUnavailable, setHasSeenUnavailableModal]);
+
+  // BX-04-009: Clear Cart Handler
+  const handleClearCart = () => {
+    Alert.alert(
+      'Clear Entire Cart?',
+      'Are you sure you want to remove all items from your shopping cart? This action cannot be undone.',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        { text: 'Clear Cart', style: 'destructive', onPress: () => clearCart() }
+      ]
+    );
+  };
 
   // Memoize cart calculations — avoids recalculating on every render
   const { selectedItems, subtotal, totalSavings } = useMemo(() => {
@@ -280,7 +312,14 @@ export default function CartScreen({ navigation, route }: any) {
   }, [selectedSet]);
 
   const handleCheckout = async () => {
-    if (selectedIds.length === 0) return;
+    if (selectedIds.length === 0 || isValidatingCheckout) return;
+
+    // BX-04-010: Perform server-side validation before proceeding
+    const isValid = await validateCheckout(selectedIds);
+    if (!isValid) {
+      Alert.alert('Checkout Blocked', 'Some items in your cart are no longer available or changed stock. Please review the errors highlighted in red.');
+      return; // Stop the checkout flow entirely
+    }
 
     // Clear any previous quick order to ensure we checkout strictly from cart selections
     clearQuickOrder();
@@ -341,16 +380,24 @@ export default function CartScreen({ navigation, route }: any) {
           </View>
           <Text style={styles.selectAllText}>Select All ({items.length})</Text>
         </Pressable>
-        {selectedIds.length > 0 && (
-          <Pressable onPress={handleDeleteSelected}>
-            <Text style={[styles.clearText, { color: '#EF4444' }]}>Delete ({selectedIds.length})</Text>
-          </Pressable>
-        )}
+        
+        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 16 }}>
+          {items.length > 0 && (
+            <Pressable onPress={handleClearCart}>
+              <Text style={[styles.clearText, { color: '#6B7280' }]}>Clear Cart</Text>
+            </Pressable>
+          )}
+          {selectedIds.length > 0 && (
+            <Pressable onPress={handleDeleteSelected}>
+              <Text style={[styles.clearText, { color: '#EF4444' }]}>Delete ({selectedIds.length})</Text>
+            </Pressable>
+          )}
+        </View>
       </View>
 
       <ScrollView
         style={styles.scrollContainer}
-        contentContainerStyle={{ paddingBottom: 170 }}
+        contentContainerStyle={{ paddingBottom: 190 }} 
         showsVerticalScrollIndicator={false}
       >
         {/* SELLER GROUPS */}
@@ -425,15 +472,47 @@ export default function CartScreen({ navigation, route }: any) {
                       />
                     </View>
                   </View>
-                  {/* Add divider if not the last item */}
+                 {/* BX-04-010: Display server validation error if it exists */}
+                  {checkoutErrors[item.cartItemId] ? (
+                    <Text style={{ color: '#DC2626', fontSize: 12, fontWeight: '600', marginLeft: 36, marginBottom: 8, marginTop: -4 }}>
+                      ⚠️ {checkoutErrors[item.cartItemId]}
+                    </Text>
+                  ) : null}
+                 {/* Add divider if not the last item */}
                   {index < sellerProducts.length - 1 && <View style={styles.itemSeparator} />}
                 </View>
               ))}
-
-              {/* Per-Seller Subtotal Removed to match reference UI */}
             </View>
           );
         })}
+
+        {/* BX-04-005: Unavailable Items Section */}
+        {unavailableItems.length > 0 && (
+          <View style={{ marginTop: 24, marginHorizontal: 16, borderTopWidth: 1, borderColor: '#E5E7EB', paddingTop: 16 }}>
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 12 }}>
+              <AlertCircle size={20} color="#9CA3AF" />
+              <Text style={{ fontSize: 16, fontWeight: '700', color: '#6B7280' }}>Unavailable Items</Text>
+            </View>
+            <View style={{ opacity: 0.6 }}>
+              {unavailableItems.map((item) => (
+                <View key={item.cartItemId} style={{ backgroundColor: '#FFF', padding: 12, borderRadius: 12, marginBottom: 8, borderWidth: 1, borderColor: '#F3F4F6', flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
+                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12, flex: 1 }}>
+                    <Image source={{ uri: item.image || 'https://via.placeholder.com/150' }} style={{ width: 48, height: 48, borderRadius: 8, backgroundColor: '#F3F4F6' }} />
+                    <View style={{ flex: 1 }}>
+                      <Text style={{ fontSize: 14, fontWeight: '500', color: '#374151' }} numberOfLines={1}>{item.name}</Text>
+                      <View style={{ backgroundColor: '#F3F4F6', paddingHorizontal: 6, paddingVertical: 2, borderRadius: 4, alignSelf: 'flex-start', marginTop: 4 }}>
+                        <Text style={{ fontSize: 10, color: '#6B7280' }}>Out of Stock / Unavailable</Text>
+                      </View>
+                    </View>
+                  </View>
+                  <Pressable onPress={() => handleRemoveSingle(item)} style={{ padding: 8 }}>
+                    <Trash2 size={18} color="#EF4444" />
+                  </Pressable>
+                </View>
+              ))}
+            </View>
+          </View>
+        )}
       </ScrollView>
 
       {/* FLOATING ACTION BAR */}
@@ -469,8 +548,11 @@ export default function CartScreen({ navigation, route }: any) {
                   navigation.navigate('Checkout', { selectedItems });
                 }
               }}
-              style={[styles.checkoutBtn, { backgroundColor: BRAND_PRIMARY, opacity: (selectedIds.length === 0 || hasOutOfStockSelected || hasRestrictedItemsSelected) ? 0.5 : 1 }]}>
-              <Text style={styles.checkoutBtnText}>Checkout ({selectedIds.length})</Text>
+              style={[styles.checkoutBtn, { backgroundColor: BRAND_PRIMARY, opacity: (selectedIds.length === 0 || hasOutOfStockSelected || hasRestrictedItemsSelected || isValidatingCheckout) ?
+0.5 : 1 }]}>
+              <Text style={styles.checkoutBtnText}>
+                {isValidatingCheckout ? 'Validating...' : `Checkout (${selectedIds.length})`}
+              </Text>
             </Pressable>
           </View>
         </View>

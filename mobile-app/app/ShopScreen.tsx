@@ -1,29 +1,29 @@
-  import MultiSlider from '@ptomasroos/react-native-multi-slider';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import type { BottomTabScreenProps } from '@react-navigation/bottom-tabs';
 import type { CompositeScreenProps } from '@react-navigation/native';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { FlashList } from "@shopify/flash-list";
-import { Bell, Camera, Check, ChevronDown, MapPin, Search, SlidersHorizontal, Star, X } from 'lucide-react-native';
+import { Bell, Camera, ChevronDown, FunnelIcon, MapPin, Search, SlidersHorizontal, Star, X } from 'lucide-react-native';
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
-    ActivityIndicator,
-    Dimensions,
-    Keyboard,
-    Modal,
-    Pressable,
-    RefreshControl,
-    ScrollView,
-    StatusBar,
-    StyleSheet,
-    Text,
-    TextInput,
-    View
+  ActivityIndicator,
+  Dimensions,
+  Keyboard,
+  Pressable,
+  RefreshControl,
+  ScrollView,
+  StatusBar,
+  StyleSheet,
+  Text,
+  TextInput,
+  View
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import type { RootStackParamList, TabParamList } from '../App';
 import CameraSearchModal from '../src/components/CameraSearchModal';
 import { MasonryProductCard } from '../src/components/ProductCard';
+import ProductFilterModal from '../src/components/ProductFilterModal';
+import SortModal from '../src/components/SortModal';
 import { COLORS } from '../src/constants/theme';
 import { adBoostService, type AdBoostMobile } from '../src/services/adBoostService';
 import { addressService } from '../src/services/addressService';
@@ -32,6 +32,8 @@ import { notificationService } from '../src/services/notificationService';
 import { productService } from '../src/services/productService';
 import { useAuthStore } from '../src/stores/authStore';
 import type { Product } from '../src/types';
+import type { ProductFilters, SortOption } from '../src/types/filter.types';
+import { DEFAULT_FILTERS } from '../src/types/filter.types';
 
   type Props = CompositeScreenProps<
     BottomTabScreenProps<TabParamList, 'Shop'>,
@@ -177,15 +179,6 @@ import type { Product } from '../src/types';
     };
   };
 
-  const sortOptions = [
-    { value: 'default', label: 'Default' },
-    { value: 'newest', label: 'Newest' },
-    { value: 'rating', label: 'Rating' },
-    { value: 'popularity', label: 'Popularity' },
-    { value: 'price-high', label: 'Price: High to Low' },
-    { value: 'price-low', label: 'Price: Low to High' },
-  ];
-
   // Extracted component so the ScrollView instance persists across category changes
   // and doesn't reset its horizontal scroll position.
   const CategoryChipsBar = React.memo(function CategoryChipsBar({
@@ -255,7 +248,7 @@ import type { Product } from '../src/types';
     const { searchQuery: initialSearchQuery, category: initialCategory } = route.params || {};
     const [searchQuery, setSearchQuery] = useState(initialSearchQuery || '');
     const [selectedCategory, setSelectedCategory] = useState<string>(initialCategory || 'all');
-    const [selectedSort, setSelectedSort] = useState(route.params?.view === 'featured' ? 'default' : 'default');
+    const [sortOption, setSortOption] = useState<SortOption>('relevance');
     const [isFeaturedView, setIsFeaturedView] = useState(route.params?.view === 'featured');
     const shuffledIdsRef = useRef<string[]>([]);
     const flashListRef = useRef<any>(null);
@@ -265,17 +258,17 @@ import type { Product } from '../src/types';
     const [boostedProducts, setBoostedProducts] = useState<AdBoostMobile[]>([]);
     const [featuredLoading, setFeaturedLoading] = useState(false);
 
-    const [minPrice, setMinPrice] = useState('0');
-    const [maxPrice, setMaxPrice] = useState('100000');
-    const [multiSliderValue, setMultiSliderValue] = useState([0, 100000]);
-    const [minInput, setMinInput] = useState('0');
-    const [maxInput, setMaxInput] = useState('100000');
+    // Filter state (matching ProductListingScreen)
+    const [filters, setFilters] = useState<ProductFilters>(DEFAULT_FILTERS);
+    const [availableCategories, setAvailableCategories] = useState<any[]>([]);
+    const [availableBrands, setAvailableBrands] = useState<any[]>([]);
 
     // Category-specific products fetched from server (like ProductListingScreen)
     const [categoryProducts, setCategoryProducts] = useState<Product[]>([]);
     const [isCategoryLoading, setIsCategoryLoading] = useState(false);
 
-    const [showFiltersModal, setShowFiltersModal] = useState(false);
+    const [showFilterModal, setShowFilterModal] = useState(false);
+    const [showSortModal, setShowSortModal] = useState(false);
     const [showCameraSearch, setShowCameraSearch] = useState(false);
     const [isSearchFocused, setIsSearchFocused] = useState(false);
 
@@ -328,6 +321,13 @@ import type { Product } from '../src/types';
               name: category.name,
             }));
             setCategoryChips([DEFAULT_CATEGORY_CHIPS[0], ...mappedChips]);
+            // Also populate filter modal categories
+            setAvailableCategories((categoriesResult.value || []).map((cat: any) => ({
+              id: cat.id,
+              name: cat.name,
+              path: cat.path || [cat.name],
+              hasChildren: false,
+            })));
           } else {
             console.error('[ShopScreen] Failed loading categories:', categoriesResult.reason);
             setCategoryChips(DEFAULT_CATEGORY_CHIPS);
@@ -383,6 +383,12 @@ import type { Product } from '../src/types';
         if (categoriesResult.status === 'fulfilled') {
           const mappedChips = (categoriesResult.value || []).map((category: any) => ({ id: category.id, name: category.name }));
           setCategoryChips([DEFAULT_CATEGORY_CHIPS[0], ...mappedChips]);
+          setAvailableCategories((categoriesResult.value || []).map((cat: any) => ({
+            id: cat.id,
+            name: cat.name,
+            path: cat.path || [cat.name],
+            hasChildren: false,
+          })));
         }
 
       } catch (err) {
@@ -397,19 +403,15 @@ import type { Product } from '../src/types';
           }
         }, 50);
       }
-    }, [selectedSort, isFeaturedView, selectedCategory, searchQuery, minPrice, maxPrice]);
+    }, [sortOption, isFeaturedView, selectedCategory, searchQuery, filters]);
 
     useEffect(() => {
       const resetAllFilters = async () => {
-        setSelectedSort('default');
+        setSortOption('relevance');
         setIsFeaturedView(false);
         setSelectedCategory('all');
         setSearchQuery('');
-        setMinPrice('0');
-        setMaxPrice('100000');
-        setMinInput('0');
-        setMaxInput('100000');
-        setMultiSliderValue([0, 100000]);
+        setFilters({ ...DEFAULT_FILTERS });
         try {
           await AsyncStorage.removeItem('shopSortState');
         } catch (e) { /* ignore */ }
@@ -624,15 +626,6 @@ import type { Product } from '../src/types';
       } catch (e) { console.error(e); }
     };
 
-    const handleSliderChange = (values: number[]) => {
-      setMultiSliderValue(values);
-      setMinInput(values[0].toString());
-      setMaxInput(values[1].toString());
-      if (selectedSort === 'price-high' || selectedSort === 'price-low') {
-        setSelectedSort('default');
-      }
-    };
-
     const productsBySeller = useMemo(() => {
       const map = new Map<string, Product[]>();
       dbProducts.forEach(p => {
@@ -645,14 +638,27 @@ import type { Product } from '../src/types';
 
     const filteredProducts = useMemo(() => {
       // When a specific category is selected, use server-fetched category products
-      // (matching ProductListingScreen behavior with proper deleted_at/disabled_at filtering)
       let sourceProducts = selectedCategory !== 'all' && categoryProducts.length > 0
         ? categoryProducts
         : dbProducts;
 
+      // Safety net: filter out products from non-verified, blacklisted, or suspended sellers
+      sourceProducts = sourceProducts.filter(p => {
+        const seller = (p as any).seller;
+        // If seller data is not available (already transformed), skip this check
+        // since the service layer already filtered
+        if (!seller || typeof seller === 'string') return true;
+        if (seller.approval_status && seller.approval_status !== 'verified') return false;
+        if (seller.suspended_at) return false;
+        if (seller.blacklisted_at) return false;
+        if (seller.is_permanently_blacklisted) return false;
+        if (seller.temp_blacklist_until && new Date(seller.temp_blacklist_until) > new Date()) return false;
+        return true;
+      });
+
       const normalizedQuery = searchQuery.trim().toLowerCase();
-      const min = toNumber(minPrice, 0);
-      const max = toNumber(maxPrice, 100000);
+      const min = filters.priceRange.min ?? 0;
+      const max = filters.priceRange.max ?? Infinity;
 
       let filtered = sourceProducts.filter((product) => {
         const productName = (product.name || '').toLowerCase();
@@ -665,7 +671,8 @@ import type { Product } from '../src/types';
           productDescription.includes(normalizedQuery);
 
         // When using server-fetched category products, skip client-side category filtering
-        const categoryMatch =
+        // When "All" chip is selected, also check the modal's category filter (filters.categoryId)
+        const chipCategoryMatch =
           selectedCategory === 'all' ||
           categoryProducts.length > 0 ||
           product.category_id === selectedCategory ||
@@ -673,9 +680,22 @@ import type { Product } from '../src/types';
             product.category.toLowerCase() === selectedCategory.toLowerCase() ||
             normalizeCategoryKey(product.category) === normalizeCategoryKey(selectedCategory)
           ));
+
+        // Modal category filter: when user picks a category from the filter modal
+        const modalCategoryMatch =
+          !filters.categoryId ||
+          product.category_id === filters.categoryId;
+
+        const categoryMatch = chipCategoryMatch && modalCategoryMatch;
         const priceMatch = productPrice >= min && productPrice <= max;
 
-        return searchMatch && categoryMatch && priceMatch;
+        // Rating filter
+        const ratingMatch = !filters.minRating || (product.rating ?? 0) >= filters.minRating;
+
+        // Free shipping filter
+        const shippingMatch = !filters.freeShipping || !!(product as any).isFreeShipping || !!(product as any).is_free_shipping;
+
+        return searchMatch && categoryMatch && priceMatch && ratingMatch && shippingMatch;
       });
 
       if (isFeaturedView) {
@@ -686,11 +706,12 @@ import type { Product } from '../src/types';
         filtered = filtered.filter(p => featuredProductIds.has(p.id));
       }
 
-      switch (selectedSort) {
-        case 'rating':
+      // Map SortOption values to sorting logic
+      switch (sortOption) {
+        case 'rating-high':
           filtered.sort((a, b) => (b.rating ?? 0) - (a.rating ?? 0));
           break;
-        case 'popularity':
+        case 'best-selling':
           filtered.sort((a, b) => (b.sold ?? 0) - (a.sold ?? 0));
           break;
         case 'newest':
@@ -702,7 +723,7 @@ import type { Product } from '../src/types';
         case 'price-high':
           filtered.sort((a, b) => (b.price ?? 0) - (a.price ?? 0));
           break;
-        case 'default':
+        case 'relevance':
         default: {
           const order = shuffledIdsRef.current;
           if (order.length > 0) {
@@ -721,7 +742,7 @@ import type { Product } from '../src/types';
       });
 
       return filtered;
-    }, [dbProducts, categoryProducts, searchQuery, selectedCategory, selectedSort, isFeaturedView, minPrice, maxPrice, categoryChips, featuredProducts, boostedProducts]);
+    }, [dbProducts, categoryProducts, searchQuery, selectedCategory, sortOption, isFeaturedView, filters, categoryChips, featuredProducts, boostedProducts]);
 
     const handleProductPress = useCallback((product: Product) => {
       navigation.navigate('ProductDetail', { product });
@@ -738,19 +759,16 @@ import type { Product } from '../src/types';
           <View style={styles.emptyBox}>
             <Text style={styles.emptyTitle}>No products found</Text>
             <Text style={styles.emptyText}>Try adjusting your filters or search terms.</Text>
-            {(selectedCategory !== 'all' || searchQuery !== '' || selectedSort !== 'default' ||
-              isFeaturedView || minPrice !== '0' || maxPrice !== '100000') && (
+            {(selectedCategory !== 'all' || searchQuery !== '' || sortOption !== 'relevance' ||
+              isFeaturedView || filters.priceRange.min !== null || filters.priceRange.max !== null ||
+              filters.minRating !== null || filters.freeShipping || filters.onSale) && (
               <Pressable
                 onPress={async () => {
-                  setSelectedSort('default');
+                  setSortOption('relevance');
                   setIsFeaturedView(false);
                   setSelectedCategory('all');
                   setSearchQuery('');
-                  setMinPrice('0');
-                  setMaxPrice('100000');
-                  setMinInput('0');
-                  setMaxInput('100000');
-                  setMultiSliderValue([0, 100000]);
+                  setFilters({ ...DEFAULT_FILTERS });
                   try {
                     await AsyncStorage.removeItem('shopSortState');
                   } catch (e) { /* ignore */ }
@@ -777,15 +795,48 @@ import type { Product } from '../src/types';
           </View>
         </View>
       );
-    }, [isLoading, isCategoryLoading, selectedCategory, searchQuery, selectedSort, isFeaturedView, minPrice, maxPrice, navigation]);
+    }, [isLoading, isCategoryLoading, selectedCategory, searchQuery, sortOption, isFeaturedView, filters, navigation]);
 
     const handleCategorySelect = useCallback((id: string) => {
       setSelectedCategory(id);
+      // Clear category filter when switching chips, since the filter is hidden for non-"All" chips
+      if (id !== 'all') {
+        setFilters(prev => ({ ...prev, categoryId: null, categoryPath: [] }));
+      }
+    }, []);
+
+    // Count active filters for badge
+    const getActiveFilterCount = useCallback(() => {
+      let count = 0;
+      if (filters.categoryId) count++;
+      if (filters.priceRange.min !== null || filters.priceRange.max !== null) count++;
+      if (filters.minRating !== null) count++;
+      if (filters.shippedFrom) count++;
+      if (filters.withVouchers) count++;
+      if (filters.onSale) count++;
+      if (filters.freeShipping) count++;
+      if (filters.preferredSeller) count++;
+      if (filters.officialStore) count++;
+      if (filters.selectedBrands.length > 0) count++;
+      if (filters.standardDelivery || filters.sameDayDelivery || filters.cashOnDelivery || filters.pickupAvailable) count++;
+      return count;
+    }, [filters]);
+
+    const activeFilterCount = getActiveFilterCount();
+
+    // Handle filter apply
+    const handleFilterApply = useCallback((newFilters: ProductFilters) => {
+      setFilters(newFilters);
+    }, []);
+
+    // Handle sort select
+    const handleSortSelect = useCallback((newSort: SortOption) => {
+      setSortOption(newSort);
     }, []);
 
     const listHeaderComponent = useMemo(() => (
       <View>
-        {(selectedSort !== 'default' || isFeaturedView || minPrice !== '0' || maxPrice !== '100000') && (
+        {(sortOption !== 'relevance' || isFeaturedView || activeFilterCount > 0) && (
           <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ paddingHorizontal: 20, paddingBottom: 8, gap: 8 }}>
             {isFeaturedView && (
               <Pressable
@@ -806,10 +857,10 @@ import type { Product } from '../src/types';
                 <X size={12} color="#B45309" />
               </Pressable>
             )}
-            {selectedSort !== 'default' && (
+            {sortOption !== 'relevance' && (
               <Pressable
                 onPress={async () => {
-                  setSelectedSort('default');
+                  setSortOption('relevance');
                   try { await AsyncStorage.removeItem('shopSortState'); } catch (e) { /* ignore */ }
                 }}
                 style={{
@@ -820,18 +871,14 @@ import type { Product } from '../src/types';
               >
                 <Star size={12} color="#B45309" fill="#B45309" style={{ marginRight: 4 }} />
                 <Text style={{ fontSize: 12, fontWeight: '600', color: '#B45309', marginRight: 4 }}>
-                  {sortOptions.find((o: { value: string; label: string }) => o.value === selectedSort)?.label || selectedSort}
+                  Sorted
                 </Text>
                 <X size={12} color="#B45309" />
               </Pressable>
             )}
-            {(minPrice !== '0' || maxPrice !== '100000') && (
+            {(filters.priceRange.min !== null || filters.priceRange.max !== null) && (
               <Pressable
-                onPress={() => {
-                  setMinPrice('0'); setMaxPrice('100000');
-                  setMinInput('0'); setMaxInput('100000');
-                  setMultiSliderValue([0, 100000]);
-                }}
+                onPress={() => setFilters(prev => ({ ...prev, priceRange: { min: null, max: null } }))}
                 style={{
                   flexDirection: 'row', alignItems: 'center', backgroundColor: '#D1FAE5',
                   borderWidth: 1, borderColor: '#10B981', borderRadius: 20,
@@ -839,20 +886,33 @@ import type { Product } from '../src/types';
                 }}
               >
                 <Text style={{ fontSize: 12, fontWeight: '600', color: '#065F46', marginRight: 4 }}>
-                  ₱{Number(minPrice).toLocaleString()} – ₱{Number(maxPrice).toLocaleString()}
+                  ₱{(filters.priceRange.min ?? 0).toLocaleString()} – ₱{(filters.priceRange.max ?? '∞').toLocaleString()}
                 </Text>
                 <X size={12} color="#065F46" />
               </Pressable>
             )}
+            {filters.minRating !== null && (
+              <Pressable
+                onPress={() => setFilters(prev => ({ ...prev, minRating: null }))}
+                style={{
+                  flexDirection: 'row', alignItems: 'center', backgroundColor: '#FEF9C3',
+                  borderWidth: 1, borderColor: '#EAB308', borderRadius: 20,
+                  paddingHorizontal: 12, paddingVertical: 6,
+                }}
+              >
+                <Text style={{ fontSize: 12, fontWeight: '600', color: '#854D0E', marginRight: 4 }}>
+                  {filters.minRating}★ & up
+                </Text>
+                <X size={12} color="#854D0E" />
+              </Pressable>
+            )}
             <Pressable
               onPress={async () => {
-                setSelectedSort('default');
+                setSortOption('relevance');
                 setIsFeaturedView(false);
                 setSelectedCategory('all');
                 setSearchQuery('');
-                setMinPrice('0'); setMaxPrice('100000');
-                setMinInput('0'); setMaxInput('100000');
-                setMultiSliderValue([0, 100000]);
+                setFilters({ ...DEFAULT_FILTERS });
                 try { await AsyncStorage.removeItem('shopSortState'); } catch (e) { /* ignore */ }
                 navigation.setParams({ searchQuery: undefined, category: undefined, view: undefined });
               }}
@@ -863,7 +923,7 @@ import type { Product } from '../src/types';
           </ScrollView>
         )}
       </View>
-    ), [selectedSort, isFeaturedView, minPrice, maxPrice]);
+    ), [sortOption, isFeaturedView, filters, activeFilterCount]);
 
     return (
       <View
@@ -893,6 +953,7 @@ import type { Product } from '../src/types';
                 }
               }}
               style={styles.headerIconButton}
+              
             >
               <Bell size={24} color={COLORS.primary} />
               {!isGuest && unreadCount > 0 && (
@@ -906,9 +967,9 @@ import type { Product } from '../src/types';
           </View>
 
           <View style={styles.headerTop}>
-            <View style={[styles.searchBarWrapper, (isSearchFocused || !showFiltersModal) && { marginRight: 0 }]}>
+            <View style={styles.searchBarWrapper}>
               <View style={[styles.searchBarInner, { backgroundColor: '#FFFFFF', borderRadius: 24, shadowColor: COLORS.primary, shadowOpacity: 0.1, shadowRadius: 15, elevation: 4 }]}>
-                <Search size={18} color={COLORS.primary} />
+               
                 <TextInput
                   style={[styles.searchInput, { color: COLORS.textHeadline }]}
                   placeholder="Search products..."
@@ -937,9 +998,8 @@ import type { Product } from '../src/types';
                       navigation.navigate('ProductListing', { searchQuery: trimmedQuery });
                     }
                   }}
-                  style={styles.searchActionButton}
                 >
-                  <Text style={styles.searchActionText}>Search</Text>
+                  <Search size={18} color={COLORS.primary} />
                 </Pressable>
               </View>
             </View>
@@ -948,15 +1008,41 @@ import type { Product } from '../src/types';
               <Pressable onPress={() => { Keyboard.dismiss(); setIsSearchFocused(false); setSearchQuery(''); }} style={{ paddingLeft: 10 }}>
                 <Text style={{ color: COLORS.primary, fontWeight: '600' }}>Cancel</Text>
               </Pressable>
-            ) : (
-              <View style={styles.headerRight}>
-                <Pressable style={styles.headerIconButton} onPress={() => setShowFiltersModal(true)}>
-                  <SlidersHorizontal size={24} color={COLORS.textHeadline} />
-                </Pressable>
-              </View>
-            )}
+            ) : null}
           </View>
         </View>
+
+        {/* Sort & Filter toolbar — separate row below search for breathing room */}
+        {!isSearchFocused && (
+          <View style={styles.filterToolbar}>
+            <Text style={styles.filterToolbarCount}>
+              {(isLoading || isCategoryLoading) ? 'Loading...' : `${filteredProducts.length} products`}
+            </Text>
+            <View style={{ flex: 1 }} />
+            <View style={styles.filterToolbarButtons}>
+              {/* SORT ICON — change the icon component below to customize */}
+              <Pressable
+                style={[styles.toolbarIconButton, sortOption !== 'relevance' && styles.toolbarIconButtonActive]}
+                onPress={() => setShowSortModal(true)}
+              >
+                {/* Replace ChevronDown with your preferred sort icon */}
+                <FunnelIcon size={18} color={sortOption !== 'relevance' ? COLORS.primary : COLORS.textPrimary} />
+                {sortOption !== 'relevance' && <View style={styles.toolbarIconBadge} />}
+              </Pressable>
+              <Pressable
+                style={[styles.toolbarIconButton, activeFilterCount > 0 && styles.toolbarIconButtonActive]}
+                onPress={() => setShowFilterModal(true)}
+              >
+                <SlidersHorizontal size={18} color={activeFilterCount > 0 ? COLORS.primary : COLORS.textPrimary} />
+                {activeFilterCount > 0 && (
+                  <View style={styles.toolbarIconBadgeCount}>
+                    <Text style={styles.toolbarIconBadgeCountText}>{activeFilterCount}</Text>
+                  </View>
+                )}
+              </Pressable>
+            </View>
+          </View>
+        )}
 
         {/* Featured Sort Indicator — replaced by filter chips above */}
 
@@ -1003,98 +1089,28 @@ import type { Product } from '../src/types';
 
         <CameraSearchModal visible={showCameraSearch} onClose={() => setShowCameraSearch(false)} />
 
-        <Modal visible={showFiltersModal} animationType="slide" transparent={true}>
-          <View style={styles.modalOverlay}>
-            <Pressable style={styles.modalBackdrop} onPress={() => setShowFiltersModal(false)} />
-            <View style={styles.modalContent}>
-              
-              <View style={styles.modalHeader}>
-                <Text style={styles.modalTitle}>Filter & Sort</Text>
-                <Pressable onPress={() => setShowFiltersModal(false)}><X size={24} color={COLORS.textHeadline} /></Pressable>
-              </View>
-              <ScrollView
-                style={styles.modalScrollBody}
-                contentContainerStyle={styles.modalBodyContent}
-                showsVerticalScrollIndicator={false}
-                bounces={true}
-                keyboardShouldPersistTaps="handled"
-              >
-                <Text style={styles.filterSectionTitle}>Price Range</Text>
-                <View style={styles.priceInputsRow}>
-                  <View style={styles.priceInputContainer}>
-                    <Text style={styles.priceInputLabel}>Min (₱)</Text>
-                    <TextInput
-                      style={styles.priceTextInput}
-                      value={minInput}
-                      onChangeText={setMinInput}
-                      keyboardType="numeric"
-                    />
-                  </View>
-                  <View style={styles.priceInputContainer}>
-                    <Text style={styles.priceInputLabel}>Max (₱)</Text>
-                    <TextInput
-                      style={styles.priceTextInput}
-                      value={maxInput}
-                      onChangeText={setMaxInput}
-                      keyboardType="numeric"
-                    />
-                  </View>
-                </View>
+        <ProductFilterModal
+          visible={showFilterModal}
+          onClose={() => setShowFilterModal(false)}
+          onApply={handleFilterApply}
+          initialFilters={filters}
+          hideCategoryFilter={selectedCategory !== 'all'}
+          availableCategories={
+            // Exclude the currently selected category chip from filter options
+            // since the user is already viewing that category's products
+            selectedCategory !== 'all'
+              ? availableCategories.filter(cat => cat.id !== selectedCategory)
+              : availableCategories
+          }
+          availableBrands={availableBrands}
+        />
 
-                <View style={styles.sliderContainer}>
-                  <MultiSlider
-                    values={[multiSliderValue[0], multiSliderValue[1]]}
-                    sliderLength={width - 80}
-                    onValuesChange={handleSliderChange}
-                    min={0}
-                    max={100000}
-                    step={500}
-                    selectedStyle={{ backgroundColor: BRAND_COLOR }}
-                    markerStyle={{ backgroundColor: '#FFF', borderColor: BRAND_COLOR, borderWidth: 2 }}
-                  />
-                </View>
-
-                <Text style={styles.filterSectionTitle}>Sort By</Text>
-                {sortOptions.map((opt: { value: string; label: string }) => (
-                  <Pressable
-                    key={opt.value}
-                    style={styles.filterOption}
-                    onPress={async () => {
-                      setSelectedSort(opt.value);
-                      try {
-                        if (opt.value === 'default') {
-                          await AsyncStorage.removeItem('shopSortState');
-                        } else {
-                          await AsyncStorage.setItem('shopSortState', opt.value);
-                        }
-                      } catch (error) {
-                        console.error('[ShopScreen] Error saving sort state:', error);
-                      }
-                    }}
-                  >
-                    <Text style={[styles.filterText, selectedSort === opt.value && { color: BRAND_COLOR }]}>{opt.label}</Text>
-                    {selectedSort === opt.value && <Check size={20} color={BRAND_COLOR} />}
-                  </Pressable>
-                ))}
-
-                <View style={{ height: 20 }} />
-              </ScrollView>
-
-              <View style={styles.modalFooter}>
-                <Pressable
-                  style={[styles.applyButton, { backgroundColor: BRAND_COLOR }]}
-                  onPress={() => {
-                    setMinPrice(minInput);
-                    setMaxPrice(maxInput);
-                    setShowFiltersModal(false);
-                  }}
-                >
-                  <Text style={styles.applyButtonText}>Apply Filters</Text>
-                </Pressable>
-              </View>
-            </View>
-          </View>
-        </Modal>
+        <SortModal
+          visible={showSortModal}
+          onClose={() => setShowSortModal(false)}
+          onSelect={handleSortSelect}
+          selectedSort={sortOption}
+        />
       </View>
     );
   }
@@ -1124,10 +1140,8 @@ import type { Product } from '../src/types';
     searchBarWrapper: { flex: 1, flexDirection: 'row', alignItems: 'center' },
     searchBarInner: { flex: 1, flexDirection: 'row', alignItems: 'center', backgroundColor: '#FFFFFF', borderRadius: 24, paddingHorizontal: 15, height: 48, gap: 10 },
     searchInput: { flex: 1, fontSize: 14, color: COLORS.textHeadline },
-    searchActionButton: { paddingHorizontal: 12, paddingVertical: 8, borderRadius: 18, backgroundColor: COLORS.primary, justifyContent: 'center', alignItems: 'center' },
-    searchActionText: { color: '#FFFFFF', fontSize: 13, fontWeight: '700' },
     headerRight: { flexDirection: 'row', gap: 10, paddingLeft: 5 },
-    headerIconButton: { padding: 4, position: 'relative' },
+    headerIconButton: { padding: 4, position: 'relative', marginTop: 15 },
     badge: { position: 'absolute', top: 0, right: 0, minWidth: 16, height: 16, borderRadius: 8, alignItems: 'center', justifyContent: 'center' },
     badgeText: { fontSize: 9, fontWeight: '900' },
     scrollView: { flex: 1 },
@@ -1140,24 +1154,61 @@ import type { Product } from '../src/types';
     emptyBox: { width: '100%', alignItems: 'center', paddingVertical: 40 },
     emptyTitle: { fontSize: 16, fontWeight: '800', color: COLORS.textHeadline },
     emptyText: { fontSize: 13, color: COLORS.textMuted, marginTop: 5 },
-    modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'flex-end' },
-    modalBackdrop: { flex: 1 },
-    modalContent: { backgroundColor: '#FFF', borderTopLeftRadius: 24, borderTopRightRadius: 24, maxHeight: '95%' },
-    modalHandle: { width: 40, height: 4, borderRadius: 2, backgroundColor: '#D1D5DB', alignSelf: 'center', marginTop: 10, marginBottom: 4 },
-    modalHeader: { flexDirection: 'row', justifyContent: 'space-between', paddingHorizontal: 24, paddingVertical: 16, borderBottomWidth: 1, borderBottomColor: '#F3F4F6' },
-    modalTitle: { fontSize: 18, fontWeight: '800' },
-    modalScrollBody: { flexGrow: 0, flexShrink: 1 },
-    modalBodyContent: { padding: 24, paddingBottom: 8 },
-    modalBody: { padding: 24 },
-    modalFooter: { paddingHorizontal: 24, paddingTop: 12, paddingBottom: 34, borderTopWidth: 1, borderTopColor: '#F3F4F6' },
-    filterSectionTitle: { fontSize: 16, fontWeight: '800', marginBottom: 2 },
-    priceInputsRow: { flexDirection: 'row', gap: 10, marginBottom: 10 },
-    priceInputContainer: { flex: 1, backgroundColor: '#F9FAFB', borderRadius: 8, padding: 8, borderWidth: 1, borderColor: '#E5E7EB' },
-    priceInputLabel: { fontSize: 10, color: COLORS.textMuted },
-    priceTextInput: { fontSize: 14, fontWeight: '700', marginTop: 2, color: COLORS.textHeadline },
-    sliderContainer: { alignItems: 'center', marginVertical: 10 },
-    filterOption: { flexDirection: 'row', justifyContent: 'space-between', paddingVertical: 15, borderBottomWidth: 1, borderBottomColor: '#F9FAFB' },
-    filterText: { fontSize: 15, fontWeight: '600', color: COLORS.textPrimary },
-    applyButton: { marginTop: 25, height: 50, borderRadius: 25, alignItems: 'center', justifyContent: 'center' },
-    applyButtonText: { color: '#FFF', fontSize: 16, fontWeight: '700' }
+    // Filter toolbar row (between search and category chips)
+    filterToolbar: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      paddingHorizontal: 20,
+      paddingVertical: 8,
+      borderBottomWidth: 1,
+      borderBottomColor: '#F3F4F6',
+      backgroundColor: COLORS.background,
+    },
+    filterToolbarCount: {
+      fontSize: 13,
+      color: COLORS.textMuted,
+      fontWeight: '500',
+    },
+    filterToolbarButtons: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 8,
+    },
+    toolbarIconButton: {
+      width: 36,
+      height: 36,
+      borderRadius: 18,
+      backgroundColor: '#F3F4F6',
+      alignItems: 'center',
+      justifyContent: 'center',
+      position: 'relative',
+    },
+    toolbarIconButtonActive: {
+      backgroundColor: `${COLORS.primary}12`,
+    },
+    toolbarIconBadge: {
+      position: 'absolute',
+      top: 4,
+      right: 4,
+      width: 7,
+      height: 7,
+      borderRadius: 4,
+      backgroundColor: COLORS.primary,
+    },
+    toolbarIconBadgeCount: {
+      position: 'absolute',
+      top: -4,
+      right: -4,
+      backgroundColor: COLORS.primary,
+      minWidth: 18,
+      height: 18,
+      borderRadius: 9,
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    toolbarIconBadgeCountText: {
+      fontSize: 10,
+      fontWeight: '700',
+      color: '#FFFFFF',
+    },
   });

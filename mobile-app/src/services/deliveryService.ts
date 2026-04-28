@@ -195,9 +195,11 @@ export class DeliveryService {
       ? this.sandboxBookDelivery(request, courier)
       : await this.realBookDelivery(request, courier);
 
+    // UPSERT on (order_id, seller_id) — re-clicking "Book Delivery" must update,
+    // not insert. Enforced by UNIQUE delivery_bookings_order_seller_key (043e).
     const { data: dbBooking, error } = await supabase
       .from('delivery_bookings')
-      .insert({
+      .upsert({
         order_id: request.orderId,
         seller_id: request.sellerId,
         buyer_id: request.buyerId,
@@ -224,11 +226,12 @@ export class DeliveryService {
         status: 'booked',
         booked_at: new Date().toISOString(),
         estimated_delivery: booking.estimatedDelivery,
-      } as any)
+        updated_at: new Date().toISOString(),
+      } as any, { onConflict: 'order_id,seller_id' })
       .select('id')
       .single();
 
-    if (error || !dbBooking) throw new Error('Failed to save delivery booking');
+    if (error || !dbBooking) throw new Error(`Failed to save delivery booking: ${error?.message || 'unknown'}`);
 
     await supabase.from('delivery_tracking_events').insert({
       delivery_booking_id: dbBooking.id,
@@ -245,12 +248,21 @@ export class DeliveryService {
       })
       .eq('id', request.orderId);
 
-    await supabase.from('order_shipments').insert({
-      order_id: request.orderId,
-      tracking_number: booking.trackingNumber,
-      status: 'processing',
-      shipping_method: { courier: courier.name, service: request.serviceType },
-    });
+    // UPDATE the canonical order_shipments row (created at checkout) — do NOT
+    // insert. Unique on (order_id, seller_id) per migration 043e.
+    const { error: shipUpdErr } = await supabase
+      .from('order_shipments')
+      .update({
+        tracking_number: booking.trackingNumber,
+        status: 'processing',
+        shipped_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+      })
+      .eq('order_id', request.orderId)
+      .eq('seller_id', request.sellerId);
+    if (shipUpdErr) {
+      console.warn('[deliveryService] order_shipments update failed:', shipUpdErr.message);
+    }
 
     return {
       success: true,

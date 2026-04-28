@@ -68,140 +68,93 @@ The following files are local AI standards and are **never committed**:
 
 ---
 
-## Session Log — April 23, 2026
+## Session Log — April 24, 2026
 
-### Web Shipping Logistics Implementation
+### PayMongo Checkout and Profile Payment Methods Parity (Web)
 
 **Status:** ✅ COMPLETE
 
-**Objective:** Implement comprehensive shipping logistics on the web platform with method selection, service integration, and carrier support.
+**Objective:** Align web checkout/payment behavior with mobile by improving PayMongo card handling, enforcing sandbox test-card policy, and ensuring checkout card entry is persisted to Profile Payment Methods.
 
-**Changes Implemented:**
+**Scope Delivered Today:**
 
-### 1. ShippingMethodPicker Component
-
-**New File:** [web/src/components/ShippingMethodPicker.tsx](web/src/components/ShippingMethodPicker.tsx)
-
-- User-friendly component for selecting shipping methods
-- Displays available shipping options with delivery estimates
-- Shows shipping costs and carriers
-- Integrates with checkout flow
-- TypeScript typed for safety
-- Responsive design for web layout
-
-### 2. Shipping Service Layer
-
-**New File:** [web/src/services/shippingService.ts](web/src/services/shippingService.ts)
-
-- Handles order processing with shipping details
-- Manages shipping method selection and validation
-- Integrates with carrier APIs
-- Provides shipping quote calculations
-- Manages shipment tracking
-- Error handling for shipping operations
-
-### 3. Shipping Types Definition
-
-**New File:** [web/src/types/shipping.types.ts](web/src/types/shipping.types.ts)
-
-- Complete TypeScript interfaces for shipping
-- Defines shipping methods structure
-- Carrier information types
-- Shipment tracking types
-- Delivery estimation types
-- Request/response interfaces
-
-### 4. CheckoutPage Integration
+### 1. Checkout Layout and Order Summary Width
 
 **Modified:** [web/src/pages/CheckoutPage.tsx](web/src/pages/CheckoutPage.tsx)
 
-- Integrated ShippingMethodPicker component
-- Added shipping method selection flow
-- Updated checkout validation to include shipping
-- Added shipping costs to order summary
-- Maintains grouped multi-seller display
-- Preserves existing pricing and discount logic
+- Adjusted desktop checkout grid proportions so the order summary panel is wider.
+- Preserved two-column layout integrity (form + summary).
+- Kept responsive behavior intact for smaller breakpoints.
 
-### 5. EnhancedCartPage Updates
+### 2. Profile Payment Methods Web/Mobile Consistency
 
-**Modified:** [web/src/pages/EnhancedCartPage.tsx](web/src/pages/EnhancedCartPage.tsx)
+**Modified:** [web/src/components/profile/PaymentMethodsSection.tsx](web/src/components/profile/PaymentMethodsSection.tsx)
+**Modified:** [web/src/components/profile/PaymentMethodModal.tsx](web/src/components/profile/PaymentMethodModal.tsx)
+**Modified:** [web/src/hooks/profile/usePaymentMethodManager.ts](web/src/hooks/profile/usePaymentMethodManager.ts)
 
-- Updated with shipping logistics support
-- Added shipping preview in cart summary
-- Integrated shipping service calls
-- Updated cart state for shipping data
-- Maintains existing cart functionality
+- Updated web profile payment methods flow to match mobile UX direction.
+- Focused PayMongo/card path as primary active payment method flow.
+- Applied stricter validation for manual card entry consistency.
 
-### 6. CheckoutService Enhancement
+### 3. Strict PayMongo Sandbox Policy (Test Cards Only)
 
-**Modified:** [web/src/services/checkoutService.ts](web/src/services/checkoutService.ts)
+**Modified:** [web/src/pages/CheckoutPage.tsx](web/src/pages/CheckoutPage.tsx)
+**Modified:** [web/src/services/payMongoService.ts](web/src/services/payMongoService.ts)
 
-- Added shipping validation logic
-- Integrated shipping data into order creation
-- Enhanced checkout flow with shipping steps
-- Added shipping error handling
-- Maintains backward compatibility
+- Enforced test-card-only checks in checkout validation layer.
+- Enforced the same policy in service layer to prevent bypass.
+- Non-test cards are now rejected consistently before/at processing.
 
----
+### 4. Saved Card + Use Different Card in Web Checkout
 
-### Key Features Implemented
+**Modified:** [web/src/pages/CheckoutPage.tsx](web/src/pages/CheckoutPage.tsx)
 
-✅ **Multiple Shipping Methods**: Support for various carriers and delivery options
-✅ **Method Selection UI**: Intuitive picker component for users to choose preferred shipping
-✅ **Service Integration**: Complete backend integration for shipping operations
-✅ **Type Safety**: Comprehensive TypeScript types for all shipping data
-✅ **Cost Calculation**: Automatic shipping cost computation
-✅ **Delivery Estimates**: Display estimated delivery dates
-✅ **Cart Integration**: Shipping preview in cart summary
-✅ **Checkout Flow**: Seamless shipping selection during checkout
-✅ **Error Handling**: Robust error management for shipping failures
-✅ **Multi-Seller Support**: Shipping handles multiple sellers in same order
+- Added saved PayMongo card selection in checkout when cards exist.
+- Added "Use Different Card" path to allow manual entry during checkout.
+- Ensured payload includes `cardDetails` only for manual-entry flow.
 
----
+### 5. Auto-Save Checkout Card to Profile (No Saved Card Case)
 
-### What Was Preserved
+**Modified:** [web/src/pages/CheckoutPage.tsx](web/src/pages/CheckoutPage.tsx)
 
-- ✅ Existing checkout validation logic
-- ✅ Multi-seller grouping in order summary
-- ✅ All pricing and discount calculations
-- ✅ Cart management functionality
-- ✅ Payment processing flow
-- ✅ Order creation workflow
-- ✅ TypeScript compilation integrity
-- ✅ Web app styling and layout
+- Implemented post-success save behavior that mirrors mobile logic:
+  - If payment method is PayMongo card,
+  - and buyer has no saved PayMongo card,
+  - and buyer entered card manually,
+  - then save card to Payment Methods after successful checkout.
+- Uses existing payment service write path and updates local buyer state immediately so Profile reflects the card without reload.
+- Save failure is non-blocking: order success is preserved and user receives a clear notice.
 
 ---
 
-### Files Modified
+### Files Modified (Today)
 
 | File | Changes | Status |
 |------|---------|--------|
-| [web/src/components/ShippingMethodPicker.tsx](web/src/components/ShippingMethodPicker.tsx) | New component for shipping method selection | ✅ Created |
-| [web/src/services/shippingService.ts](web/src/services/shippingService.ts) | New service for shipping operations | ✅ Created |
-| [web/src/types/shipping.types.ts](web/src/types/shipping.types.ts) | New types for shipping data structures | ✅ Created |
-| [web/src/pages/CheckoutPage.tsx](web/src/pages/CheckoutPage.tsx) | Integrated shipping method picker and flow | ✅ Modified |
-| [web/src/pages/EnhancedCartPage.tsx](web/src/pages/EnhancedCartPage.tsx) | Added shipping logistics support | ✅ Modified |
-| [web/src/services/checkoutService.ts](web/src/services/checkoutService.ts) | Added shipping validation and handling | ✅ Modified |
+| [web/src/pages/CheckoutPage.tsx](web/src/pages/CheckoutPage.tsx) | Checkout width update, PayMongo validation, saved card selection, use-different-card path, post-success auto-save to Profile | ✅ Modified |
+| [web/src/services/payMongoService.ts](web/src/services/payMongoService.ts) | Service-level test-card-only enforcement for PayMongo | ✅ Modified |
+| [web/src/components/profile/PaymentMethodsSection.tsx](web/src/components/profile/PaymentMethodsSection.tsx) | Profile payment methods parity updates | ✅ Modified |
+| [web/src/components/profile/PaymentMethodModal.tsx](web/src/components/profile/PaymentMethodModal.tsx) | Card add modal validation and PayMongo-focused flow | ✅ Modified |
+| [web/src/hooks/profile/usePaymentMethodManager.ts](web/src/hooks/profile/usePaymentMethodManager.ts) | Payment method manager alignment with updated card flow | ✅ Modified |
 
-**Total Files Modified:** 6
-**New Files Created:** 3
-**Total Insertions:** 1005
-**Total Deletions:** 104
+**Total Files Modified:** 5
 
 ---
 
-### Testing Checklist
+### Validation Snapshot
 
-✅ Shipping method selection works in CheckoutPage
-✅ ShippingMethodPicker component renders correctly
-✅ Shipping costs display in order summary
-✅ Checkout validation includes shipping requirements
-✅ Multiple shipping methods available to users
-✅ Carrier integration functional
-✅ Delivery estimates display correctly
-✅ Multi-seller orders handle shipping per seller
-✅ TypeScript compilation: No errors
-✅ Cart displays shipping preview
+✅ No TypeScript errors in changed checkout file after latest patch
+✅ Web flow now mirrors mobile behavior for manual-card save after successful PayMongo checkout (no-saved-card scenario)
+✅ Test-card-only policy applied in both UI and service layers
+
+---
+
+### Next Step
+
+Run end-to-end user testing for:
+- Existing saved card checkout path
+- No saved card manual-entry checkout path
+- Profile Payment Methods reflecting newly saved PayMongo card immediately after successful order
 
 ---
 

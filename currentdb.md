@@ -1,1628 +1,2032 @@
--- WARNING: This schema is for context only and is not meant to be run.
--- Table order and constraints may not be valid for execution.
+## Table `_orphan_orders_audit_20260424`
 
-CREATE TABLE public.admin_audit_logs (
-  id uuid NOT NULL DEFAULT gen_random_uuid(),
-  admin_id uuid NOT NULL,
-  action text NOT NULL,
-  target_table text,
-  target_id uuid,
-  old_values jsonb,
-  new_values jsonb,
-  ip_address text,
-  user_agent text,
-  created_at timestamp with time zone NOT NULL DEFAULT now(),
-  CONSTRAINT admin_audit_logs_pkey PRIMARY KEY (id),
-  CONSTRAINT admin_audit_logs_admin_id_fkey FOREIGN KEY (admin_id) REFERENCES public.admins(id)
-);
-CREATE TABLE public.admin_notifications (
-  id uuid NOT NULL DEFAULT gen_random_uuid(),
-  admin_id uuid NOT NULL,
-  type text NOT NULL,
-  title text NOT NULL,
-  message text NOT NULL,
-  action_url text,
-  action_data jsonb,
-  read_at timestamp with time zone,
-  priority text NOT NULL DEFAULT 'normal'::text CHECK (priority = ANY (ARRAY['low'::text, 'normal'::text, 'high'::text, 'urgent'::text])),
-  created_at timestamp with time zone NOT NULL DEFAULT now(),
-  CONSTRAINT admin_notifications_pkey PRIMARY KEY (id),
-  CONSTRAINT admin_notifications_admin_id_fkey FOREIGN KEY (admin_id) REFERENCES public.admins(id)
-);
-CREATE TABLE public.admins (
-  id uuid NOT NULL,
-  permissions jsonb DEFAULT '{}'::jsonb,
-  created_at timestamp with time zone NOT NULL DEFAULT now(),
-  updated_at timestamp with time zone NOT NULL DEFAULT now(),
-  CONSTRAINT admins_pkey PRIMARY KEY (id),
-  CONSTRAINT admins_id_fkey FOREIGN KEY (id) REFERENCES public.profiles(id)
-);
-CREATE TABLE public.ai_conversations (
-  id uuid NOT NULL DEFAULT gen_random_uuid(),
-  user_id uuid NOT NULL,
-  user_type text NOT NULL CHECK (user_type = ANY (ARRAY['buyer'::text, 'seller'::text])),
-  title text,
-  last_message_at timestamp with time zone NOT NULL DEFAULT now(),
-  created_at timestamp with time zone NOT NULL DEFAULT now(),
-  CONSTRAINT ai_conversations_pkey PRIMARY KEY (id),
-  CONSTRAINT ai_conversations_user_id_fkey FOREIGN KEY (user_id) REFERENCES auth.users(id)
-);
-CREATE TABLE public.ai_messages (
-  id uuid NOT NULL DEFAULT gen_random_uuid(),
-  conversation_id uuid NOT NULL,
-  sender text NOT NULL CHECK (sender = ANY (ARRAY['user'::text, 'ai'::text])),
-  message text NOT NULL,
-  metadata jsonb,
-  created_at timestamp with time zone NOT NULL DEFAULT now(),
-  CONSTRAINT ai_messages_pkey PRIMARY KEY (id),
-  CONSTRAINT ai_messages_conversation_id_fkey FOREIGN KEY (conversation_id) REFERENCES public.ai_conversations(id)
-);
-CREATE TABLE public.announcements (
-  id uuid NOT NULL DEFAULT gen_random_uuid(),
-  admin_id uuid NOT NULL,
-  title text NOT NULL,
-  message text NOT NULL,
-  type text NOT NULL DEFAULT 'info'::text CHECK (type = ANY (ARRAY['info'::text, 'promo'::text, 'urgent'::text, 'maintenance'::text])),
-  audience text NOT NULL DEFAULT 'all'::text CHECK (audience = ANY (ARRAY['all'::text, 'buyers'::text, 'sellers'::text])),
-  image_url text,
-  action_url text,
-  action_data jsonb,
-  is_active boolean NOT NULL DEFAULT true,
-  scheduled_at timestamp with time zone,
-  expires_at timestamp with time zone,
-  created_at timestamp with time zone NOT NULL DEFAULT now(),
-  updated_at timestamp with time zone NOT NULL DEFAULT now(),
-  CONSTRAINT announcements_pkey PRIMARY KEY (id),
-  CONSTRAINT announcements_admin_id_fkey FOREIGN KEY (admin_id) REFERENCES public.admins(id)
-);
-CREATE TABLE public.automation_workflows (
-  id uuid NOT NULL DEFAULT gen_random_uuid(),
-  name text NOT NULL,
-  description text,
-  trigger_event text NOT NULL,
-  channels jsonb NOT NULL DEFAULT '["email"]'::jsonb,
-  delay_minutes integer DEFAULT 0,
-  template_id uuid,
-  sms_template text,
-  is_enabled boolean NOT NULL DEFAULT true,
-  created_by uuid,
-  created_at timestamp with time zone NOT NULL DEFAULT now(),
-  updated_at timestamp with time zone NOT NULL DEFAULT now(),
-  CONSTRAINT automation_workflows_pkey PRIMARY KEY (id),
-  CONSTRAINT automation_workflows_template_id_fkey FOREIGN KEY (template_id) REFERENCES public.email_templates(id)
-);
-CREATE TABLE public.bazcoin_transactions (
-  id uuid NOT NULL DEFAULT gen_random_uuid(),
-  user_id uuid NOT NULL,
-  amount integer NOT NULL,
-  balance_after integer NOT NULL,
-  reason text NOT NULL,
-  reference_id uuid,
-  reference_type text,
-  created_at timestamp with time zone NOT NULL DEFAULT now(),
-  CONSTRAINT bazcoin_transactions_pkey PRIMARY KEY (id),
-  CONSTRAINT bazcoin_transactions_user_id_fkey FOREIGN KEY (user_id) REFERENCES public.profiles(id)
-);
-CREATE TABLE public.bounce_logs (
-  id uuid NOT NULL DEFAULT gen_random_uuid(),
-  email text NOT NULL,
-  bounce_type text NOT NULL CHECK (bounce_type = ANY (ARRAY['hard'::text, 'soft'::text])),
-  reason text,
-  resend_event_id text,
-  logged_at timestamp with time zone NOT NULL DEFAULT now(),
-  CONSTRAINT bounce_logs_pkey PRIMARY KEY (id)
-);
-CREATE TABLE public.buyer_notifications (
-  id uuid NOT NULL DEFAULT gen_random_uuid(),
-  buyer_id uuid NOT NULL,
-  type text NOT NULL,
-  title text NOT NULL,
-  message text NOT NULL,
-  action_url text,
-  action_data jsonb,
-  read_at timestamp with time zone,
-  priority text NOT NULL DEFAULT 'normal'::text CHECK (priority = ANY (ARRAY['low'::text, 'normal'::text, 'high'::text, 'urgent'::text])),
-  created_at timestamp with time zone NOT NULL DEFAULT now(),
-  CONSTRAINT buyer_notifications_pkey PRIMARY KEY (id),
-  CONSTRAINT buyer_notifications_buyer_id_fkey FOREIGN KEY (buyer_id) REFERENCES public.buyers(id)
-);
-CREATE TABLE public.buyer_segments (
-  id uuid NOT NULL DEFAULT gen_random_uuid(),
-  name text NOT NULL,
-  description text,
-  filter_criteria jsonb NOT NULL DEFAULT '{}'::jsonb,
-  buyer_count integer DEFAULT 0,
-  is_dynamic boolean NOT NULL DEFAULT true,
-  created_by uuid,
-  created_at timestamp with time zone NOT NULL DEFAULT now(),
-  updated_at timestamp with time zone NOT NULL DEFAULT now(),
-  CONSTRAINT buyer_segments_pkey PRIMARY KEY (id)
-);
-CREATE TABLE public.buyer_vouchers (
-  id uuid NOT NULL DEFAULT gen_random_uuid(),
-  buyer_id uuid NOT NULL,
-  voucher_id uuid NOT NULL,
-  valid_from timestamp with time zone,
-  valid_until timestamp with time zone,
-  usage_count integer NOT NULL DEFAULT 0 CHECK (usage_count >= 0),
-  created_at timestamp with time zone NOT NULL DEFAULT now(),
-  CONSTRAINT buyer_vouchers_pkey PRIMARY KEY (id),
-  CONSTRAINT buyer_vouchers_buyer_id_fkey FOREIGN KEY (buyer_id) REFERENCES public.buyers(id),
-  CONSTRAINT buyer_vouchers_voucher_id_fkey FOREIGN KEY (voucher_id) REFERENCES public.vouchers(id)
-);
-CREATE TABLE public.buyers (
-  id uuid NOT NULL,
-  avatar_url text,
-  preferences jsonb DEFAULT '{}'::jsonb,
-  bazcoins integer NOT NULL DEFAULT 0 CHECK (bazcoins >= 0),
-  created_at timestamp with time zone NOT NULL DEFAULT now(),
-  updated_at timestamp with time zone NOT NULL DEFAULT now(),
-  CONSTRAINT buyers_pkey PRIMARY KEY (id),
-  CONSTRAINT buyers_id_fkey FOREIGN KEY (id) REFERENCES public.profiles(id)
-);
-CREATE TABLE public.cart_items (
-  id uuid NOT NULL DEFAULT gen_random_uuid(),
-  cart_id uuid NOT NULL,
-  product_id uuid NOT NULL,
-  variant_id uuid,
-  quantity integer NOT NULL DEFAULT 1 CHECK (quantity > 0),
-  personalized_options jsonb,
-  notes text,
-  created_at timestamp with time zone NOT NULL DEFAULT now(),
-  updated_at timestamp with time zone NOT NULL DEFAULT now(),
-  CONSTRAINT cart_items_pkey PRIMARY KEY (id),
-  CONSTRAINT cart_items_cart_id_fkey FOREIGN KEY (cart_id) REFERENCES public.carts(id),
-  CONSTRAINT cart_items_product_id_fkey FOREIGN KEY (product_id) REFERENCES public.products(id),
-  CONSTRAINT cart_items_variant_id_fkey FOREIGN KEY (variant_id) REFERENCES public.product_variants(id)
-);
-CREATE TABLE public.carts (
-  id uuid NOT NULL DEFAULT gen_random_uuid(),
-  buyer_id uuid UNIQUE,
-  created_at timestamp with time zone NOT NULL DEFAULT now(),
-  updated_at timestamp with time zone NOT NULL DEFAULT now(),
-  CONSTRAINT carts_pkey PRIMARY KEY (id),
-  CONSTRAINT carts_buyer_id_fkey FOREIGN KEY (buyer_id) REFERENCES public.buyers(id)
-);
-CREATE TABLE public.categories (
-  id uuid NOT NULL DEFAULT gen_random_uuid(),
-  name text NOT NULL UNIQUE,
-  slug text NOT NULL UNIQUE CHECK (slug ~ '^[a-z0-9-]+$'::text),
-  description text,
-  parent_id uuid,
-  icon text,
-  image_url text,
-  sort_order integer NOT NULL DEFAULT 0,
-  created_at timestamp with time zone NOT NULL DEFAULT now(),
-  updated_at timestamp with time zone NOT NULL DEFAULT now(),
-  is_active boolean NOT NULL DEFAULT true,
-  CONSTRAINT categories_pkey PRIMARY KEY (id),
-  CONSTRAINT categories_parent_id_fkey FOREIGN KEY (parent_id) REFERENCES public.categories(id)
-);
-CREATE TABLE public.comment_upvotes (
-  id uuid NOT NULL DEFAULT gen_random_uuid(),
-  comment_id uuid NOT NULL,
-  user_id uuid NOT NULL,
-  created_at timestamp with time zone NOT NULL DEFAULT now(),
-  CONSTRAINT comment_upvotes_pkey PRIMARY KEY (id),
-  CONSTRAINT comment_upvotes_comment_id_fkey FOREIGN KEY (comment_id) REFERENCES public.product_request_comments(id),
-  CONSTRAINT comment_upvotes_user_id_fkey FOREIGN KEY (user_id) REFERENCES public.profiles(id)
-);
-CREATE TABLE public.consent_log (
-  id uuid NOT NULL DEFAULT gen_random_uuid(),
-  user_id uuid NOT NULL,
-  channel text NOT NULL CHECK (channel = ANY (ARRAY['email'::text, 'sms'::text, 'push'::text])),
-  action text NOT NULL CHECK (action = ANY (ARRAY['opt_in'::text, 'opt_out'::text])),
-  source text NOT NULL CHECK (source = ANY (ARRAY['signup'::text, 'settings'::text, 'email_link'::text, 'campaign'::text, 'admin'::text])),
-  ip_address inet,
-  user_agent text,
-  logged_at timestamp with time zone NOT NULL DEFAULT now(),
-  CONSTRAINT consent_log_pkey PRIMARY KEY (id),
-  CONSTRAINT consent_log_user_id_fkey FOREIGN KEY (user_id) REFERENCES auth.users(id)
-);
-CREATE TABLE public.contributor_tiers (
-  user_id uuid NOT NULL,
-  tier text NOT NULL DEFAULT 'none'::text CHECK (tier = ANY (ARRAY['none'::text, 'bronze'::text, 'silver'::text, 'gold'::text])),
-  max_upvotes integer NOT NULL DEFAULT 0,
-  bc_multiplier numeric NOT NULL DEFAULT 1.00,
-  updated_at timestamp with time zone NOT NULL DEFAULT now(),
-  CONSTRAINT contributor_tiers_pkey PRIMARY KEY (user_id),
-  CONSTRAINT contributor_tiers_user_id_fkey FOREIGN KEY (user_id) REFERENCES public.profiles(id)
-);
-CREATE TABLE public.conversations (
-  id uuid NOT NULL DEFAULT gen_random_uuid(),
-  buyer_id uuid NOT NULL,
-  order_id uuid,
-  created_at timestamp with time zone NOT NULL DEFAULT now(),
-  updated_at timestamp with time zone NOT NULL DEFAULT now(),
-  CONSTRAINT conversations_pkey PRIMARY KEY (id),
-  CONSTRAINT conversations_buyer_id_fkey FOREIGN KEY (buyer_id) REFERENCES auth.users(id),
-  CONSTRAINT conversations_order_id_fkey FOREIGN KEY (order_id) REFERENCES public.orders(id)
-);
-CREATE TABLE public.courier_rate_cache (
-  id uuid NOT NULL DEFAULT gen_random_uuid(),
-  courier_code character varying NOT NULL,
-  origin_city character varying NOT NULL,
-  destination_city character varying NOT NULL,
-  weight_kg numeric NOT NULL,
-  service_type character varying NOT NULL DEFAULT 'standard'::character varying,
-  rate numeric NOT NULL,
-  estimated_days integer,
-  cached_at timestamp with time zone DEFAULT now(),
-  expires_at timestamp with time zone DEFAULT (now() + '24:00:00'::interval),
-  CONSTRAINT courier_rate_cache_pkey PRIMARY KEY (id)
-);
-CREATE TABLE public.delivery_bookings (
-  id uuid NOT NULL DEFAULT gen_random_uuid(),
-  order_id uuid NOT NULL,
-  seller_id uuid NOT NULL,
-  buyer_id uuid NOT NULL,
-  courier_code character varying NOT NULL CHECK (courier_code::text = ANY (ARRAY['jnt'::character varying, 'lbc'::character varying, 'flash'::character varying, 'ninjavan'::character varying, 'grabexpress'::character varying, 'lalamove'::character varying]::text[])),
-  courier_name character varying NOT NULL,
-  service_type character varying NOT NULL DEFAULT 'standard'::character varying,
-  booking_reference character varying,
-  tracking_number character varying,
-  waybill_url text,
-  pickup_address jsonb NOT NULL,
-  delivery_address jsonb NOT NULL,
-  package_weight numeric,
-  package_dimensions jsonb,
-  package_description text,
-  declared_value numeric,
-  shipping_fee numeric NOT NULL,
-  insurance_fee numeric DEFAULT 0,
-  cod_amount numeric DEFAULT 0,
-  is_cod boolean DEFAULT false,
-  status character varying NOT NULL DEFAULT 'pending'::character varying CHECK (status::text = ANY (ARRAY['pending'::character varying, 'booked'::character varying, 'pickup_scheduled'::character varying, 'picked_up'::character varying, 'in_transit'::character varying, 'out_for_delivery'::character varying, 'delivered'::character varying, 'failed'::character varying, 'returned_to_sender'::character varying, 'cancelled'::character varying]::text[])),
-  booked_at timestamp with time zone,
-  picked_up_at timestamp with time zone,
-  delivered_at timestamp with time zone,
-  estimated_delivery timestamp with time zone,
-  created_at timestamp with time zone DEFAULT now(),
-  updated_at timestamp with time zone DEFAULT now(),
-  CONSTRAINT delivery_bookings_pkey PRIMARY KEY (id),
-  CONSTRAINT delivery_bookings_order_id_fkey FOREIGN KEY (order_id) REFERENCES public.orders(id),
-  CONSTRAINT delivery_bookings_seller_id_fkey FOREIGN KEY (seller_id) REFERENCES public.profiles(id),
-  CONSTRAINT delivery_bookings_buyer_id_fkey FOREIGN KEY (buyer_id) REFERENCES public.profiles(id)
-);
-CREATE TABLE public.delivery_tracking_events (
-  id uuid NOT NULL DEFAULT gen_random_uuid(),
-  delivery_booking_id uuid NOT NULL,
-  status character varying NOT NULL,
-  description text,
-  location character varying,
-  courier_status_code character varying,
-  event_at timestamp with time zone NOT NULL DEFAULT now(),
-  created_at timestamp with time zone DEFAULT now(),
-  CONSTRAINT delivery_tracking_events_pkey PRIMARY KEY (id),
-  CONSTRAINT delivery_tracking_events_delivery_booking_id_fkey FOREIGN KEY (delivery_booking_id) REFERENCES public.delivery_bookings(id)
-);
-CREATE TABLE public.discount_campaigns (
-  id uuid NOT NULL DEFAULT gen_random_uuid(),
-  seller_id uuid,
-  name text NOT NULL,
-  description text,
-  campaign_type text NOT NULL CHECK (campaign_type = ANY (ARRAY['flash_sale'::text, 'seasonal_sale'::text, 'clearance'::text, 'buy_more_save_more'::text, 'limited_time_offer'::text, 'new_arrival_promo'::text, 'bundle_deal'::text])),
-  discount_type text NOT NULL CHECK (discount_type = ANY (ARRAY['percentage'::text, 'fixed_amount'::text])),
-  discount_value numeric NOT NULL CHECK (discount_value > 0::numeric),
-  max_discount_amount numeric CHECK (max_discount_amount > 0::numeric),
-  min_purchase_amount numeric NOT NULL DEFAULT 0 CHECK (min_purchase_amount >= 0::numeric),
-  starts_at timestamp with time zone NOT NULL,
-  ends_at timestamp with time zone NOT NULL,
-  status text NOT NULL DEFAULT 'scheduled'::text CHECK (status = ANY (ARRAY['scheduled'::text, 'active'::text, 'paused'::text, 'ended'::text, 'cancelled'::text])),
-  badge_text text,
-  badge_color text DEFAULT '#FF6A00'::text,
-  priority integer NOT NULL DEFAULT 0,
-  claim_limit integer CHECK (claim_limit > 0),
-  per_customer_limit integer NOT NULL DEFAULT 1 CHECK (per_customer_limit > 0),
-  applies_to text NOT NULL DEFAULT 'specific_products'::text CHECK (applies_to = ANY (ARRAY['all_products'::text, 'specific_products'::text, 'specific_categories'::text])),
-  created_at timestamp with time zone NOT NULL DEFAULT now(),
-  updated_at timestamp with time zone NOT NULL DEFAULT now(),
-  campaign_scope text DEFAULT 'store'::text CHECK (campaign_scope = ANY (ARRAY['store'::text, 'global'::text])),
-  CONSTRAINT discount_campaigns_pkey PRIMARY KEY (id),
-  CONSTRAINT discount_campaigns_seller_id_fkey FOREIGN KEY (seller_id) REFERENCES public.sellers(id)
-);
-CREATE TABLE public.email_events (
-  id uuid NOT NULL DEFAULT gen_random_uuid(),
-  email_log_id uuid,
-  resend_message_id text,
-  event_type text NOT NULL CHECK (event_type = ANY (ARRAY['delivered'::text, 'opened'::text, 'clicked'::text, 'bounced'::text, 'complained'::text, 'delivery_delayed'::text])),
-  metadata jsonb DEFAULT '{}'::jsonb,
-  occurred_at timestamp with time zone NOT NULL DEFAULT now(),
-  CONSTRAINT email_events_pkey PRIMARY KEY (id),
-  CONSTRAINT email_events_email_log_id_fkey FOREIGN KEY (email_log_id) REFERENCES public.email_logs(id)
-);
-CREATE TABLE public.email_logs (
-  id uuid NOT NULL DEFAULT gen_random_uuid(),
-  recipient_email text NOT NULL,
-  recipient_id uuid,
-  template_id uuid,
-  event_type text NOT NULL,
-  subject text NOT NULL,
-  status text NOT NULL DEFAULT 'queued'::text CHECK (status = ANY (ARRAY['queued'::text, 'sent'::text, 'delivered'::text, 'bounced'::text, 'failed'::text, 'disabled'::text, 'suppressed'::text, 'no_consent'::text, 'invalid_contact'::text, 'frequency_exceeded'::text])),
-  resend_message_id text,
-  error_message text,
-  metadata jsonb DEFAULT '{}'::jsonb,
-  created_at timestamp with time zone NOT NULL DEFAULT now(),
-  delivered_at timestamp with time zone,
-  category text CHECK (category = ANY (ARRAY['transactional'::text, 'security'::text, 'marketing'::text])),
-  queued_at timestamp with time zone DEFAULT now(),
-  sent_at timestamp with time zone,
-  retry_count integer DEFAULT 0,
-  CONSTRAINT email_logs_pkey PRIMARY KEY (id),
-  CONSTRAINT email_logs_recipient_id_fkey FOREIGN KEY (recipient_id) REFERENCES public.profiles(id),
-  CONSTRAINT email_logs_template_id_fkey FOREIGN KEY (template_id) REFERENCES public.email_templates(id)
-);
-CREATE TABLE public.email_template_versions (
-  id uuid NOT NULL DEFAULT gen_random_uuid(),
-  template_id uuid NOT NULL,
-  version_number integer NOT NULL DEFAULT 1,
-  subject text NOT NULL,
-  html_body text NOT NULL,
-  text_body text,
-  variables jsonb,
-  changed_by uuid,
-  change_reason text,
-  created_at timestamp with time zone NOT NULL DEFAULT now(),
-  CONSTRAINT email_template_versions_pkey PRIMARY KEY (id),
-  CONSTRAINT email_template_versions_template_id_fkey FOREIGN KEY (template_id) REFERENCES public.email_templates(id),
-  CONSTRAINT email_template_versions_changed_by_fkey FOREIGN KEY (changed_by) REFERENCES public.admins(id)
-);
-CREATE TABLE public.email_templates (
-  id uuid NOT NULL DEFAULT gen_random_uuid(),
-  name text NOT NULL,
-  slug text NOT NULL UNIQUE,
-  subject text NOT NULL,
-  html_body text NOT NULL,
-  text_body text,
-  variables jsonb DEFAULT '[]'::jsonb,
-  category text NOT NULL DEFAULT 'transactional'::text CHECK (category = ANY (ARRAY['transactional'::text, 'marketing'::text, 'system'::text])),
-  is_active boolean NOT NULL DEFAULT true,
-  created_by uuid,
-  created_at timestamp with time zone NOT NULL DEFAULT now(),
-  updated_at timestamp with time zone NOT NULL DEFAULT now(),
-  approval_status text DEFAULT 'approved'::text CHECK (approval_status = ANY (ARRAY['draft'::text, 'pending_review'::text, 'approved'::text, 'rejected'::text])),
-  approved_by uuid,
-  approved_at timestamp with time zone,
-  version integer DEFAULT 1,
-  CONSTRAINT email_templates_pkey PRIMARY KEY (id),
-  CONSTRAINT email_templates_approved_by_fkey FOREIGN KEY (approved_by) REFERENCES public.admins(id),
-  CONSTRAINT email_templates_created_by_fkey FOREIGN KEY (created_by) REFERENCES public.admins(id)
-);
-CREATE TABLE public.featured_products (
-  id uuid NOT NULL DEFAULT gen_random_uuid(),
-  product_id uuid NOT NULL UNIQUE,
-  seller_id uuid NOT NULL,
-  is_active boolean NOT NULL DEFAULT true,
-  priority integer NOT NULL DEFAULT 0,
-  featured_at timestamp with time zone NOT NULL DEFAULT now(),
-  expires_at timestamp with time zone,
-  created_at timestamp with time zone NOT NULL DEFAULT now(),
-  updated_at timestamp with time zone NOT NULL DEFAULT now(),
-  CONSTRAINT featured_products_pkey PRIMARY KEY (id),
-  CONSTRAINT featured_products_product_id_fkey FOREIGN KEY (product_id) REFERENCES public.products(id),
-  CONSTRAINT featured_products_seller_id_fkey FOREIGN KEY (seller_id) REFERENCES public.sellers(id)
-);
-CREATE TABLE public.flash_sale_submissions (
-  id uuid NOT NULL DEFAULT gen_random_uuid(),
-  slot_id uuid NOT NULL,
-  seller_id uuid NOT NULL,
-  product_id uuid NOT NULL,
-  submitted_price numeric NOT NULL,
-  submitted_stock integer NOT NULL DEFAULT 0,
-  status text DEFAULT 'pending'::text CHECK (status = ANY (ARRAY['pending'::text, 'approved'::text, 'rejected'::text])),
-  created_at timestamp with time zone DEFAULT now(),
-  updated_at timestamp with time zone DEFAULT now(),
-  CONSTRAINT flash_sale_submissions_pkey PRIMARY KEY (id),
-  CONSTRAINT flash_sale_submissions_slot_id_fkey FOREIGN KEY (slot_id) REFERENCES public.global_flash_sale_slots(id),
-  CONSTRAINT flash_sale_submissions_seller_id_fkey FOREIGN KEY (seller_id) REFERENCES public.sellers(id),
-  CONSTRAINT flash_sale_submissions_product_id_fkey FOREIGN KEY (product_id) REFERENCES public.products(id)
-);
-CREATE TABLE public.global_flash_sale_slots (
-  id uuid NOT NULL DEFAULT gen_random_uuid(),
-  name text NOT NULL,
-  description text,
-  start_time timestamp with time zone NOT NULL,
-  end_time timestamp with time zone NOT NULL,
-  min_discount_percentage numeric NOT NULL DEFAULT 0,
-  status text DEFAULT 'upcoming'::text CHECK (status = ANY (ARRAY['upcoming'::text, 'active'::text, 'ended'::text, 'cancelled'::text])),
-  created_at timestamp with time zone DEFAULT now(),
-  updated_at timestamp with time zone DEFAULT now(),
-  CONSTRAINT global_flash_sale_slots_pkey PRIMARY KEY (id)
-);
-CREATE TABLE public.low_stock_alerts (
-  id uuid NOT NULL DEFAULT gen_random_uuid(),
-  product_id uuid NOT NULL,
-  threshold integer NOT NULL CHECK (threshold >= 0),
-  acknowledged boolean NOT NULL DEFAULT false,
-  acknowledged_by uuid,
-  created_at timestamp with time zone NOT NULL DEFAULT now(),
-  CONSTRAINT low_stock_alerts_pkey PRIMARY KEY (id),
-  CONSTRAINT low_stock_alerts_product_id_fkey FOREIGN KEY (product_id) REFERENCES public.products(id),
-  CONSTRAINT low_stock_alerts_acknowledged_by_fkey FOREIGN KEY (acknowledged_by) REFERENCES public.profiles(id)
-);
-CREATE TABLE public.marketing_campaigns (
-  id uuid NOT NULL DEFAULT gen_random_uuid(),
-  name text NOT NULL,
-  description text,
-  campaign_type text NOT NULL CHECK (campaign_type = ANY (ARRAY['email_blast'::text, 'sms_blast'::text, 'multi_channel'::text])),
-  status text NOT NULL DEFAULT 'draft'::text CHECK (status = ANY (ARRAY['draft'::text, 'scheduled'::text, 'sending'::text, 'sent'::text, 'paused'::text, 'cancelled'::text])),
-  segment_id uuid,
-  template_id uuid,
-  subject text,
-  content text,
-  sms_content text,
-  scheduled_at timestamp with time zone,
-  sent_at timestamp with time zone,
-  total_recipients integer DEFAULT 0,
-  total_sent integer DEFAULT 0,
-  total_delivered integer DEFAULT 0,
-  total_opened integer DEFAULT 0,
-  total_clicked integer DEFAULT 0,
-  total_bounced integer DEFAULT 0,
-  created_by uuid,
-  created_at timestamp with time zone NOT NULL DEFAULT now(),
-  updated_at timestamp with time zone NOT NULL DEFAULT now(),
-  approval_status text DEFAULT 'draft'::text CHECK (approval_status = ANY (ARRAY['draft'::text, 'pending_approval'::text, 'approved'::text, 'rejected'::text, 'suspended'::text])),
-  approved_by uuid,
-  approved_at timestamp with time zone,
-  locked boolean NOT NULL DEFAULT false,
-  seller_id uuid,
-  CONSTRAINT marketing_campaigns_pkey PRIMARY KEY (id),
-  CONSTRAINT marketing_campaigns_segment_id_fkey FOREIGN KEY (segment_id) REFERENCES public.buyer_segments(id),
-  CONSTRAINT marketing_campaigns_template_id_fkey FOREIGN KEY (template_id) REFERENCES public.email_templates(id),
-  CONSTRAINT marketing_campaigns_approved_by_fkey FOREIGN KEY (approved_by) REFERENCES public.admins(id),
-  CONSTRAINT marketing_campaigns_seller_id_fkey FOREIGN KEY (seller_id) REFERENCES public.sellers(id)
-);
-CREATE TABLE public.messages (
-  id uuid NOT NULL DEFAULT gen_random_uuid(),
-  conversation_id uuid NOT NULL,
-  sender_id uuid,
-  sender_type text CHECK (sender_type = ANY (ARRAY['buyer'::text, 'seller'::text, 'system'::text])),
-  content text NOT NULL,
-  image_url text,
-  is_read boolean NOT NULL DEFAULT false,
-  created_at timestamp with time zone NOT NULL DEFAULT now(),
-  message_type USER-DEFINED DEFAULT 'user'::message_type_enum,
-  message_content text,
-  order_event_type USER-DEFINED,
-  media_url text,
-  media_type text CHECK (media_type IS NULL OR (media_type = ANY (ARRAY['image'::text, 'video'::text, 'document'::text]))),
-  reply_to_message_id uuid,
-  target_seller_id uuid,
-  CONSTRAINT messages_pkey PRIMARY KEY (id),
-  CONSTRAINT messages_conversation_id_fkey FOREIGN KEY (conversation_id) REFERENCES public.conversations(id),
-  CONSTRAINT messages_sender_id_fkey FOREIGN KEY (sender_id) REFERENCES auth.users(id),
-  CONSTRAINT messages_reply_to_message_id_fkey FOREIGN KEY (reply_to_message_id) REFERENCES public.messages(id),
-  CONSTRAINT messages_target_seller_id_fkey FOREIGN KEY (target_seller_id) REFERENCES public.sellers(id)
-);
-CREATE TABLE public.notification_settings (
-  id uuid NOT NULL DEFAULT gen_random_uuid(),
-  channel text NOT NULL CHECK (channel = ANY (ARRAY['email'::text, 'sms'::text, 'push'::text])),
-  event_type text NOT NULL,
-  is_enabled boolean NOT NULL DEFAULT true,
-  template_id uuid,
-  updated_by uuid,
-  created_at timestamp with time zone NOT NULL DEFAULT now(),
-  updated_at timestamp with time zone NOT NULL DEFAULT now(),
-  CONSTRAINT notification_settings_pkey PRIMARY KEY (id),
-  CONSTRAINT notification_settings_template_fkey FOREIGN KEY (template_id) REFERENCES public.email_templates(id),
-  CONSTRAINT notification_settings_updated_by_fkey FOREIGN KEY (updated_by) REFERENCES public.admins(id)
-);
-CREATE TABLE public.order_cancellations (
-  id uuid NOT NULL DEFAULT gen_random_uuid(),
-  order_id uuid NOT NULL,
-  reason text,
-  cancelled_at timestamp with time zone,
-  cancelled_by uuid,
-  created_at timestamp with time zone NOT NULL DEFAULT now(),
-  CONSTRAINT order_cancellations_pkey PRIMARY KEY (id),
-  CONSTRAINT order_cancellations_order_id_fkey FOREIGN KEY (order_id) REFERENCES public.orders(id),
-  CONSTRAINT order_cancellations_cancelled_by_fkey FOREIGN KEY (cancelled_by) REFERENCES public.profiles(id)
-);
-CREATE TABLE public.order_discounts (
-  id uuid NOT NULL DEFAULT gen_random_uuid(),
-  buyer_id uuid NOT NULL,
-  order_id uuid NOT NULL,
-  campaign_id uuid,
-  discount_amount numeric NOT NULL DEFAULT 0 CHECK (discount_amount >= 0::numeric),
-  created_at timestamp with time zone NOT NULL DEFAULT now(),
-  CONSTRAINT order_discounts_pkey PRIMARY KEY (id),
-  CONSTRAINT order_discounts_buyer_id_fkey FOREIGN KEY (buyer_id) REFERENCES public.buyers(id),
-  CONSTRAINT order_discounts_order_id_fkey FOREIGN KEY (order_id) REFERENCES public.orders(id),
-  CONSTRAINT order_discounts_campaign_id_fkey FOREIGN KEY (campaign_id) REFERENCES public.discount_campaigns(id)
-);
-CREATE TABLE public.order_events (
-  id uuid NOT NULL DEFAULT gen_random_uuid(),
-  order_id uuid NOT NULL,
-  conversation_id uuid,
-  event_type USER-DEFINED NOT NULL,
-  message_generated boolean DEFAULT false,
-  created_at timestamp with time zone DEFAULT now(),
-  CONSTRAINT order_events_pkey PRIMARY KEY (id),
-  CONSTRAINT order_events_conversation_id_fkey FOREIGN KEY (conversation_id) REFERENCES public.conversations(id)
-);
-CREATE TABLE public.order_items (
-  id uuid NOT NULL DEFAULT gen_random_uuid(),
-  order_id uuid NOT NULL,
-  product_id uuid,
-  product_name text NOT NULL,
-  primary_image_url text,
-  price numeric NOT NULL CHECK (price >= 0::numeric),
-  price_discount numeric NOT NULL DEFAULT 0 CHECK (price_discount >= 0::numeric),
-  shipping_price numeric NOT NULL DEFAULT 0 CHECK (shipping_price >= 0::numeric),
-  shipping_discount numeric NOT NULL DEFAULT 0 CHECK (shipping_discount >= 0::numeric),
-  quantity integer NOT NULL CHECK (quantity > 0),
-  variant_id uuid,
-  personalized_options jsonb,
-  rating integer CHECK (rating >= 1 AND rating <= 5),
-  created_at timestamp with time zone NOT NULL DEFAULT now(),
-  updated_at timestamp with time zone NOT NULL DEFAULT now(),
-  warranty_expiration_date timestamp with time zone,
-  warranty_start_date timestamp with time zone,
-  warranty_type USER-DEFINED,
-  warranty_duration_months integer,
-  warranty_provider_name text,
-  warranty_provider_contact text,
-  warranty_provider_email text,
-  warranty_terms_url text,
-  warranty_claimed boolean DEFAULT false,
-  warranty_claimed_at timestamp with time zone,
-  warranty_claim_reason text,
-  warranty_claim_status text,
-  warranty_claim_notes text,
-  CONSTRAINT order_items_pkey PRIMARY KEY (id),
-  CONSTRAINT order_items_order_id_fkey FOREIGN KEY (order_id) REFERENCES public.orders(id),
-  CONSTRAINT order_items_product_id_fkey FOREIGN KEY (product_id) REFERENCES public.products(id),
-  CONSTRAINT order_items_variant_id_fkey FOREIGN KEY (variant_id) REFERENCES public.product_variants(id)
-);
-CREATE TABLE public.order_payments (
-  id uuid NOT NULL DEFAULT gen_random_uuid(),
-  order_id uuid NOT NULL,
-  payment_method jsonb,
-  payment_reference text,
-  payment_date timestamp with time zone,
-  amount numeric NOT NULL CHECK (amount >= 0::numeric),
-  status text NOT NULL,
-  created_at timestamp with time zone NOT NULL DEFAULT now(),
-  CONSTRAINT order_payments_pkey PRIMARY KEY (id),
-  CONSTRAINT order_payments_order_id_fkey FOREIGN KEY (order_id) REFERENCES public.orders(id)
-);
-CREATE TABLE public.order_promos (
-  id uuid NOT NULL DEFAULT gen_random_uuid(),
-  order_id uuid NOT NULL,
-  promo_code text NOT NULL,
-  created_at timestamp with time zone NOT NULL DEFAULT now(),
-  CONSTRAINT order_promos_pkey PRIMARY KEY (id),
-  CONSTRAINT order_promos_order_id_fkey FOREIGN KEY (order_id) REFERENCES public.orders(id)
-);
-CREATE TABLE public.order_recipients (
-  id uuid NOT NULL DEFAULT gen_random_uuid(),
-  first_name text,
-  last_name text,
-  phone text,
-  email text,
-  created_at timestamp with time zone NOT NULL DEFAULT now(),
-  CONSTRAINT order_recipients_pkey PRIMARY KEY (id)
-);
-CREATE TABLE public.order_shipments (
-  id uuid NOT NULL DEFAULT gen_random_uuid(),
-  order_id uuid NOT NULL,
-  seller_id text NOT NULL,
-  shipping_method text NOT NULL CHECK (shipping_method = ANY (ARRAY['standard'::text, 'economy'::text, 'same_day'::text, 'bulky'::text])),
-  shipping_method_label text NOT NULL,
-  calculated_fee numeric NOT NULL,
-  fee_breakdown jsonb NOT NULL DEFAULT '{}'::jsonb,
-  origin_zone text NOT NULL,
-  destination_zone text NOT NULL,
-  estimated_days_text text NOT NULL,
-  chargeable_weight_kg numeric NOT NULL DEFAULT 0,
-  tracking_number text,
-  status text NOT NULL DEFAULT 'pending'::text CHECK (status = ANY (ARRAY['pending'::text, 'shipped'::text, 'in_transit'::text, 'delivered'::text, 'returned'::text])),
-  shipped_at timestamp with time zone,
-  delivered_at timestamp with time zone,
-  created_at timestamp with time zone NOT NULL DEFAULT now(),
-  updated_at timestamp with time zone NOT NULL DEFAULT now(),
-  CONSTRAINT order_shipments_pkey PRIMARY KEY (id),
-  CONSTRAINT order_shipments_order_id_fkey FOREIGN KEY (order_id) REFERENCES public.orders(id)
-);
-CREATE TABLE public.order_status_history (
-  id uuid NOT NULL DEFAULT gen_random_uuid(),
-  order_id uuid NOT NULL,
-  status text NOT NULL,
-  note text,
-  changed_by uuid,
-  changed_by_role text,
-  metadata jsonb,
-  created_at timestamp with time zone NOT NULL DEFAULT now(),
-  CONSTRAINT order_status_history_pkey PRIMARY KEY (id),
-  CONSTRAINT order_status_history_order_id_fkey FOREIGN KEY (order_id) REFERENCES public.orders(id),
-  CONSTRAINT order_status_history_changed_by_fkey FOREIGN KEY (changed_by) REFERENCES public.profiles(id)
-);
-CREATE TABLE public.order_vouchers (
-  id uuid NOT NULL DEFAULT gen_random_uuid(),
-  buyer_id uuid NOT NULL,
-  order_id uuid NOT NULL,
-  voucher_id uuid NOT NULL,
-  discount_amount numeric NOT NULL DEFAULT 0 CHECK (discount_amount >= 0::numeric),
-  created_at timestamp with time zone NOT NULL DEFAULT now(),
-  CONSTRAINT order_vouchers_pkey PRIMARY KEY (id),
-  CONSTRAINT order_vouchers_buyer_id_fkey FOREIGN KEY (buyer_id) REFERENCES public.buyers(id),
-  CONSTRAINT order_vouchers_order_id_fkey FOREIGN KEY (order_id) REFERENCES public.orders(id),
-  CONSTRAINT order_vouchers_voucher_id_fkey FOREIGN KEY (voucher_id) REFERENCES public.vouchers(id)
-);
-CREATE TABLE public.orders (
-  id uuid NOT NULL DEFAULT gen_random_uuid(),
-  order_number text NOT NULL UNIQUE,
-  buyer_id uuid,
-  order_type text NOT NULL DEFAULT 'ONLINE'::text CHECK (order_type = ANY (ARRAY['ONLINE'::text, 'OFFLINE'::text])),
-  pos_note text,
-  recipient_id uuid,
-  address_id uuid,
-  payment_status text NOT NULL DEFAULT 'pending_payment'::text CHECK (payment_status = ANY (ARRAY['pending_payment'::text, 'paid'::text, 'refunded'::text, 'partially_refunded'::text])),
-  shipment_status text NOT NULL DEFAULT 'waiting_for_seller'::text CHECK (shipment_status = ANY (ARRAY['waiting_for_seller'::text, 'processing'::text, 'ready_to_ship'::text, 'shipped'::text, 'out_for_delivery'::text, 'delivered'::text, 'failed_to_deliver'::text, 'received'::text, 'returned'::text])),
-  paid_at timestamp with time zone,
-  notes text,
-  created_at timestamp with time zone NOT NULL DEFAULT now(),
-  updated_at timestamp with time zone NOT NULL DEFAULT now(),
-  receipt_number text,
-  CONSTRAINT orders_pkey PRIMARY KEY (id),
-  CONSTRAINT orders_buyer_id_fkey FOREIGN KEY (buyer_id) REFERENCES public.buyers(id),
-  CONSTRAINT orders_recipient_id_fkey FOREIGN KEY (recipient_id) REFERENCES public.order_recipients(id),
-  CONSTRAINT orders_address_id_fkey FOREIGN KEY (address_id) REFERENCES public.shipping_addresses(id)
-);
-CREATE TABLE public.payment_method_banks (
-  payment_method_id uuid NOT NULL,
-  bank_name text,
-  account_number_last4 text,
-  CONSTRAINT payment_method_banks_pkey PRIMARY KEY (payment_method_id),
-  CONSTRAINT payment_method_banks_payment_method_id_fkey FOREIGN KEY (payment_method_id) REFERENCES public.payment_methods(id)
-);
-CREATE TABLE public.payment_method_cards (
-  payment_method_id uuid NOT NULL,
-  card_last4 text,
-  card_brand text,
-  expiry_month integer CHECK (expiry_month >= 1 AND expiry_month <= 12),
-  expiry_year integer CHECK (expiry_year >= 2024),
-  CONSTRAINT payment_method_cards_pkey PRIMARY KEY (payment_method_id),
-  CONSTRAINT payment_method_cards_payment_method_id_fkey FOREIGN KEY (payment_method_id) REFERENCES public.payment_methods(id)
-);
-CREATE TABLE public.payment_method_wallets (
-  payment_method_id uuid NOT NULL,
-  e_wallet_provider text,
-  e_wallet_account_number text,
-  CONSTRAINT payment_method_wallets_pkey PRIMARY KEY (payment_method_id),
-  CONSTRAINT payment_method_wallets_payment_method_id_fkey FOREIGN KEY (payment_method_id) REFERENCES public.payment_methods(id)
-);
-CREATE TABLE public.payment_methods (
-  id uuid NOT NULL DEFAULT gen_random_uuid(),
-  user_id uuid NOT NULL,
-  payment_type text NOT NULL CHECK (payment_type = ANY (ARRAY['card'::text, 'bank_transfer'::text, 'e_wallet'::text, 'cod'::text])),
-  label text NOT NULL,
-  is_default boolean NOT NULL DEFAULT false,
-  is_verified boolean NOT NULL DEFAULT false,
-  created_at timestamp with time zone NOT NULL DEFAULT now(),
-  updated_at timestamp with time zone NOT NULL DEFAULT now(),
-  CONSTRAINT payment_methods_pkey PRIMARY KEY (id),
-  CONSTRAINT payment_methods_user_id_fkey FOREIGN KEY (user_id) REFERENCES public.profiles(id)
-);
-CREATE TABLE public.payment_transactions (
-  id uuid NOT NULL DEFAULT gen_random_uuid(),
-  order_id uuid NOT NULL,
-  buyer_id uuid NOT NULL,
-  seller_id uuid NOT NULL,
-  gateway character varying NOT NULL DEFAULT 'paymongo'::character varying,
-  gateway_payment_intent_id character varying,
-  gateway_payment_method_id character varying,
-  gateway_source_id character varying,
-  gateway_checkout_url text,
-  amount numeric NOT NULL,
-  currency character varying NOT NULL DEFAULT 'PHP'::character varying,
-  payment_type character varying NOT NULL CHECK (payment_type::text = ANY (ARRAY['card'::character varying, 'gcash'::character varying, 'maya'::character varying, 'grab_pay'::character varying, 'bank_transfer'::character varying, 'cod'::character varying]::text[])),
-  status character varying NOT NULL DEFAULT 'pending'::character varying CHECK (status::text = ANY (ARRAY['pending'::character varying, 'awaiting_payment'::character varying, 'processing'::character varying, 'paid'::character varying, 'failed'::character varying, 'cancelled'::character varying, 'refunded'::character varying, 'partially_refunded'::character varying]::text[])),
-  description text,
-  statement_descriptor character varying,
-  metadata jsonb DEFAULT '{}'::jsonb,
-  failure_reason text,
-  paid_at timestamp with time zone,
-  refunded_at timestamp with time zone,
-  created_at timestamp with time zone DEFAULT now(),
-  updated_at timestamp with time zone DEFAULT now(),
-  escrow_status character varying NOT NULL DEFAULT 'none'::character varying CHECK (escrow_status::text = ANY (ARRAY['none'::character varying, 'held'::character varying, 'released'::character varying, 'refunded'::character varying]::text[])),
-  escrow_held_at timestamp with time zone,
-  escrow_release_at timestamp with time zone,
-  escrow_released_at timestamp with time zone,
-  CONSTRAINT payment_transactions_pkey PRIMARY KEY (id),
-  CONSTRAINT payment_transactions_order_id_fkey FOREIGN KEY (order_id) REFERENCES public.orders(id),
-  CONSTRAINT payment_transactions_buyer_id_fkey FOREIGN KEY (buyer_id) REFERENCES public.profiles(id),
-  CONSTRAINT payment_transactions_seller_id_fkey FOREIGN KEY (seller_id) REFERENCES public.profiles(id)
-);
-CREATE TABLE public.pos_settings (
-  id uuid NOT NULL DEFAULT gen_random_uuid(),
-  seller_id uuid NOT NULL UNIQUE,
-  accept_cash boolean DEFAULT true,
-  accept_card boolean DEFAULT false,
-  accept_gcash boolean DEFAULT false,
-  accept_maya boolean DEFAULT false,
-  barcode_scanner_enabled boolean DEFAULT false,
-  sound_enabled boolean DEFAULT true,
-  multi_branch_enabled boolean DEFAULT false,
-  default_branch text DEFAULT 'Main'::text,
-  tax_enabled boolean DEFAULT false,
-  tax_rate numeric DEFAULT 12.00,
-  tax_name text DEFAULT 'VAT'::text,
-  tax_inclusive boolean DEFAULT true,
-  receipt_header text DEFAULT ''::text,
-  receipt_footer text DEFAULT 'Thank you for shopping!'::text,
-  show_logo_on_receipt boolean DEFAULT true,
-  receipt_template text DEFAULT 'standard'::text,
-  auto_print_receipt boolean DEFAULT true,
-  printer_type text DEFAULT 'thermal'::text,
-  cash_drawer_enabled boolean DEFAULT false,
-  default_opening_cash numeric DEFAULT 0,
-  staff_tracking_enabled boolean DEFAULT false,
-  require_staff_login boolean DEFAULT false,
-  created_at timestamp with time zone DEFAULT now(),
-  updated_at timestamp with time zone DEFAULT now(),
-  scanner_type text DEFAULT 'camera'::text CHECK (scanner_type = ANY (ARRAY['camera'::text, 'usb'::text, 'bluetooth'::text])),
-  auto_add_on_scan boolean DEFAULT true,
-  logo_url text,
-  printer_name text,
-  enable_low_stock_alert boolean DEFAULT true,
-  low_stock_threshold integer DEFAULT 10,
-  CONSTRAINT pos_settings_pkey PRIMARY KEY (id),
-  CONSTRAINT pos_settings_seller_id_fkey FOREIGN KEY (seller_id) REFERENCES public.sellers(id)
-);
-CREATE TABLE public.product_ad_boosts (
-  id uuid NOT NULL DEFAULT gen_random_uuid(),
-  product_id uuid NOT NULL,
-  seller_id uuid NOT NULL,
-  boost_type text NOT NULL DEFAULT 'featured'::text CHECK (boost_type = ANY (ARRAY['featured'::text, 'search_priority'::text, 'homepage_banner'::text, 'category_spotlight'::text])),
-  duration_days integer NOT NULL DEFAULT 7 CHECK (duration_days > 0),
-  daily_budget numeric NOT NULL DEFAULT 0 CHECK (daily_budget >= 0::numeric),
-  total_budget numeric NOT NULL DEFAULT 0 CHECK (total_budget >= 0::numeric),
-  cost_per_day numeric NOT NULL DEFAULT 0 CHECK (cost_per_day >= 0::numeric),
-  total_cost numeric NOT NULL DEFAULT 0 CHECK (total_cost >= 0::numeric),
-  currency text NOT NULL DEFAULT 'PHP'::text,
-  status text NOT NULL DEFAULT 'active'::text CHECK (status = ANY (ARRAY['draft'::text, 'active'::text, 'paused'::text, 'ended'::text, 'cancelled'::text])),
-  starts_at timestamp with time zone NOT NULL DEFAULT now(),
-  ends_at timestamp with time zone NOT NULL,
-  paused_at timestamp with time zone,
-  impressions integer NOT NULL DEFAULT 0 CHECK (impressions >= 0),
-  clicks integer NOT NULL DEFAULT 0 CHECK (clicks >= 0),
-  orders_generated integer NOT NULL DEFAULT 0 CHECK (orders_generated >= 0),
-  created_at timestamp with time zone NOT NULL DEFAULT now(),
-  updated_at timestamp with time zone NOT NULL DEFAULT now(),
-  CONSTRAINT product_ad_boosts_pkey PRIMARY KEY (id),
-  CONSTRAINT product_ad_boosts_product_id_fkey FOREIGN KEY (product_id) REFERENCES public.products(id),
-  CONSTRAINT product_ad_boosts_seller_id_fkey FOREIGN KEY (seller_id) REFERENCES public.sellers(id)
-);
-CREATE TABLE public.product_approvals (
-  id uuid NOT NULL DEFAULT gen_random_uuid(),
-  assessment_id uuid NOT NULL,
-  description text,
-  created_at timestamp with time zone NOT NULL DEFAULT now(),
-  created_by uuid,
-  CONSTRAINT product_approvals_pkey PRIMARY KEY (id),
-  CONSTRAINT product_approvals_assessment_id_fkey FOREIGN KEY (assessment_id) REFERENCES public.product_assessments(id),
-  CONSTRAINT product_approvals_created_by_fkey FOREIGN KEY (created_by) REFERENCES auth.users(id)
-);
-CREATE TABLE public.product_assessment_logistics (
-  id uuid NOT NULL DEFAULT gen_random_uuid(),
-  assessment_id uuid NOT NULL,
-  details text,
-  created_at timestamp with time zone NOT NULL DEFAULT now(),
-  created_by uuid,
-  logistics_method text CHECK (logistics_method IS NULL OR (logistics_method = ANY (ARRAY['courier'::text, 'dropoff'::text]))),
-  courier_service text,
-  tracking_number text,
-  dropoff_date date,
-  dropoff_time time without time zone,
-  dropoff_slot text,
-  batch_id uuid,
-  metadata jsonb DEFAULT '{}'::jsonb,
-  CONSTRAINT product_assessment_logistics_pkey PRIMARY KEY (id),
-  CONSTRAINT product_assessment_logistics_assessment_id_fkey FOREIGN KEY (assessment_id) REFERENCES public.product_assessments(id),
-  CONSTRAINT product_assessment_logistics_created_by_fkey FOREIGN KEY (created_by) REFERENCES auth.users(id),
-  CONSTRAINT product_assessment_logistics_batch_id_fkey FOREIGN KEY (batch_id) REFERENCES public.qa_submission_batches(id)
-);
-CREATE TABLE public.product_assessments (
-  id uuid NOT NULL DEFAULT gen_random_uuid(),
-  product_id uuid NOT NULL UNIQUE,
-  status text NOT NULL DEFAULT 'pending_digital_review'::text CHECK (status = ANY (ARRAY['pending_admin_review'::text, 'pending_digital_review'::text, 'waiting_for_sample'::text, 'pending_physical_review'::text, 'verified'::text, 'for_revision'::text, 'rejected'::text])),
-  submitted_at timestamp with time zone NOT NULL DEFAULT now(),
-  verified_at timestamp with time zone,
-  revision_requested_at timestamp with time zone,
-  created_at timestamp with time zone NOT NULL DEFAULT now(),
-  created_by uuid,
-  assigned_to uuid,
-  notes text,
-  admin_accepted_at timestamp with time zone,
-  admin_accepted_by uuid,
-  CONSTRAINT product_assessments_pkey PRIMARY KEY (id),
-  CONSTRAINT product_assessments_product_id_fkey FOREIGN KEY (product_id) REFERENCES public.products(id),
-  CONSTRAINT product_assessments_created_by_fkey FOREIGN KEY (created_by) REFERENCES auth.users(id),
-  CONSTRAINT product_assessments_assigned_to_fkey FOREIGN KEY (assigned_to) REFERENCES auth.users(id),
-  CONSTRAINT product_assessments_admin_accepted_by_fkey FOREIGN KEY (admin_accepted_by) REFERENCES public.admins(id)
-);
-CREATE TABLE public.product_discounts (
-  id uuid NOT NULL DEFAULT gen_random_uuid(),
-  campaign_id uuid NOT NULL,
-  product_id uuid NOT NULL,
-  discount_type text CHECK (discount_type = ANY (ARRAY['percentage'::text, 'fixed_amount'::text])),
-  discount_value numeric CHECK (discount_value > 0::numeric),
-  sold_count integer NOT NULL DEFAULT 0 CHECK (sold_count >= 0),
-  priority integer NOT NULL DEFAULT 0,
-  created_at timestamp with time zone NOT NULL DEFAULT now(),
-  updated_at timestamp with time zone NOT NULL DEFAULT now(),
-  override_discount_type text,
-  override_discount_value numeric,
-  CONSTRAINT product_discounts_pkey PRIMARY KEY (id),
-  CONSTRAINT product_discounts_campaign_id_fkey FOREIGN KEY (campaign_id) REFERENCES public.discount_campaigns(id),
-  CONSTRAINT product_discounts_product_id_fkey FOREIGN KEY (product_id) REFERENCES public.products(id)
-);
-CREATE TABLE public.product_images (
-  id uuid NOT NULL DEFAULT gen_random_uuid(),
-  product_id uuid NOT NULL,
-  image_url text NOT NULL CHECK (image_url ~ '^https?://'::text),
-  alt_text text,
-  sort_order integer NOT NULL DEFAULT 0,
-  is_primary boolean NOT NULL DEFAULT false,
-  uploaded_at timestamp with time zone NOT NULL DEFAULT now(),
-  CONSTRAINT product_images_pkey PRIMARY KEY (id),
-  CONSTRAINT product_images_product_id_fkey FOREIGN KEY (product_id) REFERENCES public.products(id)
-);
-CREATE TABLE public.product_rejections (
-  id uuid NOT NULL DEFAULT gen_random_uuid(),
-  assessment_id uuid,
-  product_id uuid,
-  description text,
-  vendor_submitted_category text,
-  admin_reclassified_category text,
-  created_at timestamp with time zone NOT NULL DEFAULT now(),
-  created_by uuid,
-  CONSTRAINT product_rejections_pkey PRIMARY KEY (id),
-  CONSTRAINT product_rejections_assessment_id_fkey FOREIGN KEY (assessment_id) REFERENCES public.product_assessments(id),
-  CONSTRAINT product_rejections_product_id_fkey FOREIGN KEY (product_id) REFERENCES public.products(id),
-  CONSTRAINT product_rejections_created_by_fkey FOREIGN KEY (created_by) REFERENCES auth.users(id)
-);
-CREATE TABLE public.product_request_comments (
-  id uuid NOT NULL DEFAULT gen_random_uuid(),
-  request_id uuid NOT NULL,
-  user_id uuid NOT NULL,
-  type text NOT NULL CHECK (type = ANY (ARRAY['sourcing'::text, 'qc'::text, 'general'::text])),
-  content text NOT NULL,
-  is_admin_only boolean NOT NULL DEFAULT false,
-  bc_awarded integer NOT NULL DEFAULT 0,
-  upvotes integer NOT NULL DEFAULT 0,
-  admin_upvotes integer NOT NULL DEFAULT 0,
-  created_at timestamp with time zone NOT NULL DEFAULT now(),
-  updated_at timestamp with time zone NOT NULL DEFAULT now(),
-  CONSTRAINT product_request_comments_pkey PRIMARY KEY (id),
-  CONSTRAINT product_request_comments_request_id_fkey FOREIGN KEY (request_id) REFERENCES public.product_requests(id),
-  CONSTRAINT product_request_comments_user_id_fkey FOREIGN KEY (user_id) REFERENCES public.profiles(id)
-);
-CREATE TABLE public.product_requests (
-  id uuid NOT NULL DEFAULT gen_random_uuid(),
-  product_name text NOT NULL,
-  description text,
-  category text,
-  requested_by_name text,
-  requested_by_id uuid,
-  votes integer NOT NULL DEFAULT 0,
-  comments_count integer NOT NULL DEFAULT 0,
-  status text NOT NULL DEFAULT 'pending'::text CHECK (status = ANY (ARRAY['pending'::text, 'approved'::text, 'rejected'::text, 'in_progress'::text])),
-  priority text NOT NULL DEFAULT 'medium'::text CHECK (priority = ANY (ARRAY['low'::text, 'medium'::text, 'high'::text])),
-  estimated_demand integer DEFAULT 0,
-  admin_notes text,
-  created_at timestamp with time zone NOT NULL DEFAULT now(),
-  updated_at timestamp with time zone NOT NULL DEFAULT now(),
-  CONSTRAINT product_requests_pkey PRIMARY KEY (id)
-);
-CREATE TABLE public.product_revisions (
-  id uuid NOT NULL DEFAULT gen_random_uuid(),
-  assessment_id uuid NOT NULL,
-  description text,
-  created_at timestamp with time zone NOT NULL DEFAULT now(),
-  created_by uuid,
-  CONSTRAINT product_revisions_pkey PRIMARY KEY (id),
-  CONSTRAINT product_revisions_assessment_id_fkey FOREIGN KEY (assessment_id) REFERENCES public.product_assessments(id),
-  CONSTRAINT product_revisions_created_by_fkey FOREIGN KEY (created_by) REFERENCES auth.users(id)
-);
-CREATE TABLE public.product_tags (
-  id uuid NOT NULL DEFAULT gen_random_uuid(),
-  product_id uuid NOT NULL,
-  tag text NOT NULL CHECK (tag ~ '^[a-z0-9-]+$'::text),
-  created_at timestamp with time zone NOT NULL DEFAULT now(),
-  CONSTRAINT product_tags_pkey PRIMARY KEY (id),
-  CONSTRAINT product_tags_product_id_fkey FOREIGN KEY (product_id) REFERENCES public.products(id)
-);
-CREATE TABLE public.product_variants (
-  id uuid NOT NULL DEFAULT gen_random_uuid(),
-  product_id uuid NOT NULL,
-  sku text NOT NULL UNIQUE,
-  barcode text UNIQUE,
-  variant_name text NOT NULL,
-  size text,
-  color text,
-  option_1_value text,
-  option_2_value text,
-  price numeric NOT NULL CHECK (price >= 0::numeric),
-  stock integer NOT NULL DEFAULT 0 CHECK (stock >= 0),
-  thumbnail_url text,
-  embedding USER-DEFINED,
-  created_at timestamp with time zone NOT NULL DEFAULT now(),
-  updated_at timestamp with time zone NOT NULL DEFAULT now(),
-  CONSTRAINT product_variants_pkey PRIMARY KEY (id),
-  CONSTRAINT product_variants_product_id_fkey FOREIGN KEY (product_id) REFERENCES public.products(id)
-);
-CREATE TABLE public.products (
-  id uuid NOT NULL DEFAULT gen_random_uuid(),
-  name text NOT NULL,
-  description text,
-  category_id uuid NOT NULL,
-  brand text,
-  sku text UNIQUE,
-  specifications jsonb DEFAULT '{}'::jsonb,
-  approval_status text NOT NULL DEFAULT 'pending'::text CHECK (approval_status = ANY (ARRAY['pending'::text, 'accepted'::text, 'approved'::text, 'rejected'::text, 'reclassified'::text])),
-  variant_label_1 text,
-  variant_label_2 text,
-  price numeric NOT NULL CHECK (price >= 0::numeric),
-  low_stock_threshold integer NOT NULL DEFAULT 10 CHECK (low_stock_threshold >= 0),
-  weight numeric CHECK (weight > 0::numeric),
-  dimensions jsonb,
-  is_free_shipping boolean NOT NULL DEFAULT false,
-  disabled_at timestamp with time zone,
-  deleted_at timestamp with time zone,
-  created_at timestamp with time zone NOT NULL DEFAULT now(),
-  updated_at timestamp with time zone NOT NULL DEFAULT now(),
-  image_embedding USER-DEFINED,
-  seller_id uuid,
-  size_guide_image text,
-  has_warranty boolean DEFAULT false,
-  warranty_type USER-DEFINED DEFAULT 'no_warranty'::warranty_type_enum,
-  warranty_duration_months integer DEFAULT 0 CHECK (warranty_duration_months >= 0),
-  warranty_policy text,
-  warranty_provider_name text,
-  warranty_provider_contact text,
-  warranty_provider_email text,
-  warranty_terms_url text,
-  CONSTRAINT products_pkey PRIMARY KEY (id),
-  CONSTRAINT products_category_id_fkey FOREIGN KEY (category_id) REFERENCES public.categories(id),
-  CONSTRAINT products_seller_id_fkey FOREIGN KEY (seller_id) REFERENCES public.sellers(id)
-);
-CREATE TABLE public.profiles (
-  id uuid NOT NULL,
-  email text NOT NULL UNIQUE CHECK (email ~* '^[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}$'::text),
-  first_name text,
-  last_name text,
-  phone text,
-  created_at timestamp with time zone NOT NULL DEFAULT now(),
-  updated_at timestamp with time zone NOT NULL DEFAULT now(),
-  last_login_at timestamp with time zone,
-  CONSTRAINT profiles_pkey PRIMARY KEY (id),
-  CONSTRAINT profiles_id_fkey FOREIGN KEY (id) REFERENCES auth.users(id)
-);
-CREATE TABLE public.push_tokens (
-  id uuid NOT NULL DEFAULT gen_random_uuid(),
-  user_id uuid NOT NULL,
-  token text NOT NULL UNIQUE,
-  platform text NOT NULL CHECK (platform = ANY (ARRAY['ios'::text, 'android'::text, 'web'::text])),
-  created_at timestamp with time zone NOT NULL DEFAULT now(),
-  updated_at timestamp with time zone NOT NULL DEFAULT now(),
-  CONSTRAINT push_tokens_pkey PRIMARY KEY (id),
-  CONSTRAINT push_tokens_user_id_fkey FOREIGN KEY (user_id) REFERENCES public.profiles(id)
-);
-CREATE TABLE public.qa_assessment_form_evidence (
-  id uuid NOT NULL DEFAULT gen_random_uuid(),
-  form_id uuid NOT NULL,
-  evidence_type text NOT NULL CHECK (evidence_type = ANY (ARRAY['photo'::text, 'video'::text, 'document'::text])),
-  file_url text NOT NULL,
-  metadata jsonb NOT NULL DEFAULT '{}'::jsonb,
-  created_at timestamp with time zone NOT NULL DEFAULT now(),
-  CONSTRAINT qa_assessment_form_evidence_pkey PRIMARY KEY (id),
-  CONSTRAINT qa_assessment_form_evidence_form_id_fkey FOREIGN KEY (form_id) REFERENCES public.qa_assessment_forms(id)
-);
-CREATE TABLE public.qa_assessment_forms (
-  id uuid NOT NULL DEFAULT gen_random_uuid(),
-  assessment_id uuid NOT NULL UNIQUE,
-  batch_id uuid,
-  qc_method text,
-  qc_agent_name text,
-  qc_date date,
-  serial_number text,
-  product_tier text,
-  packaging_condition text,
-  product_appearance text,
-  label_accuracy_verified boolean NOT NULL DEFAULT false,
-  power_test text,
-  functional_test text,
-  stress_test text,
-  general_notes text,
-  defects_identified text,
-  recommendations text,
-  final_decision text NOT NULL CHECK (final_decision = ANY (ARRAY['approved'::text, 'revision'::text, 'rejected'::text])),
-  decision_reason text,
-  reviewed_by uuid NOT NULL,
-  reviewed_at timestamp with time zone NOT NULL DEFAULT now(),
-  created_at timestamp with time zone NOT NULL DEFAULT now(),
-  updated_at timestamp with time zone NOT NULL DEFAULT now(),
-  CONSTRAINT qa_assessment_forms_pkey PRIMARY KEY (id),
-  CONSTRAINT qa_assessment_forms_assessment_id_fkey FOREIGN KEY (assessment_id) REFERENCES public.product_assessments(id),
-  CONSTRAINT qa_assessment_forms_batch_id_fkey FOREIGN KEY (batch_id) REFERENCES public.qa_submission_batches(id),
-  CONSTRAINT qa_assessment_forms_reviewed_by_fkey FOREIGN KEY (reviewed_by) REFERENCES auth.users(id)
-);
-CREATE TABLE public.qa_review_logs (
-  id uuid NOT NULL DEFAULT gen_random_uuid(),
-  assessment_id uuid NOT NULL,
-  product_id uuid NOT NULL,
-  reviewer_id uuid NOT NULL,
-  action text NOT NULL,
-  notes text,
-  metadata jsonb,
-  created_at timestamp with time zone NOT NULL DEFAULT now(),
-  CONSTRAINT qa_review_logs_pkey PRIMARY KEY (id),
-  CONSTRAINT qa_review_logs_assessment_id_fkey FOREIGN KEY (assessment_id) REFERENCES public.product_assessments(id),
-  CONSTRAINT qa_review_logs_product_id_fkey FOREIGN KEY (product_id) REFERENCES public.products(id),
-  CONSTRAINT qa_review_logs_reviewer_id_fkey FOREIGN KEY (reviewer_id) REFERENCES auth.users(id)
-);
-CREATE TABLE public.qa_submission_batch_items (
-  id uuid NOT NULL DEFAULT gen_random_uuid(),
-  batch_id uuid NOT NULL,
-  assessment_id uuid NOT NULL,
-  product_id uuid NOT NULL,
-  created_at timestamp with time zone NOT NULL DEFAULT now(),
-  CONSTRAINT qa_submission_batch_items_pkey PRIMARY KEY (id),
-  CONSTRAINT qa_submission_batch_items_batch_id_fkey FOREIGN KEY (batch_id) REFERENCES public.qa_submission_batches(id),
-  CONSTRAINT qa_submission_batch_items_assessment_id_fkey FOREIGN KEY (assessment_id) REFERENCES public.product_assessments(id),
-  CONSTRAINT qa_submission_batch_items_product_id_fkey FOREIGN KEY (product_id) REFERENCES public.products(id)
-);
-CREATE TABLE public.qa_submission_batches (
-  id uuid NOT NULL DEFAULT gen_random_uuid(),
-  seller_id uuid NOT NULL,
-  batch_code text NOT NULL UNIQUE,
-  submission_type text NOT NULL DEFAULT 'sample'::text,
-  status text NOT NULL DEFAULT 'submitted'::text CHECK (status = ANY (ARRAY['draft'::text, 'submitted'::text, 'in_review'::text, 'completed'::text, 'cancelled'::text])),
-  notes text,
-  created_by uuid,
-  submitted_at timestamp with time zone NOT NULL DEFAULT now(),
-  created_at timestamp with time zone NOT NULL DEFAULT now(),
-  updated_at timestamp with time zone NOT NULL DEFAULT now(),
-  CONSTRAINT qa_submission_batches_pkey PRIMARY KEY (id),
-  CONSTRAINT qa_submission_batches_seller_id_fkey FOREIGN KEY (seller_id) REFERENCES public.sellers(id),
-  CONSTRAINT qa_submission_batches_created_by_fkey FOREIGN KEY (created_by) REFERENCES auth.users(id)
-);
-CREATE TABLE public.qa_team_members (
-  id uuid NOT NULL,
-  display_name text,
-  specialization text,
-  is_active boolean NOT NULL DEFAULT true,
-  max_concurrent_reviews integer NOT NULL DEFAULT 10,
-  permissions jsonb DEFAULT '{}'::jsonb,
-  created_at timestamp with time zone NOT NULL DEFAULT now(),
-  updated_at timestamp with time zone NOT NULL DEFAULT now(),
-  CONSTRAINT qa_team_members_pkey PRIMARY KEY (id),
-  CONSTRAINT qa_team_members_id_fkey FOREIGN KEY (id) REFERENCES public.profiles(id)
-);
-CREATE TABLE public.refund_return_periods (
-  id uuid NOT NULL DEFAULT gen_random_uuid(),
-  order_id uuid NOT NULL,
-  is_returnable boolean NOT NULL DEFAULT true,
-  return_window_days integer NOT NULL DEFAULT 7 CHECK (return_window_days >= 0),
-  return_reason text,
-  refund_amount numeric CHECK (refund_amount >= 0::numeric),
-  refund_date timestamp with time zone,
-  created_at timestamp with time zone NOT NULL DEFAULT now(),
-  status text NOT NULL DEFAULT 'pending'::text CHECK (status = ANY (ARRAY['pending'::text, 'seller_review'::text, 'counter_offered'::text, 'approved'::text, 'rejected'::text, 'escalated'::text, 'return_in_transit'::text, 'return_received'::text, 'refunded'::text])),
-  return_type text NOT NULL DEFAULT 'return_refund'::text CHECK (return_type = ANY (ARRAY['return_refund'::text, 'refund_only'::text, 'replacement'::text])),
-  resolution_path text NOT NULL DEFAULT 'seller_review'::text CHECK (resolution_path = ANY (ARRAY['instant'::text, 'seller_review'::text, 'return_required'::text])),
-  items_json jsonb,
-  evidence_urls ARRAY DEFAULT '{}'::text[],
-  description text,
-  seller_note text,
-  rejected_reason text,
-  counter_offer_amount numeric CHECK (counter_offer_amount >= 0::numeric),
-  seller_deadline timestamp with time zone,
-  escalated_at timestamp with time zone,
-  resolved_at timestamp with time zone,
-  resolved_by text,
-  return_label_url text,
-  return_tracking_number text,
-  buyer_shipped_at timestamp with time zone,
-  return_received_at timestamp with time zone,
-  CONSTRAINT refund_return_periods_pkey PRIMARY KEY (id),
-  CONSTRAINT refund_return_periods_order_id_fkey FOREIGN KEY (order_id) REFERENCES public.orders(id)
-);
-CREATE TABLE public.registries (
-  id uuid NOT NULL DEFAULT gen_random_uuid(),
-  buyer_id uuid NOT NULL,
-  title text NOT NULL,
-  description text,
-  event_type text NOT NULL,
-  created_at timestamp with time zone NOT NULL DEFAULT now(),
-  updated_at timestamp with time zone NOT NULL DEFAULT now(),
-  category text,
-  image_url text DEFAULT ''::text,
-  shared_date text,
-  privacy text NOT NULL CHECK (privacy = ANY (ARRAY['public'::text, 'link'::text, 'private'::text])),
-  delivery jsonb,
-  CONSTRAINT registries_pkey PRIMARY KEY (id),
-  CONSTRAINT registries_buyer_id_fkey FOREIGN KEY (buyer_id) REFERENCES public.buyers(id)
-);
-CREATE TABLE public.registry_items (
-  id uuid NOT NULL DEFAULT gen_random_uuid(),
-  registry_id uuid NOT NULL,
-  product_id uuid,
-  quantity_desired integer NOT NULL CHECK (quantity_desired > 0),
-  priority text NOT NULL DEFAULT 'medium'::text CHECK (priority = ANY (ARRAY['low'::text, 'medium'::text, 'high'::text])),
-  notes text,
-  created_at timestamp with time zone NOT NULL DEFAULT now(),
-  updated_at timestamp with time zone NOT NULL DEFAULT now(),
-  product_name text,
-  product_snapshot jsonb,
-  is_most_wanted boolean NOT NULL DEFAULT false,
-  received_qty integer NOT NULL DEFAULT 0,
-  requested_qty integer NOT NULL DEFAULT 1,
-  selected_variant jsonb,
-  CONSTRAINT registry_items_pkey PRIMARY KEY (id),
-  CONSTRAINT registry_items_registry_id_fkey FOREIGN KEY (registry_id) REFERENCES public.registries(id),
-  CONSTRAINT registry_items_product_id_fkey FOREIGN KEY (product_id) REFERENCES public.products(id)
-);
-CREATE TABLE public.review_images (
-  id uuid NOT NULL DEFAULT gen_random_uuid(),
-  review_id uuid NOT NULL,
-  image_url text NOT NULL CHECK (image_url ~ '^https?://'::text),
-  sort_order integer NOT NULL DEFAULT 0,
-  uploaded_at timestamp with time zone NOT NULL DEFAULT now(),
-  CONSTRAINT review_images_pkey PRIMARY KEY (id),
-  CONSTRAINT review_images_review_id_fkey FOREIGN KEY (review_id) REFERENCES public.reviews(id)
-);
-CREATE TABLE public.review_votes (
-  review_id uuid NOT NULL,
-  buyer_id uuid NOT NULL,
-  created_at timestamp with time zone NOT NULL DEFAULT now(),
-  CONSTRAINT review_votes_pkey PRIMARY KEY (review_id, buyer_id),
-  CONSTRAINT review_votes_review_id_fkey FOREIGN KEY (review_id) REFERENCES public.reviews(id),
-  CONSTRAINT review_votes_buyer_id_fkey FOREIGN KEY (buyer_id) REFERENCES public.profiles(id)
-);
-CREATE TABLE public.reviews (
-  id uuid NOT NULL DEFAULT gen_random_uuid(),
-  product_id uuid NOT NULL,
-  buyer_id uuid NOT NULL,
-  order_id uuid,
-  rating integer NOT NULL CHECK (rating >= 1 AND rating <= 5),
-  comment text,
-  helpful_count integer NOT NULL DEFAULT 0 CHECK (helpful_count >= 0),
-  seller_reply jsonb,
-  is_verified_purchase boolean NOT NULL DEFAULT false,
-  is_hidden boolean NOT NULL DEFAULT false,
-  is_edited boolean NOT NULL DEFAULT false,
-  created_at timestamp with time zone NOT NULL DEFAULT now(),
-  updated_at timestamp with time zone NOT NULL DEFAULT now(),
-  order_item_id uuid,
-  variant_snapshot jsonb CHECK (variant_snapshot IS NULL OR jsonb_typeof(variant_snapshot) = 'object'::text),
-  CONSTRAINT reviews_pkey PRIMARY KEY (id),
-  CONSTRAINT reviews_product_id_fkey FOREIGN KEY (product_id) REFERENCES public.products(id),
-  CONSTRAINT reviews_buyer_id_fkey FOREIGN KEY (buyer_id) REFERENCES public.buyers(id),
-  CONSTRAINT reviews_order_id_fkey FOREIGN KEY (order_id) REFERENCES public.orders(id),
-  CONSTRAINT reviews_order_item_id_fkey FOREIGN KEY (order_item_id) REFERENCES public.order_items(id)
-);
-CREATE TABLE public.seller_business_profiles (
-  seller_id uuid NOT NULL,
-  business_type text CHECK (business_type = ANY (ARRAY['sole_proprietor'::text, 'partnership'::text, 'corporation'::text])),
-  business_registration_number text,
-  tax_id_number text,
-  address_line_1 text,
-  address_line_2 text,
-  city text,
-  province text,
-  postal_code text,
-  created_at timestamp with time zone NOT NULL DEFAULT now(),
-  updated_at timestamp with time zone NOT NULL DEFAULT now(),
-  CONSTRAINT seller_business_profiles_pkey PRIMARY KEY (seller_id),
-  CONSTRAINT seller_business_profiles_seller_id_fkey FOREIGN KEY (seller_id) REFERENCES public.sellers(id)
-);
-CREATE TABLE public.seller_categories (
-  id uuid NOT NULL DEFAULT gen_random_uuid(),
-  seller_id uuid NOT NULL,
-  category_id uuid NOT NULL,
-  created_at timestamp with time zone NOT NULL DEFAULT now(),
-  CONSTRAINT seller_categories_pkey PRIMARY KEY (id),
-  CONSTRAINT seller_categories_seller_id_fkey FOREIGN KEY (seller_id) REFERENCES public.sellers(id),
-  CONSTRAINT seller_categories_category_id_fkey FOREIGN KEY (category_id) REFERENCES public.categories(id)
-);
-CREATE TABLE public.seller_chat_requests (
-  id uuid NOT NULL DEFAULT gen_random_uuid(),
-  seller_id uuid NOT NULL,
-  buyer_id uuid NOT NULL,
-  buyer_name text,
-  product_id uuid,
-  product_name text,
-  status text NOT NULL DEFAULT 'pending'::text CHECK (status = ANY (ARRAY['pending'::text, 'accepted'::text, 'declined'::text, 'expired'::text])),
-  message text,
-  created_at timestamp with time zone NOT NULL DEFAULT now(),
-  updated_at timestamp with time zone NOT NULL DEFAULT now(),
-  responded_at timestamp with time zone,
-  CONSTRAINT seller_chat_requests_pkey PRIMARY KEY (id),
-  CONSTRAINT seller_chat_requests_seller_id_fkey FOREIGN KEY (seller_id) REFERENCES public.sellers(id),
-  CONSTRAINT seller_chat_requests_buyer_id_fkey FOREIGN KEY (buyer_id) REFERENCES public.buyers(id),
-  CONSTRAINT seller_chat_requests_product_id_fkey FOREIGN KEY (product_id) REFERENCES public.products(id)
-);
-CREATE TABLE public.seller_notifications (
-  id uuid NOT NULL DEFAULT gen_random_uuid(),
-  type text NOT NULL,
-  title text NOT NULL,
-  message text NOT NULL,
-  action_url text,
-  action_data jsonb,
-  read_at timestamp with time zone,
-  priority text NOT NULL DEFAULT 'normal'::text CHECK (priority = ANY (ARRAY['low'::text, 'normal'::text, 'high'::text, 'urgent'::text])),
-  created_at timestamp with time zone NOT NULL DEFAULT now(),
-  seller_id uuid,
-  CONSTRAINT seller_notifications_pkey PRIMARY KEY (id),
-  CONSTRAINT seller_notifications_seller_id_fkey FOREIGN KEY (seller_id) REFERENCES public.sellers(id)
-);
-CREATE TABLE public.seller_payout_accounts (
-  seller_id uuid NOT NULL,
-  bank_name text,
-  account_name text,
-  account_number text,
-  created_at timestamp with time zone NOT NULL DEFAULT now(),
-  updated_at timestamp with time zone NOT NULL DEFAULT now(),
-  CONSTRAINT seller_payout_accounts_pkey PRIMARY KEY (seller_id),
-  CONSTRAINT seller_payout_accounts_seller_id_fkey FOREIGN KEY (seller_id) REFERENCES public.sellers(id)
-);
-CREATE TABLE public.seller_payout_settings (
-  id uuid NOT NULL DEFAULT gen_random_uuid(),
-  seller_id uuid NOT NULL UNIQUE,
-  payout_method character varying NOT NULL DEFAULT 'bank_transfer'::character varying CHECK (payout_method::text = ANY (ARRAY['bank_transfer'::character varying, 'gcash'::character varying, 'maya'::character varying]::text[])),
-  bank_name character varying,
-  bank_account_name character varying,
-  bank_account_number character varying,
-  ewallet_provider character varying CHECK (ewallet_provider::text = ANY (ARRAY['gcash'::character varying, 'maya'::character varying]::text[])),
-  ewallet_number character varying,
-  auto_payout boolean DEFAULT true,
-  min_payout_amount numeric DEFAULT 100.00,
-  created_at timestamp with time zone DEFAULT now(),
-  updated_at timestamp with time zone DEFAULT now(),
-  CONSTRAINT seller_payout_settings_pkey PRIMARY KEY (id),
-  CONSTRAINT seller_payout_settings_seller_id_fkey FOREIGN KEY (seller_id) REFERENCES public.profiles(id)
-);
-CREATE TABLE public.seller_payouts (
-  id uuid NOT NULL DEFAULT gen_random_uuid(),
-  seller_id uuid NOT NULL,
-  order_id uuid,
-  payment_transaction_id uuid,
-  gross_amount numeric NOT NULL,
-  platform_fee numeric NOT NULL DEFAULT 0,
-  net_amount numeric NOT NULL,
-  currency character varying NOT NULL DEFAULT 'PHP'::character varying,
-  payout_method character varying NOT NULL CHECK (payout_method::text = ANY (ARRAY['bank_transfer'::character varying, 'gcash'::character varying, 'maya'::character varying]::text[])),
-  payout_account_details jsonb NOT NULL DEFAULT '{}'::jsonb,
-  status character varying NOT NULL DEFAULT 'pending'::character varying CHECK (status::text = ANY (ARRAY['pending'::character varying, 'processing'::character varying, 'completed'::character varying, 'failed'::character varying, 'on_hold'::character varying]::text[])),
-  processed_at timestamp with time zone,
-  failure_reason text,
-  created_at timestamp with time zone DEFAULT now(),
-  updated_at timestamp with time zone DEFAULT now(),
-  escrow_transaction_id uuid,
-  release_after timestamp with time zone,
-  CONSTRAINT seller_payouts_pkey PRIMARY KEY (id),
-  CONSTRAINT seller_payouts_seller_id_fkey FOREIGN KEY (seller_id) REFERENCES public.profiles(id),
-  CONSTRAINT seller_payouts_order_id_fkey FOREIGN KEY (order_id) REFERENCES public.orders(id),
-  CONSTRAINT seller_payouts_payment_transaction_id_fkey FOREIGN KEY (payment_transaction_id) REFERENCES public.payment_transactions(id),
-  CONSTRAINT seller_payouts_escrow_transaction_id_fkey FOREIGN KEY (escrow_transaction_id) REFERENCES public.payment_transactions(id)
-);
-CREATE TABLE public.seller_rejection_items (
-  id uuid NOT NULL DEFAULT gen_random_uuid(),
-  rejection_id uuid NOT NULL,
-  document_field text NOT NULL CHECK (document_field = ANY (ARRAY['business_permit_url'::text, 'valid_id_url'::text, 'proof_of_address_url'::text, 'dti_registration_url'::text, 'tax_id_url'::text])),
-  reason text,
-  created_at timestamp with time zone NOT NULL DEFAULT now(),
-  CONSTRAINT seller_rejection_items_pkey PRIMARY KEY (id),
-  CONSTRAINT seller_rejection_items_rejection_id_fkey FOREIGN KEY (rejection_id) REFERENCES public.seller_rejections(id)
-);
-CREATE TABLE public.seller_rejections (
-  id uuid NOT NULL DEFAULT gen_random_uuid(),
-  description text,
-  created_by uuid,
-  created_at timestamp with time zone NOT NULL DEFAULT now(),
-  seller_id uuid NOT NULL,
-  rejection_type text NOT NULL DEFAULT 'full'::text CHECK (rejection_type = ANY (ARRAY['full'::text, 'partial'::text])),
-  CONSTRAINT seller_rejections_pkey PRIMARY KEY (id),
-  CONSTRAINT seller_rejections_created_by_fkey FOREIGN KEY (created_by) REFERENCES public.admins(id),
-  CONSTRAINT seller_rejections_seller_id_fkey FOREIGN KEY (seller_id) REFERENCES public.sellers(id)
-);
-CREATE TABLE public.seller_tiers (
-  id uuid NOT NULL DEFAULT gen_random_uuid(),
-  seller_id uuid NOT NULL UNIQUE,
-  tier_level text NOT NULL DEFAULT 'standard'::text CHECK (tier_level = ANY (ARRAY['standard'::text, 'premium_outlet'::text, 'trusted_brand'::text])),
-  bypasses_assessment boolean DEFAULT false,
-  created_at timestamp with time zone NOT NULL DEFAULT now(),
-  updated_at timestamp with time zone NOT NULL DEFAULT now(),
-  CONSTRAINT seller_tiers_pkey PRIMARY KEY (id),
-  CONSTRAINT seller_tiers_seller_id_fkey FOREIGN KEY (seller_id) REFERENCES public.sellers(id)
-);
-CREATE TABLE public.seller_verification_document_drafts (
-  seller_id uuid NOT NULL,
-  business_permit_url text,
-  valid_id_url text,
-  proof_of_address_url text,
-  dti_registration_url text,
-  tax_id_url text,
-  created_at timestamp with time zone DEFAULT now(),
-  updated_at timestamp with time zone DEFAULT now(),
-  business_permit_updated_at timestamp with time zone,
-  valid_id_updated_at timestamp with time zone,
-  proof_of_address_updated_at timestamp with time zone,
-  dti_registration_updated_at timestamp with time zone,
-  tax_id_updated_at timestamp with time zone,
-  CONSTRAINT seller_verification_document_drafts_pkey PRIMARY KEY (seller_id),
-  CONSTRAINT seller_verification_document_drafts_seller_id_fkey FOREIGN KEY (seller_id) REFERENCES public.sellers(id)
-);
-CREATE TABLE public.seller_verification_documents (
-  seller_id uuid NOT NULL,
-  business_permit_url text,
-  valid_id_url text,
-  proof_of_address_url text,
-  dti_registration_url text,
-  tax_id_url text,
-  created_at timestamp with time zone NOT NULL DEFAULT now(),
-  updated_at timestamp with time zone NOT NULL DEFAULT now(),
-  CONSTRAINT seller_verification_documents_pkey PRIMARY KEY (seller_id),
-  CONSTRAINT seller_verification_documents_seller_id_fkey FOREIGN KEY (seller_id) REFERENCES public.sellers(id)
-);
-CREATE TABLE public.sellers (
-  id uuid NOT NULL,
-  store_name text NOT NULL UNIQUE,
-  store_description text,
-  avatar_url text,
-  owner_name text,
-  approval_status text NOT NULL DEFAULT 'pending'::text CHECK (approval_status = ANY (ARRAY['pending'::text, 'verified'::text, 'rejected'::text, 'needs_resubmission'::text, 'blacklisted'::text, 'suspended'::text])),
-  verified_at timestamp with time zone,
-  created_at timestamp with time zone NOT NULL DEFAULT now(),
-  updated_at timestamp with time zone NOT NULL DEFAULT now(),
-  store_contact_number text,
-  reapplication_attempts integer DEFAULT 0,
-  blacklisted_at timestamp with time zone,
-  cool_down_until timestamp with time zone,
-  cooldown_count integer DEFAULT 0,
-  temp_blacklist_count integer DEFAULT 0,
-  temp_blacklist_until timestamp with time zone,
-  is_permanently_blacklisted boolean DEFAULT false,
-  store_banner_url text,
-  is_vacation_mode boolean DEFAULT false,
-  vacation_reason text,
-  suspended_at timestamp with time zone,
-  suspension_reason text,
-  shipping_origin_lat double precision,
-  shipping_origin_lng double precision,
-  CONSTRAINT sellers_pkey PRIMARY KEY (id),
-  CONSTRAINT sellers_id_fkey FOREIGN KEY (id) REFERENCES public.profiles(id)
-);
-CREATE TABLE public.shipping_addresses (
-  id uuid NOT NULL DEFAULT gen_random_uuid(),
-  user_id uuid NOT NULL,
-  label text NOT NULL,
-  address_line_1 text NOT NULL,
-  address_line_2 text,
-  barangay text,
-  city text NOT NULL,
-  province text NOT NULL,
-  region text NOT NULL,
-  postal_code text NOT NULL,
-  landmark text,
-  delivery_instructions text,
-  is_default boolean NOT NULL DEFAULT false,
-  address_type text NOT NULL DEFAULT 'residential'::text CHECK (address_type = ANY (ARRAY['residential'::text, 'commercial'::text])),
-  coordinates jsonb,
-  created_at timestamp with time zone NOT NULL DEFAULT now(),
-  updated_at timestamp with time zone NOT NULL DEFAULT now(),
-  first_name text,
-  last_name text,
-  phone_number text,
-  is_pickup boolean DEFAULT false,
-  is_return boolean DEFAULT false,
-  CONSTRAINT shipping_addresses_pkey PRIMARY KEY (id),
-  CONSTRAINT shipping_addresses_user_id_fkey FOREIGN KEY (user_id) REFERENCES public.profiles(id)
-);
-CREATE TABLE public.shipping_config (
-  id uuid NOT NULL DEFAULT gen_random_uuid(),
-  volumetric_divisor numeric NOT NULL DEFAULT 3500,
-  per_kg_increment numeric NOT NULL DEFAULT 15,
-  insurance_rate numeric NOT NULL DEFAULT 0.01,
-  free_shipping_threshold numeric NOT NULL DEFAULT 0,
-  bulky_weight_threshold numeric NOT NULL DEFAULT 50,
-  same_day_zones ARRAY NOT NULL DEFAULT '{NCR}'::text[],
-  CONSTRAINT shipping_config_pkey PRIMARY KEY (id)
-);
-CREATE TABLE public.shipping_zones (
-  id uuid NOT NULL DEFAULT gen_random_uuid(),
-  origin_zone text NOT NULL,
-  destination_zone text NOT NULL,
-  shipping_method text NOT NULL,
-  base_rate numeric NOT NULL,
-  odz_fee numeric NOT NULL DEFAULT 0,
-  estimated_days_min integer NOT NULL,
-  estimated_days_max integer NOT NULL,
-  CONSTRAINT shipping_zones_pkey PRIMARY KEY (id)
-);
-CREATE TABLE public.sms_logs (
-  id uuid NOT NULL DEFAULT gen_random_uuid(),
-  recipient_phone text NOT NULL,
-  recipient_id uuid,
-  event_type text NOT NULL,
-  message_body text NOT NULL,
-  status text NOT NULL DEFAULT 'queued'::text CHECK (status = ANY (ARRAY['queued'::text, 'sent'::text, 'delivered'::text, 'failed'::text, 'disabled'::text])),
-  provider text DEFAULT 'none'::text,
-  provider_message_id text,
-  error_message text,
-  metadata jsonb DEFAULT '{}'::jsonb,
-  created_at timestamp with time zone NOT NULL DEFAULT now(),
-  delivered_at timestamp with time zone,
-  CONSTRAINT sms_logs_pkey PRIMARY KEY (id),
-  CONSTRAINT sms_logs_recipient_id_fkey FOREIGN KEY (recipient_id) REFERENCES public.profiles(id)
-);
-CREATE TABLE public.store_followers (
-  id uuid NOT NULL DEFAULT gen_random_uuid(),
-  buyer_id uuid NOT NULL,
-  seller_id uuid NOT NULL,
-  created_at timestamp with time zone NOT NULL DEFAULT now(),
-  CONSTRAINT store_followers_pkey PRIMARY KEY (id),
-  CONSTRAINT store_followers_buyer_id_fkey FOREIGN KEY (buyer_id) REFERENCES public.buyers(id),
-  CONSTRAINT store_followers_seller_id_fkey FOREIGN KEY (seller_id) REFERENCES public.sellers(id)
-);
-CREATE TABLE public.support_tickets (
-  id uuid NOT NULL DEFAULT gen_random_uuid(),
-  user_id uuid NOT NULL,
-  category_id uuid,
-  priority text NOT NULL DEFAULT 'normal'::text CHECK (priority = ANY (ARRAY['low'::text, 'normal'::text, 'high'::text, 'urgent'::text])),
-  status text NOT NULL DEFAULT 'open'::text CHECK (status = ANY (ARRAY['open'::text, 'in_progress'::text, 'waiting_response'::text, 'resolved'::text, 'closed'::text])),
-  subject text NOT NULL,
-  description text NOT NULL,
-  order_id uuid,
-  assigned_to uuid,
-  resolved_at timestamp with time zone,
-  created_at timestamp with time zone NOT NULL DEFAULT now(),
-  updated_at timestamp with time zone NOT NULL DEFAULT now(),
-  seller_id uuid,
-  CONSTRAINT support_tickets_pkey PRIMARY KEY (id),
-  CONSTRAINT support_tickets_user_id_fkey FOREIGN KEY (user_id) REFERENCES public.profiles(id),
-  CONSTRAINT support_tickets_category_id_fkey FOREIGN KEY (category_id) REFERENCES public.ticket_categories(id),
-  CONSTRAINT support_tickets_order_id_fkey FOREIGN KEY (order_id) REFERENCES public.orders(id),
-  CONSTRAINT support_tickets_assigned_to_fkey FOREIGN KEY (assigned_to) REFERENCES public.admins(id),
-  CONSTRAINT support_tickets_seller_id_fkey FOREIGN KEY (seller_id) REFERENCES public.sellers(id)
-);
-CREATE TABLE public.suppression_list (
-  id uuid NOT NULL DEFAULT gen_random_uuid(),
-  contact text NOT NULL,
-  contact_type text NOT NULL CHECK (contact_type = ANY (ARRAY['email'::text, 'phone'::text])),
-  reason text NOT NULL CHECK (reason = ANY (ARRAY['hard_bounce'::text, 'soft_bounce_converted'::text, 'unsubscribed'::text, 'manual_blacklist'::text, 'spam_complaint'::text])),
-  suppressed_by uuid,
-  notes text,
-  created_at timestamp with time zone NOT NULL DEFAULT now(),
-  CONSTRAINT suppression_list_pkey PRIMARY KEY (id),
-  CONSTRAINT suppression_list_suppressed_by_fkey FOREIGN KEY (suppressed_by) REFERENCES public.admins(id)
-);
-CREATE TABLE public.ticket_categories (
-  id uuid NOT NULL DEFAULT gen_random_uuid(),
-  name text NOT NULL,
-  parent_id uuid,
-  description text,
-  created_at timestamp with time zone NOT NULL DEFAULT now(),
-  CONSTRAINT ticket_categories_pkey PRIMARY KEY (id),
-  CONSTRAINT ticket_categories_parent_id_fkey FOREIGN KEY (parent_id) REFERENCES public.ticket_categories(id)
-);
-CREATE TABLE public.ticket_messages (
-  id uuid NOT NULL DEFAULT gen_random_uuid(),
-  ticket_id uuid NOT NULL,
-  sender_id uuid NOT NULL,
-  sender_type text NOT NULL CHECK (sender_type = ANY (ARRAY['user'::text, 'admin'::text])),
-  message text NOT NULL,
-  is_internal_note boolean NOT NULL DEFAULT false,
-  created_at timestamp with time zone NOT NULL DEFAULT now(),
-  CONSTRAINT ticket_messages_pkey PRIMARY KEY (id),
-  CONSTRAINT ticket_messages_ticket_id_fkey FOREIGN KEY (ticket_id) REFERENCES public.support_tickets(id),
-  CONSTRAINT ticket_messages_sender_id_fkey FOREIGN KEY (sender_id) REFERENCES public.profiles(id)
-);
-CREATE TABLE public.user_consent (
-  id uuid NOT NULL DEFAULT gen_random_uuid(),
-  user_id uuid NOT NULL,
-  channel text NOT NULL CHECK (channel = ANY (ARRAY['email'::text, 'sms'::text, 'push'::text])),
-  is_consented boolean NOT NULL DEFAULT false,
-  consent_source text NOT NULL DEFAULT 'signup'::text CHECK (consent_source = ANY (ARRAY['signup'::text, 'settings'::text, 'campaign'::text, 'admin'::text])),
-  consented_at timestamp with time zone,
-  revoked_at timestamp with time zone,
-  ip_address inet,
-  user_agent text,
-  created_at timestamp with time zone NOT NULL DEFAULT now(),
-  updated_at timestamp with time zone NOT NULL DEFAULT now(),
-  CONSTRAINT user_consent_pkey PRIMARY KEY (id),
-  CONSTRAINT user_consent_user_id_fkey FOREIGN KEY (user_id) REFERENCES auth.users(id)
-);
-CREATE TABLE public.user_presence (
-  user_id uuid NOT NULL,
-  is_online boolean DEFAULT false,
-  last_seen timestamp with time zone DEFAULT now(),
-  updated_at timestamp with time zone DEFAULT now(),
-  CONSTRAINT user_presence_pkey PRIMARY KEY (user_id)
-);
-CREATE TABLE public.user_roles (
-  id uuid NOT NULL DEFAULT gen_random_uuid(),
-  user_id uuid NOT NULL,
-  role text NOT NULL CHECK (role = ANY (ARRAY['buyer'::text, 'seller'::text, 'admin'::text, 'qa_team'::text])),
-  created_at timestamp with time zone NOT NULL DEFAULT now(),
-  CONSTRAINT user_roles_pkey PRIMARY KEY (id),
-  CONSTRAINT user_roles_user_id_fkey FOREIGN KEY (user_id) REFERENCES public.profiles(id)
-);
-CREATE TABLE public.verification_codes (
-  id uuid NOT NULL DEFAULT gen_random_uuid(),
-  email text NOT NULL,
-  code text NOT NULL,
-  expires_at timestamp with time zone NOT NULL,
-  created_at timestamp with time zone NOT NULL DEFAULT now(),
-  CONSTRAINT verification_codes_pkey PRIMARY KEY (id)
-);
-CREATE TABLE public.vouchers (
-  id uuid NOT NULL DEFAULT gen_random_uuid(),
-  code text NOT NULL UNIQUE,
-  title text NOT NULL,
-  description text,
-  voucher_type text NOT NULL CHECK (voucher_type = ANY (ARRAY['percentage'::text, 'fixed'::text, 'shipping'::text])),
-  value numeric NOT NULL CHECK (value > 0::numeric),
-  min_order_value numeric NOT NULL DEFAULT 0 CHECK (min_order_value >= 0::numeric),
-  max_discount numeric CHECK (max_discount > 0::numeric),
-  seller_id uuid,
-  claimable_from timestamp with time zone NOT NULL,
-  claimable_until timestamp with time zone NOT NULL,
-  usage_limit integer CHECK (usage_limit > 0),
-  claim_limit integer,
-  duration interval,
-  is_active boolean NOT NULL DEFAULT true,
-  created_at timestamp with time zone NOT NULL DEFAULT now(),
-  updated_at timestamp with time zone NOT NULL DEFAULT now(),
-  CONSTRAINT vouchers_pkey PRIMARY KEY (id),
-  CONSTRAINT vouchers_seller_id_fkey FOREIGN KEY (seller_id) REFERENCES public.sellers(id)
-);
-CREATE TABLE public.warranty_actions_log (
-  id uuid NOT NULL DEFAULT gen_random_uuid(),
-  warranty_claim_id uuid,
-  order_item_id uuid,
-  action_type text NOT NULL CHECK (action_type = ANY (ARRAY['claim_created'::text, 'claim_submitted'::text, 'claim_reviewed'::text, 'claim_approved'::text, 'claim_rejected'::text, 'claim_cancelled'::text, 'claim_resolved'::text, 'repair_started'::text, 'replacement_shipped'::text, 'refund_initiated'::text, 'admin_escalated'::text, 'note_added'::text])),
-  actor_id uuid,
-  actor_role text NOT NULL CHECK (actor_role = ANY (ARRAY['buyer'::text, 'seller'::text, 'admin'::text, 'system'::text])),
-  description text,
-  metadata jsonb DEFAULT '{}'::jsonb,
-  created_at timestamp with time zone NOT NULL DEFAULT now(),
-  CONSTRAINT warranty_actions_log_pkey PRIMARY KEY (id),
-  CONSTRAINT warranty_actions_log_warranty_claim_id_fkey FOREIGN KEY (warranty_claim_id) REFERENCES public.warranty_claims(id),
-  CONSTRAINT warranty_actions_log_order_item_id_fkey FOREIGN KEY (order_item_id) REFERENCES public.order_items(id)
-);
-CREATE TABLE public.warranty_claims (
-  id uuid NOT NULL DEFAULT gen_random_uuid(),
-  order_item_id uuid NOT NULL,
-  buyer_id uuid NOT NULL,
-  seller_id uuid NOT NULL,
-  claim_number text NOT NULL UNIQUE,
-  reason text NOT NULL,
-  description text,
-  claim_type text NOT NULL CHECK (claim_type = ANY (ARRAY['repair'::text, 'replacement'::text, 'refund'::text, 'technical_support'::text])),
-  evidence_urls ARRAY,
-  diagnostic_report_url text,
-  status text NOT NULL DEFAULT 'pending'::text CHECK (status = ANY (ARRAY['pending'::text, 'under_review'::text, 'approved'::text, 'rejected'::text, 'repair_in_progress'::text, 'replacement_sent'::text, 'refund_processed'::text, 'resolved'::text, 'cancelled'::text])),
-  priority text DEFAULT 'normal'::text CHECK (priority = ANY (ARRAY['low'::text, 'normal'::text, 'high'::text, 'urgent'::text])),
-  resolution_type text CHECK (resolution_type = ANY (ARRAY['repair'::text, 'replacement'::text, 'refund'::text, 'technical_support'::text, 'rejected'::text])),
-  resolution_description text,
-  resolution_amount numeric,
-  resolved_at timestamp with time zone,
-  resolved_by uuid,
-  seller_response text,
-  seller_response_at timestamp with time zone,
-  admin_notes text,
-  return_tracking_number text,
-  return_shipping_carrier text,
-  replacement_tracking_number text,
-  replacement_shipping_carrier text,
-  created_at timestamp with time zone NOT NULL DEFAULT now(),
-  updated_at timestamp with time zone NOT NULL DEFAULT now(),
-  CONSTRAINT warranty_claims_pkey PRIMARY KEY (id),
-  CONSTRAINT warranty_claims_order_item_id_fkey FOREIGN KEY (order_item_id) REFERENCES public.order_items(id)
-);
+PERMANENT FORENSIC RECORD — do not drop. Archived snapshot of all 54 orders that had no order_items rows as of 2026-04-24. 17 pending_payment rows were hard-deleted by migration 046 (abandoned carts). 20 paid + 17 refunded rows survived in public.orders. Migration 049 cleared the review flag from the 17 refunded rows (money-trail intact). The ~20 paid rows remain flagged with [ORPHAN_NEEDS_REVIEW_2026-04-24] in orders.notes until an admin manually reviews and closes each one.
+
+### Columns
+
+| Name | Type | Constraints |
+|------|------|-------------|
+| `archived_at` | `timestamptz` |  |
+| `reason` | `text` |  |
+| `order_id` | `uuid` |  |
+| `order_number` | `text` |  Nullable |
+| `buyer_id` | `uuid` |  Nullable |
+| `payment_status` | `text` |  Nullable |
+| `shipment_status` | `text` |  Nullable |
+| `order_type` | `text` |  Nullable |
+| `created_at` | `timestamptz` |  Nullable |
+| `full_row` | `jsonb` |  |
+| `related_payments` | `jsonb` |  Nullable |
+| `related_shipments` | `jsonb` |  Nullable |
+
+## Table `admin_audit_logs`
+
+Immutable audit trail for admin actions
+
+### Columns
+
+| Name | Type | Constraints |
+|------|------|-------------|
+| `id` | `uuid` | Primary |
+| `admin_id` | `uuid` |  |
+| `action` | `text` |  |
+| `target_table` | `text` |  Nullable |
+| `target_id` | `uuid` |  Nullable |
+| `old_values` | `jsonb` |  Nullable |
+| `new_values` | `jsonb` |  Nullable |
+| `ip_address` | `text` |  Nullable |
+| `user_agent` | `text` |  Nullable |
+| `created_at` | `timestamptz` |  |
+
+## Table `admin_notifications`
+
+In-app notifications for admin role. Schema is intentionally identical to buyer_notifications and seller_notifications; the split is for RLS isolation against admins(id). Write via notificationService.notifyAdmin* (web/mobile). Do NOT query across notification tables; use the role-specific service method.
+
+### Columns
+
+| Name | Type | Constraints |
+|------|------|-------------|
+| `id` | `uuid` | Primary |
+| `admin_id` | `uuid` |  |
+| `type` | `text` |  |
+| `title` | `text` |  |
+| `message` | `text` |  |
+| `action_url` | `text` |  Nullable |
+| `action_data` | `jsonb` |  Nullable |
+| `read_at` | `timestamptz` |  Nullable |
+| `priority` | `text` |  |
+| `created_at` | `timestamptz` |  |
+
+## Table `admin_settings`
+
+### Columns
+
+| Name | Type | Constraints |
+|------|------|-------------|
+| `id` | `text` | Primary |
+| `data` | `jsonb` |  |
+| `updated_at` | `timestamptz` |  |
+| `updated_by` | `uuid` |  Nullable |
+
+## Table `admins`
+
+Platform administrator data
+
+### Columns
+
+| Name | Type | Constraints |
+|------|------|-------------|
+| `id` | `uuid` | Primary |
+| `permissions` | `jsonb` |  Nullable |
+| `created_at` | `timestamptz` |  |
+| `updated_at` | `timestamptz` |  |
+
+## Table `ai_conversations`
+
+AI chat conversation sessions
+
+### Columns
+
+| Name | Type | Constraints |
+|------|------|-------------|
+| `id` | `uuid` | Primary |
+| `user_id` | `uuid` |  |
+| `user_type` | `text` |  |
+| `title` | `text` |  Nullable |
+| `last_message_at` | `timestamptz` |  |
+| `created_at` | `timestamptz` |  |
+
+## Table `ai_messages`
+
+Messages within AI conversations
+
+### Columns
+
+| Name | Type | Constraints |
+|------|------|-------------|
+| `id` | `uuid` | Primary |
+| `conversation_id` | `uuid` |  |
+| `sender` | `text` |  |
+| `message` | `text` |  |
+| `metadata` | `jsonb` |  Nullable |
+| `created_at` | `timestamptz` |  |
+
+## Table `announcements`
+
+### Columns
+
+| Name | Type | Constraints |
+|------|------|-------------|
+| `id` | `uuid` | Primary |
+| `admin_id` | `uuid` |  |
+| `title` | `text` |  |
+| `message` | `text` |  |
+| `type` | `text` |  |
+| `audience` | `text` |  |
+| `image_url` | `text` |  Nullable |
+| `action_url` | `text` |  Nullable |
+| `action_data` | `jsonb` |  Nullable |
+| `is_active` | `bool` |  |
+| `scheduled_at` | `timestamptz` |  Nullable |
+| `expires_at` | `timestamptz` |  Nullable |
+| `created_at` | `timestamptz` |  |
+| `updated_at` | `timestamptz` |  |
+
+## Table `automation_workflows`
+
+### Columns
+
+| Name | Type | Constraints |
+|------|------|-------------|
+| `id` | `uuid` | Primary |
+| `name` | `text` |  |
+| `description` | `text` |  Nullable |
+| `trigger_event` | `text` |  |
+| `channels` | `jsonb` |  |
+| `delay_minutes` | `int4` |  Nullable |
+| `template_id` | `uuid` |  Nullable |
+| `sms_template` | `text` |  Nullable |
+| `is_enabled` | `bool` |  |
+| `created_by` | `uuid` |  Nullable |
+| `created_at` | `timestamptz` |  |
+| `updated_at` | `timestamptz` |  |
+
+## Table `bazcoin_transactions`
+
+### Columns
+
+| Name | Type | Constraints |
+|------|------|-------------|
+| `id` | `uuid` | Primary |
+| `user_id` | `uuid` |  |
+| `amount` | `int4` |  |
+| `balance_after` | `int4` |  |
+| `reason` | `text` |  |
+| `reference_id` | `uuid` |  Nullable |
+| `reference_type` | `text` |  Nullable |
+| `created_at` | `timestamptz` |  |
+
+## Table `bounce_logs`
+
+BR-EMA-021/030-032: Hard/soft bounce tracking. 3 consecutive soft → hard suppression.
+
+### Columns
+
+| Name | Type | Constraints |
+|------|------|-------------|
+| `id` | `uuid` | Primary |
+| `email` | `text` |  |
+| `bounce_type` | `text` |  |
+| `reason` | `text` |  Nullable |
+| `resend_event_id` | `text` |  Nullable |
+| `logged_at` | `timestamptz` |  |
+
+## Table `buyer_notifications`
+
+In-app notifications for buyer role. Schema is intentionally identical to seller_notifications and admin_notifications; the split is for RLS isolation against buyers(id). Write via notificationService.notifyBuyer* (web/mobile). Do NOT query across notification tables; use the role-specific service method.
+
+### Columns
+
+| Name | Type | Constraints |
+|------|------|-------------|
+| `id` | `uuid` | Primary |
+| `buyer_id` | `uuid` |  |
+| `type` | `text` |  |
+| `title` | `text` |  |
+| `message` | `text` |  |
+| `action_url` | `text` |  Nullable |
+| `action_data` | `jsonb` |  Nullable |
+| `read_at` | `timestamptz` |  Nullable |
+| `priority` | `text` |  |
+| `created_at` | `timestamptz` |  |
+
+## Table `buyer_segments`
+
+### Columns
+
+| Name | Type | Constraints |
+|------|------|-------------|
+| `id` | `uuid` | Primary |
+| `name` | `text` |  |
+| `description` | `text` |  Nullable |
+| `filter_criteria` | `jsonb` |  |
+| `buyer_count` | `int4` |  Nullable |
+| `is_dynamic` | `bool` |  |
+| `created_by` | `uuid` |  Nullable |
+| `created_at` | `timestamptz` |  |
+| `updated_at` | `timestamptz` |  |
+
+## Table `buyer_vouchers`
+
+Buyer-claimed vouchers
+
+### Columns
+
+| Name | Type | Constraints |
+|------|------|-------------|
+| `id` | `uuid` | Primary |
+| `buyer_id` | `uuid` |  |
+| `voucher_id` | `uuid` |  |
+| `valid_from` | `timestamptz` |  Nullable |
+| `valid_until` | `timestamptz` |  Nullable |
+| `usage_count` | `int4` |  |
+| `created_at` | `timestamptz` |  |
+
+## Table `buyers`
+
+Buyer-specific data - linked via user_roles
+
+### Columns
+
+| Name | Type | Constraints |
+|------|------|-------------|
+| `id` | `uuid` | Primary |
+| `avatar_url` | `text` |  Nullable |
+| `preferences` | `jsonb` |  Nullable |
+| `bazcoins` | `int4` |  |
+| `created_at` | `timestamptz` |  |
+| `updated_at` | `timestamptz` |  |
+
+## Table `cart_items`
+
+Cart line items
+
+### Columns
+
+| Name | Type | Constraints |
+|------|------|-------------|
+| `id` | `uuid` | Primary |
+| `cart_id` | `uuid` |  |
+| `product_id` | `uuid` |  |
+| `variant_id` | `uuid` |  Nullable |
+| `quantity` | `int4` |  |
+| `personalized_options` | `jsonb` |  Nullable |
+| `notes` | `text` |  Nullable |
+| `created_at` | `timestamptz` |  |
+| `updated_at` | `timestamptz` |  |
+
+## Table `carts`
+
+Shopping cart
+
+### Columns
+
+| Name | Type | Constraints |
+|------|------|-------------|
+| `id` | `uuid` | Primary |
+| `buyer_id` | `uuid` |  Nullable Unique |
+| `created_at` | `timestamptz` |  |
+| `updated_at` | `timestamptz` |  |
+
+## Table `categories`
+
+Hierarchical product category system
+
+### Columns
+
+| Name | Type | Constraints |
+|------|------|-------------|
+| `id` | `uuid` | Primary |
+| `name` | `text` |  Unique |
+| `slug` | `text` |  Unique |
+| `description` | `text` |  Nullable |
+| `parent_id` | `uuid` |  Nullable |
+| `icon` | `text` |  Nullable |
+| `image_url` | `text` |  Nullable |
+| `sort_order` | `int4` |  |
+| `created_at` | `timestamptz` |  |
+| `updated_at` | `timestamptz` |  |
+| `is_active` | `bool` |  |
+
+## Table `comment_upvotes`
+
+### Columns
+
+| Name | Type | Constraints |
+|------|------|-------------|
+| `id` | `uuid` | Primary |
+| `comment_id` | `uuid` |  |
+| `user_id` | `uuid` |  |
+| `created_at` | `timestamptz` |  |
+
+## Table `consent_log`
+
+Append-only audit trail of consent grant/revoke events. Required for PH Data Privacy Act (RA 10173) compliance — proves WHEN a user changed consent and from WHERE (ip_address, user_agent). Complementary to user_consent which holds the CURRENT state per (user_id, channel). Never UPDATE or DELETE rows here.
+
+### Columns
+
+| Name | Type | Constraints |
+|------|------|-------------|
+| `id` | `uuid` | Primary |
+| `user_id` | `uuid` |  |
+| `channel` | `text` |  |
+| `action` | `text` |  |
+| `source` | `text` |  |
+| `ip_address` | `inet` |  Nullable |
+| `user_agent` | `text` |  Nullable |
+| `logged_at` | `timestamptz` |  |
+
+## Table `contributor_tiers`
+
+Gamification tiers for product_request comment upvoting (bc_multiplier). Distinct from seller_tiers (QA bypass) and buyer_segments (marketing audience).
+
+### Columns
+
+| Name | Type | Constraints |
+|------|------|-------------|
+| `user_id` | `uuid` | Primary |
+| `tier` | `text` |  |
+| `max_upvotes` | `int4` |  |
+| `bc_multiplier` | `numeric` |  |
+| `updated_at` | `timestamptz` |  |
+
+## Table `conversations`
+
+Buyer-seller conversations
+
+### Columns
+
+| Name | Type | Constraints |
+|------|------|-------------|
+| `id` | `uuid` | Primary |
+| `buyer_id` | `uuid` |  |
+| `order_id` | `uuid` |  Nullable |
+| `created_at` | `timestamptz` |  |
+| `updated_at` | `timestamptz` |  |
+
+## Table `courier_rate_cache`
+
+### Columns
+
+| Name | Type | Constraints |
+|------|------|-------------|
+| `id` | `uuid` | Primary |
+| `courier_code` | `text` |  |
+| `origin_city` | `varchar` |  |
+| `destination_city` | `varchar` |  |
+| `weight_kg` | `numeric` |  |
+| `service_type` | `text` |  |
+| `rate` | `numeric` |  |
+| `estimated_days` | `int4` |  Nullable |
+| `cached_at` | `timestamptz` |  |
+| `expires_at` | `timestamptz` |  |
+
+## Table `delivery_bookings`
+
+3PL courier booking record (J&T, Lalamove, etc.) created when seller books a courier pickup. Complementary to order_shipments (the canonical per-(order, seller) shipment line created at checkout). Linked by (order_id, seller_id).
+
+### Columns
+
+| Name | Type | Constraints |
+|------|------|-------------|
+| `id` | `uuid` | Primary |
+| `order_id` | `uuid` |  |
+| `seller_id` | `uuid` |  |
+| `buyer_id` | `uuid` |  |
+| `courier_code` | `text` |  |
+| `courier_name` | `text` |  |
+| `service_type` | `text` |  |
+| `booking_reference` | `text` |  Nullable |
+| `tracking_number` | `text` |  Nullable |
+| `waybill_url` | `text` |  Nullable |
+| `pickup_address` | `jsonb` |  |
+| `delivery_address` | `jsonb` |  |
+| `package_weight` | `numeric` |  Nullable |
+| `package_dimensions` | `jsonb` |  Nullable |
+| `package_description` | `text` |  Nullable |
+| `declared_value` | `numeric` |  Nullable |
+| `shipping_fee` | `numeric` |  |
+| `insurance_fee` | `numeric` |  Nullable |
+| `cod_amount` | `numeric` |  Nullable |
+| `is_cod` | `bool` |  Nullable |
+| `status` | `text` |  |
+| `booked_at` | `timestamptz` |  Nullable |
+| `picked_up_at` | `timestamptz` |  Nullable |
+| `delivered_at` | `timestamptz` |  Nullable |
+| `estimated_delivery` | `timestamptz` |  Nullable |
+| `created_at` | `timestamptz` |  |
+| `updated_at` | `timestamptz` |  Nullable |
+
+## Table `delivery_tracking_events`
+
+Courier-side tracking scans (delivery_booking_id, courier_status_code). Distinct from order_status_history (order-side admin/seller actions).
+
+### Columns
+
+| Name | Type | Constraints |
+|------|------|-------------|
+| `id` | `uuid` | Primary |
+| `delivery_booking_id` | `uuid` |  |
+| `status` | `text` |  |
+| `description` | `text` |  Nullable |
+| `location` | `varchar` |  Nullable |
+| `courier_status_code` | `varchar` |  Nullable |
+| `event_at` | `timestamptz` |  |
+| `created_at` | `timestamptz` |  |
+
+## Table `discount_campaigns`
+
+Seller PRICE-DISCOUNT campaigns (discount_value, badge, min_purchase_amount). Distinct from marketing_campaigns (email/SMS blasts). Do NOT merge.
+
+### Columns
+
+| Name | Type | Constraints |
+|------|------|-------------|
+| `id` | `uuid` | Primary |
+| `seller_id` | `uuid` |  Nullable |
+| `name` | `text` |  |
+| `description` | `text` |  Nullable |
+| `campaign_type` | `text` |  |
+| `discount_type` | `text` |  |
+| `discount_value` | `numeric` |  |
+| `max_discount_amount` | `numeric` |  Nullable |
+| `min_purchase_amount` | `numeric` |  |
+| `starts_at` | `timestamptz` |  |
+| `ends_at` | `timestamptz` |  |
+| `status` | `text` |  |
+| `badge_text` | `text` |  Nullable |
+| `badge_color` | `text` |  Nullable |
+| `priority` | `int4` |  |
+| `claim_limit` | `int4` |  Nullable |
+| `per_customer_limit` | `int4` |  |
+| `applies_to` | `text` |  |
+| `created_at` | `timestamptz` |  |
+| `updated_at` | `timestamptz` |  |
+| `campaign_scope` | `text` |  Nullable |
+
+## Table `email_events`
+
+BR-EMA-026: Resend webhook events for open/click/delivery tracking.
+
+### Columns
+
+| Name | Type | Constraints |
+|------|------|-------------|
+| `id` | `uuid` | Primary |
+| `email_log_id` | `uuid` |  Nullable |
+| `resend_message_id` | `text` |  Nullable |
+| `event_type` | `text` |  |
+| `metadata` | `jsonb` |  Nullable |
+| `occurred_at` | `timestamptz` |  |
+
+## Table `email_logs`
+
+### Columns
+
+| Name | Type | Constraints |
+|------|------|-------------|
+| `id` | `uuid` | Primary |
+| `recipient_email` | `text` |  |
+| `recipient_id` | `uuid` |  Nullable |
+| `template_id` | `uuid` |  Nullable |
+| `event_type` | `text` |  |
+| `subject` | `text` |  |
+| `status` | `text` |  |
+| `resend_message_id` | `text` |  Nullable |
+| `error_message` | `text` |  Nullable |
+| `metadata` | `jsonb` |  Nullable |
+| `created_at` | `timestamptz` |  |
+| `delivered_at` | `timestamptz` |  Nullable |
+| `category` | `text` |  Nullable |
+| `queued_at` | `timestamptz` |  Nullable |
+| `sent_at` | `timestamptz` |  Nullable |
+| `retry_count` | `int4` |  Nullable |
+
+## Table `email_template_versions`
+
+BR-EMA-016: Every template modification creates a new version record.
+
+### Columns
+
+| Name | Type | Constraints |
+|------|------|-------------|
+| `id` | `uuid` | Primary |
+| `template_id` | `uuid` |  |
+| `version_number` | `int4` |  |
+| `subject` | `text` |  |
+| `html_body` | `text` |  |
+| `text_body` | `text` |  Nullable |
+| `variables` | `jsonb` |  Nullable |
+| `changed_by` | `uuid` |  Nullable |
+| `change_reason` | `text` |  Nullable |
+| `created_at` | `timestamptz` |  |
+
+## Table `email_templates`
+
+### Columns
+
+| Name | Type | Constraints |
+|------|------|-------------|
+| `id` | `uuid` | Primary |
+| `name` | `text` |  |
+| `slug` | `text` |  Unique |
+| `subject` | `text` |  |
+| `html_body` | `text` |  |
+| `text_body` | `text` |  Nullable |
+| `variables` | `jsonb` |  Nullable |
+| `category` | `text` |  |
+| `is_active` | `bool` |  |
+| `created_by` | `uuid` |  Nullable |
+| `created_at` | `timestamptz` |  |
+| `updated_at` | `timestamptz` |  |
+| `approval_status` | `text` |  Nullable |
+| `approved_by` | `uuid` |  Nullable |
+| `approved_at` | `timestamptz` |  Nullable |
+| `version` | `int4` |  Nullable |
+
+## Table `featured_products`
+
+### Columns
+
+| Name | Type | Constraints |
+|------|------|-------------|
+| `id` | `uuid` | Primary |
+| `product_id` | `uuid` |  Unique |
+| `seller_id` | `uuid` |  |
+| `is_active` | `bool` |  |
+| `priority` | `int4` |  |
+| `featured_at` | `timestamptz` |  |
+| `expires_at` | `timestamptz` |  Nullable |
+| `created_at` | `timestamptz` |  |
+| `updated_at` | `timestamptz` |  |
+
+## Table `flash_sale_submissions`
+
+### Columns
+
+| Name | Type | Constraints |
+|------|------|-------------|
+| `id` | `uuid` | Primary |
+| `slot_id` | `uuid` |  |
+| `seller_id` | `uuid` |  |
+| `product_id` | `uuid` |  |
+| `submitted_price` | `numeric` |  |
+| `submitted_stock` | `int4` |  |
+| `status` | `text` |  Nullable |
+| `created_at` | `timestamptz` |  |
+| `updated_at` | `timestamptz` |  Nullable |
+
+## Table `global_flash_sale_slots`
+
+### Columns
+
+| Name | Type | Constraints |
+|------|------|-------------|
+| `id` | `uuid` | Primary |
+| `name` | `text` |  |
+| `description` | `text` |  Nullable |
+| `start_time` | `timestamptz` |  |
+| `end_time` | `timestamptz` |  |
+| `min_discount_percentage` | `numeric` |  |
+| `status` | `text` |  Nullable |
+| `created_at` | `timestamptz` |  |
+| `updated_at` | `timestamptz` |  Nullable |
+
+## Table `inventory_movements`
+
+Append-only stock change ledger. Every mutation of product_variants.stock should write a row here via decrement_stock_atomic / increment_stock RPC.
+
+### Columns
+
+| Name | Type | Constraints |
+|------|------|-------------|
+| `id` | `uuid` | Primary |
+| `variant_id` | `uuid` |  |
+| `product_id` | `uuid` |  Nullable |
+| `delta` | `int4` |  |
+| `reason` | `text` |  |
+| `order_id` | `uuid` |  Nullable |
+| `actor_id` | `uuid` |  Nullable |
+| `notes` | `text` |  Nullable |
+| `metadata` | `jsonb` |  |
+| `created_at` | `timestamptz` |  |
+
+## Table `low_stock_alerts`
+
+Automated inventory alerts
+
+### Columns
+
+| Name | Type | Constraints |
+|------|------|-------------|
+| `id` | `uuid` | Primary |
+| `product_id` | `uuid` |  |
+| `threshold` | `int4` |  |
+| `acknowledged` | `bool` |  |
+| `acknowledged_by` | `uuid` |  Nullable |
+| `created_at` | `timestamptz` |  |
+
+## Table `marketing_campaigns`
+
+Email/SMS MARKETING blasts to buyer_segments (segment_id, template_id, total_opened/clicked). Distinct from discount_campaigns (price reductions). Do NOT merge.
+
+### Columns
+
+| Name | Type | Constraints |
+|------|------|-------------|
+| `id` | `uuid` | Primary |
+| `name` | `text` |  |
+| `description` | `text` |  Nullable |
+| `campaign_type` | `text` |  |
+| `status` | `text` |  |
+| `segment_id` | `uuid` |  Nullable |
+| `template_id` | `uuid` |  Nullable |
+| `subject` | `text` |  Nullable |
+| `content` | `text` |  Nullable |
+| `sms_content` | `text` |  Nullable |
+| `scheduled_at` | `timestamptz` |  Nullable |
+| `sent_at` | `timestamptz` |  Nullable |
+| `total_recipients` | `int4` |  Nullable |
+| `total_sent` | `int4` |  Nullable |
+| `total_delivered` | `int4` |  Nullable |
+| `total_opened` | `int4` |  Nullable |
+| `total_clicked` | `int4` |  Nullable |
+| `total_bounced` | `int4` |  Nullable |
+| `created_by` | `uuid` |  Nullable |
+| `created_at` | `timestamptz` |  |
+| `updated_at` | `timestamptz` |  |
+| `approval_status` | `text` |  Nullable |
+| `approved_by` | `uuid` |  Nullable |
+| `approved_at` | `timestamptz` |  Nullable |
+| `locked` | `bool` |  |
+| `seller_id` | `uuid` |  Nullable |
+
+## Table `messages`
+
+Conversation messages
+
+### Columns
+
+| Name | Type | Constraints |
+|------|------|-------------|
+| `id` | `uuid` | Primary |
+| `conversation_id` | `uuid` |  |
+| `sender_id` | `uuid` |  Nullable |
+| `sender_type` | `text` |  Nullable |
+| `content` | `text` |  |
+| `image_url` | `text` |  Nullable |
+| `is_read` | `bool` |  |
+| `created_at` | `timestamptz` |  |
+| `message_type` | `message_type_enum` |  Nullable |
+| `message_content` | `text` |  Nullable |
+| `order_event_type` | `order_event_enum` |  Nullable |
+| `media_url` | `text` |  Nullable |
+| `media_type` | `text` |  Nullable |
+| `reply_to_message_id` | `uuid` |  Nullable |
+| `target_seller_id` | `uuid` |  Nullable |
+
+## Table `notification_settings`
+
+### Columns
+
+| Name | Type | Constraints |
+|------|------|-------------|
+| `id` | `uuid` | Primary |
+| `channel` | `text` |  |
+| `event_type` | `text` |  |
+| `is_enabled` | `bool` |  |
+| `template_id` | `uuid` |  Nullable |
+| `updated_by` | `uuid` |  Nullable |
+| `created_at` | `timestamptz` |  |
+| `updated_at` | `timestamptz` |  |
+
+## Table `order_cancellations`
+
+Order cancellation records
+
+### Columns
+
+| Name | Type | Constraints |
+|------|------|-------------|
+| `id` | `uuid` | Primary |
+| `order_id` | `uuid` |  |
+| `reason` | `text` |  Nullable |
+| `cancelled_at` | `timestamptz` |  Nullable |
+| `cancelled_by` | `uuid` |  Nullable |
+| `created_at` | `timestamptz` |  |
+
+## Table `order_discounts`
+
+Order discount applications
+
+### Columns
+
+| Name | Type | Constraints |
+|------|------|-------------|
+| `id` | `uuid` | Primary |
+| `buyer_id` | `uuid` |  |
+| `order_id` | `uuid` |  |
+| `campaign_id` | `uuid` |  Nullable |
+| `discount_amount` | `numeric` |  |
+| `created_at` | `timestamptz` |  |
+
+## Table `order_events`
+
+Drives chat-message generation from order state changes (has conversation_id, message_generated). Distinct from order_status_history (full audit timeline) and delivery_tracking_events (courier scans). All three required.
+
+### Columns
+
+| Name | Type | Constraints |
+|------|------|-------------|
+| `id` | `uuid` | Primary |
+| `order_id` | `uuid` |  |
+| `conversation_id` | `uuid` |  Nullable |
+| `event_type` | `order_event_enum` |  |
+| `message_generated` | `bool` |  Nullable |
+| `created_at` | `timestamptz` |  Nullable |
+
+## Table `order_items`
+
+Order line items
+
+### Columns
+
+| Name | Type | Constraints |
+|------|------|-------------|
+| `id` | `uuid` | Primary |
+| `order_id` | `uuid` |  |
+| `product_id` | `uuid` |  Nullable |
+| `product_name` | `text` |  |
+| `primary_image_url` | `text` |  Nullable |
+| `price` | `numeric` |  |
+| `price_discount` | `numeric` |  |
+| `shipping_price` | `numeric` |  |
+| `shipping_discount` | `numeric` |  |
+| `quantity` | `int4` |  |
+| `variant_id` | `uuid` |  Nullable |
+| `personalized_options` | `jsonb` |  Nullable |
+| `rating` | `int4` |  Nullable |
+| `created_at` | `timestamptz` |  |
+| `updated_at` | `timestamptz` |  |
+| `warranty_expiration_date` | `timestamptz` |  Nullable |
+| `warranty_start_date` | `timestamptz` |  Nullable |
+| `warranty_type` | `warranty_type_enum` |  Nullable |
+| `warranty_duration_months` | `int4` |  Nullable |
+| `warranty_provider_name` | `text` |  Nullable |
+| `warranty_provider_contact` | `text` |  Nullable |
+| `warranty_provider_email` | `text` |  Nullable |
+| `warranty_terms_url` | `text` |  Nullable |
+| `warranty_claimed` | `bool` |  Nullable |
+| `warranty_claimed_at` | `timestamptz` |  Nullable |
+| `warranty_claim_reason` | `text` |  Nullable |
+| `warranty_claim_status` | `text` |  Nullable |
+| `warranty_claim_notes` | `text` |  Nullable |
+
+## Table `order_payments`
+
+Canonical 1-per-order payment record. Required for ALL orders (POS + ONLINE). Mobile and web checkout both insert here. UNIQUE(order_id) enforces the 1-per-order invariant. For external gateway tracking (PayMongo etc), see payment_transactions.
+
+### Columns
+
+| Name | Type | Constraints |
+|------|------|-------------|
+| `id` | `uuid` | Primary |
+| `order_id` | `uuid` |  Unique |
+| `payment_method` | `jsonb` |  Nullable |
+| `payment_reference` | `text` |  Nullable |
+| `payment_date` | `timestamptz` |  Nullable |
+| `amount` | `numeric` |  |
+| `status` | `text` |  |
+| `created_at` | `timestamptz` |  |
+
+## Table `order_recipients`
+
+Order recipient details
+
+### Columns
+
+| Name | Type | Constraints |
+|------|------|-------------|
+| `id` | `uuid` | Primary |
+| `first_name` | `text` |  Nullable |
+| `last_name` | `text` |  Nullable |
+| `phone` | `text` |  Nullable |
+| `email` | `text` |  Nullable |
+| `created_at` | `timestamptz` |  |
+
+## Table `order_shipments`
+
+Canonical per-(order, seller) shipment line created at checkout from the buyer's shipping breakdown. Complementary to delivery_bookings (the optional 3PL booking record added when a courier is engaged).
+
+### Columns
+
+| Name | Type | Constraints |
+|------|------|-------------|
+| `id` | `uuid` | Primary |
+| `order_id` | `uuid` |  |
+| `seller_id` | `uuid` |  |
+| `shipping_method` | `text` |  |
+| `shipping_method_label` | `text` |  |
+| `calculated_fee` | `numeric` |  |
+| `fee_breakdown` | `jsonb` |  |
+| `origin_zone` | `text` |  |
+| `destination_zone` | `text` |  |
+| `estimated_days_text` | `text` |  |
+| `chargeable_weight_kg` | `numeric` |  |
+| `tracking_number` | `text` |  Nullable |
+| `status` | `text` |  |
+| `shipped_at` | `timestamptz` |  Nullable |
+| `delivered_at` | `timestamptz` |  Nullable |
+| `created_at` | `timestamptz` |  |
+| `updated_at` | `timestamptz` |  |
+
+## Table `order_status_history`
+
+Order timeline audit trail
+
+### Columns
+
+| Name | Type | Constraints |
+|------|------|-------------|
+| `id` | `uuid` | Primary |
+| `order_id` | `uuid` |  |
+| `status` | `text` |  |
+| `note` | `text` |  Nullable |
+| `changed_by` | `uuid` |  Nullable |
+| `changed_by_role` | `text` |  Nullable |
+| `metadata` | `jsonb` |  Nullable |
+| `created_at` | `timestamptz` |  |
+
+## Table `order_vouchers`
+
+Order voucher applications
+
+### Columns
+
+| Name | Type | Constraints |
+|------|------|-------------|
+| `id` | `uuid` | Primary |
+| `buyer_id` | `uuid` |  |
+| `order_id` | `uuid` |  |
+| `voucher_id` | `uuid` |  |
+| `discount_amount` | `numeric` |  |
+| `created_at` | `timestamptz` |  |
+
+## Table `orders`
+
+Order master table
+
+### Columns
+
+| Name | Type | Constraints |
+|------|------|-------------|
+| `id` | `uuid` | Primary |
+| `order_number` | `text` |  Unique |
+| `buyer_id` | `uuid` |  Nullable |
+| `order_type` | `text` |  |
+| `pos_note` | `text` |  Nullable |
+| `recipient_id` | `uuid` |  Nullable |
+| `address_id` | `uuid` |  Nullable |
+| `payment_status` | `text` |  |
+| `shipment_status` | `text` |  |
+| `paid_at` | `timestamptz` |  Nullable |
+| `notes` | `text` |  Nullable |
+| `created_at` | `timestamptz` |  |
+| `updated_at` | `timestamptz` |  |
+| `receipt_number` | `text` |  Nullable |
+| `shipping_address_snapshot` | `jsonb` |  Nullable |
+| `recipient_snapshot` | `jsonb` |  Nullable |
+
+## Table `payment_method_banks`
+
+Bank transfer payment details
+
+### Columns
+
+| Name | Type | Constraints |
+|------|------|-------------|
+| `payment_method_id` | `uuid` | Primary |
+| `bank_name` | `text` |  Nullable |
+| `account_number_last4` | `text` |  Nullable |
+
+## Table `payment_method_cards`
+
+Card payment method details
+
+### Columns
+
+| Name | Type | Constraints |
+|------|------|-------------|
+| `payment_method_id` | `uuid` | Primary |
+| `card_last4` | `text` |  Nullable |
+| `card_brand` | `text` |  Nullable |
+| `expiry_month` | `int4` |  Nullable |
+| `expiry_year` | `int4` |  Nullable |
+
+## Table `payment_method_wallets`
+
+E-wallet payment method details
+
+### Columns
+
+| Name | Type | Constraints |
+|------|------|-------------|
+| `payment_method_id` | `uuid` | Primary |
+| `e_wallet_provider` | `text` |  Nullable |
+| `e_wallet_account_number` | `text` |  Nullable |
+
+## Table `payment_methods`
+
+Normalized payment methods
+
+### Columns
+
+| Name | Type | Constraints |
+|------|------|-------------|
+| `id` | `uuid` | Primary |
+| `user_id` | `uuid` |  |
+| `payment_type` | `text` |  |
+| `label` | `text` |  |
+| `is_default` | `bool` |  |
+| `is_verified` | `bool` |  |
+| `created_at` | `timestamptz` |  |
+| `updated_at` | `timestamptz` |  |
+
+## Table `payment_transactions`
+
+Gateway-attempt log. 0..N per order. Only created when an external payment gateway (PayMongo etc) is invoked. Contains gateway_*_id, escrow_status, gateway-specific metadata. Optional — not required for OFFLINE/POS or COD orders.
+
+### Columns
+
+| Name | Type | Constraints |
+|------|------|-------------|
+| `id` | `uuid` | Primary |
+| `order_id` | `uuid` |  |
+| `buyer_id` | `uuid` |  |
+| `seller_id` | `uuid` |  |
+| `gateway` | `text` |  |
+| `gateway_payment_intent_id` | `text` |  Nullable |
+| `gateway_payment_method_id` | `text` |  Nullable |
+| `gateway_source_id` | `text` |  Nullable |
+| `gateway_checkout_url` | `text` |  Nullable |
+| `amount` | `numeric` |  |
+| `currency` | `text` |  |
+| `payment_type` | `text` |  |
+| `status` | `text` |  |
+| `description` | `text` |  Nullable |
+| `statement_descriptor` | `text` |  Nullable |
+| `metadata` | `jsonb` |  Nullable |
+| `failure_reason` | `text` |  Nullable |
+| `paid_at` | `timestamptz` |  Nullable |
+| `refunded_at` | `timestamptz` |  Nullable |
+| `created_at` | `timestamptz` |  |
+| `updated_at` | `timestamptz` |  Nullable |
+| `escrow_status` | `text` |  |
+| `escrow_held_at` | `timestamptz` |  Nullable |
+| `escrow_release_at` | `timestamptz` |  Nullable |
+| `escrow_released_at` | `timestamptz` |  Nullable |
+
+## Table `pos_settings`
+
+### Columns
+
+| Name | Type | Constraints |
+|------|------|-------------|
+| `id` | `uuid` | Primary |
+| `seller_id` | `uuid` |  Unique |
+| `accept_cash` | `bool` |  Nullable |
+| `accept_card` | `bool` |  Nullable |
+| `accept_gcash` | `bool` |  Nullable |
+| `accept_maya` | `bool` |  Nullable |
+| `barcode_scanner_enabled` | `bool` |  Nullable |
+| `sound_enabled` | `bool` |  Nullable |
+| `multi_branch_enabled` | `bool` |  Nullable |
+| `default_branch` | `text` |  Nullable |
+| `tax_enabled` | `bool` |  Nullable |
+| `tax_rate` | `numeric` |  Nullable |
+| `tax_name` | `text` |  Nullable |
+| `tax_inclusive` | `bool` |  Nullable |
+| `receipt_header` | `text` |  Nullable |
+| `receipt_footer` | `text` |  Nullable |
+| `show_logo_on_receipt` | `bool` |  Nullable |
+| `receipt_template` | `text` |  Nullable |
+| `auto_print_receipt` | `bool` |  Nullable |
+| `printer_type` | `text` |  Nullable |
+| `cash_drawer_enabled` | `bool` |  Nullable |
+| `default_opening_cash` | `numeric` |  Nullable |
+| `staff_tracking_enabled` | `bool` |  Nullable |
+| `require_staff_login` | `bool` |  Nullable |
+| `created_at` | `timestamptz` |  Nullable |
+| `updated_at` | `timestamptz` |  Nullable |
+| `scanner_type` | `text` |  Nullable |
+| `auto_add_on_scan` | `bool` |  Nullable |
+| `logo_url` | `text` |  Nullable |
+| `printer_name` | `text` |  Nullable |
+| `enable_low_stock_alert` | `bool` |  Nullable |
+| `low_stock_threshold` | `int4` |  Nullable |
+
+## Table `product_ad_boosts`
+
+### Columns
+
+| Name | Type | Constraints |
+|------|------|-------------|
+| `id` | `uuid` | Primary |
+| `product_id` | `uuid` |  |
+| `seller_id` | `uuid` |  |
+| `boost_type` | `text` |  |
+| `duration_days` | `int4` |  |
+| `daily_budget` | `numeric` |  |
+| `total_budget` | `numeric` |  |
+| `cost_per_day` | `numeric` |  |
+| `total_cost` | `numeric` |  |
+| `currency` | `text` |  |
+| `status` | `text` |  |
+| `starts_at` | `timestamptz` |  |
+| `ends_at` | `timestamptz` |  |
+| `paused_at` | `timestamptz` |  Nullable |
+| `impressions` | `int4` |  |
+| `clicks` | `int4` |  |
+| `orders_generated` | `int4` |  |
+| `created_at` | `timestamptz` |  |
+| `updated_at` | `timestamptz` |  |
+
+## Table `product_approvals`
+
+Product approval events
+
+### Columns
+
+| Name | Type | Constraints |
+|------|------|-------------|
+| `id` | `uuid` | Primary |
+| `assessment_id` | `uuid` |  |
+| `description` | `text` |  Nullable |
+| `created_at` | `timestamptz` |  |
+| `created_by` | `uuid` |  Nullable |
+
+## Table `product_assessment_logistics`
+
+Assessment logistics and notes
+
+### Columns
+
+| Name | Type | Constraints |
+|------|------|-------------|
+| `id` | `uuid` | Primary |
+| `assessment_id` | `uuid` |  |
+| `details` | `text` |  Nullable |
+| `created_at` | `timestamptz` |  |
+| `created_by` | `uuid` |  Nullable |
+| `logistics_method` | `text` |  Nullable |
+| `courier_service` | `text` |  Nullable |
+| `tracking_number` | `text` |  Nullable |
+| `dropoff_date` | `date` |  Nullable |
+| `dropoff_time` | `time` |  Nullable |
+| `dropoff_slot` | `text` |  Nullable |
+| `batch_id` | `uuid` |  Nullable |
+| `metadata` | `jsonb` |  Nullable |
+
+## Table `product_assessments`
+
+Quality assurance workflow
+
+### Columns
+
+| Name | Type | Constraints |
+|------|------|-------------|
+| `id` | `uuid` | Primary |
+| `product_id` | `uuid` |  Unique |
+| `status` | `text` |  |
+| `submitted_at` | `timestamptz` |  |
+| `verified_at` | `timestamptz` |  Nullable |
+| `revision_requested_at` | `timestamptz` |  Nullable |
+| `created_at` | `timestamptz` |  |
+| `created_by` | `uuid` |  Nullable |
+| `assigned_to` | `uuid` |  Nullable |
+| `notes` | `text` |  Nullable |
+| `admin_accepted_at` | `timestamptz` |  Nullable |
+| `admin_accepted_by` | `uuid` |  Nullable |
+
+## Table `product_discounts`
+
+Product-specific discounts
+
+### Columns
+
+| Name | Type | Constraints |
+|------|------|-------------|
+| `id` | `uuid` | Primary |
+| `campaign_id` | `uuid` |  |
+| `product_id` | `uuid` |  |
+| `discount_type` | `text` |  Nullable |
+| `discount_value` | `numeric` |  Nullable |
+| `sold_count` | `int4` |  |
+| `priority` | `int4` |  |
+| `created_at` | `timestamptz` |  |
+| `updated_at` | `timestamptz` |  |
+| `override_discount_type` | `text` |  Nullable |
+| `override_discount_value` | `numeric` |  Nullable |
+
+## Table `product_images`
+
+Product images with ordering
+
+### Columns
+
+| Name | Type | Constraints |
+|------|------|-------------|
+| `id` | `uuid` | Primary |
+| `product_id` | `uuid` |  |
+| `image_url` | `text` |  |
+| `alt_text` | `text` |  Nullable |
+| `sort_order` | `int4` |  |
+| `is_primary` | `bool` |  |
+| `uploaded_at` | `timestamptz` |  |
+
+## Table `product_rejections`
+
+Per-assessment rejection record. Currently 0 rows (no products rejected yet) but actively written by qaService in web and mobile when admin rejects. Do NOT drop.
+
+### Columns
+
+| Name | Type | Constraints |
+|------|------|-------------|
+| `id` | `uuid` | Primary |
+| `assessment_id` | `uuid` |  Nullable |
+| `product_id` | `uuid` |  Nullable |
+| `description` | `text` |  Nullable |
+| `vendor_submitted_category` | `text` |  Nullable |
+| `admin_reclassified_category` | `text` |  Nullable |
+| `created_at` | `timestamptz` |  |
+| `created_by` | `uuid` |  Nullable |
+
+## Table `product_request_comments`
+
+### Columns
+
+| Name | Type | Constraints |
+|------|------|-------------|
+| `id` | `uuid` | Primary |
+| `request_id` | `uuid` |  |
+| `user_id` | `uuid` |  |
+| `type` | `text` |  |
+| `content` | `text` |  |
+| `is_admin_only` | `bool` |  |
+| `bc_awarded` | `int4` |  |
+| `upvotes` | `int4` |  |
+| `admin_upvotes` | `int4` |  |
+| `created_at` | `timestamptz` |  |
+| `updated_at` | `timestamptz` |  |
+
+## Table `product_requests`
+
+### Columns
+
+| Name | Type | Constraints |
+|------|------|-------------|
+| `id` | `uuid` | Primary |
+| `product_name` | `text` |  |
+| `description` | `text` |  Nullable |
+| `category` | `text` |  Nullable |
+| `requested_by_name` | `text` |  Nullable |
+| `requested_by_id` | `uuid` |  Nullable |
+| `votes` | `int4` |  |
+| `comments_count` | `int4` |  |
+| `status` | `text` |  |
+| `priority` | `text` |  |
+| `estimated_demand` | `int4` |  Nullable |
+| `admin_notes` | `text` |  Nullable |
+| `created_at` | `timestamptz` |  |
+| `updated_at` | `timestamptz` |  |
+
+## Table `product_revisions`
+
+Product revision requests
+
+### Columns
+
+| Name | Type | Constraints |
+|------|------|-------------|
+| `id` | `uuid` | Primary |
+| `assessment_id` | `uuid` |  |
+| `description` | `text` |  Nullable |
+| `created_at` | `timestamptz` |  |
+| `created_by` | `uuid` |  Nullable |
+
+## Table `product_tags`
+
+Product tags
+
+### Columns
+
+| Name | Type | Constraints |
+|------|------|-------------|
+| `id` | `uuid` | Primary |
+| `product_id` | `uuid` |  |
+| `tag` | `text` |  |
+| `created_at` | `timestamptz` |  |
+
+## Table `product_variants`
+
+Product variants with barcode support for POS
+
+### Columns
+
+| Name | Type | Constraints |
+|------|------|-------------|
+| `id` | `uuid` | Primary |
+| `product_id` | `uuid` |  |
+| `sku` | `text` |  Unique |
+| `barcode` | `text` |  Nullable Unique |
+| `variant_name` | `text` |  |
+| `size` | `text` |  Nullable |
+| `color` | `text` |  Nullable |
+| `option_1_value` | `text` |  Nullable |
+| `option_2_value` | `text` |  Nullable |
+| `price` | `numeric` |  |
+| `stock` | `int4` |  |
+| `thumbnail_url` | `text` |  Nullable |
+| `embedding` | `vector` |  Nullable |
+| `created_at` | `timestamptz` |  |
+| `updated_at` | `timestamptz` |  |
+
+## Table `products`
+
+Main product catalog - fully normalized
+
+### Columns
+
+| Name | Type | Constraints |
+|------|------|-------------|
+| `id` | `uuid` | Primary |
+| `name` | `text` |  |
+| `description` | `text` |  Nullable |
+| `category_id` | `uuid` |  |
+| `brand` | `text` |  Nullable |
+| `sku` | `text` |  Nullable Unique |
+| `specifications` | `jsonb` |  Nullable |
+| `approval_status` | `text` |  |
+| `variant_label_1` | `text` |  Nullable |
+| `variant_label_2` | `text` |  Nullable |
+| `price` | `numeric` |  |
+| `low_stock_threshold` | `int4` |  |
+| `weight` | `numeric` |  Nullable |
+| `dimensions` | `jsonb` |  Nullable |
+| `is_free_shipping` | `bool` |  |
+| `disabled_at` | `timestamptz` |  Nullable |
+| `deleted_at` | `timestamptz` |  Nullable |
+| `created_at` | `timestamptz` |  |
+| `updated_at` | `timestamptz` |  |
+| `image_embedding` | `vector` |  Nullable |
+| `seller_id` | `uuid` |  Nullable |
+| `size_guide_image` | `text` |  Nullable |
+| `has_warranty` | `bool` |  Nullable |
+| `warranty_type` | `warranty_type_enum` |  Nullable |
+| `warranty_duration_months` | `int4` |  Nullable |
+| `warranty_policy` | `text` |  Nullable |
+| `warranty_provider_name` | `text` |  Nullable |
+| `warranty_provider_contact` | `text` |  Nullable |
+| `warranty_provider_email` | `text` |  Nullable |
+| `warranty_terms_url` | `text` |  Nullable |
+
+## Table `profiles`
+
+Base user profile table - all users have an entry here
+
+### Columns
+
+| Name | Type | Constraints |
+|------|------|-------------|
+| `id` | `uuid` | Primary |
+| `email` | `text` |  Unique |
+| `first_name` | `text` |  Nullable |
+| `last_name` | `text` |  Nullable |
+| `phone` | `text` |  Nullable |
+| `created_at` | `timestamptz` |  |
+| `updated_at` | `timestamptz` |  |
+| `last_login_at` | `timestamptz` |  Nullable |
+
+## Table `push_tokens`
+
+### Columns
+
+| Name | Type | Constraints |
+|------|------|-------------|
+| `id` | `uuid` | Primary |
+| `user_id` | `uuid` |  |
+| `token` | `text` |  Unique |
+| `platform` | `text` |  |
+| `created_at` | `timestamptz` |  |
+| `updated_at` | `timestamptz` |  |
+
+## Table `qa_review_logs`
+
+### Columns
+
+| Name | Type | Constraints |
+|------|------|-------------|
+| `id` | `uuid` | Primary |
+| `assessment_id` | `uuid` |  |
+| `product_id` | `uuid` |  |
+| `reviewer_id` | `uuid` |  |
+| `action` | `text` |  |
+| `notes` | `text` |  Nullable |
+| `metadata` | `jsonb` |  Nullable |
+| `created_at` | `timestamptz` |  |
+
+## Table `qa_submission_batch_items`
+
+### Columns
+
+| Name | Type | Constraints |
+|------|------|-------------|
+| `id` | `uuid` | Primary |
+| `batch_id` | `uuid` |  |
+| `assessment_id` | `uuid` |  |
+| `product_id` | `uuid` |  |
+| `created_at` | `timestamptz` |  |
+
+## Table `qa_submission_batches`
+
+### Columns
+
+| Name | Type | Constraints |
+|------|------|-------------|
+| `id` | `uuid` | Primary |
+| `seller_id` | `uuid` |  |
+| `batch_code` | `text` |  Unique |
+| `submission_type` | `text` |  |
+| `status` | `text` |  |
+| `notes` | `text` |  Nullable |
+| `created_by` | `uuid` |  Nullable |
+| `submitted_at` | `timestamptz` |  |
+| `created_at` | `timestamptz` |  |
+| `updated_at` | `timestamptz` |  |
+
+## Table `qa_team_members`
+
+### Columns
+
+| Name | Type | Constraints |
+|------|------|-------------|
+| `id` | `uuid` | Primary |
+| `display_name` | `text` |  Nullable |
+| `specialization` | `text` |  Nullable |
+| `is_active` | `bool` |  |
+| `max_concurrent_reviews` | `int4` |  |
+| `permissions` | `jsonb` |  Nullable |
+| `created_at` | `timestamptz` |  |
+| `updated_at` | `timestamptz` |  |
+
+## Table `refund_return_periods`
+
+Return and refund policy records
+
+### Columns
+
+| Name | Type | Constraints |
+|------|------|-------------|
+| `id` | `uuid` | Primary |
+| `order_id` | `uuid` |  Unique |
+| `is_returnable` | `bool` |  |
+| `return_window_days` | `int4` |  |
+| `return_reason` | `text` |  Nullable |
+| `refund_amount` | `numeric` |  Nullable |
+| `refund_date` | `timestamptz` |  Nullable |
+| `created_at` | `timestamptz` |  |
+| `status` | `text` |  |
+| `return_type` | `text` |  |
+| `resolution_path` | `text` |  |
+| `items_json` | `jsonb` |  Nullable |
+| `evidence_urls` | `_text` |  Nullable |
+| `description` | `text` |  Nullable |
+| `seller_note` | `text` |  Nullable |
+| `rejected_reason` | `text` |  Nullable |
+| `counter_offer_amount` | `numeric` |  Nullable |
+| `seller_deadline` | `timestamptz` |  Nullable |
+| `escalated_at` | `timestamptz` |  Nullable |
+| `resolved_at` | `timestamptz` |  Nullable |
+| `resolved_by` | `uuid` |  Nullable |
+| `return_label_url` | `text` |  Nullable |
+| `return_tracking_number` | `text` |  Nullable |
+| `buyer_shipped_at` | `timestamptz` |  Nullable |
+| `return_received_at` | `timestamptz` |  Nullable |
+| `resolution_source` | `text` |  Nullable |
+
+## Table `registries`
+
+Privacy-first gift registry
+
+### Columns
+
+| Name | Type | Constraints |
+|------|------|-------------|
+| `id` | `uuid` | Primary |
+| `buyer_id` | `uuid` |  |
+| `title` | `text` |  |
+| `description` | `text` |  Nullable |
+| `event_type` | `text` |  |
+| `created_at` | `timestamptz` |  |
+| `updated_at` | `timestamptz` |  |
+| `category` | `text` |  Nullable |
+| `image_url` | `text` |  Nullable |
+| `shared_date` | `text` |  Nullable |
+| `privacy` | `text` |  |
+| `delivery` | `jsonb` |  Nullable |
+
+## Table `registry_items`
+
+Registry wish items
+
+### Columns
+
+| Name | Type | Constraints |
+|------|------|-------------|
+| `id` | `uuid` | Primary |
+| `registry_id` | `uuid` |  |
+| `product_id` | `uuid` |  Nullable |
+| `quantity_desired` | `int4` |  |
+| `priority` | `text` |  |
+| `notes` | `text` |  Nullable |
+| `created_at` | `timestamptz` |  |
+| `updated_at` | `timestamptz` |  |
+| `product_name` | `text` |  Nullable |
+| `product_snapshot` | `jsonb` |  Nullable |
+| `is_most_wanted` | `bool` |  |
+| `received_qty` | `int4` |  |
+| `requested_qty` | `int4` |  |
+| `selected_variant` | `jsonb` |  Nullable |
+
+## Table `return_messages`
+
+### Columns
+
+| Name | Type | Constraints |
+|------|------|-------------|
+| `id` | `uuid` | Primary |
+| `return_id` | `uuid` |  |
+| `sender_id` | `uuid` |  Nullable |
+| `sender_role` | `text` |  |
+| `body` | `text` |  |
+| `attachments` | `_text` |  Nullable |
+| `created_at` | `timestamptz` |  |
+
+## Table `review_images`
+
+Review images
+
+### Columns
+
+| Name | Type | Constraints |
+|------|------|-------------|
+| `id` | `uuid` | Primary |
+| `review_id` | `uuid` |  |
+| `image_url` | `text` |  |
+| `sort_order` | `int4` |  |
+| `uploaded_at` | `timestamptz` |  |
+
+## Table `review_votes`
+
+Tracks which buyers found reviews helpful
+
+### Columns
+
+| Name | Type | Constraints |
+|------|------|-------------|
+| `review_id` | `uuid` | Primary |
+| `buyer_id` | `uuid` | Primary |
+| `created_at` | `timestamptz` |  |
+
+## Table `reviews`
+
+Product reviews
+
+### Columns
+
+| Name | Type | Constraints |
+|------|------|-------------|
+| `id` | `uuid` | Primary |
+| `product_id` | `uuid` |  |
+| `buyer_id` | `uuid` |  |
+| `order_id` | `uuid` |  Nullable |
+| `rating` | `int4` |  |
+| `comment` | `text` |  Nullable |
+| `helpful_count` | `int4` |  |
+| `seller_reply` | `jsonb` |  Nullable |
+| `is_verified_purchase` | `bool` |  |
+| `is_hidden` | `bool` |  |
+| `is_edited` | `bool` |  |
+| `created_at` | `timestamptz` |  |
+| `updated_at` | `timestamptz` |  |
+| `order_item_id` | `uuid` |  Nullable |
+| `variant_snapshot` | `jsonb` |  Nullable |
+
+## Table `seller_business_profiles`
+
+Seller business registration and address data
+
+### Columns
+
+| Name | Type | Constraints |
+|------|------|-------------|
+| `seller_id` | `uuid` | Primary |
+| `business_type` | `text` |  Nullable |
+| `business_registration_number` | `text` |  Nullable |
+| `tax_id_number` | `text` |  Nullable |
+| `address_line_1` | `text` |  Nullable |
+| `address_line_2` | `text` |  Nullable |
+| `city` | `text` |  Nullable |
+| `province` | `text` |  Nullable |
+| `postal_code` | `text` |  Nullable |
+| `created_at` | `timestamptz` |  |
+| `updated_at` | `timestamptz` |  |
+
+## Table `seller_categories`
+
+Seller-category relationships
+
+### Columns
+
+| Name | Type | Constraints |
+|------|------|-------------|
+| `id` | `uuid` | Primary |
+| `seller_id` | `uuid` |  |
+| `category_id` | `uuid` |  |
+| `created_at` | `timestamptz` |  |
+
+## Table `seller_chat_requests`
+
+Chat requests from AI-assisted buyers to sellers
+
+### Columns
+
+| Name | Type | Constraints |
+|------|------|-------------|
+| `id` | `uuid` | Primary |
+| `seller_id` | `uuid` |  |
+| `buyer_id` | `uuid` |  |
+| `buyer_name` | `text` |  Nullable |
+| `product_id` | `uuid` |  Nullable |
+| `product_name` | `text` |  Nullable |
+| `status` | `text` |  |
+| `message` | `text` |  Nullable |
+| `created_at` | `timestamptz` |  |
+| `updated_at` | `timestamptz` |  |
+| `responded_at` | `timestamptz` |  Nullable |
+
+## Table `seller_notifications`
+
+In-app notifications for seller role. Schema is intentionally identical to buyer_notifications and admin_notifications; the split is for RLS isolation against sellers(id). Write via notificationService.notifySeller* (web/mobile). Do NOT query across notification tables; use the role-specific service method.
+
+### Columns
+
+| Name | Type | Constraints |
+|------|------|-------------|
+| `id` | `uuid` | Primary |
+| `type` | `text` |  |
+| `title` | `text` |  |
+| `message` | `text` |  |
+| `action_url` | `text` |  Nullable |
+| `action_data` | `jsonb` |  Nullable |
+| `read_at` | `timestamptz` |  Nullable |
+| `priority` | `text` |  |
+| `created_at` | `timestamptz` |  |
+| `seller_id` | `uuid` |  |
+
+## Table `seller_payout_settings`
+
+### Columns
+
+| Name | Type | Constraints |
+|------|------|-------------|
+| `id` | `uuid` | Primary |
+| `seller_id` | `uuid` |  Unique |
+| `payout_method` | `text` |  |
+| `bank_name` | `text` |  Nullable |
+| `bank_account_name` | `text` |  Nullable |
+| `bank_account_number` | `text` |  Nullable |
+| `ewallet_provider` | `text` |  Nullable |
+| `ewallet_number` | `text` |  Nullable |
+| `auto_payout` | `bool` |  Nullable |
+| `min_payout_amount` | `numeric` |  Nullable |
+| `created_at` | `timestamptz` |  |
+| `updated_at` | `timestamptz` |  Nullable |
+
+## Table `seller_payouts`
+
+### Columns
+
+| Name | Type | Constraints |
+|------|------|-------------|
+| `id` | `uuid` | Primary |
+| `seller_id` | `uuid` |  |
+| `order_id` | `uuid` |  Nullable |
+| `payment_transaction_id` | `uuid` |  Nullable |
+| `gross_amount` | `numeric` |  |
+| `platform_fee` | `numeric` |  |
+| `net_amount` | `numeric` |  |
+| `currency` | `varchar` |  |
+| `payout_method` | `text` |  |
+| `payout_account_details` | `jsonb` |  |
+| `status` | `text` |  |
+| `processed_at` | `timestamptz` |  Nullable |
+| `failure_reason` | `text` |  Nullable |
+| `created_at` | `timestamptz` |  |
+| `updated_at` | `timestamptz` |  Nullable |
+| `escrow_transaction_id` | `uuid` |  Nullable |
+| `release_after` | `timestamptz` |  Nullable |
+
+## Table `seller_rejection_items`
+
+### Columns
+
+| Name | Type | Constraints |
+|------|------|-------------|
+| `id` | `uuid` | Primary |
+| `rejection_id` | `uuid` |  |
+| `document_field` | `text` |  |
+| `reason` | `text` |  Nullable |
+| `created_at` | `timestamptz` |  |
+
+## Table `seller_rejections`
+
+Seller rejection reasons with admin audit trail
+
+### Columns
+
+| Name | Type | Constraints |
+|------|------|-------------|
+| `id` | `uuid` | Primary |
+| `description` | `text` |  Nullable |
+| `created_by` | `uuid` |  Nullable |
+| `created_at` | `timestamptz` |  |
+| `seller_id` | `uuid` |  |
+| `rejection_type` | `text` |  |
+
+## Table `seller_tiers`
+
+### Columns
+
+| Name | Type | Constraints |
+|------|------|-------------|
+| `id` | `uuid` | Primary |
+| `seller_id` | `uuid` |  Unique |
+| `tier_level` | `text` |  |
+| `bypasses_assessment` | `bool` |  Nullable |
+| `created_at` | `timestamptz` |  |
+| `updated_at` | `timestamptz` |  |
+
+## Table `seller_verification_document_drafts`
+
+Work-in-progress KYC documents the seller is still preparing/replacing. Promoted to seller_verification_documents on submission. Complementary to the canonical table — do NOT merge; this enables "save without submitting" UX.
+
+### Columns
+
+| Name | Type | Constraints |
+|------|------|-------------|
+| `seller_id` | `uuid` | Primary |
+| `business_permit_url` | `text` |  Nullable |
+| `valid_id_url` | `text` |  Nullable |
+| `proof_of_address_url` | `text` |  Nullable |
+| `dti_registration_url` | `text` |  Nullable |
+| `tax_id_url` | `text` |  Nullable |
+| `created_at` | `timestamptz` |  Nullable |
+| `updated_at` | `timestamptz` |  Nullable |
+| `business_permit_updated_at` | `timestamptz` |  Nullable |
+| `valid_id_updated_at` | `timestamptz` |  Nullable |
+| `proof_of_address_updated_at` | `timestamptz` |  Nullable |
+| `dti_registration_updated_at` | `timestamptz` |  Nullable |
+| `tax_id_updated_at` | `timestamptz` |  Nullable |
+
+## Table `seller_verification_documents`
+
+Canonical/submitted seller verification documents shown to admins for KYC review. Complementary to seller_verification_document_drafts (work-in-progress uploads not yet submitted for review).
+
+### Columns
+
+| Name | Type | Constraints |
+|------|------|-------------|
+| `seller_id` | `uuid` | Primary |
+| `business_permit_url` | `text` |  Nullable |
+| `valid_id_url` | `text` |  Nullable |
+| `proof_of_address_url` | `text` |  Nullable |
+| `dti_registration_url` | `text` |  Nullable |
+| `tax_id_url` | `text` |  Nullable |
+| `created_at` | `timestamptz` |  |
+| `updated_at` | `timestamptz` |  |
+
+## Table `sellers`
+
+Seller-specific business data - linked via user_roles
+
+### Columns
+
+| Name | Type | Constraints |
+|------|------|-------------|
+| `id` | `uuid` | Primary |
+| `store_name` | `text` |  Unique |
+| `store_description` | `text` |  Nullable |
+| `avatar_url` | `text` |  Nullable |
+| `owner_name` | `text` |  Nullable |
+| `approval_status` | `text` |  |
+| `verified_at` | `timestamptz` |  Nullable |
+| `created_at` | `timestamptz` |  |
+| `updated_at` | `timestamptz` |  |
+| `store_contact_number` | `text` |  Nullable |
+| `reapplication_attempts` | `int4` |  Nullable |
+| `blacklisted_at` | `timestamptz` |  Nullable |
+| `cool_down_until` | `timestamptz` |  Nullable |
+| `cooldown_count` | `int4` |  Nullable |
+| `temp_blacklist_count` | `int4` |  Nullable |
+| `temp_blacklist_until` | `timestamptz` |  Nullable |
+| `is_permanently_blacklisted` | `bool` |  Nullable |
+| `store_banner_url` | `text` |  Nullable |
+| `is_vacation_mode` | `bool` |  Nullable |
+| `vacation_reason` | `text` |  Nullable |
+| `suspended_at` | `timestamptz` |  Nullable |
+| `suspension_reason` | `text` |  Nullable |
+| `shipping_origin_lat` | `float8` |  Nullable |
+| `shipping_origin_lng` | `float8` |  Nullable |
+
+## Table `shipping_addresses`
+
+Normalized shipping address book
+
+### Columns
+
+| Name | Type | Constraints |
+|------|------|-------------|
+| `id` | `uuid` | Primary |
+| `user_id` | `uuid` |  |
+| `label` | `text` |  |
+| `address_line_1` | `text` |  |
+| `address_line_2` | `text` |  Nullable |
+| `barangay` | `text` |  Nullable |
+| `city` | `text` |  |
+| `province` | `text` |  |
+| `region` | `text` |  |
+| `postal_code` | `text` |  |
+| `landmark` | `text` |  Nullable |
+| `delivery_instructions` | `text` |  Nullable |
+| `is_default` | `bool` |  |
+| `address_type` | `text` |  |
+| `coordinates` | `jsonb` |  Nullable |
+| `created_at` | `timestamptz` |  |
+| `updated_at` | `timestamptz` |  |
+| `first_name` | `text` |  Nullable |
+| `last_name` | `text` |  Nullable |
+| `phone_number` | `text` |  Nullable |
+| `is_pickup` | `bool` |  Nullable |
+| `is_return` | `bool` |  Nullable |
+
+## Table `shipping_config`
+
+### Columns
+
+| Name | Type | Constraints |
+|------|------|-------------|
+| `id` | `uuid` | Primary |
+| `volumetric_divisor` | `numeric` |  |
+| `per_kg_increment` | `numeric` |  |
+| `insurance_rate` | `numeric` |  |
+| `free_shipping_threshold` | `numeric` |  |
+| `bulky_weight_threshold` | `numeric` |  |
+| `same_day_zones` | `_text` |  |
+
+## Table `shipping_zones`
+
+### Columns
+
+| Name | Type | Constraints |
+|------|------|-------------|
+| `id` | `uuid` | Primary |
+| `origin_zone` | `text` |  |
+| `destination_zone` | `text` |  |
+| `shipping_method` | `text` |  |
+| `base_rate` | `numeric` |  |
+| `odz_fee` | `numeric` |  |
+| `estimated_days_min` | `int4` |  |
+| `estimated_days_max` | `int4` |  |
+
+## Table `sms_logs`
+
+### Columns
+
+| Name | Type | Constraints |
+|------|------|-------------|
+| `id` | `uuid` | Primary |
+| `recipient_phone` | `text` |  |
+| `recipient_id` | `uuid` |  Nullable |
+| `event_type` | `text` |  |
+| `message_body` | `text` |  |
+| `status` | `text` |  |
+| `provider` | `text` |  Nullable |
+| `provider_message_id` | `text` |  Nullable |
+| `error_message` | `text` |  Nullable |
+| `metadata` | `jsonb` |  Nullable |
+| `created_at` | `timestamptz` |  |
+| `delivered_at` | `timestamptz` |  Nullable |
+
+## Table `store_followers`
+
+Shop follower relationships
+
+### Columns
+
+| Name | Type | Constraints |
+|------|------|-------------|
+| `id` | `uuid` | Primary |
+| `buyer_id` | `uuid` |  |
+| `seller_id` | `uuid` |  |
+| `created_at` | `timestamptz` |  |
+
+## Table `support_tickets`
+
+Support ticketing system
+
+### Columns
+
+| Name | Type | Constraints |
+|------|------|-------------|
+| `id` | `uuid` | Primary |
+| `user_id` | `uuid` |  |
+| `category_id` | `uuid` |  Nullable |
+| `priority` | `text` |  |
+| `status` | `text` |  |
+| `subject` | `text` |  |
+| `description` | `text` |  |
+| `order_id` | `uuid` |  Nullable |
+| `assigned_to` | `uuid` |  Nullable |
+| `resolved_at` | `timestamptz` |  Nullable |
+| `created_at` | `timestamptz` |  |
+| `updated_at` | `timestamptz` |  |
+| `seller_id` | `uuid` |  Nullable |
+
+## Table `suppression_list`
+
+BR-EMA-028/039-041: Global suppression. Checked before every send. RA 10175 anti-spam compliant.
+
+### Columns
+
+| Name | Type | Constraints |
+|------|------|-------------|
+| `id` | `uuid` | Primary |
+| `contact` | `text` |  |
+| `contact_type` | `text` |  |
+| `reason` | `text` |  |
+| `suppressed_by` | `uuid` |  Nullable |
+| `notes` | `text` |  Nullable |
+| `created_at` | `timestamptz` |  |
+
+## Table `ticket_categories`
+
+Support ticket category taxonomy
+
+### Columns
+
+| Name | Type | Constraints |
+|------|------|-------------|
+| `id` | `uuid` | Primary |
+| `name` | `text` |  |
+| `parent_id` | `uuid` |  Nullable |
+| `description` | `text` |  Nullable |
+| `created_at` | `timestamptz` |  |
+
+## Table `ticket_messages`
+
+Ticket conversation thread
+
+### Columns
+
+| Name | Type | Constraints |
+|------|------|-------------|
+| `id` | `uuid` | Primary |
+| `ticket_id` | `uuid` |  |
+| `sender_id` | `uuid` |  |
+| `sender_type` | `text` |  |
+| `message` | `text` |  |
+| `is_internal_note` | `bool` |  |
+| `created_at` | `timestamptz` |  |
+
+## Table `user_consent`
+
+Current consent state per (user_id, channel) — answers "is this user opted-in right now?". Updated when user changes consent; old state is preserved as a new row in consent_log. Complementary to consent_log (event audit trail).
+
+### Columns
+
+| Name | Type | Constraints |
+|------|------|-------------|
+| `id` | `uuid` | Primary |
+| `user_id` | `uuid` |  |
+| `channel` | `text` |  |
+| `is_consented` | `bool` |  |
+| `consent_source` | `text` |  |
+| `consented_at` | `timestamptz` |  Nullable |
+| `revoked_at` | `timestamptz` |  Nullable |
+| `ip_address` | `inet` |  Nullable |
+| `user_agent` | `text` |  Nullable |
+| `created_at` | `timestamptz` |  |
+| `updated_at` | `timestamptz` |  |
+
+## Table `user_presence`
+
+### Columns
+
+| Name | Type | Constraints |
+|------|------|-------------|
+| `user_id` | `uuid` | Primary |
+| `is_online` | `bool` |  Nullable |
+| `last_seen` | `timestamptz` |  Nullable |
+| `updated_at` | `timestamptz` |  |
+
+## Table `user_roles`
+
+Multi-role junction table - users can be buyer AND seller simultaneously
+
+### Columns
+
+| Name | Type | Constraints |
+|------|------|-------------|
+| `id` | `uuid` | Primary |
+| `user_id` | `uuid` |  |
+| `role` | `text` |  |
+| `created_at` | `timestamptz` |  |
+
+## Table `verification_codes`
+
+### Columns
+
+| Name | Type | Constraints |
+|------|------|-------------|
+| `id` | `uuid` | Primary |
+| `email` | `text` |  |
+| `code` | `text` |  |
+| `expires_at` | `timestamptz` |  |
+| `created_at` | `timestamptz` |  |
+
+## Table `vouchers`
+
+Promotional vouchers
+
+### Columns
+
+| Name | Type | Constraints |
+|------|------|-------------|
+| `id` | `uuid` | Primary |
+| `code` | `text` |  Unique |
+| `title` | `text` |  |
+| `description` | `text` |  Nullable |
+| `voucher_type` | `text` |  |
+| `value` | `numeric` |  |
+| `min_order_value` | `numeric` |  |
+| `max_discount` | `numeric` |  Nullable |
+| `seller_id` | `uuid` |  Nullable |
+| `claimable_from` | `timestamptz` |  |
+| `claimable_until` | `timestamptz` |  |
+| `usage_limit` | `int4` |  Nullable |
+| `claim_limit` | `int4` |  Nullable |
+| `duration` | `interval` |  Nullable |
+| `is_active` | `bool` |  |
+| `created_at` | `timestamptz` |  |
+| `updated_at` | `timestamptz` |  |
+
+## Table `warranty_actions_log`
+
+### Columns
+
+| Name | Type | Constraints |
+|------|------|-------------|
+| `id` | `uuid` | Primary |
+| `warranty_claim_id` | `uuid` |  Nullable |
+| `order_item_id` | `uuid` |  Nullable |
+| `action_type` | `text` |  |
+| `actor_id` | `uuid` |  Nullable |
+| `actor_role` | `text` |  |
+| `description` | `text` |  Nullable |
+| `metadata` | `jsonb` |  Nullable |
+| `created_at` | `timestamptz` |  |
+
+## Table `warranty_claims`
+
+### Columns
+
+| Name | Type | Constraints |
+|------|------|-------------|
+| `id` | `uuid` | Primary |
+| `order_item_id` | `uuid` |  |
+| `buyer_id` | `uuid` |  |
+| `seller_id` | `uuid` |  |
+| `claim_number` | `text` |  Unique |
+| `reason` | `text` |  |
+| `description` | `text` |  Nullable |
+| `claim_type` | `text` |  |
+| `evidence_urls` | `_text` |  Nullable |
+| `diagnostic_report_url` | `text` |  Nullable |
+| `status` | `text` |  |
+| `priority` | `text` |  Nullable |
+| `resolution_type` | `text` |  Nullable |
+| `resolution_description` | `text` |  Nullable |
+| `resolution_amount` | `numeric` |  Nullable |
+| `resolved_at` | `timestamptz` |  Nullable |
+| `resolved_by` | `uuid` |  Nullable |
+| `seller_response` | `text` |  Nullable |
+| `seller_response_at` | `timestamptz` |  Nullable |
+| `admin_notes` | `text` |  Nullable |
+| `return_tracking_number` | `text` |  Nullable |
+| `return_shipping_carrier` | `text` |  Nullable |
+| `replacement_tracking_number` | `text` |  Nullable |
+| `replacement_shipping_carrier` | `text` |  Nullable |
+| `created_at` | `timestamptz` |  |
+| `updated_at` | `timestamptz` |  |
+
