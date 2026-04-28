@@ -42,8 +42,8 @@ export class CartService {
       const { data: latestItems, error } = await supabase
         .from('cart_items')
         .select(`
-          id, quantity,
-          product:products ( id, approval_status, disabled_at, deleted_at, seller_id ),
+          id, quantity, variant_id,
+          product:products ( id, approval_status, disabled_at, deleted_at, seller_id, stock ),
           variant:product_variants ( id, stock )
         `)
         .in('id', validUuids);
@@ -91,7 +91,15 @@ export class CartService {
           continue;
         }
 
-        const availableStock = variant?.stock ?? 0; // Web relies heavily on variants
+        // Resolve effective stock:
+        // - If the cart line has a variant_id, the variant row is authoritative.
+        // - If there is no variant_id, fall back to the product-level stock.
+        // This prevents false "out of stock" for products without variants where
+        // variant?.stock would be undefined and previously coerced to 0.
+        const hasVariant = !!(item as any).variant_id;
+        const availableStock = hasVariant
+          ? (variant?.stock ?? 0)
+          : (product?.stock ?? 0);
         if (availableStock === 0) {
           errors[item.id] = 'This item just went out of stock.';
           isValid = false;
