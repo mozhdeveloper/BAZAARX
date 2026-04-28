@@ -15,7 +15,13 @@ import {
   RotateCcw,
   X,
   Camera,
-  Copy,
+  Image as ImageIcon,
+  Paperclip,
+  Play,
+  FileText,
+  ExternalLink,
+  Loader2,
+  Reply,
 } from "lucide-react";
 import { ConfirmReceivedModal } from "../components/ConfirmReceivedModal";
 import { Order } from "../stores/cartStore";
@@ -38,6 +44,10 @@ import { ReviewModal } from "../components/ReviewModal";
 import { useToast } from "../hooks/use-toast";
 import { AnimatePresence, motion } from "framer-motion";
 import { ORDER_STATUS_MESSAGES } from "../services/orderNotificationService";
+import ChatMediaModal, { type MediaPreview } from '../components/ChatMediaModal';
+import { validateChatMedia, type ChatMediaType } from '../utils/chatMediaUtils';
+import ChatMessagesSkeleton from '../components/skeletons/ChatMessagesSkeleton';
+import InvalidFileModal from '../components/InvalidFileModal';
 
 interface ChatMessage {
   id: string;
@@ -45,6 +55,10 @@ interface ChatMessage {
   message: string;
   timestamp: Date;
   read: boolean;
+  media_url?: string;
+  media_type?: 'image' | 'video' | 'document';
+  image_url?: string;
+  reply_to_message_id?: string;
 }
 
 // Extended order interface with DB fields
@@ -77,6 +91,16 @@ export default function OrderDetailPage() {
   const [conversation, setConversation] = useState<Conversation | null>(null);
   const [chatMessages, setChatMessages] = useState<ChatMessage[]>([]);
   const [isLoadingChat, setIsLoadingChat] = useState(true);
+  const [sellerSuspended, setSellerSuspended] = useState(false);
+  const [uploading, setUploading] = useState(false);
+  const [previewMedia, setPreviewMedia] = useState<MediaPreview | null>(null);
+  const [pendingMedia, setPendingMedia] = useState<{ file: File; previewUrl: string; mediaType: ChatMediaType } | null>(null);
+  const [replyingTo, setReplyingTo] = useState<ChatMessage | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const docInputRef = useRef<HTMLInputElement>(null);
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const isSendingMediaRef = useRef(false);
+  const [invalidFileError, setInvalidFileError] = useState<string | null>(null);
 
   // Review modal state
   const [showReviewModal, setShowReviewModal] = useState(false);
@@ -132,13 +156,6 @@ export default function OrderDetailPage() {
           shipping_cost: detail.shipping_cost || 0,
           cancellationReason: detail.order.cancellationReason,
         };
-
-        // NORMALIZE DB STATUSES TO MATCH UI EXPECTATIONS
-        if ((extendedOrder.status as string) === "processing" || (extendedOrder.status as string) === "ready_to_ship") {
-          extendedOrder.status = "confirmed";
-        } else if ((extendedOrder.status as string) === "pending_payment") {
-          extendedOrder.status = "pending";
-        }
 
         setDbOrder(extendedOrder);
       } catch (err) {
@@ -197,13 +214,25 @@ export default function OrderDetailPage() {
           const messages = await chatService.getMessages(conv.id);
 
           // Convert to local format
-          const formattedMessages: ChatMessage[] = messages.map((msg: Message) => ({
-            id: msg.id,
-            sender: (msg.message_type === 'system' || !msg.sender_type) ? 'system' : msg.sender_type as 'buyer' | 'seller',
-            message: msg.message_content || msg.content,
-            timestamp: new Date(msg.created_at),
-            read: msg.is_read,
-          }));
+          // Filter out metadata-only system messages (JSON payloads like buyer_chat_metadata_v1)
+          const formattedMessages: ChatMessage[] = messages
+            .filter((msg) => {
+              if (!msg.message_content && msg.content?.startsWith('{')) {
+                try { JSON.parse(msg.content); return false; } catch { /* not JSON */ }
+              }
+              return true;
+            })
+            .map((msg: Message) => ({
+              id: msg.id,
+              sender: (msg.message_type === 'system' || !msg.sender_type) ? 'system' : msg.sender_type as 'buyer' | 'seller',
+              message: msg.content, // getMessages() already normalises system messages into content
+              timestamp: new Date(msg.created_at),
+              read: msg.is_read,
+              media_url: msg.media_url,
+              media_type: msg.media_type as ChatMessage['media_type'],
+              image_url: msg.image_url,
+              reply_to_message_id: msg.reply_to_message_id,
+            }));
 
           // Add system message at the start if this is a new order
           if (formattedMessages.length === 0) {
@@ -238,12 +267,20 @@ export default function OrderDetailPage() {
     const subscription = chatService.subscribeToConversation(
       conversation.id,
       (newMessage: Message) => {
+        // Skip metadata-only system messages (buyer_chat_metadata_v1 JSON payloads)
+        if (!newMessage.message_content && newMessage.content?.startsWith('{')) {
+          try { JSON.parse(newMessage.content); return; } catch { /* not JSON, proceed */ }
+        }
         const formattedMessage: ChatMessage = {
           id: newMessage.id,
           sender: (newMessage.message_type === 'system' || !newMessage.sender_type) ? 'system' : newMessage.sender_type as 'buyer' | 'seller',
           message: newMessage.message_content || newMessage.content,
           timestamp: new Date(newMessage.created_at),
           read: newMessage.is_read,
+          media_url: newMessage.media_url,
+          media_type: newMessage.media_type as ChatMessage['media_type'],
+          image_url: newMessage.image_url,
+          reply_to_message_id: newMessage.reply_to_message_id,
         };
 
         setChatMessages(prev => {
@@ -309,6 +346,12 @@ export default function OrderDetailPage() {
       scrollBottom("smooth");
     }
   }, [chatMessages, isLoadingChat]);
+
+  // Check seller suspension — must be above early return to satisfy Rules of Hooks
+  useEffect(() => {
+    if (!sellerId) return;
+    chatService.getSellerStatus(sellerId).then(s => setSellerSuspended(s.isSuspended)).catch(() => { });
+  }, [sellerId]);
 
   if (isLoading) {
     return (
@@ -482,7 +525,9 @@ export default function OrderDetailPage() {
     if (!chatMessage.trim() || !conversation || !profile?.id || isSendingMessage) return;
 
     const messageContent = chatMessage.trim();
+    const currentReplyTo = replyingTo;
     setChatMessage("");
+    setReplyingTo(null);
     setIsSendingMessage(true);
 
     // Optimistically add the message
@@ -493,6 +538,7 @@ export default function OrderDetailPage() {
       message: messageContent,
       timestamp: new Date(),
       read: true,
+      reply_to_message_id: currentReplyTo?.id,
     };
     setChatMessages(prev => [...prev, optimisticMessage]);
 
@@ -502,7 +548,10 @@ export default function OrderDetailPage() {
         conversation.id,
         profile.id,
         'buyer',
-        messageContent
+        messageContent,
+        undefined, undefined, undefined,
+        currentReplyTo?.id,
+        sellerId || undefined
       );
 
       if (sentMessage) {
@@ -531,8 +580,55 @@ export default function OrderDetailPage() {
       setChatMessage(messageContent); // Restore the message
     } finally {
       setIsSendingMessage(false);
+      // Reset textarea height so it collapses back to single-line after a long message
+      if (textareaRef.current) {
+        textareaRef.current.style.height = 'auto';
+      }
     }
   };
+
+  // Media upload handler for order chat
+  const handleOrderMediaUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = Array.from(e.target.files || []);
+    if (!files.length || !conversation || !profile?.id) return;
+    const file = files[0];
+    const { valid, mediaType, error } = validateChatMedia(file);
+    if (!valid || !mediaType) {
+      setInvalidFileError(error || 'File type not supported.');
+      if (fileInputRef.current) fileInputRef.current.value = '';
+      if (docInputRef.current) docInputRef.current.value = '';
+      return;
+    }
+    const previewUrl = URL.createObjectURL(file);
+    setPendingMedia({ file, previewUrl, mediaType });
+    if (fileInputRef.current) fileInputRef.current.value = '';
+    if (docInputRef.current) docInputRef.current.value = '';
+  };
+
+  const cancelPendingMedia = () => { if (pendingMedia) { URL.revokeObjectURL(pendingMedia.previewUrl); setPendingMedia(null); } };
+
+  const confirmSendMedia = async () => {
+    if (!pendingMedia || !conversation || !profile?.id || isSendingMediaRef.current) return;
+    isSendingMediaRef.current = true;
+    const { file, mediaType } = pendingMedia;
+    setPendingMedia(null);
+    setUploading(true);
+    const url = await chatService.uploadChatMedia(file, conversation.id);
+    setUploading(false);
+    if (!url) { toast({ title: 'Upload failed', variant: 'destructive' }); return; }
+    const placeholderMap = { image: '[Image]', video: '[Video]', document: '[Document]' } as const;
+    const placeholder = placeholderMap[mediaType];
+    const tempId = `temp-${Date.now()}`;
+    setChatMessages(prev => [...prev, { id: tempId, sender: 'buyer', message: placeholder, timestamp: new Date(), read: true, media_url: url, media_type: mediaType }]);
+    const result = await chatService.sendMessage(conversation.id, profile.id, 'buyer', placeholder, undefined, url, mediaType, undefined, sellerId || undefined);
+    if (result) {
+      setChatMessages(prev => prev.some(m => m.id === result.id) ? prev.filter(m => m.id !== tempId) : prev.map(m => m.id === tempId ? { ...m, id: result.id } : m));
+    }
+    isSendingMediaRef.current = false;
+  };
+
+  // Extract filename from URL
+  const extractFileName = (url: string) => { try { const raw = decodeURIComponent(url.split('/').pop()?.split('?')[0] || 'Document.pdf'); const m = raw.match(/^\d+_(.+)$/); return m ? m[1] : raw; } catch { return 'Document.pdf'; } };
 
   const handleShareOrder = () => {
     if (navigator.share) {
@@ -983,39 +1079,6 @@ export default function OrderDetailPage() {
                       </div>
                     </div>
 
-                    {/* Dynamic Tracking Injection */}
-                    {(() => {
-                      // Only show this block if the order has progressed to logistics
-                      if (order.status === "pending" || order.status === "confirmed" || order.status === "cancelled") return null;
-
-                      // Generate a realistic mock tracking number based on the Order Number for the demo
-                      const trackingNum = `BZX-${order.orderNumber || order.id.substring(0, 8).toUpperCase()}`;
-                      
-                      return (
-                        <div className="mt-6 flex flex-col gap-2">
-                          <span className="text-[11px] font-bold text-gray-500 uppercase tracking-wider ml-1">
-                            Tracking Number
-                          </span>
-                          <div className="flex items-center gap-2 bg-gray-50 border border-gray-200 p-1.5 rounded-xl w-fit max-w-full shadow-sm">
-                            <button 
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                navigator.clipboard.writeText(trackingNum);
-                                toast({ title: "Copied!", description: "Tracking number copied to clipboard." });
-                              }}
-                              className="p-1.5 bg-white rounded-lg border border-gray-200 text-gray-400 hover:text-[var(--brand-primary)] hover:border-[var(--brand-primary)] hover:shadow-sm transition-all shrink-0"
-                              title="Copy Tracking Number"
-                            >
-                              <Copy className="w-4 h-4" />
-                            </button>
-                            <span className="text-xs sm:text-sm font-mono font-bold text-gray-800 tracking-wider pr-3 whitespace-nowrap overflow-hidden text-ellipsis">
-                              {trackingNum}
-                            </span>
-                          </div>
-                        </div>
-                      );
-                    })()}
-
                     {order.status === "shipped" && (
                       <div className="mt-8 py-4 px-6 bg-gray-50 rounded-lg">
                         <div className="flex items-start gap-4">
@@ -1151,21 +1214,28 @@ export default function OrderDetailPage() {
                   <div className="flex items-center gap-2">
                     Chat with Seller
                   </div>
-                  <div className="flex items-center gap-2">
+                  <div className="flex items-center gap-3">
                     <span className="text-sm font-bold text-[var(--text-muted)]">{storeName}</span>
+                    <button
+                      onClick={() => navigate(`/messages?sellerId=${sellerId}&from=order`)}
+                      className="flex items-center gap-1 text-xs font-semibold text-[var(--brand-primary)] hover:underline"
+                    >
+                      <ExternalLink className="w-3.5 h-3.5" /> Open in Messages
+                    </button>
                   </div>
                 </CardTitle>
               </CardHeader>
               <CardContent>
+                {/* Suspended banner */}
+                {sellerSuspended && (
+                  <div className="bg-red-50 border border-red-200 rounded-lg px-3 py-2 mb-3 text-center">
+                    <span className="text-xs font-semibold text-red-600">⚠ This seller's account is suspended.</span>
+                  </div>
+                )}
                 {/* Chat Messages */}
                 <div ref={chatContainerRef} className="mb-4 h-80 overflow-y-auto space-y-3 p-4 bg-gray-50 rounded-lg scrollbar-hide">
                   {isLoadingChat ? (
-                    <div className="flex items-center justify-center h-full">
-                      <div className="text-center">
-                        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-[var(--brand-primary)] mx-auto mb-2"></div>
-                        <p className="text-sm text-gray-500">Loading messages...</p>
-                      </div>
-                    </div>
+                    <ChatMessagesSkeleton />
                   ) : chatMessages.length === 0 ? (
                     <div className="flex items-center justify-center h-full">
                       <div className="text-center">
@@ -1175,74 +1245,222 @@ export default function OrderDetailPage() {
                       </div>
                     </div>
                   ) : (
-                    chatMessages.map((msg) => {
-                      // Dynamically identify if a message is an automated status update
-                      const isAutomated = msg.sender === "system" || (msg.sender === "seller" && (
-                        Object.values(ORDER_STATUS_MESSAGES).some(m =>
-                          (m.sellerMessage && msg.message.startsWith(m.sellerMessage)) ||
-                          (m.systemMessage && msg.message.startsWith(m.systemMessage))
-                        ) ||
-                        msg.message.includes("📦 Tracking Number:") ||
-                        msg.message.includes("📋 System:")
-                      ));
+                    (() => {
+                      const items: React.ReactNode[] = [];
+                      let lastDateLabel = '';
+                      chatMessages.forEach((msg, idx) => {
+                        // --- Date separator ---
+                        const msgDate = new Date(msg.timestamp);
+                        const dateLabel = msgDate.toLocaleDateString([], {
+                          weekday: 'long', year: 'numeric', month: 'long', day: 'numeric',
+                        });
+                        if (dateLabel !== lastDateLabel) {
+                          items.push(
+                            <div key={`sep-${idx}`} className="flex justify-center items-center my-3 w-full pointer-events-none">
+                              <div className="h-px bg-orange-200/60 flex-1" />
+                              <span className="mx-3 text-[10px] font-semibold text-gray-400 uppercase tracking-widest bg-gray-50 px-2 py-0.5 rounded-full">
+                                {dateLabel}
+                              </span>
+                              <div className="h-px bg-orange-200/60 flex-1" />
+                            </div>
+                          );
+                          lastDateLabel = dateLabel;
+                        }
 
-                      return (
-                        <div
-                          key={msg.id}
-                          className={cn(
-                            "flex",
-                            msg.sender === "buyer"
-                              ? "justify-end"
-                              : "justify-start",
-                          )}
-                        >
+                        const isAutomated = msg.sender === "system" || (msg.sender === "seller" && (
+                          Object.values(ORDER_STATUS_MESSAGES).some(m =>
+                            (m.sellerMessage && msg.message.startsWith(m.sellerMessage)) ||
+                            (m.systemMessage && msg.message.startsWith(m.systemMessage))
+                          ) ||
+                          msg.message.includes("📦 Tracking Number:") ||
+                          msg.message.includes("📋 System:")
+                        ));
+
+                        const fullTimestamp = msgDate.toLocaleString([], {
+                          year: 'numeric', month: 'short', day: 'numeric',
+                          hour: '2-digit', minute: '2-digit',
+                        });
+
+                        items.push(
                           <div
+                            key={msg.id}
+                            id={`msg-${msg.id}`}
                             className={cn(
-                              "max-w-[70%] rounded-lg px-4 py-2 transition-all duration-300",
-                              msg.sender === "buyer"
-                                ? "bg-[var(--brand-primary)] text-white"
-                                : isAutomated
-                                  ? "bg-white border border-gray-100 text-[var(--brand-accent)]"
-                                  : msg.sender === "seller"
-                                    ? "bg-white border border-gray-100 text-gray-900"
-                                    : "bg-white border border-gray-100 text-[var(--brand-primary-dark)] text-sm",
+                              "flex group/msg",
+                              msg.sender === "buyer" ? "justify-end" : "justify-start",
                             )}
                           >
-                            <p className="text-sm">{msg.message}</p>
-                            <p
+                            {/* Reply button — RIGHT of bubble for received (seller) messages */}
+                            {msg.sender !== 'system' && msg.sender === 'seller' && (
+                              <button
+                                onClick={() => setReplyingTo(msg)}
+                                className="self-center ml-2 opacity-0 group-hover/msg:opacity-100 transition-opacity p-1 rounded-full hover:bg-gray-200"
+                                title="Reply"
+                              >
+                                <Reply className="w-3.5 h-3.5 text-gray-400" />
+                              </button>
+                            )}
+                            <div
                               className={cn(
-                                "text-xs mt-1",
+                                "max-w-[70%] rounded-lg px-4 py-2 transition-all duration-300 relative group",
                                 msg.sender === "buyer"
-                                  ? "text-white/70"
+                                  ? "bg-[var(--brand-primary)] text-white"
                                   : isAutomated
-                                    ? "text-[var(--text-muted)]"
-                                    : "text-[var(--text-muted)]",
+                                    ? "bg-white border border-gray-100 text-[var(--brand-accent)]"
+                                    : msg.sender === "seller"
+                                      ? "bg-white border border-gray-100 text-gray-900"
+                                      : "bg-white border border-gray-100 text-[var(--brand-primary-dark)] text-sm",
                               )}
                             >
-                              {formatTime(msg.timestamp)}
-                            </p>
+                              {/* Reply-to quote block */}
+                              {msg.reply_to_message_id && (() => {
+                                const repliedMsg = chatMessages.find(m => m.id === msg.reply_to_message_id);
+                                if (!repliedMsg) return null;
+                                return (
+                                  <div
+                                    className={`mb-2 px-3 py-1.5 rounded-lg text-xs border-l-2 cursor-pointer hover:opacity-80 transition-opacity ${msg.sender === 'buyer' ? 'bg-white/10 border-white/40 text-white/80' : 'bg-gray-100 border-gray-300 text-gray-500'}`}
+                                    onClick={() => {
+                                      const el = document.getElementById(`msg-${repliedMsg.id}`);
+                                      if (el) {
+                                        el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                                        el.classList.add('ring-2', 'ring-[var(--brand-primary)]');
+                                        setTimeout(() => el.classList.remove('ring-2', 'ring-[var(--brand-primary)]'), 1500);
+                                      }
+                                    }}
+                                  >
+                                    <p className="font-semibold text-[10px] mb-0.5">{repliedMsg.sender === 'buyer' ? 'You' : storeName}</p>
+                                    <p className="truncate">{repliedMsg.message}</p>
+                                  </div>
+                                );
+                              })()}
+                              {/* Image */}
+                              {(msg.media_url || msg.image_url) && (msg.media_type === 'image' || (!msg.media_type && msg.image_url)) && (
+                                <img
+                                  src={msg.media_url || msg.image_url!}
+                                  alt="Attachment"
+                                  loading="lazy"
+                                  className="max-w-[200px] max-h-[200px] rounded-lg object-cover cursor-pointer mb-1 hover:opacity-90 transition-opacity"
+                                  onClick={() => setPreviewMedia({ type: 'image', url: (msg.media_url || msg.image_url)! })}
+                                />
+                              )}
+                              {/* Video */}
+                              {msg.media_url && msg.media_type === 'video' && (
+                                <div
+                                  className="relative max-w-[240px] rounded-lg overflow-hidden mb-1 cursor-pointer"
+                                  onClick={() => setPreviewMedia({ type: 'video', url: msg.media_url! })}
+                                >
+                                  <video src={msg.media_url} preload="metadata" className="w-full max-h-[180px] object-cover" muted playsInline />
+                                  <div className="absolute inset-0 bg-black/30 flex items-center justify-center">
+                                    <div className="w-10 h-10 bg-white/90 rounded-full flex items-center justify-center">
+                                      <Play className="w-4 h-4 text-gray-800 ml-0.5" fill="currentColor" />
+                                    </div>
+                                  </div>
+                                </div>
+                              )}
+                              {/* Document */}
+                              {msg.media_url && msg.media_type === 'document' && (
+                                <div
+                                  onClick={() => setPreviewMedia({ type: 'document', url: msg.media_url!, fileName: extractFileName(msg.media_url!) })}
+                                  className={`flex items-center gap-2 px-3 py-2 rounded-lg mb-1 cursor-pointer transition-colors ${msg.sender === 'buyer' ? 'bg-white/10 hover:bg-white/20 text-white' : 'bg-gray-100 hover:bg-gray-200 text-gray-700'}`}
+                                >
+                                  <FileText className={`w-4 h-4 flex-shrink-0 ${msg.sender === 'buyer' ? 'text-white' : 'text-red-500'}`} />
+                                  <span className="text-xs font-medium truncate max-w-[150px]">{extractFileName(msg.media_url!)}</span>
+                                </div>
+                              )}
+                              {/* Text */}
+                              {msg.message && !(['[Image]', '[Video]', '[Document]'].includes(msg.message)) && (
+                                <p className="text-sm whitespace-pre-wrap break-words">{msg.message}</p>
+                              )}
+                              {/* Hover timestamp tooltip */}
+                              <span className={`absolute bottom-full mb-1 ${msg.sender === 'buyer' ? 'right-0' : 'left-0'} hidden group-hover:block text-[10px] text-white bg-gray-700/90 rounded px-2 py-0.5 whitespace-nowrap z-10`}>
+                                {fullTimestamp}
+                              </span>
+                            </div>
+                            {/* Reply button — LEFT of bubble for sent (buyer) messages */}
+                            {msg.sender === 'buyer' && (
+                              <button
+                                onClick={() => setReplyingTo(msg)}
+                                className="self-center mr-2 order-first opacity-0 group-hover/msg:opacity-100 transition-opacity p-1 rounded-full hover:bg-gray-200"
+                                title="Reply"
+                              >
+                                <Reply className="w-3.5 h-3.5 text-gray-400" />
+                              </button>
+                            )}
                           </div>
-                        </div>
-                      );
-                    })
+                        );
+                      });
+                      return items;
+                    })()
                   )}
                   <div ref={chatEndRef} />
                 </div>
 
+                {/* Reply preview bar */}
+                {replyingTo && (
+                  <div className="flex items-center gap-2 px-3 py-2 bg-gray-50 border border-b-0 border-gray-200 rounded-t-lg">
+                    <div className="flex-1 border-l-2 border-[var(--brand-primary)] pl-2 min-w-0">
+                      <span className="text-[10px] font-semibold text-[var(--brand-primary)] block">
+                        {replyingTo.sender === 'buyer' ? 'You' : storeName}
+                      </span>
+                      <span className="text-xs text-gray-500 truncate block">{replyingTo.message}</span>
+                    </div>
+                    <button onClick={() => setReplyingTo(null)} className="p-1 hover:bg-gray-200 rounded-full flex-shrink-0">
+                      <X className="w-3.5 h-3.5 text-gray-400" />
+                    </button>
+                  </div>
+                )}
                 {/* Chat Input */}
-                <div className="flex gap-2">
-                  <Input
+                <div className="flex gap-2 items-end">
+                  <input type="file" ref={fileInputRef} onChange={handleOrderMediaUpload} accept="image/jpeg,image/png,image/webp,video/mp4,video/quicktime" className="hidden" />
+                  <input type="file" ref={docInputRef} onChange={handleOrderMediaUpload} accept="application/pdf" className="hidden" />
+                  <button
+                    type="button"
+                    onClick={() => fileInputRef.current?.click()}
+                    disabled={!conversation || sellerSuspended || uploading}
+                    className="p-2 text-gray-400 hover:text-[var(--brand-primary)] disabled:opacity-50 transition-colors"
+                  >
+                    {uploading ? <Loader2 className="w-5 h-5 animate-spin" /> : <ImageIcon className="w-5 h-5" />}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => docInputRef.current?.click()}
+                    disabled={!conversation || sellerSuspended || uploading}
+                    className="p-2 text-gray-400 hover:text-[var(--brand-primary)] disabled:opacity-50 transition-colors -ml-1"
+                  >
+                    <Paperclip className="w-5 h-5" />
+                  </button>
+                  <textarea
+                    ref={textareaRef}
                     value={chatMessage}
                     onChange={(e) => setChatMessage(e.target.value)}
-                    onKeyPress={(e) => e.key === "Enter" && !isSendingMessage && handleSendMessage()}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter' && !e.shiftKey) {
+                        e.preventDefault();
+                        if (!isSendingMessage) {
+                          if (textareaRef.current) {
+                            textareaRef.current.style.height = 'auto';
+                          }
+                          setChatMessage('');
+                          handleSendMessage();
+                        }
+                      }
+                    }}
                     placeholder="Type your message..."
-                    className="flex-1 bg-white focus:ring-0 focus:border-[var(--brand-primary)]"
-                    disabled={!conversation || isSendingMessage}
+                    rows={1}
+                    // Replaced transition-all with transition-colors so height doesn't animate
+                    className="flex-1 bg-white border border-gray-200 rounded-xl px-3 py-2 text-sm focus:ring-1 focus:ring-[var(--brand-primary)] focus:border-[var(--brand-primary)] resize-none min-h-[40px] max-h-[100px] overflow-y-auto outline-none transition-colors duration-200"
+                    style={{ height: 'auto' }}
+                    onInput={(e) => {
+                      const t = e.currentTarget;
+                      t.style.height = 'auto';
+                      t.style.height = `${Math.min(t.scrollHeight, 100)}px`;
+                    }}
+                    disabled={!conversation || isSendingMessage || sellerSuspended}
                   />
                   <Button
                     onClick={handleSendMessage}
-                    disabled={!chatMessage.trim() || !conversation || isSendingMessage}
-                    className="bg-[var(--brand-primary)] hover:bg-[var(--brand-accent)] text-white"
+                    disabled={!chatMessage.trim() || !conversation || isSendingMessage || sellerSuspended}
+                    className="bg-[var(--brand-primary)] hover:bg-[var(--brand-accent)] text-white h-10 w-10 p-0 rounded-xl"
                   >
                     {isSendingMessage ? (
                       <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
@@ -1414,7 +1632,7 @@ export default function OrderDetailPage() {
                     const formattedDeadline = estimatedDelivery
                       ? new Date(estimatedDelivery).toLocaleDateString('en-PH', { year: 'numeric', month: 'long', day: 'numeric' })
                       : null;
-                    
+
                     return (
                       <div className="mt-4 pt-4 border-t border-dashed border-[var(--btn-border)]">
                         <div className="bg-orange-50 border-l-4 border-orange-400 p-4 rounded-lg gap-3 flex flex-col">
@@ -1594,20 +1812,13 @@ export default function OrderDetailPage() {
 
                 if (detail) {
                   const refreshedOrder: Order & DbOrderData = {
-                  ...(detail.order as unknown as Order),
-                  buyer_id: detail.buyer_id,
-                  is_reviewed: detail.is_reviewed || false,
-                  shipping_cost: detail.shipping_cost || 0,
-                  cancellationReason: detail.order.cancellationReason,
-                };
-
-                if ((refreshedOrder.status as string) === "processing" || (refreshedOrder.status as string) === "ready_to_ship") {
-                  refreshedOrder.status = "confirmed";
-                } else if ((refreshedOrder.status as string) === "pending_payment") {
-                  refreshedOrder.status = "pending";
-                }
-
-                setDbOrder(refreshedOrder);
+                    ...(detail.order as unknown as Order),
+                    buyer_id: detail.buyer_id,
+                    is_reviewed: detail.is_reviewed || false,
+                    shipping_cost: detail.shipping_cost || 0,
+                    cancellationReason: detail.order.cancellationReason,
+                  };
+                  setDbOrder(refreshedOrder);
                 }
               }
             }}
@@ -1738,13 +1949,6 @@ export default function OrderDetailPage() {
                               shipping_cost: detail.shipping_cost || 0,
                               cancellationReason: detail.order.cancellationReason,
                             };
-
-                            if ((refreshedOrder.status as string) === "processing" || (refreshedOrder.status as string) === "ready_to_ship") {
-                              refreshedOrder.status = "confirmed";
-                            } else if ((refreshedOrder.status as string) === "pending_payment") {
-                              refreshedOrder.status = "pending";
-                            }
-
                             setDbOrder(refreshedOrder);
                           }
                         }
@@ -1806,6 +2010,55 @@ export default function OrderDetailPage() {
         </div>
       )}
 
+      {/* Pending media preview modal */}
+      <AnimatePresence>
+        {pendingMedia && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4"
+            onClick={cancelPendingMedia}
+          >
+            <motion.div
+              initial={{ scale: 0.9, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.9, opacity: 0 }}
+              className={`relative bg-white rounded-2xl shadow-2xl w-full overflow-hidden ${pendingMedia.mediaType === 'document' ? 'max-w-2xl' : 'max-w-md'}`}
+              onClick={(e) => e.stopPropagation()}
+            >
+              <div className="flex items-center justify-between px-5 py-4 border-b border-gray-100">
+                <h3 className="text-base font-semibold text-gray-900">
+                  {pendingMedia.mediaType === 'image' ? 'Send Image' : pendingMedia.mediaType === 'video' ? 'Send Video' : 'Send Document'}
+                </h3>
+                <button onClick={cancelPendingMedia} className="p-1.5 rounded-full hover:bg-gray-100 text-gray-400 hover:text-gray-600 transition-colors">
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+              <div className="flex items-center justify-center p-5 bg-gray-50 min-h-[200px] max-h-[400px]">
+                {pendingMedia.mediaType === 'image' && <img src={pendingMedia.previewUrl} alt="Preview" className="max-w-full max-h-[360px] object-contain rounded-lg" />}
+                {pendingMedia.mediaType === 'video' && <video src={pendingMedia.previewUrl} controls autoPlay className="max-w-full max-h-[360px] rounded-lg" />}
+                {pendingMedia.mediaType === 'document' && (
+                  <iframe
+                    src={`${pendingMedia.previewUrl}#toolbar=0`}
+                    className="w-full h-[360px] rounded-lg border-0"
+                    title="PDF Preview"
+                  />
+                )}
+              </div>
+              <div className="flex items-center justify-end gap-3 px-5 py-4 border-t border-gray-100">
+                <button onClick={cancelPendingMedia} className="px-5 py-2.5 rounded-xl text-gray-600 hover:bg-gray-100 font-medium text-sm transition-colors">Cancel</button>
+                <button onClick={confirmSendMedia} disabled={uploading} className="px-5 py-2.5 rounded-xl bg-[var(--brand-primary)] hover:bg-[var(--brand-primary-dark)] text-white font-semibold text-sm shadow-sm hover:shadow-md transition-all flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed">
+                  <Send className="w-4 h-4" /> Send
+                </button>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      <ChatMediaModal media={previewMedia} onClose={() => setPreviewMedia(null)} />
+      <InvalidFileModal error={invalidFileError} onClose={() => setInvalidFileError(null)} />
       <BazaarFooter />
     </div>
   );

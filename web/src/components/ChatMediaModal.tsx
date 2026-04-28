@@ -107,6 +107,17 @@ export default function ChatMediaModal({ media, onClose }: ChatMediaModalProps) 
   };
 
   // ─── Download ──────────────────────────────────────────────
+  const getDownloadName = () => {
+    if (media?.type === 'document') return getDisplayName();
+    // Extract extension from URL
+    const urlExt = media?.url.split('?')[0].split('.').pop()?.toLowerCase();
+    const knownExts = ['jpg','jpeg','png','webp','gif','mp4','mov','avi','mkv','pdf'];
+    const extMap: Record<string, string> = { image: 'jpg', video: 'mp4' };
+    const ext = (urlExt && knownExts.includes(urlExt)) ? urlExt : extMap[media?.type || ''] || 'bin';
+    const base = getDisplayName().replace(/\.[^.]+$/, '');
+    return `${base}.${ext}`;
+  };
+
   const handleDownload = async () => {
     if (!media) return;
     try {
@@ -115,7 +126,7 @@ export default function ChatMediaModal({ media, onClose }: ChatMediaModalProps) 
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = url;
-      a.download = getDisplayName();
+      a.download = getDownloadName();
       document.body.appendChild(a);
       a.click();
       document.body.removeChild(a);

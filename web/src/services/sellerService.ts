@@ -767,9 +767,9 @@ export class SellerService {
                 .upsert({
                     buyer_id: buyerId,
                     seller_id: sellerId,
-                }, { 
+                }, {
                     onConflict: 'buyer_id,seller_id',
-                    ignoreDuplicates: true 
+                    ignoreDuplicates: true
                 });
 
             if (error) throw error;

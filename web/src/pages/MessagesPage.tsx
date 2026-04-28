@@ -8,16 +8,20 @@ import { Badge } from '../components/ui/badge';
 import {
   Search, Send, MoreVertical, ChevronLeft, Ticket, Image as ImageIcon,
   Store, Trash2, ExternalLink, MessageSquare, Loader2, FileText, X,
-  Paperclip, Play,
+  Paperclip, Play, ChevronDown, Download, Reply,
 } from 'lucide-react';
 import ChatMediaModal, { type MediaPreview } from '../components/ChatMediaModal';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { useBuyerStore, demoSellers, Conversation } from '../stores/buyerStore';
 import Header from '../components/Header';
+import ChatListSkeleton from '../components/skeletons/ChatListSkeleton';
+import { useToast } from '../hooks/use-toast';
+import { getAvailableReplies, setCooldown as setQRCooldown } from '../utils/quickReplyCooldown';
 
-const quickReplies = ["Is this available?", "Can I see real photos?", "Do you offer COD?", "Is this authentic?"];
+const ALL_QUICK_REPLIES = ["Is this available?", "Can I see real photos?", "Do you offer COD?", "Is this authentic?"];
 import { chatService, Conversation as DBConversation, Message as DBMessage } from '../services/chatService';
 import { validateChatMedia, type ChatMediaType } from '../utils/chatMediaUtils';
+import InvalidFileModal from '../components/InvalidFileModal';
 
 // Extract original filename from Supabase storage URL (strips timestamp prefix)
 const extractFileName = (url: string, fallback = 'Document.pdf') => {
@@ -32,6 +36,7 @@ export default function MessagesPage() {
   const navigate = useNavigate();
   const location = useLocation();
   const { profile, viewedSellers, conversations, addConversation, addChatMessage, deleteConversation } = useBuyerStore();
+  const { toast } = useToast();
   const [selectedConversation, setSelectedConversation] = useState<string | null>(null);
 
   // Clear unread badge optimistically when a conversation is opened
@@ -48,13 +53,32 @@ export default function MessagesPage() {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const docInputRef = useRef<HTMLInputElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const chatContainerRef = useRef<HTMLDivElement>(null);
+  const inputBarRef = useRef<HTMLDivElement>(null);
+  const isSendingMediaRef = useRef(false);
 
   const [dbConversations, setDbConversations] = useState<DBConversation[]>([]);
   const [dbMessages, setDbMessages] = useState<DBMessage[]>([]);
   const [loading, setLoading] = useState(true);
+  const [messagesLoading, setMessagesLoading] = useState(false);
   const [sending, setSending] = useState(false);
   const [uploading, setUploading] = useState(false);
   const [pendingMedia, setPendingMedia] = useState<{ file: File; previewUrl: string; mediaType: ChatMediaType } | null>(null);
+  const [replyingTo, setReplyingTo] = useState<DBMessage | null>(null);
+  const [sellerSuspended, setSellerSuspended] = useState(false);
+  const [showJumpToLatest, setShowJumpToLatest] = useState(false);
+  const [qrCooldownTick, setQrCooldownTick] = useState(0); // force re-render when cooldown expires
+  const [inputBarHeight, setInputBarHeight] = useState(140);
+  const [invalidFileError, setInvalidFileError] = useState<string | null>(null);
+
+  // Track input bar height instantly via ResizeObserver so Jump button repositions without delay
+  useEffect(() => {
+    const el = inputBarRef.current;
+    if (!el) return;
+    const ro = new ResizeObserver(([entry]) => setInputBarHeight(entry.borderBoxSize?.[0]?.blockSize ?? el.offsetHeight));
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, [selectedConversation]);
 
   const useRealData = dbConversations.length > 0;
 
@@ -70,21 +94,44 @@ export default function MessagesPage() {
         new Date(a.last_message_at || a.updated_at).getTime()
     );
 
+  // Smart date formatter: today=time, this year=Apr 15, older=Apr 15, 2025
+  const formatSmartDate = useCallback((dateStr: string) => {
+    const d = new Date(dateStr);
+    const now = new Date();
+    const isToday = d.toDateString() === now.toDateString();
+    if (isToday) return d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+    if (d.getFullYear() === now.getFullYear()) return d.toLocaleDateString([], { month: 'short', day: 'numeric' });
+    return d.toLocaleDateString([], { month: 'short', day: 'numeric', year: 'numeric' });
+  }, []);
+
+  // Available quick replies (filtered by cooldown)
+  const availableQuickReplies = useMemo(() => {
+    if (!selectedConversation) return ALL_QUICK_REPLIES;
+    // qrCooldownTick forces recalculation when cooldown expires
+    void qrCooldownTick;
+    return getAvailableReplies(selectedConversation, ALL_QUICK_REPLIES);
+  }, [selectedConversation, qrCooldownTick]);
+
   const filteredConversations = useMemo(() => {
     if (useRealData) {
-      return dbConversations
+      const bySellerMap = new Map<string, DBConversation>();
+      for (const conv of dbConversations) {
+        if (!conv.seller_id && !conv.last_message) continue;
+        const key = conv.seller_id || conv.id;
+        const existing = bySellerMap.get(key);
+        if (!existing || new Date(conv.last_message_at || 0).getTime() > new Date(existing.last_message_at || 0).getTime()) {
+          bySellerMap.set(key, conv);
+        }
+      }
+      return [...bySellerMap.values()]
         .filter(conv =>
-          // Hide blank conversations (no last message)
-          !!conv.last_message &&
-          ((conv.seller_store_name || '').toLowerCase().includes(searchQuery.toLowerCase()) ||
-            conv.last_message.toLowerCase().includes(searchQuery.toLowerCase()))
+          (conv.seller_store_name || '').toLowerCase().includes(searchQuery.toLowerCase())
         );
     }
     return conversations
       .filter(conv =>
         conv.lastMessage &&
-        (conv.sellerName.toLowerCase().includes(searchQuery.toLowerCase()) ||
-          conv.lastMessage.toLowerCase().includes(searchQuery.toLowerCase()))
+        conv.sellerName.toLowerCase().includes(searchQuery.toLowerCase())
       )
       .sort((a, b) => (b.lastMessageTime ? new Date(b.lastMessageTime).getTime() : 0) - (a.lastMessageTime ? new Date(a.lastMessageTime).getTime() : 0));
   }, [useRealData, dbConversations, conversations, searchQuery]);
@@ -119,12 +166,24 @@ export default function MessagesPage() {
   useEffect(() => {
     if (!selectedConversation || !useRealData || !isValidUUID(selectedConversation)) return;
     const loadMessages = async () => {
+      setMessagesLoading(true);
       const msgs = await chatService.getMessages(selectedConversation);
       setDbMessages(msgs);
+      setMessagesLoading(false);
       if (profile?.id) chatService.markAsRead(selectedConversation, profile.id, 'buyer');
     };
     loadMessages();
+    // Reset reply state when switching conversations
+    setReplyingTo(null);
   }, [selectedConversation, useRealData, profile?.id]);
+
+  // Check seller suspension status when conversation changes
+  useEffect(() => {
+    if (!selectedConversation || !useRealData) { setSellerSuspended(false); return; }
+    const conv = dbConversations.find(c => c.id === selectedConversation);
+    if (!conv?.seller_id) { setSellerSuspended(false); return; }
+    chatService.getSellerStatus(conv.seller_id).then(s => setSellerSuspended(s.isSuspended)).catch(() => setSellerSuspended(false));
+  }, [selectedConversation, useRealData, dbConversations]);
 
   useEffect(() => {
     if (!selectedConversation || !useRealData || !isValidUUID(selectedConversation)) return;
@@ -168,37 +227,27 @@ export default function MessagesPage() {
   const initialSellerId = queryParams.get('sellerId');
 
   useEffect(() => {
-    if (!initialSellerId) return;
+    if (!initialSellerId || !profile?.id || loading) return;
+
+    // Conversations are now loaded — check if one already exists for this seller
+    const existingDbConv = dbConversations.find(c => c.seller_id === initialSellerId);
+    if (existingDbConv) {
+      setSelectedConversation(existingDbConv.id);
+      return;
+    }
+
+    // No existing conversation found — look up or create via lite
     const initConversation = async () => {
-      if (profile?.id) {
-        try {
-          const existingDbConv = dbConversations.find(c => c.seller_id === initialSellerId);
-          if (existingDbConv) return setSelectedConversation(existingDbConv.id);
-          const conv = await chatService.getOrCreateConversation(profile.id, initialSellerId);
-          if (conv) {
-            setSelectedConversation(conv.id);
-            loadConversations();
-            return;
-          }
-        } catch (error) { console.error(error); }
-      }
-      const existingConv = conversations.find(c => c.sellerId === initialSellerId);
-      if (existingConv) setSelectedConversation(existingConv.id);
-      else {
-        const sellerDetails = demoSellers?.find(s => s.id === initialSellerId) || viewedSellers?.find(s => s.id === initialSellerId);
-        const newConv: Conversation = {
-          id: `conv-${initialSellerId}`, sellerId: initialSellerId,
-          sellerName: sellerDetails?.name || 'Seller Store', sellerImage: sellerDetails?.avatar,
-          lastMessage: `Welcome to ${sellerDetails?.name || 'our store'}! 🛍️`, lastMessageTime: new Date().toISOString(),
-          unreadCount: 0, isOnline: true,
-          messages: [{ id: `init-${Date.now()}`, senderId: 'seller', text: `Welcome! How can we help you?`, timestamp: new Date().toISOString(), isRead: true }]
-        };
-        addConversation(newConv);
-        setSelectedConversation(newConv.id);
-      }
+      try {
+        const conv = await chatService.getOrCreateConversationLite(profile.id, initialSellerId);
+        if (conv) {
+          setSelectedConversation(conv.id);
+          loadConversations(); // Refresh list so new conv appears in sidebar
+        }
+      } catch (error) { console.error(error); }
     };
     initConversation();
-  }, [initialSellerId, profile?.id, dbConversations, conversations, demoSellers, viewedSellers, addConversation, loadConversations]);
+  }, [initialSellerId, profile?.id, loading]);
 
   // *** NO auto-selection: users must click a conversation ***
 
@@ -258,15 +307,36 @@ export default function MessagesPage() {
     const messageText = textOverride || newMessage;
     if (!messageText.trim() && (!imageUrls || imageUrls.length === 0) || !selectedConversation) return;
 
+    // Block if seller is suspended
+    if (sellerSuspended) {
+      toast({ title: 'Cannot send message', description: "This seller's account is suspended.", variant: 'destructive' });
+      return;
+    }
+
+    // Quick reply cooldown
+    if (textOverride && ALL_QUICK_REPLIES.includes(textOverride)) {
+      setQRCooldown(selectedConversation, textOverride);
+      setQrCooldownTick(t => t + 1);
+      // Re-check after 5min
+      setTimeout(() => setQrCooldownTick(t => t + 1), 5 * 60 * 1000 + 100);
+    }
+
     if (useRealData && profile?.id) {
       const msgText = messageText.trim();
+      const activeConv = dbConversations.find(c => c.id === selectedConversation);
       if (!textOverride) {
         setNewMessage('');
         if (textareaRef.current) textareaRef.current.style.height = 'auto';
       }
+      const currentReplyTo = replyingTo;
+      setReplyingTo(null);
       setSending(true);
       try {
-        const result = await chatService.sendMessage(selectedConversation, profile.id, 'buyer', msgText);
+        const result = await chatService.sendMessage(
+          selectedConversation, profile.id, 'buyer', msgText,
+          undefined, undefined, undefined,
+          currentReplyTo?.id, activeConv?.seller_id || undefined
+        );
         if (result) {
           setDbMessages(prev =>
             prev.some(msg => msg.id === result.id) ? prev : [...prev, result]
@@ -300,7 +370,7 @@ export default function MessagesPage() {
     const file = files[0]; // Preview one at a time
     const { valid, mediaType, error } = validateChatMedia(file);
     if (!valid || !mediaType) {
-      console.error('[MessagesPage] Invalid file:', error);
+      setInvalidFileError(error || 'File type not supported.');
       if (fileInputRef.current) fileInputRef.current.value = '';
       if (docInputRef.current) docInputRef.current.value = '';
       return;
@@ -322,7 +392,8 @@ export default function MessagesPage() {
   };
 
   const confirmSendMedia = async () => {
-    if (!pendingMedia || !selectedConversation || !profile?.id) return;
+    if (!pendingMedia || !selectedConversation || !profile?.id || isSendingMediaRef.current) return;
+    isSendingMediaRef.current = true;
     const { file, mediaType } = pendingMedia;
     setPendingMedia(null); // Close modal immediately
 
@@ -331,7 +402,9 @@ export default function MessagesPage() {
     setUploading(false);
 
     if (!url) {
-      console.error('[MessagesPage] Upload failed');
+      toast({ title: 'Upload failed', description: 'Could not upload file. Please try again.', variant: 'destructive' });
+      // Keep pendingMedia open so user can retry
+      setPendingMedia({ file, previewUrl: URL.createObjectURL(file), mediaType });
       return;
     }
 
@@ -354,8 +427,10 @@ export default function MessagesPage() {
     };
     setDbMessages(prev => [...prev, tempMsg]);
 
+    const activeConv = dbConversations.find(c => c.id === selectedConversation);
     const result = await chatService.sendMessage(
-      selectedConversation, profile.id, 'buyer', placeholder, undefined, url, mediaType
+      selectedConversation, profile.id, 'buyer', placeholder, undefined, url, mediaType,
+      undefined, activeConv?.seller_id || undefined
     );
 
     if (result) {
@@ -374,6 +449,7 @@ export default function MessagesPage() {
         )
       );
     }
+    isSendingMediaRef.current = false;
   };
 
 
@@ -410,19 +486,22 @@ export default function MessagesPage() {
             <div className="relative">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-[var(--text-muted)] h-4 w-4" />
               <Input
-                placeholder="Search conversations..."
+                placeholder="Search Conversations"
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
-                className="pl-9 bg-[var(--brand-wash)] border-none focus-visible:ring-1 focus-visible:ring-[var(--brand-primary)] rounded-xl py-5"
+                className="pl-9 pr-8 bg-[var(--brand-wash)] border-none focus-visible:ring-1 focus-visible:ring-[var(--brand-primary)] rounded-xl py-5"
               />
+              {searchQuery && (
+                <button onClick={() => setSearchQuery('')} className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 transition-colors">
+                  <X className="h-4 w-4" />
+                </button>
+              )}
             </div>
           </div>
 
           <div className="flex-1 overflow-y-auto">
             {loading ? (
-              <div className="flex items-center justify-center py-12">
-                <Loader2 className="h-8 w-8 animate-spin text-[var(--brand-primary)]" />
-              </div>
+              <ChatListSkeleton />
             ) : filteredConversations.length === 0 ? (
               <div className="flex flex-col items-center justify-center py-12 px-4 text-center">
                 <MessageSquare className="h-12 w-12 text-[var(--text-muted)] mb-3" />
@@ -453,7 +532,7 @@ export default function MessagesPage() {
                       <div className="flex justify-between items-baseline gap-2 mb-0.5">
                         <h4 className="font-bold text-[var(--text-headline)] truncate min-w-0">{conv.seller_store_name || 'Store'}</h4>
                         <span className="text-[10px] font-semibold text-[var(--text-muted)] uppercase shrink-0">
-                          {new Date(conv.last_message_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                          {formatSmartDate(conv.last_message_at)}
                         </span>
                       </div>
                       <p className={`text-sm truncate ${conv.buyer_unread_count > 0 ? 'text-[var(--text-headline)] font-semibold' : 'text-[var(--text-muted)]'}`}>
@@ -517,9 +596,6 @@ export default function MessagesPage() {
           {activeConversation ? (
             <>
               <div className="bg-[var(--brand-primary)] p-4 flex items-center gap-4 text-white shadow-md relative z-10">
-                <Button variant="ghost" size="icon" className="text-white hover:bg-white/10" onClick={() => { setSelectedConversation(null); }}>
-                  <ChevronLeft className="h-6 w-6" />
-                </Button>
                 <div className="relative">
                   <Avatar className="h-10 w-10 border-2 border-white/20">
                     <AvatarImage src={useRealData ? undefined : (activeConversation as Conversation).sellerImage} />
@@ -527,16 +603,13 @@ export default function MessagesPage() {
                       {(useRealData ? ((activeConversation as DBConversation).seller_store_name || 'S') : (activeConversation as Conversation).sellerName).charAt(0)}
                     </AvatarFallback>
                   </Avatar>
-                  {/* 👈 NEW: Header avatar indicator online/offline */}
                   <span className={`absolute bottom-0 right-0 w-3 h-3 border-2 border-[var(--brand-primary)] rounded-full ${(activeConversation as any).is_online || (activeConversation as Conversation).isOnline ? 'bg-teal-400' : 'bg-gray-400'}`} />
                 </div>
                 <div className="flex-1">
                   <h3 className="font-bold leading-tight">
-                    {useRealData ? (activeConversation as DBConversation).seller_store_name || 'Store' : (activeConversation as Conversation).sellerName}
+                    {useRealData ? (activeConversation as DBConversation).seller_store_name || 'Unknown Store' : (activeConversation as Conversation).sellerName}
                   </h3>
-                  {/* 👈 NEW: Header text indicator online/offline */}
-                  <div className="flex items-center gap-1 text-[11px] font-medium opacity-90 text-white">
-                    <span className={`w-1.5 h-1.5 rounded-full ${(activeConversation as any).is_online || (activeConversation as Conversation).isOnline ? 'bg-teal-400 animate-pulse' : 'bg-gray-400'}`} />
+                  <div className="flex items-center gap-1.5 text-xs font-medium text-white/70">
                     {(activeConversation as any).is_online || (activeConversation as Conversation).isOnline ? 'Online' : 'Offline'}
                   </div>
                 </div>
@@ -558,16 +631,24 @@ export default function MessagesPage() {
                 </div>
               </div>
 
-              {/* Chat messages — flex-col-reverse anchors scroll to bottom natively.
-                  min-h-0 prevents the flex child from overflowing its parent's
-                  constrained height so overflow-y-auto actually fires.
-                  space-y-reverse flips the margin direction to match the
-                  reversed flex axis, keeping gaps visually between messages. */}
-              <div className="flex-1 min-h-0 overflow-y-auto p-6 space-y-6 space-y-reverse bg-gray-50/50 flex flex-col-reverse">
+              {/* Suspended seller banner */}
+              {sellerSuspended && (
+                <div className="bg-red-500/10 border-b border-red-200 px-4 py-2 text-center">
+                  <span className="text-xs font-semibold text-red-600">⚠ This seller's account is suspended. You cannot send messages.</span>
+                </div>
+              )}
+
+
+              <div
+                ref={chatContainerRef}
+                className="flex-1 min-h-0 overflow-y-auto p-6 space-y-6 space-y-reverse bg-gray-50/50 flex flex-col-reverse relative"
+                onScroll={(e) => {
+                  const el = e.currentTarget;
+                  setShowJumpToLatest(el.scrollTop < -300);
+                }}
+              >
                 {useRealData ? (
                   (() => {
-                    // Build list with date separators
-                    // Iterate oldest→newest so that flex-col-reverse places date labels ABOVE their group
                     const items: React.ReactNode[] = [];
                     let lastDateLabel = '';
                     dbMessages.forEach((msg, idx) => {
@@ -576,41 +657,50 @@ export default function MessagesPage() {
                       if (dateLabel !== lastDateLabel) {
                         items.push(
                           <div key={`sep-${idx}`} className="flex justify-center items-center my-4 w-full pointer-events-none">
-                            <div className="h-px bg-[var(--brand-wash-gold)]/30 flex-1" />
-                            <span className="mx-3 text-[10px] font-semibold text-[var(--text-muted)] uppercase tracking-widest bg-gray-50/80 px-2 py-0.5 rounded-full">{dateLabel}</span>
-                            <div className="h-px bg-[var(--brand-wash-gold)]/30 flex-1" />
+                            <div className="h-px bg-orange-200/60 flex-1" />
+                            <span className="mx-3 text-[10px] font-semibold text-gray-400 uppercase tracking-widest bg-[var(--brand-wash)] px-2 py-0.5 rounded-full">{dateLabel}</span>
+                            <div className="h-px bg-orange-200/60 flex-1" />
                           </div>
                         );
                         lastDateLabel = dateLabel;
                       }
                       if (msg.message_type === 'system') {
-                        items.push(
-                          <div key={msg.id} className="flex justify-center items-center my-6 w-full opacity-90 pointer-events-none">
-                            <div className="h-px bg-orange-200 flex-1"></div>
-                            <div className="mx-4 bg-orange-50 text-orange-600 px-4 py-1.5 rounded-full text-xs font-bold uppercase tracking-widest border border-orange-100 shadow-sm">
-                              {msg.message_content}
-                            </div>
-                            <div className="h-px bg-orange-200 flex-1"></div>
-                          </div>
-                        );
                         return;
                       }
                       const isBuyer = msg.sender_type === 'buyer';
                       const fullTimestamp = msgDate.toLocaleString([], { year: 'numeric', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' });
+                      // Find replied-to message
+                      const repliedMsg = msg.reply_to_message_id ? dbMessages.find(m => m.id === msg.reply_to_message_id) : null;
                       items.push(
-                        <div key={msg.id} className={`flex ${isBuyer ? 'justify-end' : 'justify-start'}`}>
+                        <div key={msg.id} id={`msg-${msg.id}`} className={`flex ${isBuyer ? 'justify-end' : 'justify-start'} group/msg`}>
                           <div className={`max-w-[80%] flex flex-col ${isBuyer ? 'items-end' : 'items-start'}`}>
                             <div
-                              title={fullTimestamp}
-                              className={`max-w-full px-4 py-3 rounded-2xl shadow-sm cursor-default group relative ${isBuyer ? 'bg-[var(--brand-primary)] text-white rounded-tr-sm' : 'bg-[var(--bg-secondary)] text-[var(--text-primary)] rounded-tl-sm border border-[var(--brand-wash-gold)]/20'}`}
+                              className={`max-w-full px-4 py-3 rounded-2xl shadow-sm cursor-default group relative transition-all ${isBuyer ? 'bg-[var(--brand-primary)] text-white rounded-tr-sm' : 'bg-[var(--bg-secondary)] text-[var(--text-primary)] rounded-tl-sm border border-[var(--brand-wash-gold)]/20'}`}
                             >
+                              {/* Reply-to quote block */}
+                              {repliedMsg && (
+                                <div
+                                  className={`mb-2 px-3 py-1.5 rounded-lg text-xs border-l-2 cursor-pointer hover:opacity-80 transition-opacity ${isBuyer ? 'bg-white/10 border-white/40 text-white/80' : 'bg-gray-100 border-gray-300 text-gray-500'}`}
+                                  onClick={() => {
+                                    const el = document.getElementById(`msg-${repliedMsg.id}`);
+                                    if (el) {
+                                      el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                                      el.classList.add('ring-2', 'ring-[var(--brand-primary)]');
+                                      setTimeout(() => el.classList.remove('ring-2', 'ring-[var(--brand-primary)]'), 1500);
+                                    }
+                                  }}
+                                >
+                                  <p className="font-semibold text-[10px] mb-0.5">{repliedMsg.sender_type === 'buyer' ? 'You' : (activeConversation as DBConversation)?.seller_store_name || 'Seller'}</p>
+                                  <p className="truncate">{repliedMsg.content}</p>
+                                </div>
+                              )}
                               {/* Image */}
                               {(msg.media_url || msg.image_url) && (msg.message_type === 'image' || msg.media_type === 'image' || (!msg.media_type && msg.image_url)) && (
                                 <img
                                   src={msg.media_url || msg.image_url!}
                                   alt="Attachment"
                                   loading="lazy"
-                                  className="max-w-[220px] max-h-[220px] rounded-lg object-cover cursor-pointer mb-1 border border-white/10 hover:opacity-90 transition-opacity"
+                                  className="max-w-[220px] max-h-[220px] rounded-lg object-cover cursor-pointer mb-1 border border-white/10 hover:opacity-80 transition-opacity"
                                   onClick={() => setPreviewMedia({ type: 'image', url: (msg.media_url || msg.image_url)! })}
                                 />
                               )}
@@ -646,14 +736,19 @@ export default function MessagesPage() {
                               {msg.content && !(msg.media_url && ['[Image]', '[Video]', '[Document]'].includes(msg.content)) && !(msg.image_url && msg.content === '[Image]') && (
                                 <p className="text-sm leading-relaxed whitespace-pre-wrap break-words">{msg.content}</p>
                               )}
-                              {/* Hover timestamp tooltip */}
+                              {/* Hover timestamp tooltip + reply button */}
                               <span className={`absolute bottom-full mb-1 ${isBuyer ? 'right-0' : 'left-0'} hidden group-hover:block text-[10px] text-white bg-gray-700/90 rounded px-2 py-0.5 whitespace-nowrap z-10`}>
                                 {fullTimestamp}
                               </span>
+                              {/* Reply icon on hover */}
+                              <button
+                                onClick={() => setReplyingTo(msg)}
+                                className={`absolute top-1/2 -translate-y-1/2 ${isBuyer ? '-left-8' : '-right-8'} opacity-0 group-hover/msg:opacity-100 transition-opacity p-1 rounded-full hover:bg-gray-200`}
+                                title="Reply"
+                              >
+                                <Reply className="w-3.5 h-3.5 text-gray-400" />
+                              </button>
                             </div>
-                            <span className="text-[10px] text-gray-400 mt-1.5 px-1 font-medium">
-                              {msgDate.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                            </span>
                           </div>
                         </div>
                       );
@@ -688,11 +783,34 @@ export default function MessagesPage() {
                   })
                 )}
               </div>
+              {/* Jump to latest button */}
+              {showJumpToLatest && (
+                <button
+                  onClick={() => chatContainerRef.current?.scrollTo({ top: 0, behavior: 'smooth' })}
+                  className="absolute left-1/2 -translate-x-1/2 z-20 bg-[var(--brand-primary)] text-white px-4 py-2 rounded-full shadow-lg flex items-center gap-1.5 text-sm font-medium hover:bg-[var(--brand-primary-dark)] transition-colors"
+                  style={{ bottom: `${inputBarHeight + 16}px` }}
+                >
+                  <ChevronDown className="w-4 h-4" /> Jump to latest
+                </button>
+              )}
 
-              <div className="p-4 bg-[var(--bg-secondary)] border-t border-[var(--brand-wash-gold)]/20 space-y-4">
+              <div ref={inputBarRef} className="p-4 bg-[var(--bg-secondary)] border-t border-[var(--brand-wash-gold)]/20 space-y-4">
+                {/* Reply preview bar */}
+                {replyingTo && (
+                  <div className="flex items-center gap-2 px-3 py-2 bg-[var(--brand-wash)] rounded-xl border border-[var(--brand-wash-gold)]/20">
+                    <Reply className="w-4 h-4 text-[var(--brand-primary)] flex-shrink-0" />
+                    <div className="flex-1 min-w-0">
+                      <p className="text-[10px] font-semibold text-[var(--brand-primary)]">
+                        {replyingTo.sender_type === 'buyer' ? 'You' : (activeConversation as DBConversation)?.seller_store_name || 'Seller'}
+                      </p>
+                      <p className="text-xs text-[var(--text-muted)] truncate">{replyingTo.content}</p>
+                    </div>
+                    <button onClick={() => setReplyingTo(null)} className="text-gray-400 hover:text-gray-600"><X className="w-4 h-4" /></button>
+                  </div>
+                )}
                 <div className="flex gap-2 overflow-x-auto pb-1 scrollbar-hide no-scrollbar">
-                  {quickReplies.map((reply) => (
-                    <button key={reply} onClick={() => handleSendMessage(undefined, reply)} className="whitespace-nowrap px-4 py-2 rounded-full border border-[var(--brand-wash-gold)]/20 text-sm font-medium text-[var(--text-primary)] hover:border-[var(--brand-primary)] hover:text-[var(--brand-primary)] hover:bg-[var(--brand-wash)] transition-all shadow-sm">
+                  {availableQuickReplies.map((reply) => (
+                    <button key={reply} onClick={() => handleSendMessage(undefined, reply)} disabled={sellerSuspended} className="whitespace-nowrap px-4 py-2 rounded-full border border-[var(--brand-wash-gold)]/20 text-sm font-medium text-[var(--text-primary)] hover:border-[var(--brand-primary)] hover:text-[var(--brand-primary)] hover:bg-[var(--brand-wash)] transition-all shadow-sm disabled:opacity-50 disabled:cursor-not-allowed">
                       {reply}
                     </button>
                   ))}
@@ -700,10 +818,10 @@ export default function MessagesPage() {
                 <form onSubmit={handleSendMessage} className="flex items-center gap-2 p-1 bg-[var(--brand-wash)] rounded-2xl border border-[var(--brand-wash-gold)]/20 focus-within:border-[var(--brand-primary)] transition-all">
                   <input type="file" ref={fileInputRef} onChange={handleMediaUpload} accept="image/jpeg,image/png,image/webp,video/mp4,video/quicktime" multiple className="hidden" />
                   <input type="file" ref={docInputRef} onChange={handleMediaUpload} accept="application/pdf" className="hidden" />
-                  <Button type="button" variant="ghost" size="icon" className="text-[var(--text-muted)] hover:text-[var(--brand-primary)] rounded-full" onClick={() => fileInputRef.current?.click()} disabled={sending || uploading}>
+                  <Button type="button" variant="ghost" size="icon" className="text-[var(--text-muted)] hover:text-[var(--brand-primary)] rounded-full" onClick={() => fileInputRef.current?.click()} disabled={sending || uploading || sellerSuspended}>
                     {uploading ? <Loader2 className="h-5 w-5 animate-spin" /> : <ImageIcon className="h-5 w-5" />}
                   </Button>
-                  <Button type="button" variant="ghost" size="icon" className="text-[var(--text-muted)] hover:text-[var(--brand-primary)] rounded-full -ml-1" onClick={() => docInputRef.current?.click()} disabled={sending || uploading}>
+                  <Button type="button" variant="ghost" size="icon" className="text-[var(--text-muted)] hover:text-[var(--brand-primary)] rounded-full -ml-1" onClick={() => docInputRef.current?.click()} disabled={sending || uploading || sellerSuspended}>
                     <Paperclip className="h-5 w-5" />
                   </Button>
                   <textarea
@@ -725,10 +843,10 @@ export default function MessagesPage() {
                       t.style.height = 'auto';
                       t.style.height = `${Math.min(t.scrollHeight, 120)}px`;
                     }}
-                    disabled={sending || uploading}
+                    disabled={sending || uploading || sellerSuspended}
                   />
                   <div className="flex items-center gap-1 pr-1">
-                    <Button type="submit" className="bg-[var(--brand-primary)] hover:bg-[var(--brand-primary-dark)] text-white rounded-xl h-10 w-10 p-0 shadow-lg shadow-[var(--brand-primary)]/20" disabled={!newMessage.trim() || sending || uploading}>
+                    <Button type="submit" className="bg-[var(--brand-primary)] hover:bg-[var(--brand-primary-dark)] text-white rounded-xl h-10 w-10 p-0 shadow-lg shadow-[var(--brand-primary)]/20" disabled={!newMessage.trim() || sending || uploading || sellerSuspended}>
                       {sending ? <Loader2 className="h-5 w-5 animate-spin" /> : <Send className="h-5 w-5" />}
                     </Button>
                   </div>
@@ -766,7 +884,7 @@ export default function MessagesPage() {
               animate={{ scale: 1, opacity: 1, y: 0 }}
               exit={{ scale: 0.9, opacity: 0, y: 20 }}
               transition={{ type: 'spring', duration: 0.4 }}
-              className="relative bg-white rounded-2xl shadow-2xl w-full max-w-md overflow-hidden"
+              className={`relative bg-white rounded-2xl shadow-2xl w-full overflow-hidden ${pendingMedia.mediaType === 'document' ? 'max-w-2xl' : 'max-w-md'}`}
               onClick={(e) => e.stopPropagation()}
             >
               {/* Header */}
@@ -800,13 +918,11 @@ export default function MessagesPage() {
                   />
                 )}
                 {pendingMedia.mediaType === 'document' && (
-                  <div className="flex flex-col items-center gap-3 py-6">
-                    <div className="w-16 h-16 bg-orange-50 rounded-2xl flex items-center justify-center">
-                      <FileText className="w-8 h-8 text-[var(--brand-primary)]" />
-                    </div>
-                    <p className="text-gray-900 font-medium text-sm text-center max-w-[280px] truncate">{pendingMedia.file.name}</p>
-                    <p className="text-gray-400 text-xs">{(pendingMedia.file.size / (1024 * 1024)).toFixed(1)} MB</p>
-                  </div>
+                  <iframe
+                    src={`${pendingMedia.previewUrl}#toolbar=0`}
+                    className="w-full h-[360px] rounded-lg border-0"
+                    title="PDF Preview"
+                  />
                 )}
               </div>
 
@@ -820,7 +936,8 @@ export default function MessagesPage() {
                 </button>
                 <button
                   onClick={confirmSendMedia}
-                  className="px-5 py-2.5 rounded-xl bg-[var(--brand-primary)] hover:bg-[var(--brand-primary-dark)] text-white font-semibold text-sm shadow-sm hover:shadow-md transition-all flex items-center gap-2"
+                  disabled={uploading}
+                  className="px-5 py-2.5 rounded-xl bg-[var(--brand-primary)] hover:bg-[var(--brand-primary-dark)] text-white font-semibold text-sm shadow-sm hover:shadow-md transition-all flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                   <Send className="w-4 h-4" />
                   Send
@@ -832,6 +949,7 @@ export default function MessagesPage() {
       </AnimatePresence>
 
       <ChatMediaModal media={previewMedia} onClose={() => setPreviewMedia(null)} />
+      <InvalidFileModal error={invalidFileError} onClose={() => setInvalidFileError(null)} />
     </div>
   );
 }
