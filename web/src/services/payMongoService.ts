@@ -669,10 +669,10 @@ export class PayMongoGatewayService {
       })
       .eq('id', transactionId);
 
-    // 2. Update order payment status
+    // 2. Update order payment status + shipment status so the order appears as Processing for the buyer
     await supabase
       .from('orders')
-      .update({ payment_status: 'paid', paid_at: now, updated_at: now })
+      .update({ payment_status: 'paid', shipment_status: 'processing', paid_at: now, updated_at: now })
       .eq('id', request.orderId);
 
     // 3. Add order status history
