@@ -1,40 +1,4 @@
-import { useEffect, useState } from 'react';
-import { motion } from 'framer-motion';
-import { useNavigate, useLocation } from 'react-router-dom';
-import Header from '../components/Header';
-import { BazaarFooter } from '../components/ui/bazaar-footer';
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '../components/ui/card';
-import { Button } from '../components/ui/button';
-import { Input } from '../components/ui/input';
-import { Label } from '../components/ui/label';
-import { Switch } from '../components/ui/switch';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '../components/ui/tabs';
-import { Badge } from '../components/ui/badge';
-import {
-  MapPin,
-  CreditCard,
-  Wallet,
-  Bell,
-  Shield,
-  Smartphone,
-  Mail,
-  Lock,
-  Trash2,
-  Plus,
-  Edit3,
-  Facebook,
-  Twitter,
-  Eye,
-  EyeOff,
-  Save,
-  Loader2,
-  Map,
-  LocateFixed,
-  Check,
-  ChevronLeft,
-  AlertTriangle,
-} from 'lucide-react';
-import { supabase } from '../lib/supabase';
+import { AddressPicker } from '@/components/ui/address-picker';
 import {
   Dialog,
   DialogContent,
@@ -43,13 +7,47 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog';
-import { cn } from '@/lib/utils';
-import { useBuyerStore, Address } from '../stores/buyerStore';
-import { useToast } from '@/hooks/use-toast';
-import { regions, provinces, cities, barangays } from "select-philippines-address";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { AddressPicker } from '@/components/ui/address-picker';
+import { useToast } from '@/hooks/use-toast';
+import { cn } from '@/lib/utils';
+import { motion } from 'framer-motion';
+import {
+  AlertTriangle,
+  Bell,
+  Check,
+  ChevronLeft,
+  CreditCard,
+  Edit3,
+  Eye,
+  EyeOff,
+  Loader2,
+  LocateFixed,
+  Lock,
+  Mail,
+  Map,
+  MapPin,
+  Plus,
+  Save,
+  Shield,
+  Smartphone,
+  Trash2,
+  Wallet
+} from 'lucide-react';
+import { useEffect, useState } from 'react';
+import { useLocation, useNavigate } from 'react-router-dom';
+import { barangays, cities, provinces, regions } from "select-philippines-address";
+import Header from '../components/Header';
+import { Badge } from '../components/ui/badge';
+import { BazaarFooter } from '../components/ui/bazaar-footer';
+import { Button } from '../components/ui/button';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../components/ui/card';
+import { Input } from '../components/ui/input';
+import { Label } from '../components/ui/label';
+import { Switch } from '../components/ui/switch';
+import { Tabs, TabsContent } from '../components/ui/tabs';
+import { supabase } from '../lib/supabase';
 import { authService } from '../services/authService';
+import { Address, useBuyerStore } from '../stores/buyerStore';
 import { validatePassword } from '../utils/validation';
 
 // Mock data
@@ -111,41 +109,11 @@ export default function BuyerSettingsPage() {
   const { toast } = useToast();
   const { profile, addresses, addAddress, updateAddress, deleteAddress, logout } = useBuyerStore();
 
-  // Account deletion state
-  const [showDeleteModal, setShowDeleteModal] = useState(false);
-  const [deletePassword, setDeletePassword] = useState('');
-  const [deleteConfirmText, setDeleteConfirmText] = useState('');
-  const [isDeleting, setIsDeleting] = useState(false);
-
-  const handleDeleteAccount = async () => {
-    if (deleteConfirmText !== 'DELETE') {
-      toast({ title: 'Type DELETE to confirm', variant: 'destructive' });
-      return;
-    }
-    if (!deletePassword) {
-      toast({ title: 'Password required', variant: 'destructive' });
-      return;
-    }
-    setIsDeleting(true);
-    try {
-      const { data, error } = await supabase.functions.invoke('delete-account', {
-        body: { password: deletePassword, confirm: true },
-      });
-      if (error || data?.error) {
-        const msg = data?.message || data?.error || error?.message || 'Failed to delete account';
-        toast({ title: 'Error', description: msg, variant: 'destructive' });
-        return;
-      }
-      toast({ title: 'Account deleted', description: 'Your account has been permanently deleted.' });
-      logout();
-      await supabase.auth.signOut();
-      navigate('/');
-    } catch (err: unknown) {
-      const message = err instanceof Error ? err.message : 'An unexpected error occurred';
-      toast({ title: 'Error', description: message, variant: 'destructive' });
-    } finally {
-      setIsDeleting(false);
-    }
+  const handleDeleteAccount = () => {
+    toast({
+      title: 'Coming Soon',
+      description: 'Account deletion is not yet available. This feature is coming soon.',
+    });
   };
 
   const [isAddressOpen, setIsAddressOpen] = useState(false);
@@ -1189,7 +1157,7 @@ export default function BuyerSettingsPage() {
                     <Button
                       variant="destructive"
                       size="sm"
-                      onClick={() => setShowDeleteModal(true)}
+                      onClick={handleDeleteAccount}
                       className="ml-4 shrink-0"
                     >
                       <Trash2 className="h-4 w-4 mr-1.5" />
@@ -1203,76 +1171,6 @@ export default function BuyerSettingsPage() {
         </Tabs>
       </div>
       <BazaarFooter />
-
-      {/* Account Deletion Confirmation Dialog */}
-      <Dialog open={showDeleteModal} onOpenChange={(open) => {
-        if (!isDeleting) {
-          setShowDeleteModal(open);
-          if (!open) { setDeletePassword(''); setDeleteConfirmText(''); }
-        }
-      }}>
-        <DialogContent className="sm:max-w-[440px]">
-          <DialogHeader>
-            <DialogTitle className="flex items-center gap-2 text-red-700">
-              <AlertTriangle className="h-5 w-5" />
-              Delete Account
-            </DialogTitle>
-            <DialogDescription className="text-gray-600">
-              This action is <strong>permanent and irreversible</strong>. All your data —
-              orders, addresses, reviews, and profile information — will be deleted in
-              compliance with the Data Privacy Act (RA 10173).
-            </DialogDescription>
-          </DialogHeader>
-
-          <div className="space-y-4 py-2">
-            <div className="space-y-2">
-              <Label htmlFor="delete-password">Confirm your password</Label>
-              <Input
-                id="delete-password"
-                type="password"
-                placeholder="Your current password"
-                value={deletePassword}
-                onChange={(e) => setDeletePassword(e.target.value)}
-                disabled={isDeleting}
-              />
-            </div>
-
-            <div className="space-y-2">
-              <Label htmlFor="delete-confirm">
-                Type <strong>DELETE</strong> to confirm
-              </Label>
-              <Input
-                id="delete-confirm"
-                placeholder="DELETE"
-                value={deleteConfirmText}
-                onChange={(e) => setDeleteConfirmText(e.target.value)}
-                disabled={isDeleting}
-              />
-            </div>
-          </div>
-
-          <DialogFooter className="gap-2">
-            <Button
-              variant="outline"
-              onClick={() => setShowDeleteModal(false)}
-              disabled={isDeleting}
-            >
-              Cancel
-            </Button>
-            <Button
-              variant="destructive"
-              onClick={handleDeleteAccount}
-              disabled={isDeleting || deleteConfirmText !== 'DELETE' || !deletePassword}
-            >
-              {isDeleting ? (
-                <><Loader2 className="h-4 w-4 mr-2 animate-spin" />Deleting...</>
-              ) : (
-                <><Trash2 className="h-4 w-4 mr-2" />Permanently Delete</>
-              )}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
 
       <Dialog open={isAddressOpen} onOpenChange={(open) => { setIsAddressOpen(open); if (!open) setShowMapPicker(false); }}>
         <DialogContent className="sm:max-w-[550px] max-h-[90vh] overflow-hidden flex flex-col">

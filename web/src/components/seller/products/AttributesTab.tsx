@@ -1,8 +1,8 @@
-import { Button } from "@/components/ui/button";
-import { Plus, X, Ruler, HelpCircle } from "lucide-react";
-import { useState } from "react";
 import { VariantManager } from "@/components/seller/products/VariantManager";
+import { Button } from "@/components/ui/button";
 import { VariantConfig } from "@/types";
+import { HelpCircle, Plus, Ruler, X } from "lucide-react";
+import { useState } from "react";
 
 interface AttributesTabProps {
     formData: {
