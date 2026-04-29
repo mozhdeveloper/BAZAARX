@@ -20,6 +20,10 @@ export interface RegistryDeliveryPreference {
   addressId?: string;
   showAddress: boolean;
   instructions?: string;
+  recipientName?: string;
+  recipientPhone?: string;
+  city?: string;
+  province?: string;
 }
 
 export interface RegistryProduct extends Product {

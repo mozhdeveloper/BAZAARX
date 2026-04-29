@@ -78,27 +78,29 @@ class ChatService {
     sellerId: string,
     orderId?: string
   ): Promise<{ id: string } | null> {
-    // Primary dedup key: (buyer_id, seller_id)
-    const { data: bySeller } = await supabase
-      .from('conversations')
-      .select('id')
-      .eq('buyer_id', buyerId)
-      .eq('seller_id', sellerId)
-      .order('created_at', { ascending: true })
-      .limit(1)
-      .maybeSingle();
+    // New schema uses (buyer_id, order_id) for deduping orders
+    if (orderId) {
+      const { data: byOrder } = await supabase
+        .from('conversations')
+        .select('id')
+        .eq('buyer_id', buyerId)
+        .eq('order_id', orderId)
+        .maybeSingle();
 
-    if (bySeller) {
-      // Backfill order_id if not yet set and we have one
-      if (orderId) {
-        await supabase.from('conversations').update({ order_id: orderId }).eq('id', bySeller.id).is('order_id', null);
-      }
-      return bySeller;
+      if (byOrder) return byOrder;
     }
 
+    // Fallback: Check if there's already a conversation between these two
+    // Since seller_id is gone from conversations table, we'd have to check messages
+    // but for checkout, orderId is the primary key.
+    
     const { data: newConv, error } = await supabase
       .from('conversations')
-      .insert({ buyer_id: buyerId, seller_id: sellerId, order_id: orderId || null })
+      .insert({ 
+        buyer_id: buyerId, 
+        order_id: orderId || null,
+        // seller_id removed from schema cache
+      })
       .select('id')
       .single();
 
@@ -226,30 +228,24 @@ class ChatService {
    * Note: New schema doesn't have seller_id, but we track via order or messages
    */
   async getOrCreateConversation(buyerId: string, sellerId: string, orderId?: string): Promise<Conversation | null> {
-    // Primary dedup key: (buyer_id, seller_id)
-    const { data: bySeller, error: findError } = await supabase
-      .from('conversations')
-      .select('id, buyer_id, seller_id, order_id, created_at, updated_at')
-      .eq('buyer_id', buyerId)
-      .eq('seller_id', sellerId)
-      .order('created_at', { ascending: true })
-      .limit(1)
-      .maybeSingle();
+    if (orderId) {
+      const { data: byOrder, error: findError } = await supabase
+        .from('conversations')
+        .select('id, buyer_id, order_id, created_at, updated_at')
+        .eq('buyer_id', buyerId)
+        .eq('order_id', orderId)
+        .maybeSingle();
 
-    if (bySeller && !findError) {
-      // Backfill order_id if not yet set
-      if (orderId && !(bySeller as any).order_id) {
-        await supabase.from('conversations').update({ order_id: orderId }).eq('id', bySeller.id);
+      if (byOrder && !findError) {
+        return this.enrichConversation(byOrder, sellerId);
       }
-      return this.enrichConversation(bySeller, sellerId);
     }
 
-    // Create new conversation with seller_id set
+    // Create new conversation
     const { data: newConv, error: createError } = await supabase
       .from('conversations')
       .insert({
         buyer_id: buyerId,
-        seller_id: sellerId,
         order_id: orderId || null,
       })
       .select()
@@ -352,7 +348,7 @@ class ChatService {
   async getBuyerConversations(buyerId: string): Promise<Conversation[]> {
     const { data: conversations, error: convError } = await supabase
       .from('conversations')
-      .select('id, buyer_id, seller_id, order_id, created_at, updated_at')
+      .select('id, buyer_id, order_id, created_at, updated_at')
       .eq('buyer_id', buyerId)
       .order('updated_at', { ascending: false })
       .limit(50);
@@ -409,12 +405,6 @@ class ChatService {
     ]);
 
     const sellerIdByConvId = new Map<string, string>();
-    // Use seller_id from the conversations table first (most reliable)
-    for (const conv of conversations) {
-      if ((conv as any).seller_id) {
-        sellerIdByConvId.set(conv.id, (conv as any).seller_id);
-      }
-    }
     for (const msg of sellerMsgsResult.data || []) {
       if (!sellerIdByConvId.has(msg.conversation_id)) {
         sellerIdByConvId.set(msg.conversation_id, msg.sender_id);
@@ -848,7 +838,7 @@ class ChatService {
       console.error('[ChatService] Broadcast error (non-fatal):', broadcastError);
     }
 
-    return message;
+    return message as any;
   }
 
   /**

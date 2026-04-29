@@ -140,9 +140,9 @@ export interface SellerOrder {
         selectedVariantLabel2?: string;
     }[];
     total: number;
-    status: "pending" | "confirmed" | "shipped" | "delivered" | "cancelled";
+    status: "pending" | "confirmed" | "shipped" | "delivered" | "cancelled" | "returned" | "reviewed";
     paymentStatus: "pending" | "paid" | "refunded";
-    paymentMethod?: "cash" | "card" | "ewallet" | "bank_transfer" | "cod" | "online"; // Payment method used
+    paymentMethod?: "cash" | "card" | "ewallet" | "bank_transfer" | "cod" | "online" | "gcash" | "maya" | "paymaya" | "grab_pay"; // Payment method used
     orderDate: string;
     shippingAddress: {
         fullName: string;
@@ -172,6 +172,7 @@ export interface SellerOrder {
     type?: "ONLINE" | "OFFLINE"; // POS-Lite: Track order source
     posNote?: string; // POS-Lite: Optional note for offline sales
     notes?: string; // Unified notes field
+    is_registry_order?: boolean; // True when this is a registry gift order — address is privacy-protected
 }
 
 // Inventory Ledger - Immutable audit trail for all stock changes
