@@ -153,8 +153,9 @@ function App() {
       };
 
       // Track if this is an OAuth redirect callback (Supabase appends access_token in hash)
-      const isOAuthProvider = session?.user?.app_metadata?.provider && session.user.app_metadata.provider !== 'email';
       const oauthIntent = sessionStorage.getItem('oauth_intent');
+      // Treat as OAuth if metadata says so, OR if we have an explicit oauth_intent (fixes PKCE delay where provider is initially 'email')
+      const isOAuthProvider = (session?.user?.app_metadata?.provider && session.user.app_metadata.provider !== 'email') || !!oauthIntent;
       const oauthRedirectDone = sessionStorage.getItem('oauth_redirect_done');
       const isOAuthRedirect = isOAuthProvider && (oauthIntent === 'buyer' || oauthIntent === 'seller' || oauthIntent === 'link_google' || !oauthIntent);
       debug('onAuthStateChange', {

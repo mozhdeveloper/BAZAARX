@@ -68,12 +68,12 @@ export default function AuthCallbackPage() {
       const isOAuth = isOAuthByMetadata || isOAuthByIntent;
 
       if (isOAuth) {
-        console.log("[AuthCallback] OAuth user detected — skipping email flow, redirecting to /", { isOAuthByMetadata, isOAuthByIntent });
-        sessionStorage.removeItem("pendingBuyerSignup");
-        sessionStorage.removeItem("pendingSellerSignup");
-        sessionStorage.removeItem("oauth_intent");
-        sessionStorage.removeItem("oauth_redirect_done");
-        navigate("/", { replace: true });
+        console.log("[AuthCallback] OAuth user detected — skipping email flow. App.tsx will handle the redirect.");
+        // We only navigate if we've already done the initial redirect or as a fallback.
+        // DO NOT clear oauth_intent or oauth_redirect_done here; App.tsx needs them to fetch the profile!
+        if (sessionStorage.getItem("oauth_redirect_done") === "1") {
+          navigate("/", { replace: true });
+        }
         return;
       }
 
