@@ -17,6 +17,7 @@ import { sendOrderReceiptEmail } from '@/services/transactionalEmails';
 export interface CheckoutPayload {
     userId: string;
     items: (CartItem & {
+        name?: string; // REQUIRED: For stock validation and emails
         selected_variant?: any;
         product?: {
             price?: number;
@@ -36,6 +37,7 @@ export interface CheckoutPayload {
     email: string;
     voucherId?: string | null;
     selectedAddressId?: string | null;
+    selectedSavedCardId?: string | null;
     shippingBreakdown?: Array<{
         seller_id?: string;
         sellerId?: string;
@@ -51,6 +53,8 @@ export interface CheckoutPayload {
         cvv: string;
         cardName: string;
     };
+    isRegistryOrder?: boolean;
+    registryId?: string | null;
 }
 
 export interface CheckoutResult {
@@ -101,7 +105,8 @@ export class CheckoutService {
 
         const {
             userId, items, shippingAddress, paymentMethod,
-            usedBazcoins, earnedBazcoins, email, voucherId, discount
+            usedBazcoins, earnedBazcoins, email, voucherId, discount,
+            isRegistryOrder, registryId
         } = payload;
 
         console.log("Starting checkout process...", payload);
@@ -148,7 +153,7 @@ export class CheckoutService {
             for (const { item, variant } of stockValidationResults) {
                 if (variant) {
                     if (variant.stock < item.quantity) {
-                        throw new Error(`Insufficient stock for ${item.name}. Only ${variant.stock} available.`);
+                        throw new Error(`Insufficient stock for ${(item as any).name || (item as any).product_name || 'item'}. Only ${variant.stock} available.`);
                     }
                     (item as any).resolved_variant_id = variant.id;
                     resolvedStockMap.set(variant.id, variant.stock);
@@ -156,22 +161,63 @@ export class CheckoutService {
                     // Validate base product stock (for products without variants)
                     const productStock = productStockMap.get(item.product_id) || 0;
                     if (productStock < item.quantity) {
-                        throw new Error(`Insufficient stock for ${item.name}. Only ${productStock} available.`);
+                        const errorMsg = productStock === 0 
+                            ? `Insufficient stock for ${(item as any).name || (item as any).product_name || 'item'}. This product is currently unavailable or has no variants.`
+                            : `Insufficient stock for ${(item as any).name || (item as any).product_name || 'item'}. Only ${productStock} available.`;
+                        throw new Error(errorMsg);
                     }
                 }
             }
 
             // Recipient insert + shipping address lookup + discount fetch — all parallel
             const getOrCreateShippingAddress = async (): Promise<string | null> => {
-                const { data: existingAddr } = await supabase
-                    .from('shipping_addresses')
-                    .select('id')
-                    .eq('user_id', userId)
-                    .eq('address_line_1', shippingAddress.street || '')
-                    .eq('city', shippingAddress.city || '')
-                    .eq('postal_code', shippingAddress.postalCode || '')
-                    .maybeSingle();
-                if (existingAddr) return existingAddr.id;
+                // BX-ADDR-001: If the buyer explicitly selected a saved address AND this is NOT a
+                // registry order, use it directly. Do NOT query or insert — prevents address book duplication.
+                // Registry orders MUST skip this and use the registry's own delivery.addressId instead,
+                // because the gifter's address is NOT the recipient's address.
+                const selectedAddressId = payload.selectedAddressId;
+                if (selectedAddressId && !isRegistryOrder) {
+                    return selectedAddressId;
+                }
+
+                // For registry orders, always use the registry's designated delivery address.
+                // This is the RECIPIENT's real address (used by the seller for shipping).
+                // The gifter's selected address is intentionally ignored here.
+                if (isRegistryOrder && registryId) {
+                    const { data: reg } = await supabase.from('registries').select('delivery').eq('id', registryId).single();
+                    const delivery = reg?.delivery as { addressId?: string } | null;
+                    const regAddressId = delivery?.addressId;
+                    
+                    if (regAddressId) {
+                        // Verify the address actually exists to avoid FK violations (BX-REG-001)
+                        const { data: addrExists } = await supabase
+                            .from('shipping_addresses')
+                            .select('id')
+                            .eq('id', regAddressId)
+                            .maybeSingle();
+                        
+                        if (addrExists) return regAddressId;
+                        console.warn(`[CheckoutService] Registry address ${regAddressId} not found, will not create a fallback.`);
+                    }
+                    // Registry has no delivery address saved — return null safely
+                    // (seller will see the masked notes address as a fallback)
+                    return null;
+                }
+
+                // Non-registry, no selectedAddressId — look for an existing match by content
+                // to avoid creating a duplicate for manually-entered addresses.
+                if (shippingAddress.street && shippingAddress.city) {
+                    const { data: existingAddr } = await supabase
+                        .from('shipping_addresses')
+                        .select('id')
+                        .eq('user_id', userId)
+                        .eq('address_line_1', shippingAddress.street || '')
+                        .eq('city', shippingAddress.city || '')
+                        .eq('postal_code', shippingAddress.postalCode || '')
+                        .maybeSingle();
+                    if (existingAddr) return existingAddr.id;
+                }
+
                 
                 // Extract first and last name from fullName
                 const nameParts = (shippingAddress.fullName || '').trim().split(' ');
@@ -190,20 +236,61 @@ export class CheckoutService {
                     region: shippingAddress.province || '',
                     postal_code: shippingAddress.postalCode || '',
                     is_default: false
-                }).select('id').single();
+                } as any).select('id').single();
                 return addressData?.id ?? null;
             };
 
-            const [recipientResult, shippingAddressId, activeDiscountsByProduct] = await Promise.all([
-                supabase.from('order_recipients').insert({
-                    first_name: shippingAddress.fullName?.split(' ')[0] || '',
-                    last_name: shippingAddress.fullName?.split(' ').slice(1).join(' ') || '',
-                    phone: shippingAddress.phone || '',
-                    email: email || '',
-                }).select('id').single(),
-                getOrCreateShippingAddress(),
+            // For registry orders we must resolve the shipping address FIRST so we can
+            // look up the real first_name/last_name from the shipping_addresses row.
+            // This is critical: registryData.delivery.recipientName is a stale value
+            // saved when the registry was created — it is NOT updated when the owner
+            // updates their address. The authoritative name is on the address row itself.
+            const shippingAddressId = await getOrCreateShippingAddress();
+
+            const [recipientResult, activeDiscountsByProduct] = await Promise.all([
+                (async () => {
+                    let firstName = shippingAddress.fullName?.split(' ')[0] || '';
+                    let lastName = shippingAddress.fullName?.split(' ').slice(1).join(' ') || '';
+                    let phone = shippingAddress.phone || '';
+
+                    // BX-REG-NAME-FIX: For registry orders, the payload's fullName comes from
+                    // registryData.delivery.recipientName which is stale (set at registry creation).
+                    // The real, up-to-date name is stored on the shipping_addresses row itself.
+                    // Fetch it directly to guarantee the seller sees the correct recipient name.
+                    if (isRegistryOrder && shippingAddressId) {
+                        const { data: addrRow } = await supabase
+                            .from('shipping_addresses')
+                            .select('first_name, last_name, phone_number')
+                            .eq('id', shippingAddressId)
+                            .maybeSingle();
+
+                        if (addrRow) {
+                            if (addrRow.first_name) firstName = addrRow.first_name;
+                            if (addrRow.last_name) lastName = addrRow.last_name;
+                            if (addrRow.phone_number) phone = addrRow.phone_number;
+                            console.log(`[CheckoutService] Registry recipient name resolved from address: ${firstName} ${lastName}`);
+                        }
+                    }
+
+                    const recipientData = { first_name: firstName, last_name: lastName, phone, email: email || '' };
+
+                    // Try inserting with registry flag
+                    if (isRegistryOrder) {
+                        const { data, error } = await supabase.from('order_recipients').insert({
+                            ...recipientData,
+                            is_registry_recipient: true
+                        } as any).select('id').single();
+                        
+                        if (!error) return { data, error: null };
+                        // If column missing, fall back
+                        console.warn('[Checkout] Falling back: is_registry_recipient column likely missing');
+                    }
+
+                    return supabase.from('order_recipients').insert(recipientData as any).select('id').single();
+                })(),
                 discountService.getActiveDiscountsForProducts(uniqueProductIds),
             ]);
+
 
             const recipientId: string | null = recipientResult.data?.id ?? null;
 
@@ -273,11 +360,20 @@ export class CheckoutService {
                 });
             }
 
-            const addressJson = JSON.stringify({
-                fullName: shippingAddress.fullName, street: shippingAddress.street,
-                city: shippingAddress.city, province: shippingAddress.province,
-                postalCode: shippingAddress.postalCode, phone: shippingAddress.phone
-            });
+            const addressJson = isRegistryOrder
+                ? JSON.stringify({
+                    fullName: shippingAddress.fullName,
+                    street: "SECURE REGISTRY Gifting (Hidden)",
+                    city: shippingAddress.city || '***',
+                    province: shippingAddress.province || '***',
+                    postalCode: '****',
+                    phone: '***********'
+                })
+                : JSON.stringify({
+                    fullName: shippingAddress.fullName, street: shippingAddress.street,
+                    city: shippingAddress.city, province: shippingAddress.province,
+                    postalCode: shippingAddress.postalCode, phone: shippingAddress.phone
+                });
 
             const sellerEntries = Object.entries(itemsBySeller);
             const shippingFeeBySeller = new Map<string, number>();
@@ -287,8 +383,6 @@ export class CheckoutService {
                 shippingFeeBySeller.set(key, Math.max(0, Number(row?.calculated_fee || 0)));
             });
             // ─── PHASE 3: Per-seller order creation (parallel across sellers) ───
-            // Note: order_number is auto-generated by database trigger (trg_set_order_number)
-            // Do NOT pass order_number in insert - let the trigger handle it
             const createdOrders = await Promise.all(
                 sellerEntries.map(async ([sellerId, _sellerItems], index) => {
                     const sellerLinePricing = linePricing.filter(lp => lp.item.product?.seller_id === sellerId);
@@ -312,8 +406,10 @@ export class CheckoutService {
                         payment_status: 'pending_payment',
                         shipment_status: 'waiting_for_seller',
                         recipient_id: recipientId,
+                        is_registry_order: isRegistryOrder || false,
+                        registry_id: isRegistryOrder ? registryId : null,
                         notes: `SHIPPING_ADDRESS:${addressJson}|PRICING_SUMMARY:${JSON.stringify(sellerPricingSummary)}|Payment: ${paymentMethod}|SELLER:${sellerId}`
-                    }).select().single();
+                    } as any).select().single();
 
                     if (orderError) throw orderError;
 
@@ -321,7 +417,6 @@ export class CheckoutService {
                     const orderItemsData = sellerLinePricing.map((lp, lineIndex) => {
                         const warrantyInfo = lp.item.product_id ? productWarrantyMap.get(lp.item.product_id) : null;
                         
-                        // Calculate warranty dates if product has warranty
                         let warrantyStartDate: string | null = null;
                         let warrantyExpirationDate: string | null = null;
                         let warrantyType: string | null = null;
@@ -332,7 +427,6 @@ export class CheckoutService {
                             warrantyDurationMonths = warrantyInfo.warranty_duration_months;
                             warrantyStartDate = orderDate.toISOString();
                             
-                            // Calculate expiration date
                             const expirationDate = new Date(orderDate);
                             expirationDate.setMonth(expirationDate.getMonth() + warrantyDurationMonths);
                             warrantyExpirationDate = expirationDate.toISOString();
@@ -356,8 +450,6 @@ export class CheckoutService {
                         };
                     });
 
-                    // Stock deductions — atomic RPC (race-safe, writes inventory_movements ledger).
-                    // Falls back to legacy non-atomic update only if RPC is unavailable.
                     const stockUpdates = sellerLinePricing
                         .filter(lp => (lp.item as any).resolved_variant_id)
                         .map(async lp => {
@@ -373,13 +465,12 @@ export class CheckoutService {
                                 console.warn('[Checkout] decrement_stock_atomic failed, falling back to direct update:', rpcErr.message);
                                 const currentStock = resolvedStockMap.get(variantId) ?? lp.quantity;
                                 return supabase.from('product_variants')
-                                    .update({ stock: Math.max(0, currentStock - lp.quantity) })
+                                    .update({ stock: Math.max(0, currentStock - lp.quantity) } as any)
                                     .eq('id', variantId);
                             }
                             return { error: null } as any;
                         });
 
-                    // Campaign discount rows
                     const sellerCampaignTotals = sellerLinePricing.reduce<Record<string, number>>((acc, lp) => {
                         const cId = lp.activeDiscount?.campaignId;
                         if (cId && lp.campaignDiscountTotal > 0) acc[cId] = (acc[cId] || 0) + lp.campaignDiscountTotal;
@@ -389,22 +480,10 @@ export class CheckoutService {
                         ? [supabase.from('order_discounts').insert(
                             Object.entries(sellerCampaignTotals).map(([cId, amt]) => ({
                                 buyer_id: userId, order_id: orderData.id, campaign_id: cId, discount_amount: amt
-                            }))
+                            })) as any
                         )]
                         : [];
 
-                    // Fire per-order writes in parallel.
-                    // Note: payment record goes to order_payments (canonical 1-per-order).
-                    // payment_transactions is for gateway tracking only and is written by
-                    // payMongoService when a gateway is actually invoked (see migration 043c).
-                    //
-                    // ORPHAN-ORDER GUARD (migration 046, 2026-04-24):
-                    // The orders row above auto-commits before this Promise.all. If order_items
-                    // insert fails (RLS, materialized-view trigger, network, etc.) we MUST roll
-                    // back the orders row, otherwise we create an orphan order (54 historical
-                    // orphans were cleaned up in migration 046). The DB-side trigger
-                    // trg_enforce_paid_order_has_items is the structural backstop, but app-side
-                    // rollback removes the orphan immediately so it never appears in dashboards.
                     const [paymentResult, itemsResult] = await Promise.all([
                         supabase.from('order_payments').insert({
                             order_id: orderData.id,
@@ -412,8 +491,8 @@ export class CheckoutService {
                             amount: sellerPricingSummary.total,
                             status: 'pending',
                             created_at: new Date().toISOString(),
-                        }),
-                        supabase.from('order_items').insert(orderItemsData),
+                        } as any),
+                        supabase.from('order_items').insert(orderItemsData as any),
                         ...stockUpdates,
                         ...discountInserts,
                     ]);
@@ -421,10 +500,6 @@ export class CheckoutService {
                     const itemsFailed = !!itemsResult?.error;
                     const paymentFailed = !!paymentResult?.error;
                     if (itemsFailed || paymentFailed) {
-                        // Roll back the just-created orders row to avoid an orphan order.
-                        // Best-effort: if the rollback itself fails (FK from another concurrent
-                        // write, RLS), the DB trigger still prevents the order from ever being
-                        // marked paid. We log loudly either way.
                         console.error('[Checkout] Rolling back orders row', orderData.id, {
                             paymentError: paymentResult?.error?.message,
                             itemsError: itemsResult?.error?.message,
@@ -440,13 +515,6 @@ export class CheckoutService {
                         throw paymentResult.error;
                     }
 
-                    // BX-09-002 — Persist per-seller shipment record (parity with mobile checkout).
-                    // order_shipments is the canonical 1-per-(order,seller) shipment row used by
-                    // seller dashboards, buyer tracking, and the deliveryService.bookDelivery flow.
-                    // Without this row, deliveryService later tries to INSERT one with an incomplete
-                    // shape (missing required NOT NULL columns) and silently fails — which is what
-                    // caused the 81 historical orders that had a delivery_booking but no
-                    // order_shipments row.
                     const sellerBreakdownRaw = (payload.shippingBreakdown || []).find(
                         (sb: any) => String(sb?.seller_id || sb?.sellerId || '') === sellerId
                     ) as any;
@@ -487,17 +555,17 @@ export class CheckoutService {
                         buyerName: shippingAddress.fullName || 'Customer', total: sellerTotal
                     }).catch(console.error);
 
-                    // Automated chat message: Order Placed (fire-and-forget)
-                    chatService.getOrCreateConversation(userId, sellerId).then(conv => {
+                    // Automated chat message: Order Placed (fire-and-forget, non-blocking)
+                    chatService.getOrCreateConversation(userId, sellerId, orderData.id).then(conv => {
                         if (conv) {
                             chatService.triggerOrderSystemMessage(
                                 orderData.id as string,
                                 conv.id,
                                 'placed',
                                 `New order placed! Order #${(orderData.order_number as string).slice(0, 8).toUpperCase()} is being processed.`
-                            ).catch(console.error);
+                            ).catch(e => console.warn('[CheckoutService] Chat system message failed:', e.message));
                         }
-                    }).catch(console.error);
+                    }).catch(e => console.warn('[CheckoutService] Could not start conversation:', e.message));
 
                     // Order receipt email (fire-and-forget)
                     const itemsHtml = sellerLinePricing.map(lp => {
@@ -505,7 +573,8 @@ export class CheckoutService {
                         const imgCell = imgUrl
                             ? `<td style="padding:12px 0;width:56px;vertical-align:top"><img src="${imgUrl}" alt="" width="56" height="56" style="display:block;border-radius:8px;border:1px solid #E4E4E7;object-fit:cover" /></td>`
                             : `<td style="padding:12px 0;width:56px;vertical-align:top"><div style="width:56px;height:56px;border-radius:8px;background:#F4F4F5"></div></td>`;
-                        return `<tr style="border-bottom:1px solid #E4E4E7">${imgCell}<td style="padding:12px 0 12px 12px;vertical-align:top"><p style="margin:0 0 4px;font-size:14px;font-weight:600;color:#18181B">${lp.item.name || 'Product'}</p><p style="margin:0;font-size:13px;color:#71717A">Qty: ${lp.quantity}</p></td><td align="right" style="padding:12px 0;vertical-align:top;white-space:nowrap"><span style="font-size:14px;font-weight:600;color:#18181B">₱${(lp.unitPrice * lp.quantity).toLocaleString()}</span></td></tr>`;
+                        const itemName = lp.item.name || lp.item.product?.name || 'Product';
+                        return `<tr style="border-bottom:1px solid #E4E4E7">${imgCell}<td style="padding:12px 0 12px 12px;vertical-align:top"><p style="margin:0 0 4px;font-size:14px;font-weight:600;color:#18181B">${itemName}</p><p style="margin:0;font-size:13px;color:#71717A">Qty: ${lp.quantity}</p></td><td align="right" style="padding:12px 0;vertical-align:top;white-space:nowrap"><span style="font-size:14px;font-weight:600;color:#18181B">₱${(lp.unitPrice * lp.quantity).toLocaleString()}</span></td></tr>`;
                     }).join('');
                     sendOrderReceiptEmail({
                         buyerEmail: email,
@@ -517,7 +586,7 @@ export class CheckoutService {
                         subtotal: `₱${sellerPricingSummary.subtotal.toLocaleString()}`,
                         shippingFee: `₱${sellerPricingSummary.shipping.toLocaleString()}`,
                         totalAmount: `₱${sellerPricingSummary.total.toLocaleString()}`,
-                    }).catch(console.error);
+                    }).catch(e => console.warn('[CheckoutService] Email receipt failed:', e.message));
 
                     return { id: orderData.id as string, orderNumber: orderData.order_number as string };
                 })
@@ -549,6 +618,27 @@ export class CheckoutService {
                 );
             }
 
+            // BX-10: Update registry item received quantities
+            if (isRegistryOrder) {
+                const registryUpdates = items.map(async (item) => {
+                    if (!item.id) return;
+                    // For registry gifts, the frontend passes registry_items.id as item.id
+                    const { data: ri, error: fetchErr } = await supabase
+                        .from('registry_items')
+                        .select('received_qty')
+                        .eq('id', item.id)
+                        .maybeSingle();
+                    
+                    if (ri && !fetchErr) {
+                        await supabase
+                            .from('registry_items')
+                            .update({ received_qty: (ri.received_qty || 0) + item.quantity })
+                            .eq('id', item.id);
+                    }
+                });
+                postOrderTasks.push(...registryUpdates);
+            }
+
             await Promise.all(postOrderTasks);
 
             // ─── PHASE 5: Payment Processing via PayMongo ───────────────────────
@@ -574,7 +664,7 @@ export class CheckoutService {
                             phone: shippingAddress.phone,
                         },
                         returnUrl: `${window.location.origin}/order/${createdOrderNumbers[0]}`,
-                        // Pass card details if available
+                        // Pass card details or saved card ID
                         ...(payload.cardDetails && {
                             cardDetails: {
                                 cardNumber: payload.cardDetails.cardNumber,
@@ -582,6 +672,9 @@ export class CheckoutService {
                                 expYear: 2000 + parseInt(payload.cardDetails.expiryDate.split('/')[1], 10),
                                 cvc: payload.cardDetails.cvv,
                             }
+                        }),
+                        ...(payload.selectedSavedCardId && {
+                            paymentMethodId: payload.selectedSavedCardId
                         })
                     });
                 } catch (payErr: any) {

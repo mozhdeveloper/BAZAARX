@@ -176,7 +176,7 @@ export interface SellerOrderSnapshot {
   total: number;
   status: "pending" | "confirmed" | "shipped" | "delivered" | "cancelled" | "returned" | "reviewed";
   paymentStatus: "pending" | "paid" | "refunded";
-  paymentMethod?: "cash" | "card" | "ewallet" | "bank_transfer" | "cod" | "online";
+  paymentMethod?: "cash" | "card" | "ewallet" | "bank_transfer" | "cod" | "online" | "gcash" | "maya" | "paymaya" | "grab_pay";
   orderDate: string;
   shippingAddress: NormalizedShippingAddress;
   trackingNumber?: string;
@@ -192,6 +192,7 @@ export interface SellerOrderSnapshot {
   type?: "ONLINE" | "OFFLINE";
   posNote?: string;
   notes?: string;
+  is_registry_order?: boolean;
 }
 
 export interface OrderTrackingSnapshot {

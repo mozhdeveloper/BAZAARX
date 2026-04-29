@@ -5,6 +5,7 @@ import {
   DialogFooter,
   DialogHeader,
   DialogTitle,
+  DialogDescription,
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -335,6 +336,9 @@ export const AddressModal = ({ isOpen, onClose, address, onAddressAdded, onAddre
           <DialogTitle className="text-xl font-bold text-gray-900 tracking-tight">
             {editingId ? "Edit Address" : "Add Address"}
           </DialogTitle>
+          <DialogDescription className="sr-only">
+            Fill in the details for your delivery address.
+          </DialogDescription>
         </DialogHeader>
 
         {/* BODY: Scrollable area */}
@@ -375,7 +379,7 @@ export const AddressModal = ({ isOpen, onClose, address, onAddressAdded, onAddre
                 <div className="flex items-center gap-1.5 text-[#10B981]">
                   <Check className="w-4 h-4" />
                   <span className="text-[13px] font-medium tracking-wide">
-                    Location selected: {newAddress.coordinates.lat.toFixed(4)}, {newAddress.coordinates.lng.toFixed(4)}
+                    Location selected: {(newAddress.coordinates?.lat ?? 0).toFixed(4)}, {(newAddress.coordinates?.lng ?? 0).toFixed(4)}
                   </span>
                 </div>
               </>

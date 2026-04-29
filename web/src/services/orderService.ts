@@ -1066,14 +1066,14 @@ export class OrderService {
                     cancellation_reason: latestCancellation?.reason || null,
                     cancelled_at: latestCancellation?.cancelled_at || latestCancellation?.created_at || null,
                     shipping_address: fullAddress || "No address provided",
-                    shipping_street: shippingAddr?.address_line_1 || fallbackAddress?.street || "",
-                    shipping_city: shippingAddr?.city || fallbackAddress?.city || "",
-                    shipping_province: shippingAddr?.province || fallbackAddress?.province || "",
-                    shipping_postal_code: shippingAddr?.postal_code || fallbackAddress?.postalCode || "",
-                    shipping_barangay: shippingAddr?.barangay || "",
-                    shipping_region: shippingAddr?.region || "",
-                    shipping_landmark: shippingAddr?.landmark || "",
-                    shipping_instructions: shippingAddr?.delivery_instructions || "",
+                    shipping_street: order.is_registry_order && fallbackAddress?.street ? fallbackAddress.street : (shippingAddr?.address_line_1 || fallbackAddress?.street || ""),
+                    shipping_city: order.is_registry_order && fallbackAddress?.city ? fallbackAddress.city : (shippingAddr?.city || fallbackAddress?.city || ""),
+                    shipping_province: order.is_registry_order && fallbackAddress?.province ? fallbackAddress.province : (shippingAddr?.province || fallbackAddress?.province || ""),
+                    shipping_postal_code: order.is_registry_order && fallbackAddress?.postalCode ? fallbackAddress.postalCode : (shippingAddr?.postal_code || fallbackAddress?.postalCode || ""),
+                    shipping_barangay: order.is_registry_order ? "" : (shippingAddr?.barangay || ""),
+                    shipping_region: order.is_registry_order ? "" : (shippingAddr?.region || ""),
+                    shipping_landmark: order.is_registry_order ? "" : (shippingAddr?.landmark || ""),
+                    shipping_instructions: order.is_registry_order ? "" : (shippingAddr?.delivery_instructions || ""),
                     shipping_country: "Philippines",
                 } as Order;
             });
@@ -1171,7 +1171,10 @@ export class OrderService {
                         region,
                         postal_code,
                         landmark,
-                        delivery_instructions
+                        delivery_instructions,
+                        first_name,
+                        last_name,
+                        phone_number
                     ),
                     shipments:order_shipments (
                         id,
@@ -1262,8 +1265,10 @@ export class OrderService {
                     0,
                 );
 
-                const recipient = order.recipient as any;
-                const shippingAddr = order.shipping_address as any;
+                const recipientRaw = order.recipient || {};
+                const recipient = Array.isArray(recipientRaw) ? recipientRaw[0] : recipientRaw;
+                const shippingAddrRaw = order.shipping_address || {};
+                const shippingAddr = Array.isArray(shippingAddrRaw) ? shippingAddrRaw[0] : shippingAddrRaw;
                 const fallbackAddress = parseLegacyShippingAddressFromNotes(
                     order.notes,
                 );
@@ -1310,8 +1315,10 @@ export class OrderService {
                     tracking_number: latestShipment?.tracking_number || null,
                     shipped_at: latestShipment?.shipped_at || null,
                     delivered_at: latestShipment?.delivered_at || null,
-                    // Add shipping address fields for compatibility
-                    shipping_address: fullAddress || "No address provided",
+                    // BX-FIX: Keep shipping_address as an OBJECT so mapOrderRowToSellerSnapshot
+                    // can read address_line_1, city, province, etc. individually.
+                    // Previously this was overwritten with a flat string, breaking address resolution.
+                    shipping_address: shippingAddr || null,
                     shipping_street:
                         shippingAddr?.address_line_1 || fallbackAddress?.street || "",
                     shipping_city:
@@ -1326,6 +1333,8 @@ export class OrderService {
                     shipping_instructions:
                         shippingAddr?.delivery_instructions || "",
                     shipping_country: "Philippines",
+                    // Pass is_registry_order so mapOrderRowToSellerSnapshot can apply privacy rules
+                    is_registry_order: order.is_registry_order || false,
                 };
             });
             _setOrderCache(sellerCacheKey, sellerResult);
