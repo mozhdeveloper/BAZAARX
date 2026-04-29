@@ -764,25 +764,7 @@ export default function EnhancedCartPage() {
                         ))}
                       </div>
 
-                      {/* Seller Total — items only; shipping is shown at checkout */}
-                      {group.items.some(i => i.selected) && (
-                        <div className="flex justify-end items-center pt-2 border-t border-gray-50 mt-2">
-                          <span className="text-sm text-gray-500 mr-2">
-                            Seller Total:
-                          </span>
-                          <span className="text-lg font-bold text-[var(--brand-primary)]">
-                            ₱
-                            {group.items
-                              .filter((i) => i.selected)
-                              .reduce(
-                                (sum, item) =>
-                                  sum + getEffectivePrice(item) * item.quantity,
-                                0
-                              )
-                              .toLocaleString()}
-                          </span>
-                        </div>
-                      )}
+
                     </motion.div>
                   )
                 )}
