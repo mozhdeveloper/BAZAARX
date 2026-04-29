@@ -699,7 +699,7 @@ export function AddProduct() {
                 stock: v.stock || 0,
                 price: v.price || 0,
                 sku: v.sku || "",
-                image: v.thumbnailUrl || "",
+                image: v.image || "",
             })));
         }
 
@@ -951,10 +951,17 @@ export function AddProduct() {
             HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement
         >,
     ) => {
-        const { name, value } = e.target;
+        const { name, value, type } = e.target;
+        
+        // BX-DEBUG: Ensure numeric fields are parsed correctly
+        let processedValue: string | number = value;
+        if (type === 'number' && value !== "") {
+            processedValue = parseInt(value, 10);
+        }
+
         setFormData((prev) => ({
             ...prev,
-            [name]: value,
+            [name]: processedValue,
         }));
         // Clear error when user starts typing
         if (errors[name]) {
@@ -1100,11 +1107,7 @@ export function AddProduct() {
                 newErrors.variants =
                     "Total stock must be greater than 0. Add stock to base variant or custom variants.";
             }
-            // Variant image is required
-            const missingImages = variantConfigs.filter(v => !v.image && !v.file);
-            if (missingImages.length > 0) {
-                newErrors.variantImages = `${missingImages.length} variant(s) missing required image. Click the edit button on each variant to add an image.`;
-            }
+            // Variant images are optional (will fallback to product image if empty)
         } else if (baseStock <= 0) {
             newErrors.stock = "Stock must be greater than 0";
         }
@@ -1146,6 +1149,11 @@ export function AddProduct() {
         e.preventDefault();
 
         if (!validateForm()) {
+            toast({
+                title: "Validation Error",
+                description: "Please check all tabs for missing or incorrect information.",
+                variant: "destructive",
+            });
             return;
         }
 
@@ -1291,34 +1299,106 @@ export function AddProduct() {
             if (isEditMode && editProductId) {
                 // ====== EDIT FLOW ======
                 // Update product fields
-                await updateProduct(editProductId, {
-                    name: productData.name,
-                    description: productData.description,
-                    price: productData.price,
-                    stock: productData.stock,
-                    variantLabel1: productData.variantLabel1,
-                    variantLabel2: productData.variantLabel2,
-                    // Warranty
-                    hasWarranty: warrantyData.hasWarranty,
-                    warrantyType: warrantyData.hasWarranty ? warrantyData.warrantyType : undefined,
-                    warrantyDurationMonths: warrantyData.hasWarranty && warrantyData.warrantyDurationMonths ? parseInt(warrantyData.warrantyDurationMonths) : undefined,
-                    warrantyProviderName: warrantyData.hasWarranty ? warrantyData.warrantyProviderName || null : null,
-                    warrantyProviderContact: warrantyData.hasWarranty ? warrantyData.warrantyProviderContact || null : null,
-                    warrantyProviderEmail: warrantyData.hasWarranty ? warrantyData.warrantyProviderEmail || null : null,
-                    warrantyTermsUrl: warrantyData.hasWarranty ? warrantyData.warrantyTermsUrl || null : null,
-                    warrantyPolicy: warrantyData.hasWarranty ? warrantyData.warrantyPolicy || null : null,
-                });
+                const { data: updatedProduct, error: updateError } = await supabase
+                    .from('products')
+                    .update({
+                        name: productData.name,
+                        description: productData.description,
+                        price: productData.price,
+                        variant_label_1: productData.variantLabel1,
+                        variant_label_2: productData.variantLabel2,
+                        // Warranty
+                        has_warranty: warrantyData.hasWarranty,
+                        warranty_type: warrantyData.hasWarranty ? (warrantyData.warrantyType as any) : null,
+                        warranty_duration_months: (warrantyData.hasWarranty && warrantyData.warrantyDurationMonths) ? parseInt(warrantyData.warrantyDurationMonths) : null,
+                        warranty_provider_name: warrantyData.hasWarranty ? warrantyData.warrantyProviderName || null : null,
+                        warranty_provider_contact: warrantyData.hasWarranty ? warrantyData.warrantyProviderContact || null : null,
+                        warranty_provider_email: warrantyData.hasWarranty ? warrantyData.warrantyProviderEmail || null : null,
+                        warranty_terms_url: warrantyData.hasWarranty ? warrantyData.warrantyTermsUrl || null : null,
+                        warranty_policy: warrantyData.hasWarranty ? warrantyData.warrantyPolicy || null : null,
+                        updated_at: new Date().toISOString()
+                    })
+                    .eq('id', editProductId)
+                    .select()
+                    .single();
 
-                // Update variants if any exist
-                if (variantConfigs.length > 0) {
-                    await productService.updateVariants(
-                        updatedVariants.map((v) => ({
-                            id: v.id,
-                            price: v.price,
-                            stock: v.stock,
-                        })),
-                    );
+                if (updateError) {
+                    console.error("Supabase Product Update Error:", updateError);
+                    throw updateError;
                 }
+
+                // ====== VARIANT PERSISTENCE (EDIT MODE) ======
+                // 1. Fetch current variants in DB to handle deletions
+                const { data: existingVariants } = await supabase
+                    .from('product_variants')
+                    .select('id')
+                    .eq('product_id', editProductId);
+                
+                const existingIds = existingVariants?.map(v => v.id) || [];
+                const currentIds = updatedVariants.map(v => v.id).filter(id => !id.startsWith('var-'));
+                const idsToDelete = existingIds.filter(id => !currentIds.includes(id));
+
+                // 2. Delete variants that were removed in UI
+                if (idsToDelete.length > 0) {
+                    await supabase.from('product_variants').delete().in('id', idsToDelete);
+                }
+
+                // 3. Update existing and Insert new variants (Parallelized for speed)
+                await Promise.all(updatedVariants.map(async (variant) => {
+                    const variantName = [variant.variantLabel1Value, variant.variantLabel2Value]
+                        .filter(Boolean)
+                        .join(" / ") || "Default";
+
+                    const variantData = {
+                        variant_name: variantName,
+                        option_1_value: variant.variantLabel1Value || null,
+                        option_2_value: variant.variantLabel2Value || null,
+                        stock: variant.stock || 0,
+                        price: variant.price || 0,
+                        sku: variant.sku || "",
+                        thumbnail_url: variant.image || null,
+                    };
+
+                    if (variant.id.startsWith('var-')) {
+                        return supabase.from('product_variants').insert({
+                            ...variantData,
+                            product_id: editProductId
+                        });
+                    } else {
+                        return productService.updateVariant(variant.id, variantData);
+                    }
+                }));
+
+                // If the product has no custom variants but we have a base variant to update
+                if (variantConfigs.length === 0 || (variantConfigs.length === 1 && variantConfigs[0].variantLabel1Value === "" && variantConfigs[0].variantLabel2Value === "")) {
+                    const { data: variants } = await supabase
+                        .from('product_variants')
+                        .select('id')
+                        .eq('product_id', editProductId)
+                        .limit(1);
+                    
+                    if (variants && variants.length > 0) {
+                        await productService.updateVariant(variants[0].id, {
+                            stock: productData.stock,
+                            price: productData.price,
+                        });
+                    }
+                }
+
+                // BX-OPTIMIZATION: Update local store immediately so UI feels instant
+                updateProduct(editProductId, {
+                    ...productData,
+                    images: allImages,
+                    variants: updatedVariants.map(v => ({
+                        id: v.id,
+                        variantLabel1Value: v.variantLabel1Value,
+                        variantLabel2Value: v.variantLabel2Value,
+                        price: v.price,
+                        stock: v.stock,
+                        image: v.image,
+                        sku: v.sku
+                    }))
+                });
 
                 // Image sync: delete existing → re-add
                 try {
@@ -1338,27 +1418,6 @@ export function AddProduct() {
                     console.warn('Image update partially failed:', imgErr);
                 }
 
-                // Audit log
-                try {
-                    await supabase.from('admin_audit_logs').insert({
-                        admin_id: seller?.id || null,
-                        action: 'product_updated',
-                        target_table: 'products',
-                        target_id: editProductId,
-                        new_values: {
-                            seller_id: seller?.id,
-                            seller_name: seller?.name,
-                            seller_store_name: seller?.storeName,
-                            name: productData.name,
-                            description: productData.description,
-                            price: productData.price,
-                            stock: productData.stock,
-                        },
-                        user_agent: navigator.userAgent,
-                    });
-                } catch (auditErr) {
-                    console.warn('Audit log insert failed (non-critical):', auditErr);
-                }
 
                 toast({
                     title: "Product Updated",
@@ -1679,7 +1738,7 @@ export function AddProduct() {
                                     type="button"
                                     variant="outline"
                                     onClick={() => navigate("/seller/products")}
-                                    className="flex-1 rounded-2xl h-14 bg-gradient-to-r from-[var(--brand-primary)] to-[var(--brand-primary-dark)] text-white shadow-xl shadow-orange-500/20 hover:shadow-orange-500/30 hover:scale-[1.02] transform transition-all font-bold text-base"
+                                    className="flex-1 rounded-2xl h-14 border-gray-200 text-gray-600 hover:bg-gray-50 hover:text-gray-900 transition-all font-bold text-base"
                                 >
                                     Cancel
                                 </Button>
@@ -1704,11 +1763,19 @@ export function AddProduct() {
                                     type="submit"
                                     disabled={isSubmitting}
                                     onClick={() => setIsDraftMode(false)}
-                                    className="flex-1 rounded-2xl h-14 bg-gradient-to-r from-[var(--brand-primary)] to-[var(--brand-primary-dark)] text-white shadow-xl shadow-orange-500/20 hover:shadow-orange-500/30 hover:scale-[1.02] transform transition-all font-bold text-base"
+                                    className={cn(
+                                        "flex-1 rounded-2xl h-14 bg-gradient-to-r from-[var(--brand-primary)] to-[var(--brand-primary-dark)] text-white shadow-xl shadow-orange-500/20 hover:shadow-orange-500/30 hover:scale-[1.02] transform transition-all font-bold text-base",
+                                        isSubmitting && "opacity-80 cursor-not-allowed"
+                                    )}
                                 >
-                                    {isSubmitting && !isDraftMode
-                                        ? (isEditMode ? "Saving..." : "Publishing...")
-                                        : (isEditMode ? "Save Changes" : "Publish Product")}
+                                    {isSubmitting && !isDraftMode ? (
+                                        <div className="flex items-center gap-2">
+                                            <div className="h-4 w-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                                            {isEditMode ? "Saving Changes..." : "Publishing..."}
+                                        </div>
+                                    ) : (
+                                        isEditMode ? "Save Changes" : "Publish Product"
+                                    )}
                                 </Button>
                             </div>
 

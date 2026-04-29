@@ -85,7 +85,7 @@ export interface SellerProduct {
     sales: number;
     rating: number;
     reviews: number;
-    approvalStatus?: "pending" | "approved" | "rejected" | "reclassified";
+    approvalStatus?: "pending" | "approved" | "rejected" | "reclassified" | "draft";
     rejectionReason?: string;
     vendorSubmittedCategory?: string;
     adminReclassifiedCategory?: string;
@@ -118,6 +118,8 @@ export interface SellerProduct {
     warrantyProviderEmail?: string;
     warrantyTermsUrl?: string;
     warrantyPolicy?: string;
+    isDraft?: boolean;
+    isVacationMode?: boolean;
 }
 
 export interface SellerOrder {

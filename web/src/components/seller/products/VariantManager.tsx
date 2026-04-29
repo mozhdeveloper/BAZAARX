@@ -76,6 +76,18 @@ export function VariantManager({
                 )}
             </div>
 
+            {/* Error Messages */}
+            {errors.variants && (
+                <div className="p-3 rounded-lg bg-red-50 border border-red-100 text-red-600 text-sm font-medium">
+                    {errors.variants}
+                </div>
+            )}
+            {errors.variantImages && (
+                <div className="p-3 rounded-lg bg-amber-50 border border-amber-100 text-amber-700 text-sm font-medium">
+                    {errors.variantImages}
+                </div>
+            )}
+
             {/* Variants List */}
             <VariantList
                 variantConfigs={variantConfigs}

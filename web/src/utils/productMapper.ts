@@ -226,6 +226,7 @@ export const mapDbProductToSellerProduct = (p: any): SellerProduct => {
         warrantyProviderEmail: p.warranty_provider_email || undefined,
         warrantyTermsUrl: p.warranty_terms_url || undefined,
         warrantyPolicy: p.warranty_policy || undefined,
+        isDraft: p.approval_status === "draft",
     } as any;
 };
 
@@ -376,7 +377,7 @@ export const mapDbProductToNormalized = (
         name: p.name,
         description: p.description || "",
         price: Number(p.price ?? 0),
-        originalPrice: (p as any).originalPrice ?? p.original_price ?? undefined,
+        originalPrice: (p as any).originalPrice ?? (p as any).original_price ?? undefined,
         image: primaryImage,
         images: combinedImages.length > 0 ? combinedImages : [primaryImage],
         category:
