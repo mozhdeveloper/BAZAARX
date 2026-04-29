@@ -34,7 +34,8 @@ import {
     Text,
     TextInput,
     useWindowDimensions,
-    View
+    View,
+    Alert
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import AIChatModal from '../src/components/AIChatModal';
@@ -1174,15 +1175,15 @@ export default function HomeScreen({ navigation }: Props) {
             {/* Lab Quick Actions */}
             <View style={styles.labActionRow}>
               <Pressable
-                onPress={() => setShowProductRequest(true)}
-                style={({ pressed }) => [styles.labActionBtn, styles.labRequestBtn, pressed && { opacity: 0.85 }]}
+                onPress={() => Alert.alert("Coming Soon", "This feature is currently under development. Stay tuned!")}
+                style={[styles.labActionBtn, styles.labRequestBtn, { opacity: 0.5 }]}
               >
                 <Plus size={16} color="#FFFFFF" />
                 <Text style={styles.labActionBtnText}>Request a Product</Text>
               </Pressable>
               <Pressable
-                onPress={() => navigation.navigate('MyRequests')}
-                style={({ pressed }) => [styles.labActionBtn, styles.labMyRequestsBtn, pressed && { opacity: 0.85 }]}
+                onPress={() => Alert.alert("Coming Soon", "This feature is currently under development. Stay tuned!")}
+                style={[styles.labActionBtn, styles.labMyRequestsBtn, { opacity: 0.5 }]}
               >
                 <Package size={16} color={COLORS.primary} />
                 <Text style={[styles.labActionBtnText, { color: COLORS.primary }]}>My Requests</Text>
