@@ -136,6 +136,10 @@ class FeaturedProductService {
         if (seller.blacklisted_at) return false;
         if (seller.is_permanently_blacklisted) return false;
         if (seller.temp_blacklist_until && new Date(seller.temp_blacklist_until) > new Date()) return false;
+        // Filter out products with 0 stock (all variants out of stock)
+        const variants = fp.product?.variants || [];
+        const totalStock = variants.reduce((sum: number, v: any) => sum + (v.stock || 0), 0);
+        if (totalStock <= 0) return false;
         return true;
       });
 
