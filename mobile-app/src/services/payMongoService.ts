@@ -647,7 +647,7 @@ export class PayMongoGatewayService {
 
     await supabase
       .from('orders')
-      .update({ payment_status: 'paid', paid_at: now, updated_at: now })
+      .update({ payment_status: 'paid', shipment_status: 'processing', paid_at: now, updated_at: now })
       .eq('id', request.orderId);
 
     await supabase.from('order_status_history').insert({

@@ -385,6 +385,7 @@ export const processCheckout = async (payload: CheckoutPayload): Promise<Checkou
                         recipient_id: recipientId,
                         payment_status: 'pending_payment',
                         shipment_status: 'waiting_for_seller',
+                        payment_method: { type: paymentMethod },
                         notes: `Order from ${shippingAddress.fullName}`,
                         created_at: new Date().toISOString(),
                         updated_at: new Date().toISOString()
@@ -449,6 +450,13 @@ export const processCheckout = async (payload: CheckoutPayload): Promise<Checkou
 
             createdOrderIds.push(orderData.order_number);
             createdOrderUuids.push(orderData.id);
+
+            // Store payment_method (create_order_safe RPC doesn't accept it, so patch after creation)
+            await supabase
+                .from('orders')
+                .update({ payment_method: { type: paymentMethod } })
+                .eq('id', orderData.id)
+                .is('payment_method', null); // only patch if not already set by direct insert
 
             if (__DEV__) console.log(`[Checkout] ✅ Order created: ${orderData.order_number} (UUID: ${orderData.id}) for seller ${sellerId}`);
             if (__DEV__) console.log(`[Checkout] Total createdOrderUuids so far:`, createdOrderUuids);
