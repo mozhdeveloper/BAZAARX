@@ -1136,8 +1136,8 @@ export default function HomeScreen({ navigation }: Props) {
 
             {/* ── BAZAARX LAB PIPELINE BANNER ── */}
             <Pressable
-              onPress={() => navigation.navigate('LabPipeline')}
-              style={({ pressed }) => [styles.labBanner, pressed && { opacity: 0.92 }]}
+              onPress={() => Alert.alert("Coming Soon", "The Bazaarx Lab Pipeline is currently under development. Stay tuned for community-tested products!")}
+              style={({ pressed }) => [styles.labBanner, { opacity: 0.6 }]}
             >
               <LinearGradient
                 colors={['#4C1D95', '#6B46C1', '#7C3AED']}
@@ -1151,7 +1151,12 @@ export default function HomeScreen({ navigation }: Props) {
                     <FlaskConical size={22} color="#E9D5FF" strokeWidth={2} />
                   </View>
                   <View style={{ flex: 1 }}>
-                    <Text style={styles.labBannerEyebrow}>BAZAARX</Text>
+                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                      <Text style={styles.labBannerEyebrow}>BAZAARX</Text>
+                      <View style={{ backgroundColor: '#FCD34D', paddingHorizontal: 6, paddingVertical: 2, borderRadius: 4 }}>
+                        <Text style={{ fontSize: 8, fontWeight: '900', color: '#78350F' }}>COMING SOON</Text>
+                      </View>
+                    </View>
                     <Text style={styles.labBannerTitle}>Lab Pipeline</Text>
                     <Text style={styles.labBannerSub}>Community-requested & tested products</Text>
                   </View>

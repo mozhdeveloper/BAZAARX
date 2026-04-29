@@ -233,8 +233,8 @@ export const SidebarLink = ({
       >
         {link.label}
         {link.comingSoon && (
-          <span className="bg-amber-100 text-amber-700 text-[8px] font-black px-1 rounded-sm uppercase tracking-tighter">
-            Soon
+          <span className="bg-amber-100 text-amber-700 text-[8px] font-black px-1.5 py-0.5 rounded-md uppercase tracking-wider whitespace-nowrap">
+            Coming Soon
           </span>
         )}
         {/* Count pill when expanded */}

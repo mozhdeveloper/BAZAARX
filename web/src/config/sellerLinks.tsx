@@ -120,6 +120,7 @@ export const sellerLinks: SellerNavLink[] = [
     icon: (
       <Wallet className="h-5 w-5 flex-shrink-0" />
     ),
+    comingSoon: true,
   },
   {
     label: "Reviews",

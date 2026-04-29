@@ -308,7 +308,7 @@ const Header: React.FC<HeaderProps> = ({ transparentOnTop = false, hideSearch = 
             </button>
 
             {/* Community Requests */}
-            <ComingSoonWrapper>
+            <ComingSoonWrapper showOnHover>
               <button
                 disabled
                 className={`relative p-2 rounded-full transition-all duration-300 ${location.pathname.startsWith("/requests")
