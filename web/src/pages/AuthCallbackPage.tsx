@@ -51,19 +51,46 @@ export default function AuthCallbackPage() {
 
       const { user } = session;
 
-      // If we have a session but NO token and NO pending data, 
-      // this is likely a manual visit or a stale redirect.
-      // Redirect to home/shop instead of "confirming" anything.
-      if (!hasToken && !hasPending) {
-        console.log("[AuthCallback] No token or pending data, redirecting to home");
-        navigate("/shop", { replace: true });
+      // ─────────────────────────────────────────────────────────────────────
+      // OAUTH EARLY EXIT — Google / any OAuth provider
+      // 
+      // IMPORTANT: Supabase uses PKCE — when the browser lands on /auth/callback
+      // with ?code=..., the code exchange may not be complete yet when getSession()
+      // is first called. This means user.app_metadata.provider may still read as
+      // 'email' at this point. We therefore use the 'oauth_intent' key written to
+      // sessionStorage BEFORE the Google redirect as a reliable fallback signal.
+      //
+      // If either signal is true → this is an OAuth user. Skip ALL email-verification
+      // logic and go directly to the HomePage.
+      // ─────────────────────────────────────────────────────────────────────
+      const isOAuthByMetadata = user.app_metadata?.provider && user.app_metadata.provider !== "email";
+      const isOAuthByIntent = !!sessionStorage.getItem("oauth_intent"); // set in handleGoogleSignIn
+      const isOAuth = isOAuthByMetadata || isOAuthByIntent;
+
+      if (isOAuth) {
+        console.log("[AuthCallback] OAuth user detected — skipping email flow, redirecting to /", { isOAuthByMetadata, isOAuthByIntent });
+        sessionStorage.removeItem("pendingBuyerSignup");
+        sessionStorage.removeItem("pendingSellerSignup");
+        sessionStorage.removeItem("oauth_intent");
+        sessionStorage.removeItem("oauth_redirect_done");
+        navigate("/", { replace: true });
         return;
       }
+
+      // If we have a session but NO token and NO pending data, 
+      // this is likely a manual visit or a stale redirect.
+      // Redirect to home instead of "confirming" anything.
+      if (!hasToken && !hasPending) {
+        console.log("[AuthCallback] No token or pending data, redirecting to home");
+        navigate("/", { replace: true });
+        return;
+      }
+
+      // 1.5 isOAuth check already done above — if we reach here, user is email-based.
 
       // 2. Read the pending signup data (Buyer or Seller)
       const pending: PendingSignup | null = (() => {
         try {
-          // If we see a seller signup in progress, prioritize it
           const sellerData = sessionStorage.getItem("pendingSellerSignup");
           if (sellerData) return JSON.parse(sellerData);
 
@@ -76,67 +103,15 @@ export default function AuthCallbackPage() {
         }
       })();
 
-      // 3. Handle OAuth or returning users (no pending data)
+      // If no pending data for an email user, they landed here stale — go to login.
       if (!pending) {
-        console.log("[AuthCallback] No pending data found, checking metadata or database");
-
-        // Check metadata first
-        const metadataType = user.user_metadata?.user_type;
-        
-        // Ensure records exist
-        await authService.ensureUserRolesFromRecords(user.id);
-
-        if (metadataType === "seller") {
-          await useAuthStore.getState().hydrateSellerFromSession();
-          navigate("/email-confirmed", { replace: true, state: { email: user.email, role: "seller" } });
-          return;
-        }
-
-
-        // Check if profile exists, if not bootstrap from metadata
-        const { data: profileCheck } = await supabase
-          .from("profiles")
-          .select("id")
-          .eq("id", user.id)
-          .maybeSingle();
-
-        if (!profileCheck) {
-          const firstName = user.user_metadata?.first_name || user.user_metadata?.full_name?.split(' ')[0] || "";
-          const lastName = user.user_metadata?.last_name || user.user_metadata?.full_name?.split(' ').slice(1).join(' ') || "";
-
-          await supabase.from("profiles").upsert({
-            id: user.id,
-            email: user.email,
-            first_name: firstName,
-            last_name: lastName,
-            last_login_at: new Date().toISOString(),
-          } as any, { onConflict: "id" });
-
-          await authService.addUserRole(user.id, "buyer");
-          await authService.createBuyerAccount(user.id);
-        }
-
-        // 3.5 Determine if this is an OAuth user or a standard Email/Password user
-        const isOAuth = user.app_metadata?.provider && user.app_metadata.provider !== "email";
-
-        // Initialize store
-        await useBuyerStore.getState().initializeBuyerProfile(user.id, {});
-
-        // Check onboarding completion
-        const isComplete = await authService.isOnboardingComplete(user.id);
-
-        if (isOAuth) {
-          // OAuth users don't need the "Email Verified" holding page; send them to content
-          navigate(isComplete ? "/shop" : "/buyer-onboarding", { replace: true });
-        } else {
-          // Standard email signups still see the confirmation page to finalize the flow
-          navigate("/email-confirmed", { replace: true, state: { email: user.email, role: "buyer" } });
-        }
-
+        console.log("[AuthCallback] No pending signup data for email user — redirecting to login");
+        navigate("/login", { replace: true });
         return;
       }
 
-      // 4. Handle standard Email Verification finalization
+      // 3. Handle standard Email Verification finalization
+
       // Ensure profile row exists (upsert so it's idempotent)
       // FIX: Upsert on 'id' instead of 'email' to prevent FKEY violations and identity mismatch
       const { error: profileError } = await supabase
