@@ -841,7 +841,15 @@ export class ProductService {
      */
     async updateVariant(
         variantId: string,
-        updates: { price?: number; stock?: number },
+        updates: {
+            price?: number;
+            stock?: number;
+            variant_name?: string;
+            option_1_value?: string;
+            option_2_value?: string;
+            sku?: string;
+            thumbnail_url?: string;
+        },
     ): Promise<void> {
         if (!isSupabaseConfigured()) {
             throw new Error("Supabase not configured");
@@ -851,6 +859,11 @@ export class ProductService {
             const updateData: any = { updated_at: new Date().toISOString() };
             if (updates.price !== undefined) updateData.price = updates.price;
             if (updates.stock !== undefined) updateData.stock = updates.stock;
+            if (updates.variant_name !== undefined) updateData.variant_name = updates.variant_name;
+            if (updates.option_1_value !== undefined) updateData.option_1_value = updates.option_1_value;
+            if (updates.option_2_value !== undefined) updateData.option_2_value = updates.option_2_value;
+            if (updates.sku !== undefined) updateData.sku = updates.sku;
+            if (updates.thumbnail_url !== undefined) updateData.thumbnail_url = updates.thumbnail_url;
 
             const { error } = await supabase
                 .from("product_variants")

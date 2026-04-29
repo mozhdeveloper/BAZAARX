@@ -95,7 +95,7 @@ export function VariantItem({
 
           {/* Variant Image: File Upload OR URL */}
           <div>
-            <label className="text-xs font-medium text-gray-500">Variant Image <span className="text-red-500">*</span></label>
+            <label className="text-xs font-medium text-gray-500">Variant Image (Optional)</label>
             <div className="flex gap-2 mt-1 items-start">
               {/* File Upload Thumbnail */}
               <label
