@@ -203,12 +203,26 @@ function App() {
 
           // 1. PREVENT NEW GOOGLE-ONLY ACCOUNTS (Email-First Policy)
           // If the user has Google but NO email identity, and isn't currently linking,
-          // it means they tried to sign up via Google directly without a pre-existing email account.
+          // check if they already have a profile in BazaarX.
+          // - If they have NO profile, they're a brand-new Google signup → allow them through.
+          // - If they DO have a profile (email-first user somehow), block them.
           if (googleIdentity && !emailIdentity && !isLinking) {
-            console.log('[Auth] 🛡️ Google-only account detected. Rejecting login.');
-            await supabase.auth.signOut();
-            window.location.href = '/login?error=google_not_registered';
-            return;
+            const { data: existingProfile } = await supabase
+              .from('profiles')
+              .select('id')
+              .eq('id', user.id)
+              .maybeSingle();
+
+            if (!existingProfile) {
+              // Brand new Google signup — this is allowed. Fall through to profile creation.
+              console.log('[Auth] ✅ New Google-only signup. Allowing through.');
+            } else {
+              // Existing account was somehow Google-only without email identity — block.
+              console.log('[Auth] 🛡️ Google-only account detected for existing user. Rejecting login.');
+              await supabase.auth.signOut();
+              window.location.href = '/login?error=google_not_registered';
+              return;
+            }
           }
 
           if (emailIdentity && googleIdentity) {
@@ -291,7 +305,7 @@ function App() {
           // Redirect immediately once we know first-time vs returning OAuth user.
           // Use BrowserRouter-compatible history navigation (no full reload).
           if (isOAuthRedirect && oauthRedirectDone !== '1') {
-            let targetPath = isFirstOAuthLogin ? '/buyer-onboarding' : '/shop';
+            let targetPath = isFirstOAuthLogin ? '/buyer-onboarding' : '/';
             
             // If returning user, check for redirect_to path
             const redirectTo = sessionStorage.getItem('redirect_to');
