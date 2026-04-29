@@ -2,12 +2,11 @@
 import { AnimatePresence, motion } from "framer-motion";
 import {
   BadgeCheck,
-  ShoppingCart,
-  ShoppingBag,
-  Menu,
-  Flame,
   ChevronRight,
   MapPin,
+  Menu,
+  ShoppingBag,
+  ShoppingCart,
   Star,
   Truck,
   X
@@ -141,7 +140,16 @@ export default function ShopPage() {
     discountService.getGlobalFlashSaleProducts()
       .then((data) => {
         if (data && data.length > 0) {
-          setFlashSaleProducts(data);
+          // Filter out products with 0 stock (including variant stock)
+          const inStockProducts = data.filter((p: any) => {
+            const variants = p.variants || [];
+            if (variants.length > 0) {
+              const totalVariantStock = variants.reduce((sum: number, v: any) => sum + (v.stock || 0), 0);
+              return totalVariantStock > 0;
+            }
+            return (p.stock || 0) > 0;
+          });
+          setFlashSaleProducts(inStockProducts);
         }
       })
       .catch((e) => console.error('Failed to load flash sales:', e));
@@ -192,12 +200,22 @@ export default function ShopPage() {
       sellerVerified: p.approvalStatus === "pending",
       variantLabel2Values: p.variantLabel2Values || [],
       variantLabel1Values: p.variantLabel1Values || [],
-      stock: p.stock || 99,
+      stock: p.stock || 0,
       variants: p.variants || [],
       lifetimeSold: (p as any).lifetimeSold || p.sales || 0,
       isVacationMode: (p as any).isVacationMode || false,
       createdAt: (p as any).createdAt || "",
     });
+
+    // Helper: check if a product has any available stock (via variants or direct stock field)
+    const hasStock = (product: ShopProduct): boolean => {
+      const variants = product.variants || [];
+      if (variants.length > 0) {
+        const totalVariantStock = variants.reduce((sum: number, v: any) => sum + (v.stock || 0), 0);
+        return totalVariantStock > 0;
+      }
+      return (product.stock || 0) > 0;
+    };
 
     // Start with store products (the initial 200-product fetch)
     const storeProducts = sellerProducts
@@ -216,7 +234,8 @@ export default function ShopPage() {
         if (sellerTempBlacklistUntil && new Date(sellerTempBlacklistUntil) > new Date()) return false;
         return true;
       })
-      .map(mapToShopProduct);
+      .map(mapToShopProduct)
+      .filter(hasStock);
 
     // Merge in category-specific products from server-side fetch
     // These may include products not in the initial store fetch
@@ -240,7 +259,7 @@ export default function ShopPage() {
           return true;
         })
         .map(mapToShopProduct);
-      return [...storeProducts, ...extraProducts];
+      return [...storeProducts, ...extraProducts].filter(hasStock);
     }
 
     return storeProducts;
@@ -519,12 +538,14 @@ export default function ShopPage() {
 
     const addItem = (product: any, isBoosted: boolean) => {
       if (!product || seen.has(product.id)) return;
-      seen.add(product.id);
       const reviews = product.reviews || [];
       const avgRating = reviews.length > 0
         ? Math.round((reviews.reduce((s: number, r: any) => s + r.rating, 0) / reviews.length) * 10) / 10
         : 0;
       const totalStock = product.variants?.reduce((sum: number, v: any) => sum + (v.stock || 0), 0) || 0;
+      // Skip out-of-stock products (all variants have 0 stock)
+      if (totalStock <= 0) return;
+      seen.add(product.id);
       const primaryImage = product.images?.find((img: any) => img.is_primary) || product.images?.[0];
       const imageUrl = primaryImage?.image_url || 'https://placehold.co/400x400?text=No+Image';
       items.push({
@@ -999,6 +1020,8 @@ export default function ShopPage() {
                     for (const bp of boostedProducts) {
                       const product = bp.product;
                       if (!product || seenIds.has(product.id)) continue;
+                      const totalStock = (product.variants || []).reduce((sum: number, v: any) => sum + (v.stock || 0), 0);
+                      if (totalStock <= 0) continue;
                       seenIds.add(product.id);
                       allItems.push({ key: `boost-${bp.id}`, product, isBoosted: true });
                     }
@@ -1006,6 +1029,8 @@ export default function ShopPage() {
                     for (const fp of featuredProducts) {
                       const product = (fp as any).product;
                       if (!product || seenIds.has(product.id)) continue;
+                      const totalStock = (product.variants || []).reduce((sum: number, v: any) => sum + (v.stock || 0), 0);
+                      if (totalStock <= 0) continue;
                       seenIds.add(product.id);
                       allItems.push({ key: `feat-${(fp as any).id}`, product, isBoosted: false });
                     }
@@ -1981,7 +2006,7 @@ export default function ShopPage() {
                                   variants: (product as any).variants || [],
                                   variantLabel2Values: (product as any).variantLabel2Values || [],
                                   variantLabel1Values: (product as any).variantLabel1Values || [],
-                                  stock: product.stock || 99,
+                                  stock: product.stock || 0,
                                 } as any);
                                 setShowBuyNowModal(true);
                               }

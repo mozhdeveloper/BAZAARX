@@ -362,8 +362,8 @@ export default function HomeScreen({ navigation }: Props) {
     const [productsResult, flashResult, featuredResult, boostedResult, sellersResult, categoriesResult] = await Promise.allSettled([
       productService.getProducts({ isActive: true, approvalStatus: 'approved', limit: 20 }),
       discountService.getGlobalFlashSaleProducts(),
-      featuredProductService.getFeaturedProducts(10),
-      adBoostService.getActiveBoostedProducts('featured', 10),
+      featuredProductService.getFeaturedProducts(50),
+      adBoostService.getActiveBoostedProducts('featured', 50),
       sellerService.getAllSellers(),
       categoryService.getActiveCategories(),
     ]);
@@ -428,13 +428,21 @@ export default function HomeScreen({ navigation }: Props) {
       setDbProducts([]);
     }
 
-    // Flash sales
+    // Flash sales — filter out products with 0 stock
     if (flashResult?.status === 'fulfilled') {
       const seen = new Set<string>();
       const unique = (flashResult.value || []).filter((p: any) => {
         if (seen.has(p.id)) return false;
         seen.add(p.id);
         return true;
+      }).filter((p: any) => {
+        // Filter out products with 0 stock (all variants out of stock)
+        const variants = p.variants || [];
+        if (variants.length > 0) {
+          const totalVariantStock = variants.reduce((sum: number, v: any) => sum + (v.stock || 0), 0);
+          return totalVariantStock > 0;
+        }
+        return (p.stock || 0) > 0;
       });
       setFlashSaleProducts(unique);
     }
@@ -643,11 +651,12 @@ export default function HomeScreen({ navigation }: Props) {
     for (const bp of boostedProducts) {
       const product = bp.product;
       if (!product || !product.name || seenIds.has(product.id)) continue;
+      const totalStock = product.variants?.reduce((sum: number, v: any) => sum + (v.stock || 0), 0) || 0;
+      if (totalStock <= 0) continue;
       seenIds.add(product.id);
       const primaryImg = product.images?.find((img: any) => img.is_primary) || product.images?.[0];
       const reviews = product.reviews || [];
       const avgRating = reviews.length > 0 ? Math.round((reviews.reduce((s: number, r: any) => s + r.rating, 0) / reviews.length) * 10) / 10 : 0;
-      const totalStock = product.variants?.reduce((sum: number, v: any) => sum + (v.stock || 0), 0) || 0;
       allItems.push({
         key: `boost-${bp.id}`, mapped: {
           id: product.id, name: product.name, price: product.price,
@@ -666,11 +675,12 @@ export default function HomeScreen({ navigation }: Props) {
     for (const fp of featuredProducts) {
       const product = (fp as any).product;
       if (!product || !product.name || seenIds.has(product.id)) continue;
+      const totalStock = product.variants?.reduce((sum: number, v: any) => sum + (v.stock || 0), 0) || 0;
+      if (totalStock <= 0) continue;
       seenIds.add(product.id);
       const primaryImg = product.images?.find((img: any) => img.is_primary) || product.images?.[0];
       const reviews = product.reviews || [];
       const avgRating = reviews.length > 0 ? Math.round((reviews.reduce((s: number, r: any) => s + r.rating, 0) / reviews.length) * 10) / 10 : 0;
-      const totalStock = product.variants?.reduce((sum: number, v: any) => sum + (v.stock || 0), 0) || 0;
       allItems.push({
         key: `feat-${(fp as any).id}`, mapped: {
           id: product.id, name: product.name, price: product.price,

@@ -1,10 +1,10 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import { ChevronLeft, Zap } from 'lucide-react';
+import { useEffect, useMemo, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
-import { CampaignCountdown } from '../components/shop/CampaignCountdown';
 import Header from '../components/Header';
-import { BazaarFooter } from '../components/ui/bazaar-footer';
-import { Zap, ChevronLeft } from 'lucide-react';
 import ProductCard from '../components/ProductCard';
+import { CampaignCountdown } from '../components/shop/CampaignCountdown';
+import { BazaarFooter } from '../components/ui/bazaar-footer';
 import { discountService } from '../services/discountService';
 
 
@@ -48,7 +48,16 @@ export default function FlashSalesPage() {
 
     useEffect(() => {
         discountService.getGlobalFlashSaleProducts().then(data => {
-            setProducts(data || []);
+            // Filter out products with 0 stock (including variant stock)
+            const inStock = (data || []).filter((p: any) => {
+                const variants = p.variants || [];
+                if (variants.length > 0) {
+                    const totalVariantStock = variants.reduce((sum: number, v: any) => sum + (v.stock || 0), 0);
+                    return totalVariantStock > 0;
+                }
+                return (p.stock || 0) > 0;
+            });
+            setProducts(inStock);
             setLoading(false);
         }).catch(console.error);
     }, []);

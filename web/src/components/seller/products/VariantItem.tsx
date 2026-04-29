@@ -1,6 +1,6 @@
 import { Button } from "@/components/ui/button";
-import { Edit, Trash2, Check, Upload, Package } from "lucide-react";
 import { VariantConfig } from "@/types";
+import { Check, Edit, Package, Trash2, Upload } from "lucide-react";
 
 // Update the interface to accept the local file object
 interface VariantItemProps {

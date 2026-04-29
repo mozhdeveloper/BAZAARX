@@ -1,25 +1,22 @@
-import React, { useState, useEffect } from 'react';
+import type { NativeStackScreenProps } from '@react-navigation/native-stack';
+import { LinearGradient } from 'expo-linear-gradient';
+import { Timer, Zap } from 'lucide-react-native';
+import React, { useEffect, useState } from 'react';
 import {
-    View,
-    Text,
-    ScrollView,
-    StyleSheet,
-    Pressable,
-    Dimensions,
     ActivityIndicator,
+    Dimensions,
+    ScrollView,
     StatusBar,
-    Image,
+    StyleSheet,
+    Text,
+    View
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { ArrowLeft, Timer, Zap, Store, Star, CheckCircle2 } from 'lucide-react-native';
-import { LinearGradient } from 'expo-linear-gradient';
-import { ProductCard } from '../src/components/ProductCard';
-import BackToShopButton from '../src/components/BackToShopButton';
-import { productService } from '../src/services/productService';
-import { discountService } from '../src/services/discountService';
-import { COLORS } from '../src/constants/theme';
-import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import type { RootStackParamList } from '../App';
+import BackToShopButton from '../src/components/BackToShopButton';
+import { ProductCard } from '../src/components/ProductCard';
+import { COLORS } from '../src/constants/theme';
+import { discountService } from '../src/services/discountService';
 import type { Product } from '../src/types';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'FlashSale'>;
@@ -85,6 +82,14 @@ export default function FlashSaleScreen({ navigation, route }: Props) {
                 if (seen.has(p.id)) return false;
                 seen.add(p.id);
                 return true;
+            }).filter((p: any) => {
+                // Filter out products with 0 stock (all variants out of stock)
+                const variants = p.variants || [];
+                if (variants.length > 0) {
+                    const totalVariantStock = variants.reduce((sum: number, v: any) => sum + (v.stock || 0), 0);
+                    return totalVariantStock > 0;
+                }
+                return (p.stock || 0) > 0;
             });
 
             const groups = uniqueData.reduce((acc: any, product: any) => {
@@ -130,9 +135,6 @@ export default function FlashSaleScreen({ navigation, route }: Props) {
                     end={{ x: 1, y: 1 }}
                     style={styles.header}
                 >
-                    <Pressable onPress={() => navigation.goBack()} style={styles.backBtn}>
-                        <ArrowLeft size={24} color={COLORS.textHeadline} />
-                    </Pressable>
                     <View style={styles.headerCenter}>
                         <Zap size={20} color={COLORS.primary} fill={COLORS.primary} />
                         <Text style={[styles.headerTitle, { color: COLORS.textHeadline }]}>Flash Sale</Text>
@@ -238,7 +240,7 @@ const styles = StyleSheet.create({
         borderBottomWidth: 1,
         borderBottomColor: 'rgba(255,255,255,0.3)',
     },
-    backBtn: { padding: 4, marginRight: 12, backgroundColor: 'rgba(255,255,255,0.4)', borderRadius: 20, width: 40, height: 40, alignItems: 'center', justifyContent: 'center' },
+    backBtn: { },
     headerCenter: { flex: 1, flexDirection: 'row', alignItems: 'center', gap: 8 },
     headerTitle: { fontSize: 22, fontWeight: '900', color: COLORS.textHeadline },
     timerRow: { flexDirection: 'row', alignItems: 'center', gap: 6, backgroundColor: '#FFF8F0', paddingHorizontal: 12, paddingVertical: 6, borderRadius: 20, borderWidth: 1, borderColor: '#FDE68A' },

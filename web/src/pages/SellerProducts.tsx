@@ -1,38 +1,11 @@
-import React, { useState, useEffect, useMemo, useCallback } from "react";
-import { Link, useNavigate, useParams } from "react-router-dom";
-import { motion } from "framer-motion";
-import {
-    Plus,
-    Search,
-    Trash2,
-    MoreHorizontal,
-    Package,
-    Star,
-    ToggleLeft,
-    ToggleRight,
-    ArrowLeft,
-    LogOut,
-    AlertTriangle,
-    Clock,
-    BadgeCheck,
-    Upload,
-    ChevronDown,
-    Check,
-    Users,
-    Zap,
-    ShieldCheck,
-    PackageX,
-    Ban,
-} from "lucide-react";
-import { cn } from "@/lib/utils";
+import { BulkProductData, BulkUploadModal } from "@/components/BulkUploadModal";
+import { AttributesTab } from "@/components/seller/products/AttributesTab";
+import { GeneralInfoTab } from "@/components/seller/products/GeneralInfoTab";
+import { ProductFormTabs } from "@/components/seller/products/ProductFormTabs";
+import { WarrantyTab } from "@/components/seller/products/WarrantyTab";
+import { SampleQAResultModal } from "@/components/seller/SampleQAResultModal";
 import { SellerSidebar } from "@/components/seller/SellerSidebar";
-import {
-    useAuthStore,
-    useProductStore,
-    SellerProduct,
-} from "@/stores/sellerStore";
 import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
 import {
     Dialog,
     DialogContent,
@@ -42,34 +15,44 @@ import {
     DialogTitle,
 } from "@/components/ui/dialog";
 import {
-    DropdownMenu,
-    DropdownMenuContent,
-    DropdownMenuItem,
-    DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
-import {
     Select,
     SelectContent,
     SelectItem,
     SelectTrigger,
     SelectValue,
 } from "@/components/ui/select";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 import { useToast } from "@/hooks/use-toast";
-import { BulkUploadModal, BulkProductData } from "@/components/BulkUploadModal";
-import { productService } from "@/services/productService";
-import { featuredProductService } from "@/services/featuredProductService";
-import { ProductFormTabs } from "@/components/seller/products/ProductFormTabs";
-import { GeneralInfoTab } from "@/components/seller/products/GeneralInfoTab";
-import { AttributesTab } from "@/components/seller/products/AttributesTab";
-import { WarrantyTab } from "@/components/seller/products/WarrantyTab";
-import { uploadProductImages, validateImageFile, compressImage } from "@/utils/storage";
-import { categoryService } from "@/services/categoryService";
 import { supabase } from "@/lib/supabase";
-import { useProductQAStore } from "@/stores/productQAStore";
-import { SampleQAResultModal } from "@/components/seller/SampleQAResultModal";
-import { prepareImageForUpload, isAcceptedImageFormat, isHeicFile } from "@/utils/imageConversion";
+import { cn } from "@/lib/utils";
+import { categoryService } from "@/services/categoryService";
+import { featuredProductService } from "@/services/featuredProductService";
+import { productService } from "@/services/productService";
+import {
+    useAuthStore,
+    useProductStore
+} from "@/stores/sellerStore";
+import { compressImage, uploadProductImages, validateImageFile } from "@/utils/storage";
+import { motion } from "framer-motion";
+import {
+    AlertTriangle,
+    ArrowLeft,
+    BadgeCheck,
+    Ban,
+    Check,
+    Clock,
+    Package,
+    Plus,
+    Search,
+    ShieldCheck,
+    Star,
+    ToggleLeft,
+    ToggleRight,
+    Trash2,
+    Upload,
+    Zap
+} from "lucide-react";
+import React, { useCallback, useEffect, useMemo, useState } from "react";
+import { Link, useNavigate, useParams } from "react-router-dom";
 
 export function SellerProducts() {
     const [searchQuery, setSearchQuery] = useState("");
@@ -445,16 +428,18 @@ export function SellerProducts() {
                                                                 <Star className={cn("h-4 w-4", featuredProductIds.has(product.id) && "fill-amber-500")} />
                                                             </button>
                                                         )}
-                                                        {/* Add to Flash Sale */}
-                                                        <button
-                                                            onClick={() =>
-                                                                navigate(`/seller/discounts?flash_product=${product.id}&flash_product_name=${encodeURIComponent(product.name)}&flash_product_price=${product.price}`)
-                                                            }
-                                                            title="Add to Flash Sale"
-                                                            className="h-9 w-9 flex items-center justify-center text-orange-500 rounded-xl hover:text-orange-700 hover:bg-orange-50 transition-all active:scale-95"
-                                                        >
-                                                            <Zap className="h-4 w-4" />
-                                                        </button>
+                                                        {/* Add to Flash Sale — hidden for drafts */}
+                                                        {product.approvalStatus !== 'draft' && (
+                                                            <button
+                                                                onClick={() =>
+                                                                    navigate(`/seller/discounts?flash_product=${product.id}&flash_product_name=${encodeURIComponent(product.name)}&flash_product_price=${product.price}`)
+                                                                }
+                                                                title="Add to Flash Sale"
+                                                                className="h-9 w-9 flex items-center justify-center text-orange-500 rounded-xl hover:text-orange-700 hover:bg-orange-50 transition-all active:scale-95"
+                                                            >
+                                                                <Zap className="h-4 w-4" />
+                                                            </button>
+                                                        )}
                                                         <button
                                                             onClick={() =>
                                                                 handleDeleteClick(product.id)
@@ -951,17 +936,11 @@ export function AddProduct() {
             HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement
         >,
     ) => {
-        const { name, value, type } = e.target;
-        
-        // BX-DEBUG: Ensure numeric fields are parsed correctly
-        let processedValue: string | number = value;
-        if (type === 'number' && value !== "") {
-            processedValue = parseInt(value, 10);
-        }
+        const { name, value } = e.target;
 
         setFormData((prev) => ({
             ...prev,
-            [name]: processedValue,
+            [name]: value,
         }));
         // Clear error when user starts typing
         if (errors[name]) {
@@ -1089,9 +1068,10 @@ export function AddProduct() {
         if (!formData.description.trim()) {
             newErrors.description = "Description is required";
         }
-        if (!formData.price || formData.price.trim() === "") {
+        const priceStr = String(formData.price ?? "").trim();
+        if (!priceStr) {
             newErrors.price = "Display price is required";
-        } else if (parseInt(formData.price) <= 0) {
+        } else if (parseInt(priceStr) <= 0) {
             newErrors.price = "Price must be greater than 0";
         }
 

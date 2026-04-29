@@ -1,6 +1,6 @@
-import React from "react";
-import { TouchableOpacity, Text, StyleSheet, ViewStyle } from "react-native";
 import { ArrowLeft } from "lucide-react-native";
+import React from "react";
+import { StyleSheet, Text, TouchableOpacity, ViewStyle } from "react-native";
 import { COLORS } from "../constants/theme";
 
 interface BackToShopButtonProps {
@@ -12,11 +12,11 @@ const BackToShopButton: React.FC<BackToShopButtonProps> = ({ navigation, style }
   return (
     <TouchableOpacity
       style={[styles.container, style]}
-      onPress={() => navigation.navigate("MainTabs", { screen: "Shop" })}
+      onPress={() => navigation.navigate("MainTabs", { screen: "Home" })}
       activeOpacity={0.7}
     >
       <ArrowLeft size={11} color={COLORS.primary} strokeWidth={2.5} />
-      <Text style={styles.text}>Back to Shop</Text>
+      <Text style={styles.text}>Back to Home</Text>
     </TouchableOpacity>
   );
 };
