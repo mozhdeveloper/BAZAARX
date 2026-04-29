@@ -61,6 +61,11 @@ export const mapNormalizedToBuyerUiStatus = (
     return hasCancellationRecord ? "cancelled" : "returned";
   }
 
+  // Online payment (e.g. PayMongo): already paid but seller hasn't confirmed yet → show as Processing
+  if (paymentStatus === "paid" && shipmentStatus === "waiting_for_seller") {
+    return "confirmed";
+  }
+
   return "pending";
 };
 
