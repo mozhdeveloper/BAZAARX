@@ -103,7 +103,8 @@ export default function EnhancedCartPage() {
     clearCart,
     validateCheckout,
     isValidatingCheckout,
-    checkoutErrors
+    checkoutErrors,
+    isCartLoading,
   } = useBuyerStore();
 
   const [showUnavailableModal, setShowUnavailableModal] = useState(false);
@@ -401,6 +402,21 @@ export default function EnhancedCartPage() {
     
     navigate("/checkout");
   };
+
+  if (isCartLoading) {
+    return (
+      <div className="min-h-screen bg-[var(--brand-wash)]">
+        <Header />
+        <div className="max-w-4xl mx-auto px-4 py-16">
+          <div className="flex flex-col items-center gap-6 animate-pulse">
+            <div className="w-64 h-64 bg-gray-200 rounded-2xl" />
+            <div className="h-8 w-48 bg-gray-200 rounded-lg" />
+            <div className="h-4 w-72 bg-gray-200 rounded" />
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   if (totalItems === 0) {
     return (
