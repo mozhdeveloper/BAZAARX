@@ -171,8 +171,8 @@ const linking: LinkingOptions<RootStackParamList> = {
       // - bazaarx://auth/callback (native)
       // When Supabase redirects after Google auth, this route captures it
       Login: {
-        path: '**',  // Match any path - Supabase handles OAuth, we just need to capture the redirect
-        parse: {}, // No params to parse; Supabase handles auth code in URL
+        path: 'auth/callback',
+        parse: {},
       },
     },
   },
@@ -319,6 +319,39 @@ export default function App() {
   const { user } = useAuthStore();
   const sessionVerified = useAuthStore((s) => s.sessionVerified);
   const appState = useRef(AppState.currentState);
+  const hasOnboarding = useAuthStore((s) => s.hasCompletedOnboarding);
+
+  // Handle logout and T&C enforcement navigation
+  React.useEffect(() => {
+    if (!navigationRef.current || !sessionVerified) {
+      console.log(`[App] 🚦 Navigation guard: ref=${!!navigationRef.current}, verified=${sessionVerified}`);
+      return;
+    }
+
+    console.log(`[App] 🧭 Routing check: user=${!!user}, onboarding=${hasOnboarding}`);
+
+    if (!user) {
+      // User has logged out or session check confirmed no user
+      if (hasOnboarding) {
+        console.log('[App] 🚪 Redirecting to Login...');
+        navigationRef.current.reset({
+          index: 0,
+          routes: [{ name: 'Login' }],
+        });
+      } else {
+        console.log('[App] 🏁 Redirecting to Onboarding...');
+        navigationRef.current.reset({
+          index: 0,
+          routes: [{ name: 'Onboarding' }],
+        });
+      }
+    } else {
+      // User is authenticated, redirection to MainTabs happens in SplashScreen
+      // or after a successful Login. App.tsx usually doesn't force a redirect TO Home
+      // while the user is mid-session, unless there's a specific reason.
+      console.log('[App] ✅ User authenticated, staying on current screen.');
+    }
+  }, [user, sessionVerified, hasOnboarding]);
 
   React.useEffect(() => {
     // Suppress noisy warnings that are already handled in supabase.ts
@@ -431,11 +464,18 @@ export default function App() {
 
       if (/[?&#]code=/.test(url) || url.includes('access_token=') || url.includes('refresh_token=') || /[?&#]error=/.test(url)) {
         console.log('[App] 🔐 Processing auth deep link...');
+        const isResetPassword = url.includes('reset-password');
         const result = await processAuthDeepLink(url, 3);
         if (!result.success) {
           console.error('[App] ❌ Deep link auth flow failed:', result.error);
           Alert.alert('Authentication Failed', result.error);
           navigationRef.current?.navigate('Login');
+        } else if (isResetPassword) {
+          console.log('[App] 🎯 Reset password link detected, navigating to ResetPassword screen...');
+          // Small delay to ensure session is fully propagated before navigation
+          setTimeout(() => {
+            navigationRef.current?.navigate('ResetPassword');
+          }, 500);
         }
       }
     });
@@ -445,10 +485,19 @@ export default function App() {
       console.log('[App] Auth state change:', event, session?.user?.email);
 
       if (event === 'SIGNED_OUT') {
-        useAuthStore.getState().logout();
-      } else if (event === 'SIGNED_IN' && session) {
+        // Only call signOut if we still have local user data and aren't already signing out.
+        // This prevents the loop: checkSession -> signOut -> SIGNED_OUT -> signOut
+        const authState = useAuthStore.getState();
+        if (authState.user && !authState.loading) {
+          console.log('[App] 🚪 SIGNED_OUT event: clearing local session...');
+          authState.signOut();
+        }
+      } else if (event === 'PASSWORD_RECOVERY') {
+
+        console.log('[App] 🔑 PASSWORD_RECOVERY event');
+      } else if ((event === 'SIGNED_IN' || event === 'INITIAL_SESSION') && session) {
         // Session restored/signed in — sync auth store
-        console.log('[App] 🔐 SIGNED_IN event fired, calling checkSession...');
+        console.log(`[App] 🔐 ${event} event fired, calling checkSession...`);
         useAuthStore.getState().checkSession?.();
       }
     });
@@ -458,19 +507,6 @@ export default function App() {
       unsubscribeDeepLink.remove();
     };
   }, []);
-
-  // Handle logout and T&C enforcement navigation
-  React.useEffect(() => {
-    if (!navigationRef.current) return;
-
-    if (!user) {
-      // User has logged out, go directly to Login (not Splash, which re-checks session)
-      navigationRef.current.reset({
-        index: 0,
-        routes: [{ name: 'Login' }],
-      });
-    }
-  }, [user, sessionVerified]);
 
   // Global Presence Listener
   React.useEffect(() => {

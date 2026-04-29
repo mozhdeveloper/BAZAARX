@@ -150,7 +150,7 @@ export default function BuyerLoginPage() {
         window.location.assign(result.url);
       }
     } catch (err) {
-      setError("Failed to initialize Google Sign-In.");
+      setError("Failed to initialize Google Sign-In. Please try again.");
       setIsLoading(false);
     }
   };
@@ -310,6 +310,14 @@ export default function BuyerLoginPage() {
                 <button type="button" onClick={() => setShowPassword(!showPassword)} className="absolute right-4 top-1/2 -translate-y-1/2 text-[var(--text-muted)]"><Eye size={18} /></button>
               </div>
               {errors.password && <p className="text-xs text-red-600 ml-1">{errors.password.message}</p>}
+              <div className="flex justify-end px-1 mt-1">
+                <Link 
+                  to={`/forgot-password${watchedEmail ? `?email=${encodeURIComponent(watchedEmail)}` : ''}`} 
+                  className="text-xs font-bold text-[var(--brand-primary)] hover:underline transition-all"
+                >
+                  Forgot Password?
+                </Link>
+              </div>
             </div>
 
             <button type="submit" disabled={isLoading || !isValid || lockoutTimer > 0} className="w-full btn-primary h-14 uppercase rounded-[var(--radius-md)] font-bold shadow-lg flex items-center justify-center gap-2 mt-4 transition-all disabled:opacity-50">

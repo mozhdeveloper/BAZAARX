@@ -203,9 +203,7 @@ export default function SellerSettingsScreen() {
             } catch (e) {
               console.warn('[SellerSettings] signOut failed:', e);
             }
-            try { useAuthStore.getState().logout?.(); } catch {}
-            try { await supabase.auth.signOut(); } catch {}
-            navigation.reset?.({ index: 0, routes: [{ name: 'Login' as never }] } as never);
+            // App.tsx handles redirection to Login centrally
           }}
         >
           <Text style={{ color: '#B91C1C', fontWeight: '600' }}>Sign Out</Text>
@@ -260,9 +258,8 @@ export default function SellerSettingsScreen() {
           } catch (e) {
             console.warn('[SellerSettings] signOut failed:', e);
           }
-          try { useAuthStore.getState().logout?.(); } catch {}
-          try { await supabase.auth.signOut(); } catch {}
-          navigation.reset?.({ index: 0, routes: [{ name: 'Login' as never }] } as never);
+          // The central App.tsx listener will handle navigation to Login
+          // because it watches the authStore user state.
         },
       },
     ]);

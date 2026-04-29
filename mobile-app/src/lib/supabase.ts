@@ -49,30 +49,8 @@ supabase.auth.onAuthStateChange(async (event, session) => {
   }
 });
 
-// Proactively validate the stored session on cold start.
-// If the refresh token is invalid/revoked Supabase will throw; we catch
-// that, wipe the stale tokens and let the app redirect to sign-in.
-(async () => {
-  try {
-    const { data, error } = await supabase.auth.getSession();
-    if (error) {
-      if (error.message?.includes('Refresh Token Not Found') || error.message?.includes('Invalid Refresh Token')) {
-        console.log('[Auth] Stale session detected and cleared on startup');
-      } else {
-        console.warn('[Auth] Session validation error:', error.message);
-      }
-      await clearAuthStorage();
-      await supabase.auth.signOut().catch(() => { });
-    } else if (!data.session) {
-      // Normal state: no session in storage
-      // console.log('[Auth] No session to restore');
-    }
-  } catch (err: any) {
-    console.error('[Auth] Unexpected error during session validation:', err?.message);
-    await clearAuthStorage();
-    await supabase.auth.signOut().catch(() => { });
-  }
-})();
+// Note: Cold start session validation is now handled primarily by authStore.checkSession()
+// in conjunction with SplashScreen.tsx to ensure a single, raced startup flow.
 
 export const isSupabaseConfigured = (): boolean => {
   const url = process.env.EXPO_PUBLIC_SUPABASE_URL;

@@ -481,10 +481,13 @@ export class AuthService {
     }
 
     try {
+      const redirectUri = getRedirectUri();
+      console.log(`[AuthService] Signing in with ${provider}, redirectTo:`, redirectUri);
+      
       const { data, error } = await supabase.auth.signInWithOAuth({
         provider,
         options: {
-          redirectTo: getRedirectUri(),
+          redirectTo: redirectUri,
           queryParams: {
             access_type: 'offline',
             prompt: 'consent',
@@ -561,16 +564,26 @@ export class AuthService {
 
   /**
    * Sign out current user
+   * @param options - Sign out options (e.g., local only)
    */
-  async signOut(): Promise<void> {
+  async signOut(options?: { scope?: 'global' | 'local' | 'others' }): Promise<void> {
     if (!isSupabaseConfigured()) {
       return;
     }
 
     try {
-      const { error } = await supabase.auth.signOut();
-      if (error) throw error;
-    } catch (error) {
+      const { error } = await supabase.auth.signOut(options);
+      // AuthSessionMissingError means there was no session to revoke —
+      // the user is effectively already signed out, so treat it as success.
+      if (error && !error.message?.includes('Auth session missing')) {
+        throw error;
+      }
+    } catch (error: any) {
+      // Same guard for thrown errors (some Supabase versions throw instead of returning)
+      if (error?.message?.includes('Auth session missing')) {
+        console.log('[AuthService] signOut called with no active session — already signed out.');
+        return;
+      }
       console.error('Error signing out:', error);
       throw new Error('Failed to sign out. Please try again.');
     }
@@ -732,11 +745,14 @@ export class AuthService {
     }
 
     try {
+      const redirectUri = getRedirectUri();
+      console.log('[AuthService] Resending verification link, redirectTo:', redirectUri);
+
       const { error } = await supabase.auth.resend({
         type: 'signup',
         email: email,
         options: {
-          emailRedirectTo: getRedirectUri(),
+          emailRedirectTo: redirectUri,
         }
       });
 
@@ -804,8 +820,13 @@ export class AuthService {
     }
 
     try {
+      const redirectUri = getRedirectUri().replace('auth/callback', 'reset-password');
+      
+      // Log the redirect URI so the developer can verify it matches the Supabase whitelist
+      console.log('[AuthService] Sending password reset with redirectTo:', redirectUri);
+
       const { error } = await supabase.auth.resetPasswordForEmail(email, {
-        redirectTo: getRedirectUri().replace('auth/callback', 'reset-password'),
+        redirectTo: redirectUri,
       });
 
       if (error) throw error;
@@ -1021,10 +1042,13 @@ export class AuthService {
     }
 
     try {
+      const redirectUri = getRedirectUri();
+      console.log('[AuthService] Sending OTP, redirectTo:', redirectUri);
+
       const { error } = await supabase.auth.signInWithOtp({
         email: email.trim().toLowerCase(),
         options: {
-          emailRedirectTo: getRedirectUri(),
+          emailRedirectTo: redirectUri,
         },
       });
 

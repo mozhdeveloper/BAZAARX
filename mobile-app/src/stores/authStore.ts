@@ -221,92 +221,153 @@ export const useAuthStore = create<AuthState>()(
       },
 
       signOut: async () => {
-        set({ loading: true });
+        // Prevent concurrent signOut calls if already loading and user is already cleared
+        if (get().loading && get().user === null) {
+          console.log('[authStore] 🚪 signOut already in progress, skipping...');
+          return;
+        }
+
+        console.log('[authStore] 🚪 Initiating signOut...');
+        
+        // 1. OPTIMISTIC CLEAR: Wipe local user data immediately so UI/Navigation can react.
+        // This ensures the App.tsx watcher triggers navigation to Login without waiting for network.
+        set({
+          user: null,
+          profile: null,
+          isAuthenticated: false,
+          isGuest: false,
+          activeRole: 'buyer',
+          loading: true,
+          error: null,
+          sessionVerified: true, 
+        });
+
         try {
-          await authService.signOut();
-          useWishlistStore.getState().reset();
-          // Lazy import to break circular dependency
-          const { useCartStore } = await import('./cartStore');
-          useCartStore.getState().reset();
-          useOrderStore.getState().reset();
-          purgeSellerData();
-          set({
-            user: null,
-            profile: null,
-            isAuthenticated: false,
-            isGuest: false,
-            activeRole: 'buyer',
-            loading: false,
-          });
+          // 2. BACKGROUND CLEANUP: Clear other stores
+          try {
+            useWishlistStore.getState().reset();
+            const { useCartStore } = await import('./cartStore');
+            useCartStore.getState().reset();
+            useOrderStore.getState().reset();
+            purgeSellerData();
+          } catch (cleanupErr) {
+            console.warn('[authStore] Cleanup error during signOut:', cleanupErr);
+          }
+
+          // 3. REMOTE SIGNOUT: Tell Supabase to invalidate the session.
+          // We use 'local' scope to ensure it doesn't hang on global session revocations if offline.
+          await authService.signOut({ scope: 'local' });
+          console.log('[authStore] ✅ Remote signOut successful.');
         } catch (error) {
-          set({
-            error: error instanceof Error ? error.message : 'Sign out failed',
-            loading: false,
-          });
+          console.warn('[authStore] ⚠️ Remote signOut failed (non-fatal):', error);
+        } finally {
+          set({ loading: false });
+          console.log('[authStore] 🧼 Local state cleared and signOut process complete.');
         }
       },
+
 
       checkSession: async () => {
         try {
           const sessionResult = await authService.getSession();
           if (sessionResult?.user) {
-            // Fetch profile, roles, and buyer data in parallel to reduce latency
-            const [profile, roles, buyer] = await Promise.all([
-              authService.getUserProfile(sessionResult.user.id).catch(() => null),
-              authService.getUserRoles(sessionResult.user.id).catch(() => [] as string[]),
-              authService.getBuyerProfile(sessionResult.user.id).catch(() => null),
-            ]);
-            const firstName = profile?.first_name || '';
-            const lastName = profile?.last_name || '';
-            const fullName = `${firstName} ${lastName}`.trim() || sessionResult.user.user_metadata?.full_name || sessionResult.user.user_metadata?.name || sessionResult.user.email?.split('@')[0] || 'User';
-            const user: User = {
-              id: sessionResult.user.id,
-              email: sessionResult.user.email || '',
-              name: fullName,
-              phone: profile?.phone || '',
-              avatar: buyer?.avatar_url || undefined,
-              roles: roles.length > 0 ? roles : ['buyer'],
-              bazcoins: buyer?.bazcoins || 0,
-              // Only treat as unaccepted if explicitly false (new sign-up mid-flow).
-              // Existing accounts without this metadata field default to accepted.
-              hasAcceptedTerms: sessionResult.user.user_metadata?.has_accepted_terms !== false
-            };
-            const preferences = buyer?.preferences as any;
-            const hasOnboarding = !!(
-              (preferences?.interests && Array.isArray(preferences.interests) && preferences.interests.length > 0) ||
-              (preferences?.interestedCategories && Array.isArray(preferences.interestedCategories) && preferences.interestedCategories.length > 0)
-            );
+            // OPTIMISTIC UPDATE: Set basic auth state immediately using session + hydrated data
+            // This prevents the Splash screen from timing out while waiting for profile DB calls.
+            set({ 
+              isAuthenticated: true, 
+              isGuest: false,
+              sessionVerified: true 
+            });
 
-            set({
-              user,
-              profile,
-              isAuthenticated: true,
-              isGuest: false,
-              hasCompletedOnboarding: hasOnboarding,
-              activeRole: get().activeRole === 'seller' && roles.includes('seller') ? 'seller' : 'buyer',
-              sessionVerified: true,
-            });
-            // Load wishlist from Supabase after session restore
-            useWishlistStore.getState().loadWishlist(sessionResult.user.id);
+            // BACKGROUND REFRESH: Fetch profile, roles, and buyer data in parallel
+            // We do NOT await this before resolving checkSession
+            const refreshPromise = (async () => {
+              try {
+                const [profile, roles, buyer] = await Promise.all([
+                  authService.getUserProfile(sessionResult.user.id).catch(() => null),
+                  authService.getUserRoles(sessionResult.user.id).catch(() => [] as string[]),
+                  authService.getBuyerProfile(sessionResult.user.id).catch(() => null),
+                ]);
+
+                const firstName = profile?.first_name || '';
+                const lastName = profile?.last_name || '';
+                const fullName = `${firstName} ${lastName}`.trim() || sessionResult.user.user_metadata?.full_name || sessionResult.user.user_metadata?.name || sessionResult.user.email?.split('@')[0] || 'User';
+                
+                const user: User = {
+                  id: sessionResult.user.id,
+                  email: sessionResult.user.email || '',
+                  name: fullName,
+                  phone: profile?.phone || '',
+                  avatar: buyer?.avatar_url || undefined,
+                  roles: roles.length > 0 ? roles : ['buyer'],
+                  bazcoins: buyer?.bazcoins || 0,
+                  hasAcceptedTerms: sessionResult.user.user_metadata?.has_accepted_terms !== false
+                };
+                
+                const preferences = buyer?.preferences as any;
+                const hasOnboarding = !!(
+                  (preferences?.interests && Array.isArray(preferences.interests) && preferences.interests.length > 0) ||
+                  (preferences?.interestedCategories && Array.isArray(preferences.interestedCategories) && preferences.interestedCategories.length > 0)
+                );
+
+                set({
+                  user,
+                  profile,
+                  isAuthenticated: true,
+                  isGuest: false,
+                  hasCompletedOnboarding: hasOnboarding,
+                  activeRole: get().activeRole === 'seller' && roles.includes('seller') ? 'seller' : 'buyer',
+                });
+                
+                // Load wishlist in background
+                useWishlistStore.getState().loadWishlist(sessionResult.user.id);
+              } catch (bgErr) {
+                console.warn('[authStore] Background session refresh failed:', bgErr);
+              }
+            })();
+
+            // Resolve checkSession now so Splash screen can navigate
+            return;
           } else {
-            // No valid session, clear auth state
-            set({
-              user: null,
-              profile: null,
-              isAuthenticated: false,
-              isGuest: false,
-            });
+            // No valid session found. If the store still thinks the user is
+            // authenticated (stale Zustand persist hydration), force a local sign-out
+            // so local state and AsyncStorage tokens are completely wiped.
+            console.log('[authStore] No active session found — auto-cleanup triggered.');
+            if (get().isAuthenticated) {
+              // Non-blocking cleanup: clear local state and fire-and-forget signOut
+              set({
+                user: null,
+                profile: null,
+                isAuthenticated: false,
+                isGuest: false,
+                sessionVerified: true,
+              });
+              get().signOut().catch(() => {});
+            } else {
+              set({
+                user: null,
+                profile: null,
+                isAuthenticated: false,
+                isGuest: false,
+                sessionVerified: true,
+              });
+            }
           }
         } catch (error) {
           console.error('Error checking session:', error);
-          // Clear auth state on session error (e.g., invalid refresh token)
+          // On any session error (e.g., invalid/expired refresh token),
+          // force a local sign-out to prevent a permanently stuck auth state.
+          console.log('[authStore] Session error — auto-cleanup triggered.');
           set({
             user: null,
             profile: null,
             isAuthenticated: false,
             isGuest: false,
             error: 'Session expired. Please sign in again.',
+            sessionVerified: true,
           });
+          // Attempt a remote sign-out in the background
+          get().signOut().catch(() => {});
         }
       },
 
