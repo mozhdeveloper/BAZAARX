@@ -534,10 +534,40 @@ export const useCartStore = create<CartStore>()(
       },
 
       updateItemVariant: async (cartItemId, variantId, options) => {
-        // Optimistically update local state if needed, or just wait for refresh
         const run = async () => {
-          const localItem = get().items.find(i => i.cartItemId === cartItemId && isLocalCartItem(i));
-          if (localItem) {
+          const previousItems = [...get().items];
+          const itemToUpdate = previousItems.find(i => i.cartItemId === cartItemId);
+          
+          if (!itemToUpdate) return;
+
+          // --- OPTIMISTIC UPDATE ---
+          // 1. Check if another item with the same product ID and NEW variant ID already exists in local state
+          const duplicateItem = previousItems.find(i => 
+            i.id === itemToUpdate.id && 
+            (i.selectedVariant?.variantId === variantId) &&
+            i.cartItemId !== cartItemId
+          );
+
+          if (duplicateItem) {
+            // Scenario B (Optimistic): Merge current into duplicate, and remove current
+            set(state => ({
+              items: state.items.map(i => {
+                if (i.cartItemId === duplicateItem.cartItemId) {
+                  return {
+                    ...i,
+                    quantity: i.quantity + itemToUpdate.quantity,
+                    selectedVariant: {
+                      ...(i.selectedVariant || {}),
+                      ...(options || {}),
+                      ...(variantId ? { variantId } : {}),
+                    }
+                  };
+                }
+                return i;
+              }).filter(i => i.cartItemId !== cartItemId)
+            }));
+          } else {
+            // Scenario A (Optimistic): Just update the variant in place
             set(state => ({
               items: state.items.map(i => {
                 if (i.cartItemId !== cartItemId) return i;
@@ -551,19 +581,21 @@ export const useCartStore = create<CartStore>()(
                 };
               }),
             }));
-            return;
           }
 
           const cartId = get().cartId;
           if (!cartId) return;
+
           try {
-            // Call service
+            // Call service to persist in DB
             await cartService.updateCartItemVariant(cartItemId, variantId, options);
-            // Refresh
+            
+            // Full refresh to ensure state is 100% in sync with DB (catches stock limits, etc.)
             await get().initializeForCurrentUser();
-          } catch (e) {
+          } catch (e: any) {
             console.error('[CartStore] Failed to update item variant:', e);
-            set({ error: 'Failed to update item variant' });
+            // ROLLBACK on error
+            set({ items: previousItems, error: e.message || 'Failed to update item variant' });
           }
         };
         return run();

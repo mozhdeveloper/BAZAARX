@@ -95,12 +95,19 @@ export const CartItemRow: React.FC<CartItemRowProps> = React.memo(({
         {variantParts.length > 0 && (
           <Pressable
             onPress={onEdit}
-            disabled={!onEdit || isOutOfStock}
-            style={({ pressed }) => ({ flexDirection: 'row', alignItems: 'center', marginBottom: 4, opacity: pressed ? 0.7 : 1 })}
+            disabled={!onEdit || isOutOfStock || (item as any).isUpdating}
+            style={({ pressed }) => ({ 
+              flexDirection: 'row', 
+              alignItems: 'center', 
+              marginBottom: 4, 
+              opacity: (pressed || (item as any).isUpdating) ? 0.7 : 1 
+            })}
           >
             <View style={styles.variantChip}>
-              <Text style={styles.variantChipText}>{variantParts.join(' · ')}</Text>
-              {!isOutOfStock && onEdit && <ChevronDown size={12} color="#6B7280" style={{ marginLeft: 4 }} />}
+              <Text style={styles.variantChipText}>
+                {(item as any).isUpdating ? 'Updating...' : variantParts.join(' · ')}
+              </Text>
+              {!isOutOfStock && onEdit && !(item as any).isUpdating && <ChevronDown size={12} color="#6B7280" style={{ marginLeft: 4 }} />}
             </View>
           </Pressable>
         )}

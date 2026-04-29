@@ -44,15 +44,16 @@ type Props = NativeStackScreenProps<RootStackParamList, 'Orders'>;
 
 const { width } = Dimensions.get('window');
 
-type OrdersTab = 'all' | 'pending' | 'processing' | 'shipped' | 'delivered' | 'received' | 'returned' | 'cancelled';
+type OrdersTab = 'all' | 'pending' | 'processing' | 'shipped' | 'delivered' | 'received' | 'reviewed' | 'returned' | 'cancelled';
 
 const normalizeInitialTab = (tab?: string): OrdersTab => {
   const normalized = (tab || 'pending').toLowerCase();
+  if (normalized === 'reviewed') return 'reviewed';
   if (normalized === 'topay') return 'pending';
   if (normalized === 'toship') return 'processing';
   if (normalized === 'toreceive') return 'shipped';
-  if (normalized === 'toreview') return 'cancelled';
-  if (normalized === 'completed') return 'cancelled';
+  if (normalized === 'toreview') return 'received';
+  if (normalized === 'completed') return 'received';
   if (normalized === 'returns') return 'returned';
   if (
     normalized === 'all' ||
@@ -1045,14 +1046,15 @@ export default function OrdersScreen({ navigation, route }: Props) {
           showsHorizontalScrollIndicator={false}
           contentContainerStyle={styles.tabsContentContainer}
         >
-          {(['all', 'pending', 'processing', 'shipped', 'delivered', 'received', 'returned', 'cancelled'] as const).map((tab) => {
+          {(['all', 'pending', 'processing', 'shipped', 'delivered', 'received', 'returned', 'cancelled', 'reviewed'] as const).map((tab) => {
             const labelMap: Record<string, string> = {
               all: 'All',
               pending: 'Pending',
               processing: 'Processing',
               shipped: 'Shipped',
               delivered: 'Delivered',
-              received: 'Received',
+              received: 'To Review',
+              reviewed: 'Reviewed',
               returned: 'Return/Refund',
               cancelled: 'Cancelled'
             };
@@ -1094,14 +1096,22 @@ export default function OrdersScreen({ navigation, route }: Props) {
         ) : filteredOrders.length === 0 ? (
           <View style={styles.emptyContainer}>
             <Package size={64} color="#D1D5DB" />
-            <Text style={styles.emptyTitle}>No Orders Found</Text>
-            <Text style={styles.emptyText}>Items you purchase will appear here</Text>
-            <Pressable 
-              style={[styles.primaryButton, { marginTop: 24, backgroundColor: BRAND_COLOR, paddingVertical: 12, paddingHorizontal: 32 }]} 
-              onPress={() => navigation.navigate('MainTabs', { screen: 'Home' })}
-            >
-              <Text style={styles.primaryButtonText}>Shop Now</Text>
-            </Pressable>
+            <Text style={styles.emptyTitle}>
+              {activeTab === 'reviewed' ? 'No Reviews Yet' : 'No Orders Found'}
+            </Text>
+            <Text style={styles.emptyText}>
+              {activeTab === 'reviewed' 
+                ? 'Orders you have reviewed will appear here.'
+                : 'Items you purchase will appear here'}
+            </Text>
+            {activeTab !== 'reviewed' && (
+              <Pressable 
+                style={[styles.primaryButton, { marginTop: 24, backgroundColor: BRAND_COLOR, paddingVertical: 12, paddingHorizontal: 32 }]} 
+                onPress={() => navigation.navigate('MainTabs', { screen: 'Home' })}
+              >
+                <Text style={styles.primaryButtonText}>Shop Now</Text>
+              </Pressable>
+            )}
           </View>
         ) : (
           filteredOrders.map(renderOrderCard)

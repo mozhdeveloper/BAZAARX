@@ -1,84 +1,56 @@
-## What does this PR do?
+# Mobile App Enhancements: Order Badges, Flash Sale UI, and Cart Fixes
 
-This PR fixes critical issues in the **Seller Dashboard Product Management** flow, specifically focusing on the "Edit Product" functionality. It ensures that product details, variants, and draft statuses are correctly persisted to Supabase, while improving the UI/UX with loading states and corrected styling.
+This PR implements a series of critical logic fixes and UI/UX enhancements for the mobile shopping experience, focusing on order tracking transparency, flash sale aesthetics, and cart stability.
 
 ---
 
 ## 🛠️ Changes by Area
 
-### 1. Seller Dashboard — Product Editing & Persistence
+### 1. Order Management & Profile Badges
+- **Dynamic Notification System**: Integrated a performance-optimized order badge system on the Profile screen.
+    - Implemented `useOrderCounts` custom hook using parallel Supabase queries (`{ count: 'exact', head: true }`) to minimize data transfer.
+    - Added red circular notification badges to Pending, Processing, Shipped, and Delivered icons.
+- **Status Mapping Synchronization**: Refined the logic in `useOrderCounts` to exactly match the `OrdersScreen` tab logic, ensuring badge counts are consistent with the filtered views.
+- **"Reviewed" Tab Implementation**: Added a new tab in the Orders screen for already reviewed products, achieving parity with the web version.
+- **Tab Reordering**: Updated navigation sequence to: *All → Pending → Processing → Shipped → Delivered → To Review → Return/Refund → Cancelled → Reviewed*.
 
-**File:** `src/pages/SellerProducts.tsx`
+### 2. Global Flash Sale UI Restructuring
+- **Header Modernization**: Replaced text-based "Back to Home" navigation with a compact, sleek Chevron icon.
+- **Title Layout**: Restructured the header to move the "Flash Sale" title and Zap icon into a compact flex layout, improving spacing for small screens.
+- **Content Cleanup**: Removed redundant shop name displays from campaign section headers to provide a cleaner, more focused "Global Flash Sale" experience.
 
-- **Refactored `onEditProduct` logic**: Improved the mapping of database fields to the form state, specifically handling `isDraft` status and sub-category selection more robustly.
-- **Improved Update Flow**:
-    - Replaced monolithic update logic with a more granular approach.
-    - Uses `productService.updateProduct` for core product metadata.
-    - Iterates through variants to update them individually via `productService.updateVariant`, ensuring `sku`, `price`, `stock`, and `thumbnail_url` are correctly synced.
-- **Removed deprecated audit logging**: Cleaned up the `admin_audit_logs` insert call from the frontend to reduce unnecessary API calls and potential failures during product saving.
-
-### 2. Variant Management & Service Updates
-
-**File:** `src/services/productService.ts`
-
-- **Enhanced `updateVariant` API**: Expanded the `updates` object to support all critical variant fields:
-    - `variant_name`
-    - `option_1_value`
-    - `option_2_value`
-    - `sku`
-    - `thumbnail_url`
-- This allows for precise updates to individual variants when editing a product.
-
-### 3. Data Model & Mapping (Draft Support)
-
-**Files:** `src/stores/seller/sellerTypes.ts`, `src/utils/productMapper.ts`
-
-- **Draft Status Integration**: 
-    - Added `"draft"` as a valid `approvalStatus` in `sellerTypes.ts`.
-    - Added `isDraft` and `isVacationMode` properties to the `SellerProduct` interface.
-- **Mapper Logic**: Updated `mapDbProductToSellerProduct` to automatically set the `isDraft` flag based on the database `approval_status`.
-- **Bug Fix**: Fixed a property access bug in `mapDbProductToNormalized` where `original_price` (snake_case) wasn't being correctly mapped from the database response.
-
-### 4. UI/UX Polish & Error Handling
-
-**Files:** `src/pages/SellerProducts.tsx`, `src/components/seller/products/VariantItem.tsx`, `src/components/seller/products/VariantManager.tsx`
-
-- **Loading Feedback**: Added a spinning loader to the "Save Changes" / "Publish Product" button during submission to prevent multiple clicks and provide visual feedback.
-- **Button Styling Fixes**:
-    - **Cancel Button**: Fixed the "Cancel" button in the Add/Edit Product form. It previously incorrectly used the orange brand gradient; it now uses a clean `outline` variant with gray text and borders.
-- **Variant UI Improvements**:
-    - **Optional Images**: Updated `VariantItem.tsx` to mark variant images as "(Optional)" instead of required, providing more flexibility for sellers.
-    - **Error Visibility**: Added explicit error message blocks in `VariantManager.tsx` to display validation errors related to variants and variant images, improving form troubleshooting.
+### 3. Shopping Cart & Variant Stability
+- **Cart Variation Fix**: Resolved a logic bug where switching variants of an existing cart item would incorrectly merge selection strings or fail to update the unique ID.
+- **State Management**: Refined `cartStore` and `cartService` to handle variant replacements robustly, ensuring correct price and stock syncing.
 
 ---
 
-## Files Changed Summary
+## 📄 Files Changed Summary
 
-### Web (`web/`)
+### Mobile (`mobile-app/`)
 
 | File | Type | Description |
 |---|---|---|
-| `src/pages/SellerProducts.tsx` | Modified | Refactored product/variant update logic, added loading states, fixed button styles. |
-| `src/services/productService.ts` | Modified | Expanded `updateVariant` to support more fields (SKU, thumbnails, etc.). |
-| `src/stores/seller/sellerTypes.ts` | Modified | Added `draft` status and `isDraft` property to `SellerProduct` type. |
-| `src/utils/productMapper.ts` | Modified | Added mapping for `isDraft` and fixed `original_price` mapping. |
-| `src/components/seller/products/VariantItem.tsx` | Modified | Marked variant images as optional in the UI. |
-| `src/components/seller/products/VariantManager.tsx` | Modified | Added dedicated error message displays for variants and variant images. |
+| `app/ProfileScreen.tsx` | Modified | Integrated dynamic order badges and status icons. |
+| `src/hooks/useOrderCounts.ts` | **New** | Optimized hook for fetching order counts by status. |
+| `app/OrdersScreen.tsx` | Modified | Added "Reviewed" tab, renamed "Received" to "To Review", and reordered tabs. |
+| `app/FlashSaleScreen.tsx` | Modified | Restructured header navigation and cleaned section titles. |
+| `app/CartScreen.tsx` | Modified | Fixed variant switching logic and UI updates. |
+| `src/components/CartItemRow.tsx` | Modified | Updated variant picker callback logic. |
+| `src/stores/cartStore.ts` | Modified | Improved cart item update logic for variants. |
+| `src/services/cartService.ts` | Modified | Ensured database parity during cart item variant updates. |
 
 ---
 
-## Testing Done
+## ✅ Testing Done
 
-- [x] **Product Editing**: Successfully updated existing products and verified changes in Supabase.
-- [x] **Variant Sync**: Verified that price, stock, and SKU changes for individual variants are persisted correctly.
-- [x] **Draft Mode**: Verified that products saved as drafts correctly display the "draft" status and map the `isDraft` flag.
-- [x] **UI Feedback**: Verified the loading spinner appears during product submission.
-- [x] **Style Regression**: Verified the "Cancel" button now has the correct neutral styling instead of the brand orange gradient.
-- [x] **Navigation**: Verified that saving a product correctly redirects the user back to the product list with a success toast.
+- [x] **Order Badges**: Verified that counts on the Profile screen match the number of items in the corresponding Orders tabs.
+- [x] **Delivered Exclusions**: Verified that Reviewed and Returned items are excluded from the "Delivered" badge count.
+- [x] **Tab Navigation**: Verified all 9 tabs in the Orders screen display the correct filtered data.
+- [x] **Flash Sale UI**: Verified the compact header remains responsive on small devices (iPhone SE simulation).
+- [x] **Cart Stability**: Verified that changing a variant (e.g., Color/Size) correctly replaces the item in the cart without string duplication.
 
 ---
 
-## Notes for Reviewer
-
-- The individual variant update approach in `SellerProducts.tsx` was chosen to ensure maximum reliability over bulk updates, which were occasionally failing due to constraint conflicts.
-- Audit logging has been removed from the frontend as it should ideally be handled via database triggers or a dedicated backend service for security and performance reasons.
+## 💡 Notes for Reviewer
+The addition of the `useOrderCounts` hook significantly improves the Profile screen performance by avoiding a full orders fetch. The UI refinements in the Flash Sale screen were designed to improve accessibility and touch targets for mobile users.
