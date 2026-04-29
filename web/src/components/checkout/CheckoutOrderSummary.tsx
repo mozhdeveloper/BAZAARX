@@ -127,7 +127,7 @@ export const CheckoutOrderSummary: React.FC<CheckoutOrderSummaryProps> = ({
   isLoading,
   selectedAddress,
 }) => {
-  const [isBreakdownOpen, setIsBreakdownOpen] = useState(false);
+  const [isSummaryOpen, setIsSummaryOpen] = useState(false);
 
   const sellerEntries = useMemo(
     () => Object.entries(groupedCheckoutItems),
@@ -143,8 +143,8 @@ export const CheckoutOrderSummary: React.FC<CheckoutOrderSummaryProps> = ({
     <>
       {/* ── Seller Breakdown Modal (portal) ─────────────────────────────── */}
       <SellerBreakdownModal
-        isOpen={isBreakdownOpen}
-        onClose={() => setIsBreakdownOpen(false)}
+        isOpen={isSummaryOpen}
+        onClose={() => setIsSummaryOpen(false)}
         groupedItems={groupedCheckoutItems}
         activeCampaignDiscounts={activeCampaignDiscounts}
         getOriginalUnitPrice={getOriginalUnitPrice}
@@ -178,16 +178,16 @@ export const CheckoutOrderSummary: React.FC<CheckoutOrderSummaryProps> = ({
               <button
                 type="button"
                 aria-haspopup="dialog"
-                aria-expanded={isBreakdownOpen}
-                onClick={() => setIsBreakdownOpen(true)}
-                className="group w-full flex items-center justify-between focus:outline-none"
+                aria-expanded={isSummaryOpen}
+                onClick={() => setIsSummaryOpen(true)}
+                className="flex justify-between items-center w-full hover:text-orange-600 transition-colors group focus:outline-none"
               >
-                <h3 className="text-lg font-semibold text-gray-900 group-hover:text-[var(--brand-primary)] transition-colors">
-                  Order Summary
+                <h3 className="text-lg font-semibold text-gray-900 group-hover:text-orange-600 transition-colors">
+                  View Order Summary
                 </h3>
-                <span className="flex items-center gap-1 text-xs text-gray-400 group-hover:text-[var(--brand-primary)] transition-colors">
+                <span className="flex items-center gap-1 text-xs text-gray-400 group-hover:text-orange-600 transition-colors">
                   {totalItems} item{totalItems !== 1 ? "s" : ""}
-                  <ChevronRight className="w-3.5 h-3.5" />
+                  <ChevronRight className="w-4 h-4" />
                 </span>
               </button>
             )}
