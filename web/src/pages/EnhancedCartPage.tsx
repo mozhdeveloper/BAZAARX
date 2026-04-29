@@ -634,12 +634,12 @@ export default function EnhancedCartPage() {
                                       </Badge>
                                     );
                                     if (stock <= 5) return (
-                                      <span className="text-[10px] text-orange-500 font-medium shrink-0">
+                                      <span className="text-[11px] text-orange-500 font-bold shrink-0">
                                         Only {stock} left
                                       </span>
                                     );
                                     if (stock <= 10) return (
-                                      <span className="text-[10px] text-amber-600 font-semibold shrink-0">
+                                      <span className="text-[11px] text-amber-600 font-bold shrink-0">
                                         {stock} left
                                       </span>
                                     );
