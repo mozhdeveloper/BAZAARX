@@ -199,38 +199,8 @@ export const useOrderStore = create<OrderStore>()(
                     console.log(`Order buyer_id:`, order.buyer_id);
 
                     if (order.buyer_id) {
-                        const statusMessages: Record<string, string> = {
-                            confirmed: `Your order #${order.orderNumber} has been confirmed and is being prepared.`,
-                            shipped: `Your order #${order.orderNumber} has been shipped and is on its way!`,
-                            delivered: `Your order #${order.orderNumber} has been delivered. Enjoy your purchase!`,
-                            cancelled: `Your order #${order.orderNumber} has been cancelled.`,
-                        };
-
-                        const message =
-                            statusMessages[status] ||
-                            `Order #${order.orderNumber} status updated to ${status}`;
-
-                        console.log(
-                            `🚀 Creating buyer notification for order ${id}`,
-                        );
-
-                        // Notify buyer of order status
-                        notificationService
-                            .notifyBuyerOrderStatus({
-                                buyerId: order.buyer_id!,
-                                orderId: id,
-                                orderNumber: id.slice(-8),
-                                status,
-                                message,
-                            })
-                            .catch((refreshError) => {
-                                console.error(
-                                    "Failed to refresh orders after status update:",
-                                    refreshError,
-                                );
-                            });
-
                         // Fire transactional email using data already in the order (non-blocking)
+                        // Note: bell notification is already sent by orderService.updateOrderStatus via orderMutationService
                         if (order.buyerEmail) {
                             console.log(`[SellerOrderStore] ▶ Sending ${dbStatus} email to ${order.buyerEmail}`);
                             (() => {
@@ -468,20 +438,7 @@ export const useOrderStore = create<OrderStore>()(
                         throw new Error("Database update failed");
                     }
 
-                    // Fire transactional email using data already in the order (non-blocking)
-                    // Send in-app notification + push to buyer
-                    if (order.buyer_id) {
-                        notificationService.notifyBuyerOrderStatus({
-                            buyerId: order.buyer_id!,
-                            orderId: id,
-                            orderNumber: order.orderNumber || id,
-                            status: 'delivered',
-                            message: `Your order #${order.orderNumber || id} has been delivered. Enjoy your purchase!`,
-                        }).catch((err: unknown) => {
-                            console.error('[SellerOrderStore] ✖ Delivered notification error:', err);
-                        });
-                    }
-
+                    // Note: bell notification is already sent by orderService.markOrderAsDelivered via orderMutationService
                     if (order.buyerEmail) {
                         (() => {
                             console.log('[SellerOrderStore] ▶ Sending delivered email to', order.buyerEmail);

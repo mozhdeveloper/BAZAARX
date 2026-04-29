@@ -87,7 +87,10 @@ const mapBuyerUiStatusFromNormalized = (
   if (shipmentStatus === 'shipped' || shipmentStatus === 'out_for_delivery') return 'shipped';
   
   if (shipmentStatus === 'processing' || shipmentStatus === 'ready_to_ship') return 'processing';
-  
+
+  // PayMongo/online orders: already paid but seller hasn't shipped yet → show as Processing (not Pending)
+  if (paymentStatus === 'paid' && shipmentStatus === 'waiting_for_seller') return 'processing';
+
   // This restores the crucial Pending state!
   if (shipmentStatus === 'waiting_for_seller' || paymentStatus === 'pending_payment' || paymentStatus === 'pending') return 'pending';
 
