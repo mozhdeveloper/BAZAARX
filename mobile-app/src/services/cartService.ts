@@ -420,6 +420,9 @@ export class CartService {
 
   /**
    * Update cart item variant
+   * Logic Fix (Replacement & Merging):
+   * Scenario A: If the new variant selection does NOT exist in the cart yet, update the existing cart item directly.
+   * Scenario B: If the new variant already exists as another line item, merge quantities and delete the old line item.
    */
   async updateCartItemVariant(
     itemId: string,
@@ -431,53 +434,54 @@ export class CartService {
     }
 
     try {
-      // Step 1: Fetch the current cart item to get product_id and cart_id
+      // Step 1: Fetch the current cart item to get product_id, cart_id, and current quantity
       const { data: currentItem, error: fetchError } = await supabase
         .from('cart_items')
-        .select('id, product_id, cart_id, quantity, variant_id')
+        .select('id, product_id, cart_id, quantity')
         .eq('id', itemId)
         .single();
 
       if (fetchError) throw fetchError;
       if (!currentItem) throw new Error('Cart item not found.');
 
-      const { product_id, cart_id, quantity: currentQuantity } = currentItem;
-      const currentQty = Number(currentQuantity || 0);
+      const { product_id, cart_id, quantity: currentQty } = currentItem;
+      const currentQuantity = Number(currentQty || 0);
 
-      // Step 2: Check if another item with the same product_id and new variant_id exists
-      let query = supabase
+      // Step 2: Check if another item with the same product_id and new variant_id exists in this cart
+      let duplicateQuery = supabase
         .from('cart_items')
         .select('id, quantity')
         .eq('cart_id', cart_id)
         .eq('product_id', product_id)
-        .neq('id', itemId); // Exclude the current item
+        .neq('id', itemId); // Exclude the current item being edited
 
       if (variantId) {
-        query = query.eq('variant_id', variantId);
+        duplicateQuery = duplicateQuery.eq('variant_id', variantId);
       } else {
-        query = query.is('variant_id', null);
+        duplicateQuery = duplicateQuery.is('variant_id', null);
       }
 
-      const { data: duplicateItems, error: checkError } = await query;
+      const { data: duplicates, error: checkError } = await duplicateQuery;
       if (checkError) throw checkError;
 
-      // Step 3: If a duplicate exists, combine quantities and remove old item
-      if (duplicateItems && duplicateItems.length > 0) {
-        const duplicateItem = duplicateItems[0];
-        const duplicateQty = Number(duplicateItem.quantity || 0);
-        const newQuantity = duplicateQty + currentQty;
+      const duplicateItem = duplicates && duplicates.length > 0 ? duplicates[0] : null;
 
-        // Check available stock before combining
+      if (duplicateItem) {
+        // --- Scenario B: Merge quantities into existing line item ---
+        const duplicateQty = Number(duplicateItem.quantity || 0);
+        const mergedQuantity = duplicateQty + currentQuantity;
+
+        // Verify stock for combined quantity
         const availableStock = await this.getAvailableStock(product_id, variantId || null);
-        if (newQuantity > availableStock) {
-          throw new Error(`Cannot combine items. Only ${availableStock} items left in stock.`);
+        if (mergedQuantity > availableStock) {
+          throw new Error(`Cannot merge items. Combined quantity (${mergedQuantity}) exceeds available stock (${availableStock}).`);
         }
 
-        // Update the duplicate item with combined quantity and new variant/options
+        // 1. Update the existing item with merged quantity and new options
         const { error: updateError } = await supabase
           .from('cart_items')
           .update({ 
-            quantity: newQuantity,
+            quantity: mergedQuantity,
             variant_id: variantId || null,
             personalized_options: (personalizedOptions || null) as any
           })
@@ -485,7 +489,7 @@ export class CartService {
 
         if (updateError) throw updateError;
 
-        // Delete the current item
+        // 2. Delete the "old" item that was just changed to a duplicate
         const { error: deleteError } = await supabase
           .from('cart_items')
           .delete()
@@ -493,7 +497,7 @@ export class CartService {
 
         if (deleteError) throw deleteError;
       } else {
-        // Step 4: No duplicate found, just update the variant
+        // --- Scenario A: Simple update (no duplicate found) ---
         const { error: updateError } = await supabase
           .from('cart_items')
           .update({ 
@@ -504,9 +508,9 @@ export class CartService {
 
         if (updateError) throw updateError;
       }
-    } catch (error) {
-       console.error('Error updating cart item variant:', error);
-       throw new Error('Failed to update item variant.');
+    } catch (error: any) {
+       console.error('[CartService] Error updating cart item variant:', error);
+       throw new Error(error.message || 'Failed to update item variant.');
     }
   }
 

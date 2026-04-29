@@ -18,6 +18,8 @@ import { COLORS } from '../src/constants/theme';
 import { GuestLoginModal } from '../src/components/GuestLoginModal';
 import { ContributorBadge } from '../src/components/ContributorBadge';
 import type { ContributorTier } from '../src/stores/commentStore';
+import { useOrderCounts } from '../src/hooks/useOrderCounts';
+import { useFocusEffect } from '@react-navigation/native';
 
 type Props = CompositeScreenProps<
   BottomTabScreenProps<TabParamList, 'Profile'>,
@@ -71,52 +73,15 @@ export default function ProfileScreen({ navigation }: Props) {
   const [totalOrders, setTotalOrders] = React.useState(0);
   const [contributorTier, setContributorTier] = React.useState<ContributorTier>('none');
 
-  // Fetch Bazcoins and orders from Supabase
-  React.useEffect(() => {
-    if (!user?.id || isGuest) return;
+  // 1. Initialize Order Status Counts Hook
+  const { counts: orderCounts, refresh: refreshOrderCounts } = useOrderCounts();
 
-    const fetchProfileData = async () => {
-      try {
-        // 1. Fetch Bazcoins
-        const { data: buyerData } = await supabase
-          .from('buyers')
-          .select('bazcoins')
-          .eq('id', user.id)
-          .single();
-
-        if (buyerData) setBazcoins(buyerData.bazcoins || 0);
-
-        // 1b. Fetch Contributor Tier
-        const { data: tierData } = await supabase
-          .from('contributor_tiers')
-          .select('tier')
-          .eq('user_id', user.id)
-          .single();
-
-        if (tierData) setContributorTier(tierData.tier as ContributorTier);
-
-        // 2. Fetch Total Order Count
-        // We use { count: 'exact', head: true } to get the number of rows without downloading the data
-        const { count, error: orderError } = await supabase
-          .from('orders')
-          .select('*', { count: 'exact', head: true })
-          .eq('buyer_id', user.id); // Use 'seller_id' if you want orders sold by this user
-
-        if (!orderError && count !== null) {
-          setTotalOrders(count);
-        }
-
-        // 3. Fetch Identities
-        // (Moved to Settings)
-      } catch (error) {
-        console.error('Error fetching profile data:', error);
-      }
-    };
-
-    fetchProfileData();
-
-    // ... keep your existing realtime subscription for bazcoins ...
-  }, [user?.id, isGuest]);
+  // Refresh counts when user navigates back to profile
+  useFocusEffect(
+    React.useCallback(() => {
+      refreshOrderCounts();
+    }, [refreshOrderCounts])
+  );
 
   const openEditModal = () => {
     setEditFirstName(user?.name.split(' ')[0] || '');
@@ -263,56 +228,60 @@ export default function ProfileScreen({ navigation }: Props) {
     wishlistCount: wishlistItems.length,
   };
 
-  // 1. Add state for dynamic counts
-  const [orderCounts, setOrderCounts] = React.useState({
-    toPay: 0,
-    toShip: 0,
-    toReceive: 0,
-    toReview: 0,
-  });
-
-  // 2. Fetch counts from Supabase shipment_status
+  // 2. Fetch Profile Stats (Total Orders, Bazcoins, etc.)
   React.useEffect(() => {
     if (!user?.id || isGuest) return;
 
-    const fetchOrderCounts = async () => {
+    const fetchProfileData = async () => {
       try {
-        const { data: orders, error } = await supabase
+        // Fetch Bazcoins
+        const { data: buyerData } = await supabase
+          .from('buyers')
+          .select('bazcoins')
+          .eq('id', user.id)
+          .single();
+
+        if (buyerData) setBazcoins(buyerData.bazcoins || 0);
+
+        // Fetch Contributor Tier
+        const { data: tierData } = await supabase
+          .from('contributor_tiers')
+          .select('tier')
+          .eq('user_id', user.id)
+          .single();
+
+        if (tierData) setContributorTier(tierData.tier as ContributorTier);
+
+        // Fetch Total Order Count
+        const { count, error: orderError } = await supabase
           .from('orders')
-          .select('shipment_status')
+          .select('*', { count: 'exact', head: true })
           .eq('buyer_id', user.id);
 
-        if (!error && orders) {
-          const counts = { toPay: 0, toShip: 0, toReceive: 0, toReview: 0 };
-
-          orders.forEach(order => {
-            const status = order.shipment_status?.toLowerCase();
-            if (['pending', 'pending_payment'].includes(status)) counts.toPay++;
-            else if (['processing', 'ready_to_ship'].includes(status)) counts.toShip++;
-            else if (['shipped', 'out_for_delivery'].includes(status)) counts.toReceive++;
-            else if (['delivered', 'received'].includes(status)) counts.toReview++;
-          });
-          setOrderCounts(counts);
+        if (!orderError && count !== null) {
+          setTotalOrders(count);
         }
-      } catch (e) {
-        console.error('Error fetching badge counts:', e);
+      } catch (error) {
+        console.error('Error fetching profile data:', error);
       }
     };
 
-    fetchOrderCounts();
+    fetchProfileData();
   }, [user?.id, isGuest]);
 
-  const OrderStatusItem = ({ icon: Icon, label, badge, onPress }: any) => (
-    <Pressable style={styles.statusItem} onPress={onPress}>
-      <View>
-        <Icon size={28} color={COLORS.textHeadline} strokeWidth={1.5} />
-        {badge > 0 && (
-          <View style={styles.badgeContainer}>
-            <Text style={styles.badgeText}>{badge > 99 ? '99+' : badge}</Text>
+  const StatusIcon = ({ icon: Icon, label, count, onPress }: any) => (
+    <Pressable style={styles.purchaseItem} onPress={onPress}>
+      <View style={styles.iconWrapper}>
+        <Icon size={23} color={BRAND_COLOR} strokeWidth={2} />
+        {count > 0 && (
+          <View style={styles.badge}>
+            <Text style={styles.badgeText}>
+              {count > 99 ? '99+' : count}
+            </Text>
           </View>
         )}
       </View>
-      <Text style={styles.statusLabel}>{label}</Text>
+      <Text style={styles.purchaseLabel}>{label}</Text>
     </Pressable>
   );
 
@@ -555,26 +524,18 @@ export default function ProfileScreen({ navigation }: Props) {
           <View style={styles.purchasesContainer}>
             <View style={styles.purchasesGrid}>
               {[
-                { label: 'Pending', tab: 'pending', icon: Wallet },
-                { label: 'Processing', tab: 'processing', icon: Package },
-                { label: 'Shipped', tab: 'shipped', icon: Truck },
-                { label: 'Delivered', tab: 'delivered', icon: Star, badge: 1 },
+                { label: 'Pending', tab: 'pending', icon: Wallet, count: orderCounts.pending },
+                { label: 'Processing', tab: 'processing', icon: Package, count: orderCounts.processing },
+                { label: 'Shipped', tab: 'shipped', icon: Truck, count: orderCounts.shipped },
+                { label: 'Delivered', tab: 'delivered', icon: Star, count: orderCounts.delivered },
               ].map((item, idx) => (
-                <Pressable
+                <StatusIcon
                   key={idx}
-                  style={styles.purchaseItem}
+                  label={item.label}
+                  icon={item.icon}
+                  count={item.count}
                   onPress={() => navigation.navigate('Orders', { initialTab: item.tab as any })}
-                >
-                  <View style={styles.iconWrapper}>
-                    <item.icon size={23} color={BRAND_COLOR} strokeWidth={2} />
-                    {item.badge && (
-                      <View style={styles.badge}>
-                        <Text style={styles.badgeText}>{item.badge}</Text>
-                      </View>
-                    )}
-                  </View>
-                  <Text style={styles.purchaseLabel}>{item.label}</Text>
-                </Pressable>
+                />
               ))}
             </View>
           </View>
