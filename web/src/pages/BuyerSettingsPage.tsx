@@ -556,14 +556,33 @@ export default function BuyerSettingsPage() {
       const { data, error } = await supabase.auth.signInWithOAuth({
         provider: 'google',
         options: {
-          redirectTo: window.location.origin + '/settings?tab=security', // Will be caught by App.tsx
+          redirectTo: window.location.origin + '/settings?tab=security',
           queryParams: {
             access_type: 'offline',
             prompt: 'select_account',
           },
         },
       });
-      if (error) throw error;
+      if (error) {
+        // Detect conflict: Google account already linked to another user
+        const errMsg = error.message?.toLowerCase() || '';
+        const isConflict =
+          errMsg.includes('already') ||
+          errMsg.includes('identity_already_exists') ||
+          errMsg.includes('is already linked') ||
+          errMsg.includes('email_exists');
+
+        if (isConflict) {
+          toast({
+            title: 'Linking Failed',
+            description: 'This Google account is already linked to another account.',
+            variant: 'destructive',
+          });
+          setIsLinkingGoogle(false);
+          return;
+        }
+        throw error;
+      }
       if (data.url) window.location.assign(data.url);
     } catch (err: any) {
       toast({ title: 'Connection Failed', description: err.message, variant: 'destructive' });
@@ -1138,7 +1157,7 @@ export default function BuyerSettingsPage() {
                             ) : (
                               <img src="https://www.svgrepo.com/show/475656/google-color.svg" className="h-5 w-5 mr-2" alt="Google" />
                             )}
-                            Connect Google Account
+                            Link Google Account
                           </Button>
                         )}
                       </div>

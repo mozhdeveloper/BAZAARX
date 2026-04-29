@@ -1,10 +1,10 @@
 import React, { useState } from 'react';
-import { View, Text, ScrollView, Pressable, StyleSheet, Switch, Alert, StatusBar, ActivityIndicator, Modal, Image } from 'react-native';
+import { View, Text, ScrollView, Pressable, StyleSheet, Switch, Alert, StatusBar, ActivityIndicator, Modal, Image, TextInput } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import * as WebBrowser from 'expo-web-browser';
 import * as AuthSession from 'expo-auth-session';
-import { ArrowLeft, Globe, DollarSign, Moon, Volume2, Download, RefreshCw, Trash2, ShieldCheck } from 'lucide-react-native';
+import { ArrowLeft, Globe, DollarSign, Moon, Volume2, Download, RefreshCw, Trash2, ShieldCheck, AlertTriangle } from 'lucide-react-native';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import type { RootStackParamList } from '../App';
 import { useAuthStore } from '../src/stores/authStore';
@@ -27,6 +27,15 @@ export default function SettingsScreen({ navigation }: Props) {
   const [isGoogleLinked, setIsGoogleLinked] = useState(false);
   const [isLinkingGoogle, setIsLinkingGoogle] = useState(false);
   const [showGoogleAlreadyLinkedModal, setShowGoogleAlreadyLinkedModal] = useState(false);
+
+  // Delete-account modal state
+  const [showDeleteModal, setShowDeleteModal] = useState(false);
+  const [deletePassword, setDeletePassword] = useState('');
+  const [deleteCountdown, setDeleteCountdown] = useState(10);
+  const [showDeletePassword, setShowDeletePassword] = useState(false);
+  const [deleteError, setDeleteError] = useState<string | null>(null);
+  const countdownRef = React.useRef<ReturnType<typeof setInterval> | null>(null);
+
   const insets = useSafeAreaInsets();
 
   const { user } = useAuthStore();
@@ -136,54 +145,56 @@ export default function SettingsScreen({ navigation }: Props) {
     }
   };
 
-  const promptDeleteAccount = () => {
-    Alert.alert(
-      'Delete Account',
-      'This will permanently delete your account and all associated data. This action cannot be undone.\n\nUnder the Data Privacy Act (RA 10173), you have the right to erasure.',
-      [
-        { text: 'Cancel', style: 'cancel' },
-        {
-          text: 'Continue',
-          style: 'destructive',
-          onPress: () => promptDeletePassword(),
-        },
-      ],
-    );
+  const openDeleteModal = () => {
+    setDeletePassword('');
+    setShowDeletePassword(false);
+    setDeleteCountdown(10);
+    setDeleteError(null);
+    setShowDeleteModal(true);
+    if (countdownRef.current) clearInterval(countdownRef.current);
+    countdownRef.current = setInterval(() => {
+      setDeleteCountdown(prev => {
+        if (prev <= 1) {
+          clearInterval(countdownRef.current!);
+          countdownRef.current = null;
+          return 0;
+        }
+        return prev - 1;
+      });
+    }, 1000);
   };
 
-  const promptDeletePassword = () => {
-    Alert.prompt(
-      'Confirm Password',
-      'Enter your password to confirm account deletion.',
-      [
-        { text: 'Cancel', style: 'cancel' },
-        {
-          text: 'Delete Account',
-          style: 'destructive',
-          onPress: (password: string | undefined) => { if (password) deleteAccount(password); },
-        },
-      ],
-      'secure-text',
-    );
+  const closeDeleteModal = () => {
+    if (countdownRef.current) {
+      clearInterval(countdownRef.current);
+      countdownRef.current = null;
+    }
+    setShowDeleteModal(false);
+    setDeletePassword('');
+    setDeleteCountdown(10);
+    setDeleteError(null);
   };
 
-  const deleteAccount = async (password: string) => {
+  const deleteAccount = async () => {
+    if (!deletePassword.trim()) return;
     setIsDeleting(true);
+    setDeleteError(null);
     try {
       const { data, error } = await supabase.functions.invoke('delete-account', {
-        body: { password, confirm: true },
+        body: { password: deletePassword, confirm: true },
       });
       if (error || data?.error) {
         const msg = data?.message || data?.error || error?.message || 'Failed to delete account';
-        Alert.alert('Error', msg);
+        setDeleteError(msg);
         return;
       }
       await supabase.auth.signOut();
+      closeDeleteModal();
       Alert.alert('Account Deleted', 'Your account has been permanently deleted.', [
         { text: 'OK', onPress: () => navigation.navigate('Onboarding') },
       ]);
     } catch (err: unknown) {
-      Alert.alert('Error', err instanceof Error ? err.message : 'An unexpected error occurred');
+      setDeleteError(err instanceof Error ? err.message : 'An unexpected error occurred');
     } finally {
       setIsDeleting(false);
     }
@@ -391,7 +402,7 @@ export default function SettingsScreen({ navigation }: Props) {
           <View style={[styles.settingCard, styles.dangerCard]}>
             <Pressable
               style={styles.settingItem}
-              onPress={promptDeleteAccount}
+              onPress={openDeleteModal}
               disabled={isDeleting}
             >
               <View style={styles.settingLeft}>
@@ -440,7 +451,7 @@ export default function SettingsScreen({ navigation }: Props) {
             <Text style={styles.googleModalTitle}>Google Account Already Linked</Text>
 
             <Text style={styles.googleModalMessage}>
-              This Google account is already linked to another BazaarX account. Please try signing in with a different Google account.
+              This Google account is already linked to another account. Please try a different Google account.
             </Text>
 
             <View style={styles.googleModalButtonContainer}>
@@ -463,6 +474,107 @@ export default function SettingsScreen({ navigation }: Props) {
                   <ActivityIndicator color="#FFF" size="small" />
                 ) : (
                   <Text style={styles.googleModalButtonText}>Try Another Account</Text>
+                )}
+              </Pressable>
+            </View>
+          </View>
+        </View>
+      </Modal>
+
+      {/* ── Delete Account Confirmation Modal ── */}
+      <Modal
+        visible={showDeleteModal}
+        animationType="slide"
+        transparent={true}
+        statusBarTranslucent={true}
+        onRequestClose={closeDeleteModal}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.deleteModalContent}>
+            {/* Icon */}
+            <View style={styles.deleteModalIconWrap}>
+              <Trash2 size={32} color="#EF4444" strokeWidth={2} />
+            </View>
+
+            {/* Title */}
+            <Text style={styles.deleteModalTitle}>Delete Account?</Text>
+
+            {/* Warning body */}
+            <Text style={styles.deleteModalBody}>
+              This will{' '}
+              <Text style={{ fontWeight: '800', color: '#EF4444' }}>permanently</Text>{' '}
+              delete your account and ALL associated data. This action{' '}
+              <Text style={{ fontWeight: '800' }}>cannot be undone</Text>.
+            </Text>
+
+            <Text style={styles.deleteModalLegal}>
+              Under the Data Privacy Act (RA 10173) you have the right to erasure.
+            </Text>
+
+            {/* Error Message */}
+            {deleteError && (
+              <View style={styles.deleteErrorContainer}>
+                <AlertTriangle size={16} color="#EF4444" style={styles.deleteErrorIcon} />
+                <Text style={styles.deleteErrorText}>{deleteError}</Text>
+              </View>
+            )}
+
+            {/* Countdown badge */}
+            {deleteCountdown > 0 ? (
+              <View style={styles.deleteCountdownBadge}>
+                <Text style={styles.deleteCountdownLabel}>Please wait</Text>
+                <Text style={styles.deleteCountdownNumber}>{deleteCountdown}s</Text>
+              </View>
+            ) : (
+              <>
+                {/* Password field — shown only after countdown */}
+                <View style={styles.deletePasswordWrap}>
+                  <TextInput
+                    style={styles.deletePasswordInput}
+                    placeholder="Enter your password"
+                    placeholderTextColor="#9CA3AF"
+                    secureTextEntry={!showDeletePassword}
+                    value={deletePassword}
+                    onChangeText={setDeletePassword}
+                    autoCapitalize="none"
+                    autoCorrect={false}
+                  />
+                  <Pressable
+                    onPress={() => setShowDeletePassword(v => !v)}
+                    style={styles.deletePasswordToggle}
+                  >
+                    <Text style={styles.deletePasswordToggleText}>
+                      {showDeletePassword ? 'Hide' : 'Show'}
+                    </Text>
+                  </Pressable>
+                </View>
+              </>
+            )}
+
+            {/* Actions */}
+            <View style={styles.deleteModalActions}>
+              <Pressable
+                style={styles.deleteCancelButton}
+                onPress={closeDeleteModal}
+                disabled={isDeleting}
+              >
+                <Text style={styles.deleteCancelText}>Cancel</Text>
+              </Pressable>
+
+              <Pressable
+                style={[
+                  styles.deleteConfirmButton,
+                  (deleteCountdown > 0 || !deletePassword.trim() || isDeleting) && styles.deleteConfirmButtonDisabled,
+                ]}
+                onPress={deleteAccount}
+                disabled={deleteCountdown > 0 || !deletePassword.trim() || isDeleting}
+              >
+                {isDeleting ? (
+                  <ActivityIndicator color="#FFF" size="small" />
+                ) : (
+                  <Text style={styles.deleteConfirmText}>
+                    {deleteCountdown > 0 ? `Wait ${deleteCountdown}s…` : 'Delete Forever'}
+                  </Text>
                 )}
               </Pressable>
             </View>
@@ -582,6 +694,160 @@ const styles = StyleSheet.create({
   dangerCard: {
     borderWidth: 1,
     borderColor: '#FECACA',
+  },
+
+  // ── Delete Modal ──────────────────────────────────────────
+  deleteModalContent: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 24,
+    paddingHorizontal: 24,
+    paddingTop: 32,
+    paddingBottom: 28,
+    marginHorizontal: 20,
+    alignItems: 'center',
+    shadowColor: '#EF4444',
+    shadowOpacity: 0.12,
+    shadowRadius: 20,
+    elevation: 12,
+    width: '90%',
+  },
+  deleteModalIconWrap: {
+    width: 72,
+    height: 72,
+    borderRadius: 36,
+    backgroundColor: '#FEE2E2',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 18,
+  },
+  deleteModalTitle: {
+    fontSize: 20,
+    fontWeight: '800',
+    color: '#1F2937',
+    marginBottom: 12,
+    textAlign: 'center',
+  },
+  deleteModalBody: {
+    fontSize: 14,
+    color: '#374151',
+    lineHeight: 22,
+    textAlign: 'center',
+    marginBottom: 10,
+  },
+  deleteModalLegal: {
+    fontSize: 12,
+    color: '#9CA3AF',
+    textAlign: 'center',
+    marginBottom: 20,
+    fontStyle: 'italic',
+  },
+  deleteCountdownBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    backgroundColor: '#FEF2F2',
+    borderWidth: 1,
+    borderColor: '#FECACA',
+    borderRadius: 50,
+    paddingHorizontal: 20,
+    paddingVertical: 10,
+    marginBottom: 24,
+  },
+  deleteCountdownLabel: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: '#EF4444',
+  },
+  deleteCountdownNumber: {
+    fontSize: 18,
+    fontWeight: '800',
+    color: '#EF4444',
+    minWidth: 30,
+    textAlign: 'center',
+  },
+  deletePasswordWrap: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    width: '100%',
+    borderWidth: 1.5,
+    borderColor: '#E5E7EB',
+    borderRadius: 12,
+    marginBottom: 24,
+    backgroundColor: '#F9FAFB',
+    overflow: 'hidden',
+  },
+  deletePasswordInput: {
+    flex: 1,
+    height: 48,
+    paddingHorizontal: 14,
+    fontSize: 15,
+    color: '#111827',
+  },
+  deletePasswordToggle: {
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+  },
+  deletePasswordToggleText: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: COLORS.primary,
+  },
+  deleteModalActions: {
+    flexDirection: 'row',
+    gap: 12,
+    width: '100%',
+  },
+  deleteCancelButton: {
+    flex: 1,
+    paddingVertical: 14,
+    borderRadius: 12,
+    backgroundColor: '#F3F4F6',
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: '#E5E7EB',
+  },
+  deleteCancelText: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: '#374151',
+  },
+  deleteConfirmButton: {
+    flex: 1,
+    paddingVertical: 14,
+    borderRadius: 12,
+    backgroundColor: '#EF4444',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  deleteConfirmButtonDisabled: {
+    backgroundColor: '#FCA5A5',
+  },
+  deleteConfirmText: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: '#FFFFFF',
+  },
+  deleteErrorContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#FEF2F2',
+    borderWidth: 1,
+    borderColor: '#FECACA',
+    borderRadius: 12,
+    padding: 12,
+    marginBottom: 20,
+    width: '100%',
+  },
+  deleteErrorIcon: {
+    marginRight: 8,
+    marginTop: 1,
+  },
+  deleteErrorText: {
+    flex: 1,
+    fontSize: 13,
+    color: '#B91C1C',
+    fontWeight: '500',
+    lineHeight: 18,
   },
 
   // Modal Styles

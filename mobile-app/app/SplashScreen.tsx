@@ -64,8 +64,16 @@ export default function SplashScreen({ navigation }: Props) {
       } catch (e: any) {
         const isTimeout = e?.message?.includes('timed out') || e?.name === 'AbortError';
         console.error(isTimeout ? 'Splash: network timeout, proceeding offline' : 'Splash checks failed', e);
-        // On timeout or any failure: navigate based on locally cached auth state
-        const { isAuthenticated: isAuth, hasCompletedOnboarding: hasOnboarding } = useAuthStore.getState();
+        
+        // On timeout: if we already have a hydrated user, we can try to proceed,
+        // but if we want to be safe and fix the 'cannot logout' loop, we should
+        // only proceed if the store says we are authenticated AND we haven't
+        // explicitly cleared the session recently.
+        const { isAuthenticated: isAuth, hasCompletedOnboarding: hasOnboarding, sessionVerified } = useAuthStore.getState();
+        
+        // If we timed out but the store already thinks we are authenticated (from hydration),
+        // we can attempt to proceed to the home screen rather than forcing a login.
+        // This is the "offline mode" benefit of Zustand persist.
         if (isAuth) {
           const role = useAuthStore.getState().activeRole;
           if (role === 'seller') {
@@ -73,16 +81,21 @@ export default function SplashScreen({ navigation }: Props) {
           } else {
             navigation.replace('MainTabs', { screen: 'Home' });
           }
-        } else if (hasOnboarding) {
-          navigation.replace('Login');
         } else {
-          navigation.replace('Onboarding');
+          // If we definitely aren't authenticated or don't know, go to Login/Onboarding
+          if (hasOnboarding) {
+            navigation.replace('Login');
+          } else {
+            navigation.replace('Onboarding');
+          }
         }
       }
+
     };
 
     checkSession();
-  }, [isAuthenticated, hasCompletedOnboarding]);
+  }, []);
+
 
   return (
     <LinearGradient

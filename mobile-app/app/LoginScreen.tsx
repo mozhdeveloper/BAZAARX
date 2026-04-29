@@ -304,11 +304,15 @@ export default function LoginScreen({ navigation, route }: Props) {
               console.log('[LoginScreen] 🛡️ Google Link Policy Blocked');
               await supabase.auth.unlinkIdentity(googleIdentity);
               await useAuthStore.getState().signOut();
-              Alert.alert('Security Notice', 'This Google account is not yet linked. Please use email/password.');
+              Alert.alert(
+                'Account Not Linked',
+                'This Google account is not linked to your existing account. Please log in with your email and password and link it from your account settings.'
+              );
               setIsGoogleLoading(false);
               return;
             }
           }
+
 
           const isComplete = await authService.isOnboardingComplete(userId);
           if (isComplete) {
