@@ -175,7 +175,7 @@ export default function CartScreen({ navigation, route }: any) {
       await updateItemVariant(cartItemId, variantData.variantId, newOptions);
       
       // If the user also changed quantity in the modal, sync that too
-      if (newQuantity !== editingItem.quantity) {
+      if (editingItem && newQuantity !== editingItem.quantity) {
         await updateQuantity(cartItemId, newQuantity);
       }
     } catch (e: any) {

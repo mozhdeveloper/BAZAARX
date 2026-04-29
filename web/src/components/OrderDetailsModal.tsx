@@ -15,6 +15,8 @@ import {
     Pencil,
     Check,
     Camera,
+    Gift,
+    ShieldCheck,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -39,6 +41,7 @@ import { orderMutationService } from "@/services/orders/orderMutationService";
 import { orderReadService } from "@/services/orders/orderReadService";
 import { DeliveryService } from "@/services/deliveryService";
 import { chatService } from "@/services/chatService";
+import { useOrderPrivacy } from "@/hooks/useOrderPrivacy";
 
 interface OrderDetailsModalProps {
     isOpen: boolean;
@@ -58,6 +61,14 @@ export function OrderDetailsModal({
     } = useOrderStore();
 
     const { products } = useProductStore();
+
+    // ── Privacy resolution (Seller view) ─────────────────────────────────────
+    const privacy = useOrderPrivacy({
+        shippingAddress: order?.shippingAddress,
+        recipientName: order?.buyerName,
+        isRegistryOrder: order?.is_registry_order,
+        viewerRole: "seller",
+    });
 
     const [trackingModal, setTrackingModal] = useState<{
         isOpen: boolean;
@@ -566,12 +577,22 @@ export function OrderDetailsModal({
                                     </AccordionContent>
                                 </AccordionItem>
 
-                                {/* Customer */}
+                                {/* Customer / Recipient */}
                                 <div className="bg-white rounded-xl border border-gray-100 shadow-sm px-5 py-4">
                                     <div className="flex items-center justify-between mb-3">
-                                        <span className="font-semibold text-gray-900 text-sm">
-                                            Customer
-                                        </span>
+                                        <div className="flex items-center gap-2">
+                                            {privacy.isRegistryOrder && (
+                                                <Gift className="w-4 h-4 text-pink-500" />
+                                            )}
+                                            <span className="font-semibold text-gray-900 text-sm">
+                                                {privacy.isRegistryOrder ? "Gift Recipient" : "Customer"}
+                                            </span>
+                                            {privacy.isRegistryOrder && (
+                                                <span className="text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full bg-pink-50 text-pink-600 border border-pink-100">
+                                                    Registry Gift
+                                                </span>
+                                            )}
+                                        </div>
                                         {isPOS && !isEditingCustomer && (
                                             <button
                                                 onClick={() => setIsEditingCustomer(true)}
@@ -631,7 +652,7 @@ export function OrderDetailsModal({
                                     ) : (
                                         <div>
                                             <p className="text-sm font-semibold text-gray-900">
-                                                {posCustomerName || order.buyerName || "Walk-in Customer"}
+                                                {posCustomerName || privacy.recipientName || "Walk-in Customer"}
                                             </p>
                                             {(posCustomerEmail || order.buyerEmail) && (
                                                 <p className="text-xs text-gray-500 mt-0.5">
@@ -640,8 +661,8 @@ export function OrderDetailsModal({
                                             )}
                                             {!isPOS && (
                                                 <p className="text-xs text-gray-500 mt-0.5">
-                                                    {order.shippingAddress?.city || "Unknown Location"},{" "}
-                                                    {order.shippingAddress?.province || "PH"}
+                                                    {privacy.city || "Unknown Location"},{" "}
+                                                    {privacy.province || "PH"}
                                                 </p>
                                             )}
                                             {isPOS && (
@@ -843,38 +864,35 @@ export function OrderDetailsModal({
                                                     <span className="block text-sm font-semibold text-gray-900 mb-1">
                                                         Ship to
                                                     </span>
+                                                    {privacy.isRegistryOrder && (
+                                                        <div className="flex items-center gap-1.5 mb-2 p-2 bg-pink-50 border border-pink-100 rounded-lg">
+                                                            <ShieldCheck className="w-3.5 h-3.5 text-pink-500 shrink-0" />
+                                                            <span className="text-[11px] text-pink-700 font-medium leading-snug">
+                                                                Registry Gift — delivering to recipient. Phone masked for privacy.
+                                                            </span>
+                                                        </div>
+                                                    )}
                                                     <span className="block text-sm text-gray-600 leading-relaxed">
-                                                        {order.shippingAddress
-                                                            ?.street ||
-                                                            "No street provided"}
-                                                        ,{" "}
-                                                        {
-                                                            order
-                                                                .shippingAddress
-                                                                ?.city
-                                                        }{" "}
-                                                        {
-                                                            order
-                                                                .shippingAddress
-                                                                ?.postalCode
-                                                        }
+                                                        {privacy.street || "No street provided"},{" "}
+                                                        {privacy.city}{" "}
+                                                        {privacy.postalCode}
                                                         <br />
-                                                        {
-                                                            order
-                                                                .shippingAddress
-                                                                ?.province
-                                                        }
-                                                        , Philippines
+                                                        {privacy.province}, Philippines
                                                     </span>
-                                                    {order.shippingAddress
-                                                        ?.phone && (
-                                                            <div className="flex items-center gap-1.5 mt-2">
-                                                                <Phone className="w-3 h-3 text-gray-400" />
-                                                                <span className="text-sm text-gray-600 font-medium">
-                                                                    {order.shippingAddress.phone.slice(-4).padStart(order.shippingAddress.phone.length, '*')}
+                                                    {privacy.maskedPhone && privacy.maskedPhone !== "—" && (
+                                                        <div className="flex items-center gap-1.5 mt-2">
+                                                            <Phone className="w-3 h-3 text-gray-400" />
+                                                            <span className="text-sm text-gray-600 font-medium">
+                                                                {privacy.maskedPhone}
+                                                            </span>
+                                                            {privacy.showPhoneAlert && (
+                                                                <span className="ml-1 inline-flex items-center gap-1 text-[10px] px-1.5 py-0.5 rounded-full bg-pink-50 text-pink-600 border border-pink-100 font-semibold">
+                                                                    <ShieldCheck className="w-2.5 h-2.5" />
+                                                                    Masked
                                                                 </span>
-                                                            </div>
-                                                        )}
+                                                            )}
+                                                        </div>
+                                                    )}
                                                 </div>
                                             </div>
 
@@ -1117,9 +1135,9 @@ export function OrderDetailsModal({
                         </p>
                         <div className="bg-gray-50 rounded-lg p-3 mb-4 border border-gray-100">
                             <div className="text-xs text-gray-500 mb-1">Ship to</div>
-                            <div className="text-sm font-medium text-gray-900">{order.shippingAddress?.fullName || order.buyerName}</div>
+                            <div className="text-sm font-medium text-gray-900">{privacy.recipientName || order.buyerName}</div>
                             <div className="text-xs text-gray-600 mt-0.5">
-                                {order.shippingAddress?.city}, {order.shippingAddress?.province}
+                                {privacy.city}, {privacy.province}
                             </div>
                         </div>
                         <div className="flex gap-3 pt-2">
