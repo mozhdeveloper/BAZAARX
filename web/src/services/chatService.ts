@@ -78,77 +78,27 @@ class ChatService {
     sellerId: string,
     orderId?: string
   ): Promise<{ id: string } | null> {
-    if (orderId) {
-      const { data: existing } = await supabase
-        .from('conversations')
-        .select('id')
-        .eq('buyer_id', buyerId)
-        .eq('order_id', orderId)
-        .maybeSingle();
-
-      if (existing) return existing;
-    }
-
-    const { data: convList } = await supabase
+    // Primary dedup key: (buyer_id, seller_id)
+    const { data: bySeller } = await supabase
       .from('conversations')
-      .select('id, order_id')
-      .eq('buyer_id', buyerId);
+      .select('id')
+      .eq('buyer_id', buyerId)
+      .eq('seller_id', sellerId)
+      .order('created_at', { ascending: true })
+      .limit(1)
+      .maybeSingle();
 
-    if (convList && convList.length > 0) {
-      const convIds = convList.map((c) => c.id);
-      const [sellerMsgs, targetMsgs] = await Promise.all([
-        supabase
-          .from('messages')
-          .select('conversation_id')
-          .in('conversation_id', convIds)
-          .eq('sender_id', sellerId)
-          .limit(1),
-        supabase
-          .from('messages')
-          .select('conversation_id')
-          .in('conversation_id', convIds)
-          .eq('target_seller_id', sellerId)
-          .limit(1),
-      ]);
-
-      const matchId =
-        sellerMsgs.data?.[0]?.conversation_id ||
-        targetMsgs.data?.[0]?.conversation_id;
-
-      if (matchId) return { id: matchId };
-
-      const convsWithOrders = convList.filter(c => (c as any).order_id);
-      if (convsWithOrders.length > 0) {
-        const oIds = [...new Set(convsWithOrders.map(c => (c as any).order_id!).filter(Boolean))];
-        const { data: orderItems } = await supabase
-          .from('order_items')
-          .select('order_id, product_id')
-          .in('order_id', oIds);
-
-        const productIds = [...new Set((orderItems || []).map((i: any) => i.product_id).filter(Boolean))];
-        const sellerByProductId = new Map<string, string>();
-        if (productIds.length > 0) {
-          const { data: products } = await supabase
-            .from('products')
-            .select('id, seller_id')
-            .in('id', productIds);
-          for (const p of (products || []) as any[]) {
-            if (p.id && p.seller_id) sellerByProductId.set(p.id, p.seller_id);
-          }
-        }
-
-        for (const item of (orderItems || []) as any[]) {
-          if (sellerByProductId.get(item.product_id) === sellerId) {
-            const conv = convsWithOrders.find(c => (c as any).order_id === item.order_id);
-            if (conv) return { id: conv.id };
-          }
-        }
+    if (bySeller) {
+      // Backfill order_id if not yet set and we have one
+      if (orderId) {
+        await supabase.from('conversations').update({ order_id: orderId }).eq('id', bySeller.id).is('order_id', null);
       }
+      return bySeller;
     }
 
     const { data: newConv, error } = await supabase
       .from('conversations')
-      .insert({ buyer_id: buyerId, order_id: orderId || null })
+      .insert({ buyer_id: buyerId, seller_id: sellerId, order_id: orderId || null })
       .select('id')
       .single();
 
@@ -276,59 +226,30 @@ class ChatService {
    * Note: New schema doesn't have seller_id, but we track via order or messages
    */
   async getOrCreateConversation(buyerId: string, sellerId: string, orderId?: string): Promise<Conversation | null> {
-    // First, try to find existing conversation via order if provided
-    if (orderId) {
-      const { data: existing, error: findError } = await supabase
-        .from('conversations')
-        .select('id, buyer_id, order_id, created_at, updated_at')
-        .eq('buyer_id', buyerId)
-        .eq('order_id', orderId)
-        .maybeSingle();
-
-      if (existing && !findError) {
-        return this.enrichConversation(existing, sellerId);
-      }
-    }
-
-    // Try to find by buyer_id and check if any messages involve this seller
-    const { data: convList } = await supabase
+    // Primary dedup key: (buyer_id, seller_id)
+    const { data: bySeller, error: findError } = await supabase
       .from('conversations')
-      .select('id, buyer_id, order_id, created_at, updated_at')
-      .eq('buyer_id', buyerId);
+      .select('id, buyer_id, seller_id, order_id, created_at, updated_at')
+      .eq('buyer_id', buyerId)
+      .eq('seller_id', sellerId)
+      .order('created_at', { ascending: true })
+      .limit(1)
+      .maybeSingle();
 
-    for (const conv of convList || []) {
-      // Check sender_id (seller replied)
-      const { data: sellerMsg } = await supabase
-        .from('messages')
-        .select('id')
-        .eq('conversation_id', conv.id)
-        .eq('sender_id', sellerId)
-        .limit(1)
-        .maybeSingle();
-
-      if (sellerMsg) {
-        return this.enrichConversation(conv, sellerId);
+    if (bySeller && !findError) {
+      // Backfill order_id if not yet set
+      if (orderId && !(bySeller as any).order_id) {
+        await supabase.from('conversations').update({ order_id: orderId }).eq('id', bySeller.id);
       }
-
-      // Check target_seller_id (buyer messaged this seller but seller hasn't replied)
-      const { data: targetMsg } = await supabase
-        .from('messages')
-        .select('id')
-        .eq('conversation_id', conv.id)
-        .eq('target_seller_id', sellerId)
-        .limit(1)
-        .maybeSingle();
-
-      if (targetMsg) {
-        return this.enrichConversation(conv, sellerId);
-      }
+      return this.enrichConversation(bySeller, sellerId);
     }
 
-    // Create new conversation
+    // Create new conversation with seller_id set
     const { data: newConv, error: createError } = await supabase
       .from('conversations')
       .insert({
         buyer_id: buyerId,
+        seller_id: sellerId,
         order_id: orderId || null,
       })
       .select()
@@ -431,7 +352,7 @@ class ChatService {
   async getBuyerConversations(buyerId: string): Promise<Conversation[]> {
     const { data: conversations, error: convError } = await supabase
       .from('conversations')
-      .select('id, buyer_id, order_id, created_at, updated_at')
+      .select('id, buyer_id, seller_id, order_id, created_at, updated_at')
       .eq('buyer_id', buyerId)
       .order('updated_at', { ascending: false })
       .limit(50);
@@ -488,6 +409,12 @@ class ChatService {
     ]);
 
     const sellerIdByConvId = new Map<string, string>();
+    // Use seller_id from the conversations table first (most reliable)
+    for (const conv of conversations) {
+      if ((conv as any).seller_id) {
+        sellerIdByConvId.set(conv.id, (conv as any).seller_id);
+      }
+    }
     for (const msg of sellerMsgsResult.data || []) {
       if (!sellerIdByConvId.has(msg.conversation_id)) {
         sellerIdByConvId.set(msg.conversation_id, msg.sender_id);
@@ -594,7 +521,7 @@ class ChatService {
         msg.content || msg.message_content || '';
     };
 
-    return conversations
+    const mapped = conversations
       .map((conv) => {
         const sellerId = sellerIdByConvId.get(conv.id);
         const seller = sellerId ? sellerById.get(sellerId) : null;
@@ -619,6 +546,16 @@ class ChatService {
           new Date(b.last_message_at || b.updated_at).getTime() -
           new Date(a.last_message_at || a.updated_at).getTime()
       );
+
+    // Deduplicate: keep only the most recent conversation per seller
+    const seenSellerIds = new Set<string>();
+    return mapped.filter((conv) => {
+      const sid = conv.seller_id;
+      if (!sid) return true; // keep unresolved conversations
+      if (seenSellerIds.has(sid)) return false;
+      seenSellerIds.add(sid);
+      return true;
+    });
   }
 
   /**
