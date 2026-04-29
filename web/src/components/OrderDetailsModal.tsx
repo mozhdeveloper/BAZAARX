@@ -199,9 +199,6 @@ export function OrderDetailsModal({
             await updateOrderStatus(order.id, status);
 
             if (status === "confirmed") {
-                // Send automated chat message
-                sendOrderChatUpdate('confirmed', 'Good news! We are now preparing your order.');
-
                 import("@/stores/cartStore")
                     .then(({ useCartStore }) => {
                         const cartStore = useCartStore.getState();
@@ -315,7 +312,6 @@ export function OrderDetailsModal({
             action: async () => {
                 try {
                     await markOrderAsDelivered(order.id);
-                    sendOrderChatUpdate('delivered', 'Your order has been delivered! Please confirm receipt when you have your package.');
                     setAlertModal({ isOpen: true, title: "Success", message: "Order marked as delivered successfully!", isError: false });
                 } catch (error) {
                     console.error("Error marking delivered:", error);

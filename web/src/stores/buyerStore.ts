@@ -39,6 +39,7 @@ interface BuyerStore {
   setProfile: (profile: BuyerProfile) => void;
   updateProfile: (updates: Partial<BuyerProfile>) => void;
   logout: () => void;
+  isCartLoading: boolean;
   initializeCart: () => Promise<void>;
 
   notifications: any[];
@@ -1454,9 +1455,15 @@ export const useBuyerStore = create<BuyerStore>()(persist(
       });
     },
 
+    isCartLoading: false,
+
     initializeCart: async () => {
+      set({ isCartLoading: true });
       const user = await getCurrentUser();
-      if (!user) return;
+      if (!user) {
+        set({ isCartLoading: false });
+        return;
+      }
 
       try {
         const cart = await cartService.getCart(user.id);
@@ -1491,6 +1498,8 @@ export const useBuyerStore = create<BuyerStore>()(persist(
         }
       } catch (error) {
         console.error('Error initializing cart from DB:', error);
+      } finally {
+        set({ isCartLoading: false });
       }
     },
 

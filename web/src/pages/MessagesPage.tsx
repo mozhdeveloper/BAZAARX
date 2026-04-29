@@ -665,6 +665,13 @@ export default function MessagesPage() {
                         lastDateLabel = dateLabel;
                       }
                       if (msg.message_type === 'system') {
+                        items.push(
+                          <div key={msg.id} className="flex justify-center my-2">
+                            <div className="bg-white border border-gray-100 text-[var(--brand-accent)] text-xs px-4 py-2 rounded-2xl shadow-sm max-w-[80%] text-center">
+                              {msg.content}
+                            </div>
+                          </div>
+                        );
                         return;
                       }
                       const isBuyer = msg.sender_type === 'buyer';

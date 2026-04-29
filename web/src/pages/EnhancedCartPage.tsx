@@ -103,7 +103,8 @@ export default function EnhancedCartPage() {
     clearCart,
     validateCheckout,
     isValidatingCheckout,
-    checkoutErrors
+    checkoutErrors,
+    isCartLoading,
   } = useBuyerStore();
 
   const [showUnavailableModal, setShowUnavailableModal] = useState(false);
@@ -402,6 +403,21 @@ export default function EnhancedCartPage() {
     navigate("/checkout");
   };
 
+  if (isCartLoading) {
+    return (
+      <div className="min-h-screen bg-[var(--brand-wash)]">
+        <Header />
+        <div className="max-w-4xl mx-auto px-4 py-16">
+          <div className="flex flex-col items-center gap-6 animate-pulse">
+            <div className="w-64 h-64 bg-gray-200 rounded-2xl" />
+            <div className="h-8 w-48 bg-gray-200 rounded-lg" />
+            <div className="h-4 w-72 bg-gray-200 rounded" />
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   if (totalItems === 0) {
     return (
       <div className="min-h-screen bg-[var(--brand-wash)]">
@@ -618,12 +634,12 @@ export default function EnhancedCartPage() {
                                       </Badge>
                                     );
                                     if (stock <= 5) return (
-                                      <span className="text-[10px] text-orange-500 font-medium shrink-0">
+                                      <span className="text-[11px] text-orange-500 font-bold shrink-0">
                                         Only {stock} left
                                       </span>
                                     );
                                     if (stock <= 10) return (
-                                      <span className="text-[10px] text-amber-600 font-semibold shrink-0">
+                                      <span className="text-[11px] text-amber-600 font-bold shrink-0">
                                         {stock} left
                                       </span>
                                     );
