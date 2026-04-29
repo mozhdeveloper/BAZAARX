@@ -1,6 +1,7 @@
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { LinearGradient } from 'expo-linear-gradient';
-import { Timer, Zap } from 'lucide-react-native';
+import { Timer, Zap, ChevronLeft } from 'lucide-react-native';
+import { Pressable } from 'react-native';
 import React, { useEffect, useState } from 'react';
 import {
     ActivityIndicator,
@@ -13,7 +14,6 @@ import {
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import type { RootStackParamList } from '../App';
-import BackToShopButton from '../src/components/BackToShopButton';
 import { ProductCard } from '../src/components/ProductCard';
 import { COLORS } from '../src/constants/theme';
 import { discountService } from '../src/services/discountService';
@@ -135,10 +135,20 @@ export default function FlashSaleScreen({ navigation, route }: Props) {
                     end={{ x: 1, y: 1 }}
                     style={styles.header}
                 >
-                    <View style={styles.headerCenter}>
-                        <Zap size={20} color={COLORS.primary} fill={COLORS.primary} />
-                        <Text style={[styles.headerTitle, { color: COLORS.textHeadline }]}>Flash Sale</Text>
+                    <View style={styles.headerLeft}>
+                        <Pressable 
+                            style={styles.backIconButton} 
+                            onPress={() => navigation.goBack()}
+                            hitSlop={15}
+                        >
+                            <ChevronLeft size={28} color={COLORS.textHeadline} strokeWidth={2.5} />
+                        </Pressable>
+                        <View style={styles.titleWrapper}>
+                            <Zap size={18} color={COLORS.primary} fill={COLORS.primary} />
+                            <Text style={styles.headerTitle}>Flash Sale</Text>
+                        </View>
                     </View>
+
                     <View style={styles.timerRow}>
                         <Timer size={16} color={COLORS.primary} strokeWidth={2.5} />
                         <View style={styles.timerBox}>
@@ -154,11 +164,6 @@ export default function FlashSaleScreen({ navigation, route }: Props) {
                         </View>
                     </View>
                 </LinearGradient>
-
-                {/* Back to Shop */}
-                <View style={{ paddingHorizontal: 16, paddingTop: 12 }}>
-                    <BackToShopButton navigation={navigation} />
-                </View>
 
                 {/* Products Area */}
                 <ScrollView
@@ -193,12 +198,6 @@ export default function FlashSaleScreen({ navigation, route }: Props) {
                                                 <Text style={{ color: group.color }}>
                                                     {group.campaignName}
                                                 </Text>
-                                            )}
-                                            {group.campaignName && group.seller && (
-                                                <Text style={styles.separatorText}> | </Text>
-                                            )}
-                                            {group.seller && (
-                                                <Text style={styles.sellerNameText}>{group.seller}</Text>
                                             )}
                                         </Text>
                                         <View style={styles.sectionLine} />
@@ -240,9 +239,26 @@ const styles = StyleSheet.create({
         borderBottomWidth: 1,
         borderBottomColor: 'rgba(255,255,255,0.3)',
     },
-    backBtn: { },
-    headerCenter: { flex: 1, flexDirection: 'row', alignItems: 'center', gap: 8 },
-    headerTitle: { fontSize: 22, fontWeight: '900', color: COLORS.textHeadline },
+    headerLeft: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 12,
+    },
+    backIconButton: {
+        marginLeft: -8, // Pull closer to edge for compact look
+    },
+    titleWrapper: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 6,
+        marginLeft: 4, // "Moved to the right a bit"
+    },
+    headerTitle: {
+        fontSize: 20,
+        fontWeight: '900',
+        color: COLORS.textHeadline,
+        letterSpacing: 0.3
+    },
     timerRow: { flexDirection: 'row', alignItems: 'center', gap: 6, backgroundColor: '#FFF8F0', paddingHorizontal: 12, paddingVertical: 6, borderRadius: 20, borderWidth: 1, borderColor: '#FDE68A' },
     timerBox: {
         backgroundColor: COLORS.primary,

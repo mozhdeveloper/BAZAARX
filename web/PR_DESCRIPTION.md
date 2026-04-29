@@ -1,6 +1,4 @@
-## What does this PR do?
-
-This PR fixes critical issues in the **Seller Dashboard Product Management** flow, specifically focusing on the "Edit Product" functionality. It ensures that product details, variants, and draft statuses are correctly persisted to Supabase, while improving the UI/UX with loading states and corrected styling.
+This PR fixes critical issues in the **Seller Dashboard Product Management** flow and implements major enhancements to the **Mobile Application**, including a performance-optimized order badge system, cart variation logic fixes, and UI/UX refinements to the Flash Sale and Orders screens.
 
 ---
 
@@ -50,6 +48,27 @@ This PR fixes critical issues in the **Seller Dashboard Product Management** flo
     - **Optional Images**: Updated `VariantItem.tsx` to mark variant images as "(Optional)" instead of required, providing more flexibility for sellers.
     - **Error Visibility**: Added explicit error message blocks in `VariantManager.tsx` to display validation errors related to variants and variant images, improving form troubleshooting.
 
+### 5. Mobile App — Order Management & Profile Enhancements
+
+**Files:** `mobile-app/app/ProfileScreen.tsx`, `mobile-app/src/hooks/useOrderCounts.ts`, `mobile-app/app/OrdersScreen.tsx`
+
+- **Dynamic Order Badges**: Implemented a performance-optimized notification system on the Profile screen.
+    - Created `useOrderCounts` hook to fetch exact order counts via parallelized Supabase `head` queries.
+    - Added red circular notification badges to Pending, Processing, Shipped, and Delivered icons.
+- **Orders Screen "Reviewed" Tab**: Added a new "Reviewed" tab to achieve feature parity with the web version.
+    - Reordered navigation tabs: *All → Pending → Processing → Shipped → Delivered → To Review → Return/Refund → Cancelled → Reviewed*.
+    - Updated status mapping logic to correctly exclude reviewed/returned items from the "Delivered" count.
+
+### 6. Mobile App — Cart & UI Refinements
+
+**Files:** `mobile-app/app/CartScreen.tsx`, `mobile-app/src/stores/cartStore.ts`, `mobile-app/app/FlashSaleScreen.tsx`
+
+- **Cart Variation Fix**: Resolved a critical logic bug where changing a product's variant in the cart would incorrectly merge selection strings. It now correctly updates the variant ID and properties or replaces the item.
+- **Flash Sale Header Restructuring**:
+    - Replaced the bulky "Back to Home" text button with a sleek Chevron icon.
+    - Modernized the header layout to be more compact and aligned with modern mobile UI patterns.
+    - Removed redundant shop names from section headers for a cleaner "Global Flash Sale" aesthetic.
+
 ---
 
 ## Files Changed Summary
@@ -65,6 +84,17 @@ This PR fixes critical issues in the **Seller Dashboard Product Management** flo
 | `src/components/seller/products/VariantItem.tsx` | Modified | Marked variant images as optional in the UI. |
 | `src/components/seller/products/VariantManager.tsx` | Modified | Added dedicated error message displays for variants and variant images. |
 
+### Mobile (`mobile-app/`)
+
+| File | Type | Description |
+|---|---|---|
+| `app/ProfileScreen.tsx` | Modified | Integrated `useOrderCounts` and added dynamic notification badges. |
+| `src/hooks/useOrderCounts.ts` | **New** | Performance-optimized hook for parallelized Supabase order counts. |
+| `app/OrdersScreen.tsx` | Modified | Added "Reviewed" tab and synchronized status mapping logic with badges. |
+| `app/CartScreen.tsx` | Modified | Fixed variant update logic to prevent selection merging. |
+| `app/FlashSaleScreen.tsx` | Modified | Restructured header for compact navigation and cleaned section titles. |
+| `src/stores/cartStore.ts` | Modified | Refined variant update state management logic. |
+
 ---
 
 ## Testing Done
@@ -73,8 +103,10 @@ This PR fixes critical issues in the **Seller Dashboard Product Management** flo
 - [x] **Variant Sync**: Verified that price, stock, and SKU changes for individual variants are persisted correctly.
 - [x] **Draft Mode**: Verified that products saved as drafts correctly display the "draft" status and map the `isDraft` flag.
 - [x] **UI Feedback**: Verified the loading spinner appears during product submission.
-- [x] **Style Regression**: Verified the "Cancel" button now has the correct neutral styling instead of the brand orange gradient.
-- [x] **Navigation**: Verified that saving a product correctly redirects the user back to the product list with a success toast.
+- [x] **Mobile Order Badges**: Verified that notification badges on the Profile screen update in real-time based on Supabase counts.
+- [x] **Mobile Cart Variants**: Verified that changing a variant correctly updates the cart entry without merging strings.
+- [x] **Mobile Orders Tabs**: Verified the new "Reviewed" tab correctly displays filtered orders.
+- [x] **Mobile Flash Sale**: Verified the new compact header layout and navigation functionality.
 
 ---
 
