@@ -18,6 +18,7 @@ import {
   Loader2
 } from 'lucide-react';
 import Header from '../components/Header';
+import { ComingSoonWrapper } from '../components/ComingSoonWrapper';
 import { BazaarFooter } from '../components/ui/bazaar-footer';
 import {
   Select,
@@ -153,12 +154,15 @@ const StoresPage: React.FC = () => {
           >
             Categories
           </Link>
-          <Link
-            to="/collections"
-            className="text-sm text-[var(--text-muted)] hover:text-[var(--brand-primary)] transition-all duration-300"
-          >
-            Collections
-          </Link>
+          <ComingSoonWrapper>
+            <Link
+              to="#"
+              className="text-sm text-[var(--text-muted)] hover:text-[var(--brand-primary)] transition-all duration-300 opacity-50 cursor-not-allowed"
+              onClick={(e) => e.preventDefault()}
+            >
+              Collections
+            </Link>
+          </ComingSoonWrapper>
           <Link
             to="/stores"
             className="text-sm font-bold text-[var(--brand-primary)] border-b-2 border-[var(--brand-primary)] pb-0.5"

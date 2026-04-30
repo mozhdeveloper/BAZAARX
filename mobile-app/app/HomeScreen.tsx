@@ -34,7 +34,8 @@ import {
     Text,
     TextInput,
     useWindowDimensions,
-    View
+    View,
+    Alert
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import AIChatModal from '../src/components/AIChatModal';
@@ -1256,8 +1257,8 @@ export default function HomeScreen({ navigation }: Props) {
 
             {/* ── BAZAARX LAB PIPELINE BANNER ── */}
             <Pressable
-              onPress={() => navigation.navigate('LabPipeline')}
-              style={({ pressed }) => [styles.labBanner, pressed && { opacity: 0.92 }]}
+              onPress={() => Alert.alert("Coming Soon", "The Bazaarx Lab Pipeline is currently under development. Stay tuned for community-tested products!")}
+              style={({ pressed }) => [styles.labBanner, { opacity: 0.6 }]}
             >
               <LinearGradient
                 colors={['#4C1D95', '#6B46C1', '#7C3AED']}
@@ -1271,7 +1272,12 @@ export default function HomeScreen({ navigation }: Props) {
                     <FlaskConical size={22} color="#E9D5FF" strokeWidth={2} />
                   </View>
                   <View style={{ flex: 1 }}>
-                    <Text style={styles.labBannerEyebrow}>BAZAARX</Text>
+                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                      <Text style={styles.labBannerEyebrow}>BAZAARX</Text>
+                      <View style={{ backgroundColor: '#FCD34D', paddingHorizontal: 6, paddingVertical: 2, borderRadius: 4 }}>
+                        <Text style={{ fontSize: 8, fontWeight: '900', color: '#78350F' }}>COMING SOON</Text>
+                      </View>
+                    </View>
                     <Text style={styles.labBannerTitle}>Lab Pipeline</Text>
                     <Text style={styles.labBannerSub}>Community-requested & tested products</Text>
                   </View>
@@ -1295,15 +1301,15 @@ export default function HomeScreen({ navigation }: Props) {
             {/* Lab Quick Actions */}
             <View style={styles.labActionRow}>
               <Pressable
-                onPress={() => setShowProductRequest(true)}
-                style={({ pressed }) => [styles.labActionBtn, styles.labRequestBtn, pressed && { opacity: 0.85 }]}
+                onPress={() => Alert.alert("Coming Soon", "This feature is currently under development. Stay tuned!")}
+                style={[styles.labActionBtn, styles.labRequestBtn, { opacity: 0.5 }]}
               >
                 <Plus size={16} color="#FFFFFF" />
                 <Text style={styles.labActionBtnText}>Request a Product</Text>
               </Pressable>
               <Pressable
-                onPress={() => navigation.navigate('MyRequests')}
-                style={({ pressed }) => [styles.labActionBtn, styles.labMyRequestsBtn, pressed && { opacity: 0.85 }]}
+                onPress={() => Alert.alert("Coming Soon", "This feature is currently under development. Stay tuned!")}
+                style={[styles.labActionBtn, styles.labMyRequestsBtn, { opacity: 0.5 }]}
               >
                 <Package size={16} color={COLORS.primary} />
                 <Text style={[styles.labActionBtnText, { color: COLORS.primary }]}>My Requests</Text>

@@ -11,8 +11,10 @@ import {
     TabsTrigger,
 } from "../components/ui/tabs";
 import { Button } from "../components/ui/button";
+import { Store, Camera, LayoutGrid, Heart, MapPin, Package, Settings, CreditCard, Wallet, Star } from "lucide-react";
+import { ComingSoonWrapper } from "../components/ComingSoonWrapper";
 import { Badge } from "../components/ui/badge";
-import { ChevronLeft, Store } from "lucide-react";
+import { ChevronLeft } from "lucide-react";
 import { useProfileManager } from "@/hooks/profile/useProfileManager";
 import { roleSwitchService } from "@/services/roleSwitchService";
 import { getCurrentUser } from "@/lib/supabase";
@@ -233,30 +235,15 @@ export default function BuyerProfilePage() {
                         </div>
 
                         <div className="flex items-center gap-3">
-                            <Button
-                                onClick={async () => {
-                                    if (!userId) {
-                                        navigate("/seller/auth");
-                                        return;
-                                    }
-
-                                    const result =
-                                        await roleSwitchService.switchToSellerMode(
-                                            userId,
-                                        );
-                                    if (result.navigationState) {
-                                        navigate(result.route, {
-                                            state: result.navigationState,
-                                        });
-                                    } else {
-                                        navigate(result.route);
-                                    }
-                                }}
-                                className="bg-[var(--brand-primary)] hover:bg-[var(--brand-primary-dark)] text-white font-bold h-10 px-4 rounded-lg flex items-center gap-2"
-                            >
-                                <Store className="w-4 h-4" />
-                                {isSeller ? "Switch to Seller Mode" : "Start Selling"}
-                            </Button>
+                            <ComingSoonWrapper>
+                                <Button
+                                    disabled
+                                    className="bg-[var(--brand-primary)] hover:bg-[var(--brand-primary-dark)] text-white font-bold h-10 px-4 rounded-lg flex items-center gap-2 opacity-50 cursor-not-allowed"
+                                >
+                                    <Store className="w-4 h-4" />
+                                    {isSeller ? "Switch to Seller Mode" : "Start Selling"}
+                                </Button>
+                            </ComingSoonWrapper>
                         </div>
                     </div>
                 </div>

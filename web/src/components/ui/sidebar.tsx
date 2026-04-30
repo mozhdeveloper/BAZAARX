@@ -11,6 +11,7 @@ interface Links {
   label: string;
   href: string;
   icon: React.JSX.Element | React.ReactNode;
+  comingSoon?: boolean;
 }
 
 interface SidebarContextProps {
@@ -193,13 +194,21 @@ export const SidebarLink = ({
 
   const content = (
     <Link
-      to={link.href}
+      to={link.comingSoon ? "#" : link.href}
+      onClick={(e) => {
+        if (link.comingSoon) {
+          e.preventDefault();
+          return;
+        }
+        if (props.onClick) props.onClick(e);
+      }}
       className={cn(
         "flex items-center gap-3 group/sidebar py-2 rounded-xl min-h-[48px] transition-all duration-200",
         open ? "justify-start px-3" : "justify-center px-0",
-        isActive
+        isActive && !link.comingSoon
           ? "text-[var(--text-accent)] font-bold"
           : "text-gray-700 hover:text-[var(--text-accent)] hover:bg-gray-50/50",
+        link.comingSoon && "opacity-60 cursor-not-allowed",
         className
       )}
       {...props}
@@ -207,7 +216,7 @@ export const SidebarLink = ({
       {/* Icon with red dot when collapsed */}
       <div className="flex-shrink-0 w-5 h-5 flex items-center justify-center relative">
         {link.icon}
-        {showBadge && !open && (
+        {showBadge && !open && !link.comingSoon && (
           <span className="absolute -top-1 -right-1 w-2 h-2 bg-red-500 rounded-full shadow-sm" />
         )}
       </div>
@@ -223,8 +232,13 @@ export const SidebarLink = ({
         }}
       >
         {link.label}
+        {link.comingSoon && (
+          <span className="bg-amber-100 text-amber-700 text-[8px] font-black px-1.5 py-0.5 rounded-md uppercase tracking-wider whitespace-nowrap">
+            Coming Soon
+          </span>
+        )}
         {/* Count pill when expanded */}
-        {showBadge && (
+        {showBadge && !link.comingSoon && (
           <span className="min-w-[18px] h-[18px] bg-red-500 text-white text-[10px] font-bold rounded-full flex items-center justify-center px-1 leading-none flex-shrink-0">
             {badge > 9 ? "9+" : badge}
           </span>

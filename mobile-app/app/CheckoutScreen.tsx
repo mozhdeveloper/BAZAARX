@@ -27,10 +27,12 @@ import MapView, { Marker, Region, PROVIDER_GOOGLE, PROVIDER_DEFAULT } from 'reac
 import { Svg, Path } from 'react-native-svg';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { COLORS } from '../src/constants/theme';
+import { PAYMENT_METHODS } from '../src/constants/paymentMethods';
 import { supabase } from '../src/lib/supabase';
 import { processCheckout, getCheckoutContext } from '@/services/checkoutService';
 import { addressService, type Address, validateCheckoutAddress, type AddressValidationResult } from '@/services/addressService';
 import { paymentMethodService, type SavedPaymentMethod } from '@/services/paymentMethodService';
+import { orderMutationService } from '@/services/orders/orderMutationService';
 import { voucherService, calculateVoucherDiscount, getVoucherErrorMessage } from '@/services/voucherService';
 import { calculateShippingForSellers, type SellerShippingResult, type ShippingMethodOption } from '@/services/shippingService';
 import AddressFormModal from '@/components/AddressFormModal';
@@ -1271,10 +1273,12 @@ export default function CheckoutScreen({ navigation, route }: Props) {
       return;
     }
 
+    const isPayMongoPayment = paymentMethod === PAYMENT_METHODS.PAYMONGO;
+
     // For PayMongo with saved card: Include card ID in payload
-    if (paymentMethod === 'paymongo' && selectedPaymentMethodId) {
+    if (isPayMongoPayment && selectedPaymentMethodId) {
       // User selected a saved card - will be used instead of card form
-    } else if (paymentMethod === 'paymongo' && !selectedPaymentMethodId) {
+    } else if (isPayMongoPayment && !selectedPaymentMethodId) {
       // User has no saved cards selected
       Alert.alert(
         'Select or Add a Card',
@@ -1341,7 +1345,7 @@ export default function CheckoutScreen({ navigation, route }: Props) {
           };
         }),
         // Include saved PayMongo card ID if user selected one
-        ...(paymentMethod === 'paymongo' && selectedPaymentMethodId ? { savedPaymentMethodId: selectedPaymentMethodId } : {}),
+        ...(isPayMongoPayment && selectedPaymentMethodId ? { savedPaymentMethodId: selectedPaymentMethodId } : {}),
       };
 
       const result = await processCheckout(payload);
@@ -1372,9 +1376,9 @@ export default function CheckoutScreen({ navigation, route }: Props) {
       }
 
       // ✅ FIX: Special handling for PayMongo saved cards - skip payment gateway
-      if (paymentMethod === 'paymongo' && selectedPaymentMethodId) {
+      if (isPayMongoPayment && selectedPaymentMethodId) {
         console.log('[Checkout] 💳 PayMongo saved card detected - skipping PaymentGateway');
-        // Saved PayMongo card - proceed directly to confirmation
+        // Saved PayMongo card - promote order to processing and go straight to My Orders
         const shippingAddressForOrder: ShippingAddress = {
           name: `${selectedAddress?.firstName || ''} ${selectedAddress?.lastName || ''}`.trim(),
           email: user.email,
@@ -1407,11 +1411,11 @@ export default function CheckoutScreen({ navigation, route }: Props) {
               campaignName: item.campaignDiscount?.campaignName || 'Discount',
               discountAmount: ((item.originalPrice ?? item.price ?? 0) - (item.price ?? 0)) * item.quantity
             })) : undefined,
-          status: 'pending',
+          status: 'processing',
           isPaid: false,
           scheduledDate: new Date(Date.now() + 3 * 24 * 60 * 60 * 1000).toLocaleDateString('en-US'),
           shippingAddress: shippingAddressForOrder,
-          paymentMethod,
+          paymentMethod: 'PayMongo',
           createdAt: new Date().toISOString(),
           isGift,
           isAnonymous,
@@ -1419,13 +1423,23 @@ export default function CheckoutScreen({ navigation, route }: Props) {
         };
 
         setProcessingMessage('Confirming your order...');
-        console.log('[Checkout] PayMongo saved card selected - skipping payment gateway');
-        navigation.replace('OrderConfirmation', { order, earnedBazcoins, isQuickCheckout });
+        console.log('[Checkout] PayMongo saved card selected - promoting order to processing');
+
+        if (result.orderUuids?.length) {
+          await Promise.all(result.orderUuids.map((orderUuid) =>
+            orderMutationService.updateOrderStatus({
+              orderId: orderUuid,
+              nextStatus: 'processing',
+            })
+          ));
+        }
+
+        navigation.replace('Orders', { initialTab: 'processing' });
         return;
       }
 
       // Check if online payment (GCash, PayMongo, PayMaya, Card)
-      const isOnlinePayment = paymentMethod.toLowerCase() !== 'cod' && paymentMethod.toLowerCase() !== 'cash on delivery';
+      const isOnlinePayment = paymentMethod.toLowerCase() !== PAYMENT_METHODS.COD && paymentMethod.toLowerCase() !== 'cash on delivery';
 
       const shippingAddressForOrder: ShippingAddress = {
         name: `${selectedAddress?.firstName || ''} ${selectedAddress?.lastName || ''}`.trim(),

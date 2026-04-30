@@ -15,6 +15,7 @@ import {
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Link, useLocation, useNavigate, useSearchParams } from "react-router-dom";
 import Header from "../components/Header";
+import { ComingSoonWrapper } from "../components/ComingSoonWrapper";
 import ProductRequestModal from "../components/ProductRequestModal";
 import ShopBuyNowModal from "../components/shop/ShopBuyNowModal";
 import ShopVariantModal from "../components/shop/ShopVariantModal";
@@ -751,12 +752,15 @@ export default function ShopPage() {
             >
               Categories
             </Link>
-            <Link
-              to="/collections"
-              className="text-sm text-[var(--text-muted)] hover:text-[var(--brand-primary)] transition-all duration-300"
-            >
-              Collections
-            </Link>
+            <ComingSoonWrapper>
+              <Link
+                to="#"
+                className="text-sm text-[var(--text-muted)] hover:text-[var(--brand-primary)] transition-all duration-300 opacity-50 cursor-not-allowed"
+                onClick={(e) => e.preventDefault()}
+              >
+                Collections
+              </Link>
+            </ComingSoonWrapper>
             <Link
               to="/stores"
               className="text-sm text-[var(--text-muted)] hover:text-[var(--brand-primary)] transition-all duration-300"
