@@ -54,11 +54,7 @@ interface MapPickerProps {
 // ── Component ─────────────────────────────────────────────────────────────────
 export const MapPicker = ({ onConfirm, onCancel, initialCoords }: MapPickerProps) => {
   const hasValidCoords =
-    initialCoords && 
-    typeof initialCoords.lat === 'number' && 
-    typeof initialCoords.lng === 'number' &&
-    initialCoords.lat !== 0 && 
-    initialCoords.lng !== 0;
+    initialCoords && initialCoords.lat !== 0 && initialCoords.lng !== 0;
 
   // ── Position state ──────────────────────────────────────────────────────────
   const [position, setPosition] = useState<[number, number] | null>(

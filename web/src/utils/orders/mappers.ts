@@ -18,7 +18,6 @@ import {
   mapNormalizedToSellerUiStatus,
 } from "@/utils/orders/status";
 import { getLatestCancellation, getLatestShipment } from "@/utils/orders/shipment";
-import { maskPhoneLast4 } from "@/hooks/useOrderPrivacy";
 
 const mapOrderItems = (orderItems: any[], fallbackStoreName: string, fallbackSellerId: string | null) =>
   orderItems.map((item: any) => {
@@ -165,10 +164,8 @@ export const mapOrderRowToBuyerSnapshot = (order: any): BuyerOrderSnapshot => {
   const notesAddress = parseLegacyShippingAddressFromNotes(order.notes);
   const notesPricing = parseLegacyPricingSummaryFromNotes(order.notes);
   const notesPaymentMethod = parseLegacyPaymentMethodFromNotes(order.notes);
-  const recipientRaw = order.recipient || {};
-  const recipient = Array.isArray(recipientRaw) ? recipientRaw[0] : recipientRaw;
-  const shippingAddressJoinRaw = order.shipping_address || order.address || {};
-  const shippingAddressJoin = Array.isArray(shippingAddressJoinRaw) ? shippingAddressJoinRaw[0] : shippingAddressJoinRaw;
+  const recipient = order.recipient || {};
+  const shippingAddressJoin = order.shipping_address || order.address || {};
   const createdAt = new Date(order.created_at);
   const confirmedAt = order.derived_confirmed_at
     ? new Date(order.derived_confirmed_at)
@@ -289,25 +286,31 @@ export const mapOrderRowToBuyerSnapshot = (order: any): BuyerOrderSnapshot => {
     items,
     shippingAddress: {
       fullName:
+        order.buyer_name ||
         buildPersonName(recipient?.first_name, recipient?.last_name) ||
         notesAddress?.fullName ||
-        order.buyer_name ||
         "Customer",
-      // Gifter sees masked address — street/city/province/postalCode are all privacy-protected
-      street: order.is_registry_order
-        ? "Registry Gift — Address Protected"
-        : (order.shipping_street || shippingAddressJoin.address_line_1 || notesAddress?.street || ""),
-      city: order.is_registry_order
-        ? "***"
-        : (order.shipping_city || shippingAddressJoin.city || notesAddress?.city || ""),
-      province: order.is_registry_order
-        ? "***"
-        : (order.shipping_province || shippingAddressJoin.province || notesAddress?.province || ""),
-      postalCode: order.is_registry_order
-        ? "****"
-        : (order.shipping_postal_code || shippingAddressJoin.postal_code || notesAddress?.postalCode || ""),
-      // Phone is fully hidden from the gifter
-      phone: order.is_registry_order ? "" : (order.buyer_phone || recipient?.phone || notesAddress?.phone || ""),
+      street:
+        order.shipping_street ||
+        shippingAddressJoin.address_line_1 ||
+        notesAddress?.street ||
+        "",
+      city: order.shipping_city || shippingAddressJoin.city || notesAddress?.city || "",
+      province:
+        order.shipping_province ||
+        shippingAddressJoin.province ||
+        notesAddress?.province ||
+        "",
+      postalCode:
+        order.shipping_postal_code ||
+        shippingAddressJoin.postal_code ||
+        notesAddress?.postalCode ||
+        "",
+      phone:
+        order.buyer_phone ||
+        recipient?.phone ||
+        notesAddress?.phone ||
+        "",
     },
     paymentMethod: {
       type: (notesPaymentMethod || order.payment_method?.type || "cod") as any,
@@ -347,10 +350,8 @@ export const mapOrderRowToSellerSnapshot = (order: any): SellerOrderSnapshot => 
   const orderItems = Array.isArray(order.order_items) ? order.order_items : [];
   const latestShipment = getLatestShipment(order.shipments || []);
   const notesAddress = parseLegacyShippingAddressFromNotes(order.notes);
-  const shippingAddrRaw = order.shipping_address || order.address || {};
-  const shippingAddr = Array.isArray(shippingAddrRaw) ? shippingAddrRaw[0] : shippingAddrRaw;
-  const recipientRaw = order.recipient || {};
-  const recipient = Array.isArray(recipientRaw) ? recipientRaw[0] : recipientRaw;
+  const shippingAddr = order.shipping_address || order.address || {};
+  const recipient = order.recipient || {};
 
   const items = orderItems.map((item: any) => ({
     productId: item.product_id || "",
@@ -364,7 +365,6 @@ export const mapOrderRowToSellerSnapshot = (order: any): SellerOrderSnapshot => 
 
   const recipientName =
     buildPersonName(recipient?.first_name, recipient?.last_name) ||
-    buildPersonName(shippingAddr?.first_name, shippingAddr?.last_name) ||
     order.buyer_name ||
     notesAddress?.fullName ||
     "Customer";
@@ -386,44 +386,13 @@ export const mapOrderRowToSellerSnapshot = (order: any): SellerOrderSnapshot => 
       ? latestReview.images
       : legacyReviewImages;
 
-  // BX-REG-002: Seller visibility rules for registry orders:
-  // - Full address (street, city, province, postal) — seller NEEDS this to ship the package
-  // - Phone number masked to last 4 digits only (privacy protection)
-  // - Email hidden completely
-  // - Recipient name (from order_recipients join) is shown, NOT the gifter's account name
-  const isRegistryOrder = Boolean(order.is_registry_order);
-
-  // For sellers: real address from DB join takes priority over notes
-  // (notes contain masked values; join contains real values)
-  const resolvedStreet = isRegistryOrder
-    ? (shippingAddr?.address_line_1 || notesAddress?.street || "Registry Gift — Address Protected")
-    : (order.shipping_street || notesAddress?.street || shippingAddr?.address_line_1 || "");
-
-  const resolvedCity = isRegistryOrder
-    ? (shippingAddr?.city || notesAddress?.city || "")
-    : (order.shipping_city || notesAddress?.city || shippingAddr?.city || "");
-
-  const resolvedProvince = isRegistryOrder
-    ? (shippingAddr?.province || notesAddress?.province || "")
-    : (order.shipping_province || notesAddress?.province || shippingAddr?.province || "");
-
-  const resolvedPostalCode = isRegistryOrder
-    ? (shippingAddr?.postal_code || notesAddress?.postalCode || "")
-    : (order.shipping_postal_code || notesAddress?.postalCode || shippingAddr?.postal_code || "");
-
-  // Phone: last-4 visible for sellers, fully hidden for buyers (handled in buyer mapper)
-  const rawPhone = recipient?.phone || order.buyer_phone || notesAddress?.phone || "";
-  const resolvedPhone = isRegistryOrder
-    ? (rawPhone ? maskPhoneLast4(rawPhone) : "—")
-    : rawPhone;
-
   return {
     id: order.id,
     seller_id: order.seller_id,
     buyer_id: order.buyer_id,
     orderNumber: order.order_number,
     buyerName: recipientName,
-    buyerEmail: isRegistryOrder ? "" : (recipient?.email || order.buyer_email || ""),
+    buyerEmail: recipient?.email || order.buyer_email || "",
     items,
     total: Number.isFinite(parsedTotal) && parsedTotal > 0 ? parsedTotal : computedTotal,
     status: mapNormalizedToSellerUiStatus(order.payment_status, order.shipment_status),
@@ -431,11 +400,11 @@ export const mapOrderRowToSellerSnapshot = (order: any): SellerOrderSnapshot => 
     orderDate: order.created_at,
     shippingAddress: {
       fullName: recipientName,
-      street: resolvedStreet,
-      city: resolvedCity,
-      province: resolvedProvince,
-      postalCode: resolvedPostalCode,
-      phone: resolvedPhone,
+      street: order.shipping_street || notesAddress?.street || shippingAddr.address_line_1 || "",
+      city: order.shipping_city || notesAddress?.city || shippingAddr.city || "",
+      province: order.shipping_province || notesAddress?.province || shippingAddr.province || "",
+      postalCode: order.shipping_postal_code || notesAddress?.postalCode || shippingAddr.postal_code || "",
+      phone: order.buyer_phone || notesAddress?.phone || recipient?.phone || "",
     },
     trackingNumber: latestShipment?.tracking_number || order.tracking_number || undefined,
     shipmentStatusRaw: order.shipment_status || undefined,
@@ -452,7 +421,6 @@ export const mapOrderRowToSellerSnapshot = (order: any): SellerOrderSnapshot => 
     type: order.order_type === "OFFLINE" ? "OFFLINE" : "ONLINE",
     posNote: order.pos_note || undefined,
     notes: order.notes || undefined,
-    is_registry_order: isRegistryOrder || undefined,
     // Payment method - derive from notes, order_payments, or default based on order type
     paymentMethod: (parseLegacyPaymentMethodFromNotes(order.notes) || order.payment_method?.type ||
       (order.order_type === "OFFLINE" ? "cash" : "online")) as "cash" | "card" | "ewallet" | "bank_transfer" | "cod" | "online",

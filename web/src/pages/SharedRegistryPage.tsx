@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from "react";
-import { useParams, useNavigate, useLocation } from "react-router-dom";
+import { useParams, useNavigate } from "react-router-dom";
 import { useBuyerStore } from "../stores/buyerStore";
 import Header from "../components/Header";
 import { Gift, ShoppingBag } from "lucide-react";
@@ -9,10 +9,9 @@ import { cn } from "../lib/utils";
 const SharedRegistryPage = () => {
   const { id } = useParams();
   const navigate = useNavigate();
-  const location = useLocation();
   const [registry, setRegistry] = useState<any>(null);
   const [isLoading, setIsLoading] = useState(true);
-  const { registries, setQuickOrder, loadPublicRegistry, profile } = useBuyerStore();
+  const { registries, setQuickOrder, loadPublicRegistry } = useBuyerStore();
 
   // Fetch public registry from backend on mount
   useEffect(() => {
@@ -80,11 +79,6 @@ const SharedRegistryPage = () => {
   return (
     <div className="min-h-screen bg-[var(--brand-wash)]">
       <Header />
-      {!profile && (
-        <div className="bg-orange-50 text-orange-800 text-sm py-2 px-4 text-center border-b border-orange-100 font-medium">
-          You are viewing this as a guest. Please log in to purchase a gift.
-        </div>
-      )}
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
           <div className="p-8 border-b border-gray-100">
@@ -198,17 +192,6 @@ const SharedRegistryPage = () => {
                         disabled
                       >
                         Unavailable
-                      </Button>
-                    ) : !profile ? (
-                      <Button
-                        className="w-full mt-auto bg-white text-[var(--brand-primary)] border border-[var(--brand-primary)] hover:bg-[var(--brand-wash)]"
-                        size="sm"
-                        onClick={() => {
-                          sessionStorage.setItem('redirect_to', location.pathname);
-                          navigate("/login");
-                        }}
-                      >
-                        Log in to Buy Gift
                       </Button>
                     ) : (
                       <Button

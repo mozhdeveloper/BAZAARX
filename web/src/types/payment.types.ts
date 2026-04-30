@@ -3,11 +3,12 @@
  * PayMongo sandbox integration for Philippine marketplace
  */
 
-// Types usually imported from database.types but defined here for stability
-export type GatewayPaymentType = 'card' | 'gcash' | 'maya' | 'grab_pay' | 'bank_transfer' | 'cod' | string;
-export type PaymentTransactionStatus = 'pending' | 'processing' | 'succeeded' | 'failed' | 'cancelled' | 'refunded' | 'paid' | 'awaiting_payment' | 'partially_refunded';
-export type PayoutStatus = 'pending' | 'processing' | 'completed' | 'failed' | string;
-export type PayoutMethod = 'bank_transfer' | 'gcash' | 'maya' | string;
+import type {
+  GatewayPaymentType,
+  PaymentTransactionStatus,
+  PayoutStatus,
+  PayoutMethod,
+} from './database.types';
 
 // ============================================================================
 // PayMongo API Types
@@ -117,7 +118,6 @@ export interface CreatePaymentRequest {
     email: string;
     phone?: string;
   };
-  paymentMethodId?: string; // Add support for saved PayMongo payment methods
   cardDetails?: {
     cardNumber: string;
     expMonth: number;

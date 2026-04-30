@@ -454,7 +454,7 @@ export const processCheckout = async (payload: CheckoutPayload): Promise<Checkou
             // Store payment_method (create_order_safe RPC doesn't accept it, so patch after creation)
             await supabase
                 .from('orders')
-                .update({ payment_method: { type: paymentMethod } } as any)
+                .update({ payment_method: { type: paymentMethod } })
                 .eq('id', orderData.id)
                 .is('payment_method', null); // only patch if not already set by direct insert
 

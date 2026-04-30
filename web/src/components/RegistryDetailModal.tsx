@@ -267,14 +267,7 @@ export const RegistryDetailModal = ({
                         className="h-4 w-4"
                         checked={showAddress}
                         disabled={(addresses || []).length === 0}
-                        onChange={(e) => {
-                          const isChecked = e.target.checked;
-                          setShowAddress(isChecked);
-                          // Auto-select first address if none selected and checking the box
-                          if (isChecked && !addressId && (addresses || []).length > 0) {
-                            setAddressId(addresses[0].id);
-                          }
-                        }}
+                        onChange={(e) => setShowAddress(e.target.checked)}
                       />
                       <Label htmlFor="detail-showAddress" className={`text-sm ${(addresses || []).length === 0 ? 'text-gray-400' : ''}`}>
                         Share address with gifters

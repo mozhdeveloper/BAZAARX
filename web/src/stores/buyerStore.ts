@@ -1964,21 +1964,6 @@ export const useBuyerStore = create<BuyerStore>()(persist(
       if (updates.imageUrl !== undefined) dbUpdate.image_url = updates.imageUrl;
       if (updates.sharedDate !== undefined) dbUpdate.shared_date = updates.sharedDate;
       if (updates.privacy !== undefined) dbUpdate.privacy = updates.privacy;
-      
-      // Auto-fetch recipient details if addressId is changed/provided
-      if (updates.delivery?.addressId) {
-        const { addresses } = get();
-        const addr = (addresses || []).find(a => a.id === updates.delivery?.addressId);
-        if (addr) {
-          updates.delivery.recipientName = addr.fullName;
-          updates.delivery.recipientPhone = addr.phone;
-          updates.delivery.city = addr.city;
-          updates.delivery.province = addr.province;
-          // Also update top-level recipient_name for legacy compatibility
-          dbUpdate.recipient_name = addr.fullName;
-        }
-      }
-      
       if (updates.delivery !== undefined) dbUpdate.delivery = updates.delivery;
 
       const { error } = await db

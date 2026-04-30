@@ -125,19 +125,12 @@ export default function AuthCallbackPage() {
         // Check onboarding completion
         const isComplete = await authService.isOnboardingComplete(user.id);
 
-        // Check for redirect_to path
-        const redirectTo = sessionStorage.getItem('redirect_to');
-        if (redirectTo) {
-          sessionStorage.removeItem('redirect_to');
-        }
-
         if (isOAuth) {
           // OAuth users don't need the "Email Verified" holding page; send them to content
-          navigate(isComplete ? (redirectTo || "/shop") : "/buyer-onboarding", { replace: true });
+          navigate(isComplete ? "/shop" : "/buyer-onboarding", { replace: true });
         } else {
           // Standard email signups still see the confirmation page to finalize the flow
-          // Pass the redirectTo path so the confirmation page can use it
-          navigate("/email-confirmed", { replace: true, state: { email: user.email, role: "buyer", redirectTo } });
+          navigate("/email-confirmed", { replace: true, state: { email: user.email, role: "buyer" } });
         }
 
         return;

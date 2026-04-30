@@ -132,13 +132,7 @@ export default function BuyerLoginPage() {
       await useBuyerStore.getState().initializeCart();
 
       setIsLoading(false);
-      const redirectTo = sessionStorage.getItem('redirect_to');
-      if (redirectTo) {
-        sessionStorage.removeItem('redirect_to');
-        navigate(redirectTo);
-      } else {
-        navigate("/shop");
-      }
+      navigate("/shop");
     } catch (err) {
       console.error("Login exception:", err);
       setError("Incorrect credentials. Please review your input.");
