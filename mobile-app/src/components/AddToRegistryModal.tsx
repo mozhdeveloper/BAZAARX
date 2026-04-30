@@ -20,6 +20,7 @@ import { COLORS } from '../constants/theme';
 import { useAddressStore } from '../stores/addressStore';
 import { useAuthStore } from '../stores/authStore';
 import { useWishlistStore } from '../stores/wishlistStore';
+import { wishlistService } from '../services/wishlistService';
 
 const { height } = Dimensions.get('window');
 
@@ -139,20 +140,34 @@ export const AddToRegistryModal = ({ visible, onClose, product }: AddToRegistryM
         });
     };
 
-    const handleAddToCategory = (categoryId: string) => {
-        const normalizedProductId = String(product.id);
-        const alreadyInFolder = items.some(
-            (item) => String(item.id) === normalizedProductId && item.categoryId === categoryId,
-        );
-        if (alreadyInFolder) {
-            Alert.alert('Already Added', 'This product is already in that registry folder.');
-            return;
-        }
+    const handleAddToCategory = async (categoryId: string) => {
+        try {
+            const normalizedProductId = String(product.id);
 
-        const folderName = categories.find((cat) => cat.id === categoryId)?.name || 'Registry';
-        addItem(product, 'medium', 1, categoryId);
-        Alert.alert('Added to Registry', `Successfully added to "${folderName}".`);
-        handleCloseInternal();
+            // Fast local check first
+            const alreadyLocally = items.some(
+                (item) => String(item.id) === normalizedProductId && item.categoryId === categoryId,
+            );
+            if (alreadyLocally) {
+                Alert.alert('Already Added', 'This product is already in that registry folder.');
+                return;
+            }
+
+            // Confirm against Supabase to avoid race conditions / stale local state
+            const exists = await wishlistService.existsInRegistry(categoryId, normalizedProductId);
+            if (exists) {
+                Alert.alert('Already Added', 'This product is already in that registry folder.');
+                return;
+            }
+
+            const folderName = categories.find((cat) => cat.id === categoryId)?.name || 'Registry';
+            await addItem(product, 'medium', 1, categoryId);
+            Alert.alert('Added to Registry', `Successfully added to "${folderName}".`);
+            handleCloseInternal();
+        } catch (err) {
+            console.error('Add to registry failed', err);
+            Alert.alert('Error', 'Failed to add item to registry. Please try again.');
+        }
     };
 
     const handleCreateAndAdd = async () => {

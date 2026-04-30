@@ -39,6 +39,23 @@ export interface PublicRegistrySearchResult {
 }
 
 export const wishlistService = {
+    async existsInRegistry(registryId: string, productId: string): Promise<boolean> {
+        if (!registryId || !productId) return false;
+        const { data, error } = await supabase
+            .from('registry_items')
+            .select('id')
+            .eq('registry_id', registryId)
+            .eq('product_id', productId)
+            .limit(1)
+            .maybeSingle();
+
+        if (error) {
+            if ((error as any).code === 'PGRST116') return false;
+            throw error;
+        }
+
+        return !!data;
+    },
     async getRegistries(buyerId: string): Promise<(DbRegistry & { registry_items: DbRegistryItem[] })[]> {
         const { data, error } = await supabase
             .from('registries')

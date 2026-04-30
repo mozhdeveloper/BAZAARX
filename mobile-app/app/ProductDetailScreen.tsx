@@ -363,6 +363,7 @@ export default function ProductDetailScreen({ route, navigation }: Props) {
   const [showGuestModal, setShowGuestModal] = useState(false);
   const [guestModalMessage, setGuestModalMessage] = useState('');
   const [isFollowingSeller, setIsFollowingSeller] = useState(false);
+  const [isAddingToCart, setIsAddingToCart] = useState(false);
 
   // Added to Cart Modal State
   const [showAddedToCartModal, setShowAddedToCartModal] = useState(false);
@@ -862,6 +863,9 @@ export default function ProductDetailScreen({ route, navigation }: Props) {
       return;
     }
 
+    // Set loading state immediately to show spinner and prevent duplicate clicks
+    setIsAddingToCart(true);
+
     try {
       // Add to cart with discount info embedded so it persists in the cart
       // Use the same regularPrice and originalPrice calculated for display
@@ -887,8 +891,11 @@ export default function ProductDetailScreen({ route, navigation }: Props) {
       } else {
         Alert.alert('Unable to add to cart', useCartStore.getState().error || 'This item is no longer available.');
       }
-    } catch {
+    } catch (err) {
+      console.error('Add to cart failed', err);
       Alert.alert('Unable to add to cart', useCartStore.getState().error || 'This item is no longer available.');
+    } finally {
+      setIsAddingToCart(false);
     }
   }, [hasVariants, isGuest, product, quantity, activeCampaignDiscount, productImages, addItem, isSellerRestricted]);
 
@@ -1045,16 +1052,13 @@ export default function ProductDetailScreen({ route, navigation }: Props) {
   const handleWishlistAction = useCallback(() => {
     const { isGuest: guestCheck } = useAuthStore.getState();
     if (guestCheck) {
-      setGuestModalMessage("Sign up to create wishlists.");
+      setGuestModalMessage("Sign up to create registries.");
       setShowGuestModal(true);
       return;
     }
 
-    if (isFavorite) {
-      removeFromWishlist(product.id);
-    } else {
-      setShowWishlistModal(true);
-    }
+    // Always open the registry modal so users can add to different folders.
+    setShowWishlistModal(true);
   }, [isFavorite, product.id, removeFromWishlist]);
 
   const handleMarkReviewHelpful = async (reviewId: string) => {
@@ -1237,7 +1241,7 @@ export default function ProductDetailScreen({ route, navigation }: Props) {
               </AnimatedText>
             </View>
             <Pressable onPress={() => handleWishlistAction()} style={{ width: 44, height: 44, alignItems: 'center', justifyContent: 'center' }}>
-              <Gift size={24} color={BRAND_ACCENT} strokeWidth={1.5} fill={isFavorite ? BRAND_ACCENT : "transparent"} />
+              <Gift size={24} color={BRAND_ACCENT} strokeWidth={1.5} fill={"transparent"} />
             </Pressable>
           </View>
 
@@ -1616,11 +1620,15 @@ export default function ProductDetailScreen({ route, navigation }: Props) {
 
         <View style={styles.actionButtonsContainer}>
           <Pressable
-            style={[styles.addToCartBtn, ((Number(selectedVariantInfo.stock ?? 0) <= 0) || isSellerRestricted) && styles.disabledBtn]}
+            style={[styles.addToCartBtn, (isAddingToCart || (Number(selectedVariantInfo.stock ?? 0) <= 0) || isSellerRestricted) && styles.disabledBtn]}
             onPress={handleAddToCart}
-            disabled={false}
+            disabled={isAddingToCart || (Number(selectedVariantInfo.stock ?? 0) <= 0) || isSellerRestricted}
           >
-            <ShoppingCart size={20} color={((Number(selectedVariantInfo.stock ?? 0) > 0) && !isSellerRestricted) ? COLORS.primary : COLORS.gray400} />
+            {isAddingToCart ? (
+              <ActivityIndicator size="small" color={COLORS.primary} />
+            ) : (
+              <ShoppingCart size={20} color={((Number(selectedVariantInfo.stock ?? 0) > 0) && !isSellerRestricted) ? COLORS.primary : COLORS.gray400} />
+            )}
           </Pressable>
 
           <Pressable
@@ -1964,6 +1972,16 @@ export default function ProductDetailScreen({ route, navigation }: Props) {
         onClose={() => setShowWishlistModal(false)}
         product={product}
       />
+
+      {/* Add to Cart Loading Modal */}
+      <Modal visible={isAddingToCart} transparent animationType="fade" statusBarTranslucent>
+        <View style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.35)', alignItems: 'center', justifyContent: 'center' }}>
+          <View style={{ backgroundColor: '#FFF', padding: 20, borderRadius: 12, minWidth: 200, alignItems: 'center' }}>
+            <ActivityIndicator size="large" color={COLORS.primary} />
+            <Text style={{ marginTop: 12, fontSize: 16, fontWeight: '600', color: '#111' }}>Adding to cart...</Text>
+          </View>
+        </View>
+      </Modal>
 
       {/* Product Menu Modal */}
       <Modal
