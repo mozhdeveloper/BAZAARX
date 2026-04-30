@@ -89,7 +89,8 @@ export default function ShopPage() {
   const [isFeaturedView, setIsFeaturedView] = useState(false);
   const [categoryProducts, setCategoryProducts] = useState<any[]>([]);
   const [isCategoryLoading, setIsCategoryLoading] = useState(false);
-  const isProductsLoading = storeLoading || isCategoryLoading;
+  const [isDiscountsLoading, setIsDiscountsLoading] = useState(false);
+  const isProductsLoading = storeLoading || isCategoryLoading || isDiscountsLoading;
   const shuffledIdsRef = useRef<string[]>([]);
   const [priceRange, setPriceRange] = useState<number[]>([0, 100000]);
   const [minRating, setMinRating] = useState<number>(0);
@@ -131,6 +132,7 @@ export default function ShopPage() {
   const [featuredProducts, setFeaturedProducts] = useState<FeaturedProductWithDetails[]>([]);
   const [boostedProducts, setBoostedProducts] = useState<AdBoostWithProduct[]>([]);
   const [featuredLoading, setFeaturedLoading] = useState(true);
+  const [featuredDiscounts, setFeaturedDiscounts] = useState<Record<string, any>>({});
 
   const hasCompletedOnboarding = profile && profile.preferences?.interestedCategories && profile.preferences.interestedCategories.length > 0;
   const showOnboardingBanner = profile && !hasCompletedOnboarding;
@@ -154,17 +156,36 @@ export default function ShopPage() {
       })
       .catch((e) => console.error('Failed to load flash sales:', e));
 
-    // Fetch featured products
-    const featuredPromise = featuredProductService.getFeaturedProducts(12).then(data => {
-      setFeaturedProducts(data);
-    }).catch(e => console.error('Failed to load featured products:', e));
+    // Fetch featured + boosted products, then immediately fetch their discounts
+    // so the discount badges appear at the same time as the cards (no delay).
+    const loadFeatured = async () => {
+      try {
+        const [featData, boostData] = await Promise.all([
+          featuredProductService.getFeaturedProducts(12).catch(() => [] as FeaturedProductWithDetails[]),
+          adBoostService.getActiveBoostedProducts('featured', 12).catch(() => [] as AdBoostWithProduct[]),
+        ]);
 
-    // Fetch boosted products (ad boosts)
-    const boostedPromise = adBoostService.getActiveBoostedProducts('featured', 12).then(data => {
-      setBoostedProducts(data);
-    }).catch(e => console.error('Failed to load boosted products:', e));
+        setFeaturedProducts(featData);
+        setBoostedProducts(boostData);
 
-    Promise.all([featuredPromise, boostedPromise]).finally(() => setFeaturedLoading(false));
+        // Collect all product IDs from both sources
+        const ids = new Set<string>();
+        for (const bp of boostData) { if ((bp as any).product?.id) ids.add((bp as any).product.id); }
+        for (const fp of featData) { if ((fp as any).product?.id) ids.add((fp as any).product.id); }
+        const productIds = [...ids];
+
+        if (productIds.length > 0) {
+          const discounts = await discountService.getActiveDiscountsForProducts(productIds).catch(() => ({}));
+          setFeaturedDiscounts(discounts);
+        }
+      } catch (e) {
+        console.error('Failed to load featured products:', e);
+      } finally {
+        setFeaturedLoading(false);
+      }
+    };
+
+    loadFeatured();
   }, []);
 
   // 2. Fetch categories on mount
@@ -282,10 +303,11 @@ export default function ShopPage() {
     const loadDiscounts = async () => {
       const productIds = [...new Set(allProducts.map(product => product.id).filter(Boolean))];
       if (productIds.length === 0) {
-        if (isMounted) setActiveCampaignDiscounts({});
+        if (isMounted) { setActiveCampaignDiscounts({}); setIsDiscountsLoading(false); }
         return;
       }
 
+      setIsDiscountsLoading(true);
       try {
         const discounts = await discountService.getActiveDiscountsForProducts(productIds);
         if (isMounted) {
@@ -296,6 +318,8 @@ export default function ShopPage() {
         if (isMounted) {
           setActiveCampaignDiscounts({});
         }
+      } finally {
+        if (isMounted) setIsDiscountsLoading(false);
       }
     };
 
@@ -1046,6 +1070,28 @@ export default function ShopPage() {
                       const sellerName = product.seller?.store_name || 'BazaarX Store';
                       const soldCount = product.soldCount || product.sold_count || 0;
 
+                      // Compute discount info from fetched campaign discounts
+                      const featDiscount = featuredDiscounts[product.id];
+                      let displayPrice = Number(product.price ?? 0);
+                      let originalPrice: number | undefined = product.original_price ?? undefined;
+                      let discountPercent: number | undefined;
+                      let discountTooltip: string | undefined;
+                      if (featDiscount) {
+                        originalPrice = featDiscount.originalPrice || displayPrice;
+                        if (featDiscount.discountType === 'percentage') {
+                          displayPrice = originalPrice * (1 - featDiscount.discountValue / 100);
+                          discountPercent = Math.round(featDiscount.discountValue);
+                          if (typeof featDiscount.maxDiscountAmount === 'number') {
+                            displayPrice = Math.max(displayPrice, originalPrice - featDiscount.maxDiscountAmount);
+                            discountTooltip = `Up to ₱${featDiscount.maxDiscountAmount.toLocaleString()} off`;
+                          }
+                        } else if (featDiscount.discountType === 'fixed_amount') {
+                          displayPrice = Math.max(0, originalPrice - featDiscount.discountValue);
+                          discountPercent = originalPrice > 0 ? Math.round((featDiscount.discountValue / originalPrice) * 100) : undefined;
+                        }
+                      }
+                      const hasDiscount = originalPrice !== undefined && originalPrice > displayPrice;
+
                       return (
                         <motion.div
                           key={key}
@@ -1073,6 +1119,15 @@ export default function ShopPage() {
                                 (e.target as HTMLImageElement).src = 'https://placehold.co/400x400?text=No+Image';
                               }}
                             />
+                            {/* Discount Badge */}
+                            {hasDiscount && discountPercent && (
+                              <div
+                                title={discountTooltip}
+                                className="absolute top-2 right-2 bg-[#DC2626] text-white px-2 py-[2px] rounded text-[11px] font-black uppercase tracking-wider z-10 shadow-sm"
+                              >
+                                {discountPercent}% OFF
+                              </div>
+                            )}
                             {/* Gradient overlay at bottom */}
                             <div className="absolute inset-x-0 bottom-0 h-8 bg-gradient-to-t from-black/10 to-transparent" />
                           </div>
@@ -1101,8 +1156,13 @@ export default function ShopPage() {
 
                             {/* Price */}
                             <div className="mb-2">
-                              <span className="text-lg font-extrabold text-[#D97706] leading-none">
-                                ₱{product.price?.toLocaleString() || '0'}
+                              {hasDiscount && originalPrice && (
+                                <span className="text-[11px] text-gray-400 line-through font-medium leading-none block mb-[3px]">
+                                  ₱{originalPrice.toLocaleString()}
+                                </span>
+                              )}
+                              <span className={`text-lg font-extrabold leading-none ${hasDiscount ? 'text-[#DC2626]' : 'text-[#D97706]'}`}>
+                                ₱{displayPrice?.toLocaleString() || '0'}
                               </span>
                             </div>
 

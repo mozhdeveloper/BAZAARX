@@ -121,14 +121,19 @@ export function SellerProducts() {
             .toLowerCase()
             .includes(searchQuery.toLowerCase());
 
-        // 3. Existing status filter logic
+        // 3. Status filter logic
+        // "active" = approved + isActive + has stock
+        // "inactive" = explicitly disabled (isActive false), but not draft/pending
+        // "pending" = awaiting approval
+        // "draft" = saved as draft
+        // "out_of_stock" = approved + active but 0 stock
         const matchesFilter =
             filterStatus === "all" ||
-            (filterStatus === "active" && product.isActive && product.approvalStatus !== "draft") ||
-            (filterStatus === "inactive" && !product.isActive) ||
+            (filterStatus === "active" && product.isActive && product.approvalStatus === "approved") ||
+            (filterStatus === "inactive" && !product.isActive && product.approvalStatus !== "pending" && product.approvalStatus !== "draft") ||
             (filterStatus === "pending" && product.approvalStatus === "pending") ||
             (filterStatus === "draft" && product.approvalStatus === "draft") ||
-            (filterStatus === "out_of_stock" && product.stock === 0);
+            (filterStatus === "out_of_stock" && product.stock === 0 && product.approvalStatus !== "draft" && product.approvalStatus !== "pending");
 
         // Only return true if it belongs to the seller AND matches search/filters
         return matchesSeller && matchesSearch && matchesFilter;
@@ -428,8 +433,8 @@ export function SellerProducts() {
                                                                 <Star className={cn("h-4 w-4", featuredProductIds.has(product.id) && "fill-amber-500")} />
                                                             </button>
                                                         )}
-                                                        {/* Add to Flash Sale — hidden for drafts */}
-                                                        {product.approvalStatus !== 'draft' && (
+                                                        {/* Add to Flash Sale — hidden for drafts and pending */}
+                                                        {product.approvalStatus !== 'draft' && product.approvalStatus !== 'pending' && (
                                                             <button
                                                                 onClick={() =>
                                                                     navigate(`/seller/discounts?flash_product=${product.id}&flash_product_name=${encodeURIComponent(product.name)}&flash_product_price=${product.price}`)
@@ -688,6 +693,30 @@ export function AddProduct() {
             })));
         }
 
+        // Prefill variant attribute tag values from product data
+        // This ensures the Cartesian product useEffect doesn't wipe existing variants
+        if (product.variantLabel1Values?.length) {
+            setFormData(prev => ({ ...prev, variantLabel1Values: [...product.variantLabel1Values!] }));
+        } else if (product.variants?.length) {
+            // Derive from variants if not stored at product level
+            const uniqueV1 = Array.from(new Set(
+                product.variants.map(v => v.variantLabel1Value).filter(Boolean) as string[]
+            ));
+            if (uniqueV1.length > 0) {
+                setFormData(prev => ({ ...prev, variantLabel1Values: uniqueV1 }));
+            }
+        }
+        if (product.variantLabel2Values?.length) {
+            setFormData(prev => ({ ...prev, variantLabel2Values: [...product.variantLabel2Values!] }));
+        } else if (product.variants?.length) {
+            const uniqueV2 = Array.from(new Set(
+                product.variants.map(v => v.variantLabel2Value).filter(Boolean) as string[]
+            ));
+            if (uniqueV2.length > 0) {
+                setFormData(prev => ({ ...prev, variantLabel2Values: uniqueV2 }));
+            }
+        }
+
         // Prefill attribute names
         if (product.variantLabel1) setFirstAttributeName(product.variantLabel1);
         if (product.variantLabel2) setSecondAttributeName(product.variantLabel2);
@@ -861,7 +890,22 @@ export function AddProduct() {
     // Delete a variant
     const deleteVariant = (id: string) => {
         setVariantConfigs((prev) => {
+            const variantToDelete = prev.find((v) => v.id === id);
             const updated = prev.filter((v) => v.id !== id);
+
+            // Also remove orphaned tag values so the Cartesian useEffect
+            // doesn't immediately re-create the deleted variant
+            if (variantToDelete) {
+                const remainingV1Values = new Set(updated.map(v => v.variantLabel1Value).filter(Boolean));
+                const remainingV2Values = new Set(updated.map(v => v.variantLabel2Value).filter(Boolean));
+
+                setFormData(prevForm => ({
+                    ...prevForm,
+                    variantLabel1Values: prevForm.variantLabel1Values.filter(v => remainingV1Values.has(v)),
+                    variantLabel2Values: prevForm.variantLabel2Values.filter(v => remainingV2Values.has(v)),
+                }));
+            }
+
             return updated;
         });
     };
@@ -1278,6 +1322,9 @@ export function AddProduct() {
 
             if (isEditMode && editProductId) {
                 // ====== EDIT FLOW ======
+                // Resolve category name to category_id for DB update
+                const categoryId = await productService.getOrCreateCategoryByName(productData.category);
+
                 // Update product fields
                 const { data: updatedProduct, error: updateError } = await supabase
                     .from('products')
@@ -1285,6 +1332,7 @@ export function AddProduct() {
                         name: productData.name,
                         description: productData.description,
                         price: productData.price,
+                        ...(categoryId ? { category_id: categoryId } : {}),
                         variant_label_1: productData.variantLabel1,
                         variant_label_2: productData.variantLabel2,
                         // Warranty
@@ -1365,22 +1413,7 @@ export function AddProduct() {
                     }
                 }
 
-                // BX-OPTIMIZATION: Update local store immediately so UI feels instant
-                updateProduct(editProductId, {
-                    ...productData,
-                    images: allImages,
-                    variants: updatedVariants.map(v => ({
-                        id: v.id,
-                        variantLabel1Value: v.variantLabel1Value,
-                        variantLabel2Value: v.variantLabel2Value,
-                        price: v.price,
-                        stock: v.stock,
-                        image: v.image,
-                        sku: v.sku
-                    }))
-                });
-
-                // Image sync: delete existing → re-add
+                // Image sync: delete existing → re-add (do this BEFORE local store update)
                 try {
                     await productService.deleteProductImages(editProductId);
                     if (allImages.length > 0) {
@@ -1396,6 +1429,38 @@ export function AddProduct() {
                     }
                 } catch (imgErr) {
                     console.warn('Image update partially failed:', imgErr);
+                }
+
+                // BX-OPTIMIZATION: Update local store so UI reflects changes instantly
+                // Use set() directly to avoid a redundant DB round-trip via updateProduct
+                const { products } = useProductStore.getState();
+                const existingProduct = products.find(p => p.id === editProductId);
+                if (existingProduct) {
+                    const updatedLocal = {
+                        ...existingProduct,
+                        ...productData,
+                        images: allImages,
+                        category: productData.category,
+                        variants: updatedVariants.map(v => ({
+                            id: v.id,
+                            variantLabel1Value: v.variantLabel1Value,
+                            variantLabel2Value: v.variantLabel2Value,
+                            price: v.price,
+                            stock: v.stock,
+                            image: v.image,
+                            sku: v.sku
+                        })),
+                        updatedAt: new Date().toISOString(),
+                    };
+                    useProductStore.setState(state => ({
+                        products: state.products.map(p => p.id === editProductId ? updatedLocal : p),
+                    }));
+                }
+
+                // Force a fresh re-fetch from DB so the product list and shop pages
+                // pick up the updated images, category, and variants from the joined tables
+                if (seller?.id) {
+                    useProductStore.getState().fetchProducts({ sellerId: seller.id });
                 }
 
 
@@ -1619,7 +1684,7 @@ export function AddProduct() {
                                     addImageFileSlot={addImageFileSlot}
                                     removeImageFileSlot={removeImageFileSlot}
                                     setImageFileError={setImageFileError}
-                                    hideCategory={isEditMode}
+                                    hideCategory={false}
                                     reorderImages={(fromIndex, toIndex) => {
                                         setFormData(prev => {
                                             const newImages = [...prev.images];
