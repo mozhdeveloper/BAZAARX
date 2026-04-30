@@ -7,10 +7,10 @@ import {
   Pressable,
   Dimensions,
   TextInput,
-  ImageBackground,
   Alert,
   ActivityIndicator
 } from 'react-native';
+import { Image } from 'expo-image';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Check, Search, ArrowLeft } from 'lucide-react-native';
 import { safeImageUri } from '../../src/utils/imageUtils';
@@ -171,11 +171,14 @@ export default function CategoryPreferenceScreen({ navigation, route }: Props) {
         style={[styles.itemContainer, isSelected && styles.itemSelectedBorder]}
         onPress={() => toggleCategory(item.id)}
       >
-        <ImageBackground
-          source={{ uri: safeImageUri(item.image_url || 'https://placehold.co/400x400/e5e7eb/6b7280?text=Category') }}
-          style={styles.imageBackground}
-          imageStyle={{ borderRadius: 12 }}
-        >
+        <View style={styles.imageBackground}>
+          <Image
+            source={{ uri: safeImageUri(item.image_url || 'https://placehold.co/400x400/e5e7eb/6b7280?text=Category') }}
+            style={StyleSheet.absoluteFillObject}
+            contentFit="cover"
+            transition={300}
+            cachePolicy="memory-disk"
+          />
           <LinearGradient
             colors={['transparent', 'rgba(0,0,0,0.8)']}
             style={styles.gradientOverlay}
@@ -188,7 +191,7 @@ export default function CategoryPreferenceScreen({ navigation, route }: Props) {
               <Check size={14} color="#FFFFFF" strokeWidth={3} />
             </View>
           )}
-        </ImageBackground>
+        </View>
       </Pressable>
     );
   }, [selectedCategories, toggleCategory]);

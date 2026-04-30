@@ -377,18 +377,24 @@ export default function SettingsScreen({ navigation }: Props) {
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>Developer Options</Text>
           
-          <View style={styles.settingCard}>
+          <View style={[styles.settingCard, { opacity: 0.5 }]}>
             <Pressable 
               style={styles.settingItem}
-              onPress={handleResetOnboarding}
+              onPress={() => {}}
+              disabled={true}
             >
               <View style={styles.settingLeft}>
-                <View style={[styles.iconContainer, { backgroundColor: '#FEE2E2' }]}>
-                  <RefreshCw size={20} color="#EF4444" />
+                <View style={[styles.iconContainer, { backgroundColor: '#F3F4F6' }]}>
+                  <RefreshCw size={20} color="#9CA3AF" />
                 </View>
                 <View style={styles.settingTextContainer}>
-                  <Text style={styles.settingTitle}>Reset Onboarding</Text>
-                  <Text style={styles.settingSubtitle}>Show onboarding screen again</Text>
+                  <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                    <Text style={[styles.settingTitle, { color: '#9CA3AF' }]}>Reset Onboarding</Text>
+                    <View style={{ backgroundColor: '#E5E7EB', paddingHorizontal: 6, paddingVertical: 2, borderRadius: 4, marginLeft: 8 }}>
+                      <Text style={{ fontSize: 10, fontWeight: '700', color: '#6B7280' }}>COMING SOON</Text>
+                    </View>
+                  </View>
+                  <Text style={[styles.settingSubtitle, { color: '#9CA3AF' }]}>Show onboarding screen again</Text>
                 </View>
               </View>
             </Pressable>
@@ -399,23 +405,28 @@ export default function SettingsScreen({ navigation }: Props) {
         <View style={styles.section}>
           <Text style={[styles.sectionTitle, { color: '#EF4444' }]}>Account</Text>
 
-          <View style={[styles.settingCard, styles.dangerCard]}>
+          <View style={[styles.settingCard, styles.dangerCard, { opacity: 0.5 }]}>
             <Pressable
               style={styles.settingItem}
-              onPress={openDeleteModal}
-              disabled={isDeleting}
+              onPress={() => {}} // Disabled
+              disabled={true}
             >
               <View style={styles.settingLeft}>
                 <View style={[styles.iconContainer, { backgroundColor: '#FEE2E2' }]}>
                   {isDeleting ? (
-                    <ActivityIndicator size="small" color="#EF4444" />
+                    <ActivityIndicator size="small" color="#9CA3AF" />
                   ) : (
-                    <Trash2 size={20} color="#EF4444" />
+                    <Trash2 size={20} color="#9CA3AF" />
                   )}
                 </View>
                 <View style={styles.settingTextContainer}>
-                  <Text style={[styles.settingTitle, { color: '#EF4444' }]}>Delete Account</Text>
-                  <Text style={styles.settingSubtitle}>
+                  <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                    <Text style={[styles.settingTitle, { color: '#9CA3AF' }]}>Delete Account</Text>
+                    <View style={{ backgroundColor: '#E5E7EB', paddingHorizontal: 6, paddingVertical: 2, borderRadius: 4, marginLeft: 8 }}>
+                      <Text style={{ fontSize: 10, fontWeight: '700', color: '#6B7280' }}>COMING SOON</Text>
+                    </View>
+                  </View>
+                  <Text style={[styles.settingSubtitle, { color: '#9CA3AF' }]}>
                     Permanently remove your account and all data
                   </Text>
                 </View>

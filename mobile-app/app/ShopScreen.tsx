@@ -839,47 +839,6 @@ export default function ShopScreen({ navigation, route }: Props) {
 
   const listHeaderComponent = useMemo(() => (
     <View>
-      {/* ONBOARDING BANNER */}
-      {isAuthenticated && !hasCompletedOnboarding && !isGuest && (
-        <Pressable
-          onPress={() => navigation.navigate('CategoryPreference', { signupData: undefined })}
-          style={({ pressed }) => [styles.onboardingBanner, pressed && { opacity: 0.95 }]}
-        >
-          <LinearGradient
-            colors={['#EA580C', '#F59E0B']}
-            start={{ x: 0, y: 0 }}
-            end={{ x: 1, y: 1 }}
-            style={styles.onboardingGradient}
-          >
-            {/* Decorative Elements */}
-            <View style={styles.onboardingGlowTop} />
-            <View style={styles.onboardingGlowBottom} />
-
-            <View style={styles.onboardingContent}>
-              <View style={styles.onboardingLeft}>
-                <Text style={styles.onboardingEyebrow}>ALMOST THERE!</Text>
-                <Text style={styles.onboardingTitle}>Unlock Your BazaarX Experience</Text>
-                <Text style={styles.onboardingSub}>Complete your onboarding to get personalized products.</Text>
-
-                <View style={styles.onboardingButton}>
-                  <Text style={styles.onboardingButtonText}>Complete Profile</Text>
-                  <ChevronRight size={14} color="#FFF" />
-                </View>
-              </View>
-
-              <View style={styles.onboardingRight}>
-                <View style={styles.onboardingIconWrapper}>
-                  <ShoppingBag size={32} color="#FFF" strokeWidth={1.5} />
-                </View>
-                {/* Mini floating elements */}
-                <View style={styles.onboardingMiniFloating}>
-                  <Star size={10} color="#FDE68A" fill="#FDE68A" />
-                </View>
-              </View>
-            </View>
-          </LinearGradient>
-        </Pressable>
-      )}
       {(sortOption !== 'relevance' || isFeaturedView || activeFilterCount > 0) && (
         <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ paddingHorizontal: 20, paddingBottom: 8, gap: 8 }}>
           {isFeaturedView && (

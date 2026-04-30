@@ -302,7 +302,7 @@ function App() {
           // Redirect immediately once we know first-time vs returning OAuth user.
           // Use BrowserRouter-compatible history navigation (no full reload).
           if (isOAuthRedirect && oauthRedirectDone !== '1') {
-            let targetPath = isFirstOAuthLogin ? '/buyer-onboarding' : '/';
+            let targetPath = '/shop';
             
             // If they were linking, send them back to settings (security tab)
             if (oauthIntent === 'link_google') {
@@ -340,7 +340,7 @@ function App() {
 
           const { data: buyerData } = await supabase
             .from("buyers")
-            .select("bazcoins, avatar_url")
+            .select("bazcoins, avatar_url, preferences")
             .eq("id", user.id)
             .maybeSingle();
 
@@ -354,6 +354,25 @@ function App() {
             full_name: user.user_metadata?.full_name || null, 
             email: email,
           });
+
+          const dbPreferences = buyer.preferences || {};
+          const mergedPreferences = {
+            language: dbPreferences.language || 'en',
+            currency: dbPreferences.currency || 'PHP',
+            notifications: {
+              email: true,
+              sms: false,
+              push: true,
+              ...(dbPreferences.notifications || {})
+            },
+            privacy: {
+              showProfile: true,
+              showPurchases: false,
+              showFollowing: true,
+              ...(dbPreferences.privacy || {})
+            },
+            interestedCategories: dbPreferences.interestedCategories || [],
+          };
 
           // 6. Update the global store so the UI changes from "Sign In" to the Profile Avatar
           useBuyerStore.getState().setProfile({
@@ -369,7 +388,7 @@ function App() {
             memberSince: profile.created_at ? new Date(profile.created_at) : new Date(),
             totalOrders: 0,
             totalSpent: 0,
-            preferences: {}, 
+            preferences: mergedPreferences, 
           } as any);
 
           // 7. Initialize the cart (non-blocking)
