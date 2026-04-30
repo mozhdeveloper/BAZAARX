@@ -33,6 +33,7 @@ import {
   Check,
   ChevronLeft,
   AlertTriangle,
+  ShieldCheck,
 } from 'lucide-react';
 import { ComingSoonWrapper } from '../components/ComingSoonWrapper';
 import { supabase } from '../lib/supabase';
@@ -48,6 +49,7 @@ import {
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useToast } from '@/hooks/use-toast';
 import { cn } from '@/lib/utils';
+
 import { barangays, cities, provinces, regions } from "select-philippines-address";
 import { authService } from '../services/authService';
 import { Address, useBuyerStore } from '../stores/buyerStore';
@@ -138,7 +140,9 @@ export default function BuyerSettingsPage() {
   const [isLinkingGoogle, setIsLinkingGoogle] = useState(false);
   const [isUnlinkingGoogle, setIsUnlinkingGoogle] = useState(false);
   const [showUnlinkModal, setShowUnlinkModal] = useState(false);
+  const [showLinkConfirmDialog, setShowLinkConfirmDialog] = useState(false);
   const [identities, setIdentities] = useState<any[]>([]);
+  const [isPureGoogleUser, setIsPureGoogleUser] = useState(false);
 
   // Address Selection Lists
   const [regionList, setRegionList] = useState<any[]>([]);
@@ -480,18 +484,33 @@ export default function BuyerSettingsPage() {
     loginAlerts: true
   });
 
-  // Fetch identities on mount
+  // Fetch identities on mount — also detects pure-Google users (Rule 1)
   useEffect(() => {
     const fetchIdentities = async () => {
       const { data } = await (supabase.auth as any).getUserIdentities();
       if (data?.identities) {
-        setIdentities(data.identities);
+        const ids = data.identities;
+        setIdentities(ids);
+        const hasGoogle = ids.some((id: any) => id.provider === 'google');
+        const hasEmail = ids.some((id: any) => id.provider === 'email');
+        // Pure Google user = Google is the only sign-in method — unlink would orphan the account
+        setIsPureGoogleUser(hasGoogle && !hasEmail);
       }
     };
     fetchIdentities();
   }, []);
 
   const handleUnlinkGoogle = async () => {
+    // Rule 1: Block unlink for pure-Google users — they'd have no other way to sign in
+    if (isPureGoogleUser) {
+      toast({
+        title: 'Cannot Unlink',
+        description: 'Google is your only sign-in method. Unlinking it would lock you out. Set an email and password first.',
+        variant: 'destructive',
+      });
+      setShowUnlinkModal(false);
+      return;
+    }
     setIsUnlinkingGoogle(true);
     try {
       const { data: identityData } = await (supabase.auth as any).getUserIdentities();
@@ -508,7 +527,11 @@ export default function BuyerSettingsPage() {
 
         // Refresh identities in local state
         const { data: freshData } = await (supabase.auth as any).getUserIdentities();
-        if (freshData?.identities) setIdentities(freshData.identities);
+        if (freshData?.identities) {
+          const ids = freshData.identities;
+          setIdentities(ids);
+          setIsPureGoogleUser(ids.some((id: any) => id.provider === 'google') && !ids.some((id: any) => id.provider === 'email'));
+        }
 
         toast({ title: 'Google Unlinked', description: 'Your Google account has been disconnected successfully.' });
       }
@@ -520,11 +543,18 @@ export default function BuyerSettingsPage() {
     }
   };
 
-  const handleLinkGoogle = async () => {
+  // Opens the pre-link confirmation dialog (email policy) before starting OAuth
+  const handleGoogleLinkClick = () => {
+    setShowLinkConfirmDialog(true);
+  };
+
+  // Actual OAuth redirect — called after user confirms in the dialog
+  const proceedWithGoogleLink = async () => {
+    setShowLinkConfirmDialog(false);
     setIsLinkingGoogle(true);
     try {
       sessionStorage.setItem('oauth_intent', 'link_google');
-      const { data, error } = await supabase.auth.signInWithOAuth({
+      const { data, error } = await supabase.auth.linkIdentity({
         provider: 'google',
         options: {
           redirectTo: window.location.origin + '/settings?tab=security',
@@ -535,7 +565,6 @@ export default function BuyerSettingsPage() {
         },
       });
       if (error) {
-        // Detect conflict: Google account already linked to another user
         const errMsg = error.message?.toLowerCase() || '';
         const isConflict =
           errMsg.includes('already') ||
@@ -1105,25 +1134,42 @@ export default function BuyerSettingsPage() {
                       <h4 className="font-medium mb-3">Connected Accounts</h4>
                       <div className="space-y-2">
                         {isGoogleConnected ? (
-                          <Button
-                            variant="outline"
-                            className="w-full justify-between p-3 border rounded-xl bg-green-50/50 border-green-100 hover:bg-red-50 hover:border-red-100 group transition-all"
-                            onClick={() => setShowUnlinkModal(true)}
-                          >
-                            <div className="flex items-center gap-2">
-                              <img src="https://www.svgrepo.com/show/475656/google-color.svg" className="h-5 w-5" alt="Google" />
-                              <span className="text-sm font-medium text-green-700 group-hover:text-red-700 transition-colors">Google Connected</span>
-                            </div>
-                            <div className="flex items-center">
-                              <Check className="h-4 w-4 text-green-600 group-hover:hidden" />
-                              <Trash2 className="h-4 w-4 text-red-600 hidden group-hover:block" />
-                            </div>
-                          </Button>
+                          <>
+                            {/* Rule 1: Pure-Google users — unlink is blocked, show info-only row */}
+                            {isPureGoogleUser ? (
+                              <div className="w-full flex items-center justify-between p-3 border rounded-xl bg-blue-50/60 border-blue-100 opacity-80 cursor-not-allowed select-none">
+                                <div className="flex items-center gap-2">
+                                  <img src="https://www.svgrepo.com/show/475656/google-color.svg" className="h-5 w-5" alt="Google" />
+                                  <div>
+                                    <span className="text-sm font-medium text-blue-800 block">Google Connected</span>
+                                    <span className="text-xs text-blue-600">Primary sign-in method — cannot unlink</span>
+                                  </div>
+                                </div>
+                                <ShieldCheck className="h-4 w-4 text-blue-500" />
+                              </div>
+                            ) : (
+                              <Button
+                                variant="outline"
+                                className="w-full justify-between p-3 border rounded-xl bg-green-50/50 border-green-100 hover:bg-red-50 hover:border-red-100 group transition-all"
+                                onClick={() => setShowUnlinkModal(true)}
+                              >
+                                <div className="flex items-center gap-2">
+                                  <img src="https://www.svgrepo.com/show/475656/google-color.svg" className="h-5 w-5" alt="Google" />
+                                  <span className="text-sm font-medium text-green-700 group-hover:text-red-700 transition-colors">Google Connected</span>
+                                </div>
+                                <div className="flex items-center">
+                                  <Check className="h-4 w-4 text-green-600 group-hover:hidden" />
+                                  <Trash2 className="h-4 w-4 text-red-600 hidden group-hover:block" />
+                                </div>
+                              </Button>
+                            )}
+                          </>
                         ) : (
+                          // Pre-link: clicking opens the confirmation dialog
                           <Button
                             variant="outline"
                             className="w-full justify-start hover:bg-orange-50 hover:border-orange-200 transition-all"
-                            onClick={handleLinkGoogle}
+                            onClick={handleGoogleLinkClick}
                             disabled={isLinkingGoogle}
                           >
                             {isLinkingGoogle ? (
@@ -1177,6 +1223,45 @@ export default function BuyerSettingsPage() {
         </Tabs>
       </div>
       <BazaarFooter />
+
+      {/* ── Pre-Link Confirmation Dialog ── */}
+      <Dialog open={showLinkConfirmDialog} onOpenChange={setShowLinkConfirmDialog}>
+        <DialogContent className="sm:max-w-[420px]">
+          <DialogHeader>
+            <div className="flex items-center gap-3 mb-1">
+              <div className="bg-blue-100 rounded-full p-2">
+                <ShieldCheck className="h-6 w-6 text-blue-600" />
+              </div>
+              <DialogTitle>Link Google Account</DialogTitle>
+            </div>
+            <DialogDescription className="text-sm text-[var(--text-muted)] leading-relaxed">
+              You can only link a Google account that uses the <strong>same email</strong> as your current BazaarX account:
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="my-2 px-4 py-3 rounded-xl bg-blue-50 border border-blue-200 text-center">
+            <span className="text-blue-800 font-bold text-sm">{profile?.email ?? 'N/A'}</span>
+          </div>
+
+          <p className="text-xs text-[var(--text-muted)] text-center">
+            If your Google account uses a different email, the linking will be blocked and rolled back automatically.
+          </p>
+
+          <DialogFooter className="mt-4 flex gap-2">
+            <Button variant="outline" className="flex-1" onClick={() => setShowLinkConfirmDialog(false)}>
+              Cancel
+            </Button>
+            <Button
+              className="flex-1 bg-[var(--brand-primary)] hover:bg-[var(--brand-primary-dark)]"
+              onClick={proceedWithGoogleLink}
+              disabled={isLinkingGoogle}
+            >
+              {isLinkingGoogle ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
+              Continue with Google
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       <Dialog open={isAddressOpen} onOpenChange={(open) => { setIsAddressOpen(open); if (!open) setShowMapPicker(false); }}>
         <DialogContent className="sm:max-w-[550px] max-h-[90vh] overflow-hidden flex flex-col">

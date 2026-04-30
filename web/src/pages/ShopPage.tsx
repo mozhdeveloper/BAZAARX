@@ -133,8 +133,23 @@ export default function ShopPage() {
   const [boostedProducts, setBoostedProducts] = useState<AdBoostWithProduct[]>([]);
   const [featuredLoading, setFeaturedLoading] = useState(true);
 
+  const [remindLater, setRemindLater] = useState(false);
+  const [showBannerDelayed, setShowBannerDelayed] = useState(false);
   const hasCompletedOnboarding = profile && profile.preferences?.interestedCategories && profile.preferences.interestedCategories.length > 0;
-  const showOnboardingBanner = profile && !hasCompletedOnboarding;
+  const showOnboardingBanner = profile && !hasCompletedOnboarding && !remindLater;
+
+  // Add delay to prevent banner flickering on initial load while profile/preferences hydrate
+  useEffect(() => {
+    let timer: NodeJS.Timeout;
+    if (showOnboardingBanner) {
+      timer = setTimeout(() => {
+        setShowBannerDelayed(true);
+      }, 2500); // 2.5 seconds delay
+    } else {
+      setShowBannerDelayed(false);
+    }
+    return () => clearTimeout(timer);
+  }, [showOnboardingBanner]);
 
   // Fetch real flash sale products (global admin events from global_flash_sale_slots)
   useEffect(() => {
@@ -776,11 +791,11 @@ export default function ShopPage() {
           </div>
 
           {/* Onboarding Banner - Premium Rebranded Style */}
-          {showOnboardingBanner && (
+          {showBannerDelayed && (
             <motion.div 
               initial={{ opacity: 0, y: -20 }}
               animate={{ opacity: 1, y: 0 }}
-              className="mb-6 relative overflow-hidden rounded-[20px] p-5 shadow-[0_15px_40px_rgba(245,158,11,0.15)]"
+              className="mb-6 relative overflow-hidden rounded-[20px] p-4 shadow-[0_15px_40px_rgba(245,158,11,0.15)]"
               style={{
                 background: "linear-gradient(135deg, #EA580C 0%, #F59E0B 100%)"
               }}
@@ -790,65 +805,54 @@ export default function ShopPage() {
               <div className="absolute bottom-0 left-0 w-32 h-32 bg-black/5 rounded-full blur-2xl -ml-10 -mb-10 pointer-events-none" />
 
               <div className="relative z-10 flex flex-col md:flex-row items-center justify-between gap-6">
-                <div className="flex-1 text-center md:text-left">
-                  <p className="text-white/80 font-medium tracking-wide mb-2 uppercase text-xs">
-                    Almost there!
-                  </p>
-                  <h2 className="text-xl md:text-2xl font-black text-white mb-2 leading-tight font-heading">
-                    Unlock Your 
-                    <span className="text-transparent bg-clip-text bg-gradient-to-r from-white to-orange-100 ml-2">
-                      BazaarX Experience
-                    </span>
-                  </h2>
-                  <p className="text-white/90 text-sm font-medium max-w-sm mb-5">
-                    Complete your onboarding to get personalized product listings and discover trusted sellers.
-                  </p>
-                  
-                  <Link 
-                    to="/buyer-onboarding" 
-                    className="inline-flex items-center justify-center px-6 py-2.5 bg-[#7C2D12] text-white rounded-full text-sm font-bold shadow-xl hover:scale-105 transition-all duration-300 group"
-                  >
-                    Complete Profile
-                    <ChevronRight size={16} className="ml-2 group-hover:translate-x-1 transition-transform" />
-                  </Link>
+                <div className="flex items-center gap-4 flex-1">
+                  {/* Decorative Icon - Scaled Down */}
+                  <div className="relative shrink-0 flex items-center justify-center w-16 h-16">
+                    <motion.div
+                      animate={{ 
+                        y: [0, -3, 0],
+                        rotate: [0, 3, 0]
+                      }}
+                      transition={{ 
+                        duration: 4, 
+                        repeat: Infinity, 
+                        ease: "easeInOut" 
+                      }}
+                      className="relative z-20 w-12 h-12 bg-white/20 backdrop-blur-xl rounded-xl border border-white/30 flex items-center justify-center shadow-lg"
+                    >
+                      <ShoppingBag size={24} className="text-white" />
+                    </motion.div>
+                    <div className="absolute inset-0 bg-white/20 blur-[20px] rounded-full scale-125" />
+                  </div>
+
+                  <div className="text-center md:text-left">
+                    <h2 className="text-lg md:text-xl font-black text-white leading-tight font-heading">
+                      Unlock Your 
+                      <span className="text-transparent bg-clip-text bg-gradient-to-r from-white to-orange-100 ml-2">
+                        BazaarX Experience
+                      </span>
+                    </h2>
+                    <p className="text-white/90 text-xs md:text-sm font-medium max-w-md">
+                      Complete your onboarding to get personalized product listings.
+                    </p>
+                  </div>
                 </div>
 
-                <div className="relative shrink-0 flex items-center justify-center w-32 h-32">
-                  {/* Glowing Icon Media Wrapper */}
-                  <motion.div
-                    animate={{ 
-                      y: [0, -6, 0],
-                      rotate: [0, 5, 0]
-                    }}
-                    transition={{ 
-                      duration: 4, 
-                      repeat: Infinity, 
-                      ease: "easeInOut" 
-                    }}
-                    className="relative z-20 w-20 h-20 bg-white/20 backdrop-blur-xl rounded-2xl border border-white/30 flex items-center justify-center shadow-2xl"
+                <div className="flex flex-wrap items-center gap-3 shrink-0">
+                  <Link 
+                    to="/buyer-onboarding" 
+                    className="inline-flex items-center justify-center px-5 py-2 bg-[#7C2D12] text-white rounded-full text-xs md:text-sm font-bold shadow-lg hover:scale-105 transition-all duration-300 group"
                   >
-                    <ShoppingBag size={40} className="text-white drop-shadow-2xl" />
-                  </motion.div>
+                    Complete Profile
+                    <ChevronRight size={14} className="ml-1.5 group-hover:translate-x-1 transition-transform" />
+                  </Link>
                   
-                  {/* Aura Glow */}
-                  <div className="absolute inset-0 bg-white/20 blur-[50px] rounded-full scale-150 animate-pulse" />
-                  
-                  {/* Floating Elements (simulating 3D graphics) */}
-                  <motion.div 
-                    animate={{ x: [0, 10, 0], y: [0, -12, 0] }}
-                    transition={{ duration: 5, repeat: Infinity }}
-                    className="absolute top-0 right-0 w-8 h-8 bg-orange-200/40 backdrop-blur-md rounded-lg flex items-center justify-center shadow-lg"
+                  <button
+                    onClick={() => setRemindLater(true)}
+                    className="px-5 py-2 bg-white/20 backdrop-blur-md text-white border border-white/30 rounded-full text-xs md:text-sm font-bold hover:bg-white/30 transition-all duration-300"
                   >
-                    <BadgeCheck size={16} className="text-white" />
-                  </motion.div>
-                  
-                  <motion.div 
-                    animate={{ x: [0, -8, 0], y: [0, 10, 0] }}
-                    transition={{ duration: 6, repeat: Infinity }}
-                    className="absolute bottom-2 left-0 w-7 h-7 bg-white/30 backdrop-blur-md rounded-full flex items-center justify-center shadow-lg"
-                  >
-                    <Star size={14} className="text-white fill-current" />
-                  </motion.div>
+                    Remind me later
+                  </button>
                 </div>
               </div>
             </motion.div>

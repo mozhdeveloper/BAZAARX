@@ -9,6 +9,7 @@ import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import type { RootStackParamList } from '../App';
 import { useAuthStore } from '../src/stores/authStore';
 import { processAuthSessionResultUrl } from '../src/utils/urlUtils';
+import { authService } from '../src/services/authService';
 
 WebBrowser.maybeCompleteAuthSession();
 
@@ -27,6 +28,8 @@ export default function SettingsScreen({ navigation }: Props) {
   const [isGoogleLinked, setIsGoogleLinked] = useState(false);
   const [isLinkingGoogle, setIsLinkingGoogle] = useState(false);
   const [showGoogleAlreadyLinkedModal, setShowGoogleAlreadyLinkedModal] = useState(false);
+  const [isPureGoogleUser, setIsPureGoogleUser] = useState(false);
+  const [showLinkConfirmModal, setShowLinkConfirmModal] = useState(false);
 
   // Delete-account modal state
   const [showDeleteModal, setShowDeleteModal] = useState(false);
@@ -38,15 +41,20 @@ export default function SettingsScreen({ navigation }: Props) {
 
   const insets = useSafeAreaInsets();
 
-  const { user } = useAuthStore();
+  const { user, hasCompletedOnboarding } = useAuthStore();
 
-  // Fetch link status
+  // Fetch link status + detect pure-Google user (Rule 1)
   React.useEffect(() => {
     const fetchLinkStatus = async () => {
       try {
         const { data: identityData } = await supabase.auth.getUserIdentities();
         if (identityData?.identities) {
-          setIsGoogleLinked(identityData.identities.some(id => id.provider === 'google'));
+          const identities = identityData.identities;
+          const hasGoogle = identities.some(id => id.provider === 'google');
+          const hasEmail = identities.some(id => id.provider === 'email');
+          setIsGoogleLinked(hasGoogle);
+          // Pure Google user = signed up via Google with no email/password identity
+          setIsPureGoogleUser(hasGoogle && !hasEmail);
         }
       } catch (error) {
         console.error('Error fetching link status:', error);
@@ -55,8 +63,18 @@ export default function SettingsScreen({ navigation }: Props) {
     fetchLinkStatus();
   }, []);
 
-  const handleLinkGoogle = async () => {
+  // Called when user taps the Google toggle
+  const handleGoogleToggle = () => {
     if (isGoogleLinked) {
+      // UNLINK flow
+      if (isPureGoogleUser) {
+        // Rule 1: Block unlink for pure-Google users
+        Alert.alert(
+          'Cannot Unlink',
+          'Your account was created with Google Sign-In. Google is your only sign-in method — unlinking it would lock you out of your account.\n\nTo unlink, first set an email and password from your profile settings.'
+        );
+        return;
+      }
       Alert.alert('Unlink Google', 'Are you sure you want to unlink your Google account?', [
         { text: 'Cancel', style: 'cancel' },
         {
@@ -70,7 +88,7 @@ export default function SettingsScreen({ navigation }: Props) {
               if (googleIdentity) {
                 const { error } = await supabase.auth.unlinkIdentity(googleIdentity);
                 if (error) throw error;
-                
+
                 await supabase.auth.updateUser({
                   data: { google_explicitly_linked: false }
                 });
@@ -86,9 +104,15 @@ export default function SettingsScreen({ navigation }: Props) {
           }
         }
       ]);
-      return;
+    } else {
+      // LINK flow — show pre-link confirmation modal first
+      setShowLinkConfirmModal(true);
     }
+  };
 
+  // Actual linking logic, called after user confirms via modal
+  const proceedWithGoogleLink = async () => {
+    setShowLinkConfirmModal(false);
     setIsLinkingGoogle(true);
     try {
       const redirectUrl = AuthSession.makeRedirectUri({ path: 'auth/callback' });
@@ -128,9 +152,43 @@ export default function SettingsScreen({ navigation }: Props) {
 
         await new Promise(resolve => setTimeout(resolve, 800));
         const { data: identityData } = await supabase.auth.getUserIdentities();
-        const linked = identityData?.identities?.some(id => id.provider === 'google') || false;
-        setIsGoogleLinked(linked);
-        if (linked) {
+        const googleIdentity = identityData?.identities?.find(id => id.provider === 'google');
+        const linked = !!googleIdentity;
+
+        if (linked && googleIdentity) {
+          const googleEmail = (googleIdentity.identity_data as any)?.email?.toLowerCase();
+          const userEmail = user?.email?.toLowerCase();
+
+          // Rule 2: Block if Google email doesn't match signed-in email
+          if (googleEmail && userEmail && googleEmail !== userEmail) {
+            console.log('[SettingsScreen] 🛡️ Email mismatch — rolling back link');
+            await supabase.auth.unlinkIdentity(googleIdentity);
+            setIsGoogleLinked(false);
+            Alert.alert(
+              'Email Mismatch',
+              `The Google account email (${googleEmail}) does not match your BazaarX account email (${userEmail}).\n\nYou can only link a Google account that uses the same email address.`
+            );
+            return;
+          }
+
+          // Rule 3: Block if Google email already belongs to a different registered user
+          if (googleEmail) {
+            const emailExists = await authService.checkEmailExists(googleEmail);
+            const isSameUser = googleEmail === userEmail;
+            if (emailExists && !isSameUser) {
+              console.log('[SettingsScreen] 🛡️ Email already registered — rolling back link');
+              await supabase.auth.unlinkIdentity(googleIdentity);
+              setIsGoogleLinked(false);
+              Alert.alert(
+                'Account Already Exists',
+                'This Google account is already associated with another BazaarX account. Please use a different Google account.'
+              );
+              return;
+            }
+          }
+
+          // All checks passed — confirm the link
+          setIsGoogleLinked(true);
           await supabase.auth.updateUser({
             data: { google_explicitly_linked: true }
           });
@@ -203,15 +261,15 @@ export default function SettingsScreen({ navigation }: Props) {
   const handleResetOnboarding = () => {
     Alert.alert(
       'Reset Onboarding',
-      'This will reset your onboarding status. You will see the onboarding screen on next launch.',
+      'This will clear your selected interests. You can complete the onboarding again directly from here.',
       [
         { text: 'Cancel', style: 'cancel' },
-        { 
-          text: 'Reset', 
+        {
+          text: 'Reset',
           style: 'destructive',
-          onPress: () => {
-            resetOnboarding();
-            Alert.alert('Success', 'Onboarding status reset. Please restart the app.');
+          onPress: async () => {
+            await resetOnboarding();
+            Alert.alert('Success', 'Onboarding status reset successfully.');
           }
         }
       ]
@@ -229,47 +287,15 @@ export default function SettingsScreen({ navigation }: Props) {
         style={[styles.headerContainer, { paddingTop: insets.top + 10 }]}
       >
         <View style={styles.headerTop}>
-            <Pressable onPress={() => navigation.goBack()} style={styles.headerIconButton}>
-                <ArrowLeft size={24} color={COLORS.textHeadline} strokeWidth={2.5} />
-            </Pressable>
-            <Text style={[styles.headerTitle, { color: COLORS.textHeadline }]}>Settings</Text>
-            <View style={{ width: 40 }} />
+          <Pressable onPress={() => navigation.goBack()} style={styles.headerIconButton}>
+            <ArrowLeft size={24} color={COLORS.textHeadline} strokeWidth={2.5} />
+          </Pressable>
+          <Text style={[styles.headerTitle, { color: COLORS.textHeadline }]}>Settings</Text>
+          <View style={{ width: 40 }} />
         </View>
       </LinearGradient>
 
       <ScrollView style={styles.scrollView} contentContainerStyle={styles.scrollContent}>
-        {/* Account Settings */}
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Account</Text>
-          <View style={styles.settingCard}>
-            <Pressable style={[styles.settingItem, styles.borderBottom]} onPress={() => navigation.navigate('Addresses')}>
-              <View style={styles.settingLeft}>
-                <View style={[styles.iconContainer, { backgroundColor: '#F3F4F6' }]}>
-                  <Globe size={20} color="#6B7280" />
-                </View>
-                <View style={styles.settingTextContainer}>
-                  <Text style={styles.settingTitle}>Delivery Addresses</Text>
-                  <Text style={styles.settingSubtitle}>Manage where your orders are sent</Text>
-                </View>
-              </View>
-              <ArrowLeft size={18} color="#9CA3AF" style={{ transform: [{ rotate: '180deg' }] }} />
-            </Pressable>
-
-            <Pressable style={styles.settingItem} onPress={() => navigation.navigate('PaymentMethods')}>
-              <View style={styles.settingLeft}>
-                <View style={[styles.iconContainer, { backgroundColor: '#F3F4F6' }]}>
-                  <DollarSign size={20} color="#6B7280" />
-                </View>
-                <View style={styles.settingTextContainer}>
-                  <Text style={styles.settingTitle}>Payment Methods</Text>
-                  <Text style={styles.settingSubtitle}>Your saved cards and wallets</Text>
-                </View>
-              </View>
-              <ArrowLeft size={18} color="#9CA3AF" style={{ transform: [{ rotate: '180deg' }] }} />
-            </Pressable>
-          </View>
-        </View>
-
         {/* Linked Accounts */}
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>Linked Accounts</Text>
@@ -277,7 +303,7 @@ export default function SettingsScreen({ navigation }: Props) {
             <View style={styles.settingItem}>
               <View style={styles.settingLeft}>
                 <View style={[styles.iconContainer, { backgroundColor: '#F3F4F6' }]}>
-                  <Image 
+                  <Image
                     source={{ uri: 'https://www.gstatic.com/images/branding/product/2x/googleg_48dp.png' }}
                     style={{ width: 20, height: 20 }}
                   />
@@ -285,19 +311,26 @@ export default function SettingsScreen({ navigation }: Props) {
                 <View style={styles.settingTextContainer}>
                   <Text style={styles.settingTitle}>Google</Text>
                   <Text style={styles.settingSubtitle}>
-                    {isGoogleLinked ? 'Connected to Google' : 'Link your Google account'}
+                    {isPureGoogleUser
+                      ? 'Primary sign-in method — cannot unlink'
+                      : isGoogleLinked
+                        ? 'Connected to Google'
+                        : 'Link your Google account'}
                   </Text>
                 </View>
               </View>
               {isLinkingGoogle ? (
                 <ActivityIndicator size="small" color={COLORS.primary} />
               ) : (
-                <Switch
-                  value={isGoogleLinked}
-                  onValueChange={handleLinkGoogle}
-                  trackColor={{ false: '#D1D5DB', true: COLORS.success }}
-                  thumbColor="#FFFFFF"
-                />
+                <View style={isPureGoogleUser && isGoogleLinked ? { opacity: 0.4 } : undefined}>
+                  <Switch
+                    value={isGoogleLinked}
+                    onValueChange={handleGoogleToggle}
+                    trackColor={{ false: '#D1D5DB', true: COLORS.success }}
+                    thumbColor="#FFFFFF"
+                    disabled={isPureGoogleUser && isGoogleLinked}
+                  />
+                </View>
               )}
             </View>
           </View>
@@ -306,7 +339,7 @@ export default function SettingsScreen({ navigation }: Props) {
         {/* Display Settings */}
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>Display</Text>
-          
+
           <View style={styles.settingCard}>
             <View style={styles.settingItem}>
               <View style={styles.settingLeft}>
@@ -331,7 +364,7 @@ export default function SettingsScreen({ navigation }: Props) {
         {/* App Settings */}
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>App Settings</Text>
-          
+
           <View style={styles.settingCard}>
             <View style={styles.settingItem}>
               <View style={styles.settingLeft}>
@@ -376,25 +409,31 @@ export default function SettingsScreen({ navigation }: Props) {
         {/* Developer Options */}
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>Developer Options</Text>
-          
-          <View style={[styles.settingCard, { opacity: 0.5 }]}>
-            <Pressable 
+
+          <View style={styles.settingCard}>
+            <Pressable
               style={styles.settingItem}
-              onPress={() => {}}
-              disabled={true}
+              onPress={() => {
+                if (hasCompletedOnboarding) {
+                  handleResetOnboarding();
+                } else {
+                  navigation.navigate('CategoryPreference', { signupData: undefined });
+                }
+              }}
             >
               <View style={styles.settingLeft}>
-                <View style={[styles.iconContainer, { backgroundColor: '#F3F4F6' }]}>
-                  <RefreshCw size={20} color="#9CA3AF" />
+                <View style={[styles.iconContainer, { backgroundColor: hasCompletedOnboarding ? '#F3F4F6' : '#FEF3E8' }]}>
+                  <RefreshCw size={20} color={hasCompletedOnboarding ? "#9CA3AF" : "#F59E0B"} />
                 </View>
                 <View style={styles.settingTextContainer}>
                   <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-                    <Text style={[styles.settingTitle, { color: '#9CA3AF' }]}>Reset Onboarding</Text>
-                    <View style={{ backgroundColor: '#E5E7EB', paddingHorizontal: 6, paddingVertical: 2, borderRadius: 4, marginLeft: 8 }}>
-                      <Text style={{ fontSize: 10, fontWeight: '700', color: '#6B7280' }}>COMING SOON</Text>
-                    </View>
+                    <Text style={[styles.settingTitle, { color: COLORS.textHeadline }]}>
+                      {hasCompletedOnboarding ? 'Reset Onboarding' : 'Complete Onboarding'}
+                    </Text>
                   </View>
-                  <Text style={[styles.settingSubtitle, { color: '#9CA3AF' }]}>Show onboarding screen again</Text>
+                  <Text style={[styles.settingSubtitle, { color: COLORS.textMuted }]}>
+                    {hasCompletedOnboarding ? 'Show onboarding screen again' : 'Select your interests to personalize your experience'}
+                  </Text>
                 </View>
               </View>
             </Pressable>
@@ -408,7 +447,7 @@ export default function SettingsScreen({ navigation }: Props) {
           <View style={[styles.settingCard, styles.dangerCard, { opacity: 0.5 }]}>
             <Pressable
               style={styles.settingItem}
-              onPress={() => {}} // Disabled
+              onPress={() => { }} // Disabled
               disabled={true}
             >
               <View style={styles.settingLeft}>
@@ -442,6 +481,55 @@ export default function SettingsScreen({ navigation }: Props) {
           <Text style={styles.copyrightText}>© 2024 BazaarX. All rights reserved.</Text>
         </View>
       </ScrollView>
+
+      {/* ── Pre-Link Confirmation Modal ── */}
+      <Modal
+        visible={showLinkConfirmModal}
+        animationType="fade"
+        transparent={true}
+        statusBarTranslucent={true}
+        onRequestClose={() => setShowLinkConfirmModal(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.googleAlreadyLinkedModalContent}>
+            <View style={styles.googleModalIconContainer}>
+              <View style={[styles.googleModalIcon, { backgroundColor: '#DBEAFE' }]}>
+                <ShieldCheck size={36} color="#2563EB" strokeWidth={2} />
+              </View>
+            </View>
+
+            <Text style={styles.googleModalTitle}>Link Google Account</Text>
+
+            <Text style={styles.googleModalMessage}>
+              You can only link a Google account that uses the same email as your current BazaarX account:
+            </Text>
+
+            <View style={styles.linkConfirmEmailBadge}>
+              <Text style={styles.linkConfirmEmailText}>{user?.email || 'N/A'}</Text>
+            </View>
+
+            <Text style={[styles.googleModalMessage, { marginTop: 12, color: COLORS.textMuted, fontSize: 13 }]}>
+              If your Google account uses a different email, the linking will be blocked.
+            </Text>
+
+            <View style={styles.googleModalButtonContainer}>
+              <Pressable
+                style={[styles.googleModalButton, styles.googleModalButtonCancel]}
+                onPress={() => setShowLinkConfirmModal(false)}
+              >
+                <Text style={styles.googleModalButtonTextCancel}>Cancel</Text>
+              </Pressable>
+
+              <Pressable
+                style={[styles.googleModalButton, styles.googleModalButtonRetry]}
+                onPress={proceedWithGoogleLink}
+              >
+                <Text style={styles.googleModalButtonText}>Continue</Text>
+              </Pressable>
+            </View>
+          </View>
+        </View>
+      </Modal>
 
       {/* Google Already Linked Modal */}
       <Modal
@@ -477,7 +565,7 @@ export default function SettingsScreen({ navigation }: Props) {
                 style={[styles.googleModalButton, styles.googleModalButtonRetry]}
                 onPress={async () => {
                   setShowGoogleAlreadyLinkedModal(false);
-                  await handleLinkGoogle();
+                  await proceedWithGoogleLink();
                 }}
                 disabled={isLinkingGoogle}
               >
@@ -938,5 +1026,23 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: '600',
     color: '#FFF',
+  },
+
+  // ── Pre-link Confirmation Modal ─────────────────────────────
+  linkConfirmEmailBadge: {
+    backgroundColor: '#EFF6FF',
+    borderWidth: 1,
+    borderColor: '#BFDBFE',
+    borderRadius: 10,
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    marginTop: 8,
+    alignSelf: 'center',
+  },
+  linkConfirmEmailText: {
+    fontSize: 15,
+    fontWeight: '700',
+    color: '#1D4ED8',
+    textAlign: 'center',
   },
 });

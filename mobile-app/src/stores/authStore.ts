@@ -53,6 +53,7 @@ interface AuthState {
   profile: Profile | null;
   isAuthenticated: boolean;
   hasCompletedOnboarding: boolean;
+  hasSeenWelcome: boolean;
   isGuest: boolean;
   activeRole: 'buyer' | 'seller';
   loading: boolean;
@@ -68,7 +69,7 @@ interface AuthState {
   setUser: (user: User) => void;
   logout: () => void;
   completeOnboarding: () => void;
-  resetOnboarding: () => void;
+  resetOnboarding: () => Promise<void>;
   loginAsGuest: () => void;
   updateProfile: (updates: Partial<User>) => void;
 
@@ -104,6 +105,7 @@ export const useAuthStore = create<AuthState>()(
       profile: null,
       isAuthenticated: false,
       hasCompletedOnboarding: false,
+      hasSeenWelcome: false,
       isGuest: false,
       activeRole: 'buyer',
       loading: false,
@@ -169,6 +171,7 @@ export const useAuthStore = create<AuthState>()(
               isAuthenticated: true,
               isGuest: false,
               hasCompletedOnboarding: hasOnboarding,
+              hasSeenWelcome: true, // If they are logged in and have a buyer record, they've seen welcome
               activeRole: isSeller ? 'seller' : 'buyer',
               loading: false,
             });
@@ -406,11 +409,20 @@ export const useAuthStore = create<AuthState>()(
       },
 
       completeOnboarding: () => {
-        set({ hasCompletedOnboarding: true });
+        set({ hasCompletedOnboarding: true, hasSeenWelcome: true });
       },
 
-      resetOnboarding: () => {
+      resetOnboarding: async () => {
+        const userId = get().user?.id;
+        if (userId && userId !== 'guest') {
+          try {
+            await authService.updateBuyerPreferences(userId, []);
+          } catch (e) {
+            console.error('Failed to reset onboarding preferences in DB:', e);
+          }
+        }
         set({ hasCompletedOnboarding: false });
+        // hasSeenWelcome remains true!
       },
 
       loginAsGuest: () => {

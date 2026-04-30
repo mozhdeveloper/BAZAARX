@@ -43,6 +43,7 @@ const formatDatePH = (dateString: string | Date | null | undefined): string | nu
 };
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import type { RootStackParamList } from '../App';
+import type { Order } from '../src/types';
 import { useOrderStore } from '../src/stores/orderStore';
 import { useCartStore } from '../src/stores/cartStore';
 import { supabase } from '../src/lib/supabase';
@@ -467,10 +468,10 @@ export default function OrderDetailScreen({ route, navigation }: Props) {
       // Update local order object immediately
       const updatedOrder = {
         ...order,
-        status: 'delivered',
-        buyerUiStatus: 'received',
+        status: 'delivered' as const,
+        buyerUiStatus: 'received' as const,
         isPaid: true,
-      };
+      } as Order;
       setCurrentBuyerUiStatus('received');
       navigation.setParams({ order: updatedOrder });
 

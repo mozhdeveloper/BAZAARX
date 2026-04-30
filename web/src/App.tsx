@@ -198,29 +198,7 @@ function App() {
           const emailIdentity = identities.find((id: any) => id.provider === 'email');
           const googleIdentity = identities.find((id: any) => id.provider === 'google');
 
-          // 1. PREVENT NEW GOOGLE-ONLY ACCOUNTS (Email-First Policy)
-          // If the user has Google but NO email identity, and isn't currently linking,
-          // check if they already have a profile in BazaarX.
-          // - If they have NO profile, they're a brand-new Google signup → allow them through.
-          // - If they DO have a profile (email-first user somehow), block them.
-          if (googleIdentity && !emailIdentity && !isLinking) {
-            const { data: existingProfile } = await supabase
-              .from('profiles')
-              .select('id')
-              .eq('id', user.id)
-              .maybeSingle();
-
-            if (!existingProfile) {
-              // Brand new Google signup — this is allowed. Fall through to profile creation.
-              console.log('[Auth] ✅ New Google-only signup. Allowing through.');
-            } else {
-              // Existing account was somehow Google-only without email identity — block.
-              console.log('[Auth] 🛡️ Google-only account detected for existing user. Rejecting login.');
-              await supabase.auth.signOut();
-              window.location.href = '/login?error=google_not_registered';
-              return;
-            }
-          }
+          // Removed PREVENT NEW GOOGLE-ONLY ACCOUNTS logic as per user request to allow Google-only accounts.
 
           if (emailIdentity && googleIdentity) {
             const isExplicitlyLinked = !!user.user_metadata?.google_explicitly_linked;

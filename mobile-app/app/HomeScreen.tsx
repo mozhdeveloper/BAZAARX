@@ -3,39 +3,40 @@ import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { FlashList } from "@shopify/flash-list";
 import { LinearGradient } from 'expo-linear-gradient';
 import {
-    Bell, Camera,
-    CheckCircle2,
-    ChevronDown,
-    ChevronRight,
-    Clock,
-    Flame,
-    FlaskConical,
-    MapPin,
-    MessageSquare,
-    Package,
-    Plus,
-    Search,
-    ShoppingBag,
-    Star,
-    Timer,
-    TrendingUp
+  Bell, Camera,
+  CheckCircle2,
+  ChevronDown,
+  ChevronRight,
+  Clock,
+  Flame,
+  FlaskConical,
+  MapPin,
+  MessageSquare,
+  Package,
+  Plus,
+  Search,
+  ShoppingBag,
+  Star,
+  Timer,
+  TrendingUp
 } from 'lucide-react-native';
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
-    Dimensions,
-    Keyboard,
-    NativeScrollEvent,
-    NativeSyntheticEvent,
-    Pressable,
-    RefreshControl,
-    ScrollView,
-    StatusBar,
-    StyleSheet,
-    Text,
-    TextInput,
-    useWindowDimensions,
-    View,
-    Alert
+  Alert,
+  Dimensions,
+  Keyboard,
+  Modal,
+  NativeScrollEvent,
+  NativeSyntheticEvent,
+  Pressable,
+  RefreshControl,
+  ScrollView,
+  StatusBar,
+  StyleSheet,
+  Text,
+  TextInput,
+  useWindowDimensions,
+  View
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import AIChatModal from '../src/components/AIChatModal';
@@ -193,7 +194,7 @@ export default function HomeScreen({ navigation }: Props) {
   const CATEGORY_ITEM_WIDTH = (screenWidth - (HORIZONTAL_PADDING * 2) - (GRID_GAP * 4) - 4) / 5;
 
   const BRAND_COLOR = COLORS.primary;
-  const { user, isGuest, isAuthenticated, hasCompletedOnboarding } = useAuthStore();
+  const { user, isGuest, isAuthenticated, hasCompletedOnboarding, sessionVerified } = useAuthStore();
 
   // Log user data for debugging (moved from render level to avoid repeated logs)
   useEffect(() => {
@@ -247,6 +248,26 @@ export default function HomeScreen({ navigation }: Props) {
   const [debouncedSearchQuery, setDebouncedSearchQuery] = useState('');
 
   const [dbCategories, setDbCategories] = useState<Category[]>([]); //
+
+  const [showOnboardingModal, setShowOnboardingModal] = useState(false);
+  const [hasDismissedOnboarding, setHasDismissedOnboarding] = useState(false);
+
+  useEffect(() => {
+    // Only show the modal after the session has been fully verified from the backend
+    if (sessionVerified && isAuthenticated && !hasCompletedOnboarding && !isGuest && !hasDismissedOnboarding) {
+      // console.log('[HomeScreen] 🚀 Onboarding modal condition met, waiting 1500ms...');
+      const timer = setTimeout(() => {
+        // Double check condition before showing
+        const currentState = useAuthStore.getState();
+        if (currentState.isAuthenticated && !currentState.hasCompletedOnboarding && !currentState.isGuest) {
+          setShowOnboardingModal(true);
+        }
+      }, 1500);
+      return () => clearTimeout(timer);
+    } else {
+      setShowOnboardingModal(false);
+    }
+  }, [sessionVerified, isAuthenticated, hasCompletedOnboarding, isGuest, hasDismissedOnboarding]);
 
   // Debounce search input to avoid re-filtering on every keystroke
   useEffect(() => {
@@ -956,7 +977,7 @@ export default function HomeScreen({ navigation }: Props) {
         {/* 2. PERSISTENT SEARCH BAR */}
         <View style={styles.searchBarWrapper}>
           <View style={[styles.searchBarInner, { backgroundColor: '#FFFFFF', borderRadius: 24, shadowColor: COLORS.primary, shadowOpacity: 0.1, shadowRadius: 15, elevation: 4 }]}>
-            
+
             <TextInput
               style={[styles.searchInput, { color: COLORS.textHeadline }]}
               placeholder="Search products..."
@@ -973,9 +994,9 @@ export default function HomeScreen({ navigation }: Props) {
                 }
               }}
             />
-         
+
             <Pressable onPress={() => setShowCameraSearch(true)}><Camera size={18} color={COLORS.primary} /></Pressable>
-               <Pressable
+            <Pressable
               onPress={() => {
                 const trimmedQuery = searchQuery.trim();
                 if (trimmedQuery) {
@@ -992,7 +1013,7 @@ export default function HomeScreen({ navigation }: Props) {
             <Pressable onPress={() => { Keyboard.dismiss(); setIsSearchFocused(false); setSearchQuery(''); }} style={{ paddingLeft: 10 }}>
               <Text style={{ color: COLORS.primary, fontWeight: '600' }}>Cancel</Text>
             </Pressable>
-            
+
           )}
         </View>
       </View>
@@ -1125,7 +1146,7 @@ export default function HomeScreen({ navigation }: Props) {
                       keyExtractor={(item: Product) => `search-${item.id}`}
                       numColumns={2}
                       scrollEnabled={false}
-                      contentContainerStyle={{  paddingBottom: 2, paddingLeft: 12 }}
+                      contentContainerStyle={{ paddingBottom: 2, paddingLeft: 12 }}
                     />
                   </View>
                 )}
@@ -1134,48 +1155,6 @@ export default function HomeScreen({ navigation }: Props) {
           </View>
         ) : activeTab === 'Home' ? (
           <>
-            {/* ONBOARDING BANNER */}
-            {isAuthenticated && !hasCompletedOnboarding && !isGuest && (
-              <Pressable
-                onPress={() => navigation.navigate('CategoryPreference', { signupData: undefined })}
-                style={({ pressed }) => [styles.onboardingBanner, pressed && { opacity: 0.95 }]}
-              >
-                <LinearGradient
-                  colors={['#EA580C', '#F59E0B']}
-                  start={{ x: 0, y: 0 }}
-                  end={{ x: 1, y: 1 }}
-                  style={styles.onboardingGradient}
-                >
-                  {/* Decorative Elements */}
-                  <View style={styles.onboardingGlowTop} />
-                  <View style={styles.onboardingGlowBottom} />
-
-                  <View style={styles.onboardingContent}>
-                    <View style={styles.onboardingLeft}>
-                      <Text style={styles.onboardingEyebrow}>ALMOST THERE!</Text>
-                      <Text style={styles.onboardingTitle}>Unlock Your BazaarX Experience</Text>
-                      <Text style={styles.onboardingSub}>Complete your onboarding to get personalized products.</Text>
-                      
-                      <View style={styles.onboardingButton}>
-                        <Text style={styles.onboardingButtonText}>Complete Profile</Text>
-                        <ChevronRight size={14} color="#FFF" />
-                      </View>
-                    </View>
-
-                    <View style={styles.onboardingRight}>
-                      <View style={styles.onboardingIconWrapper}>
-                        <ShoppingBag size={32} color="#FFF" strokeWidth={1.5} />
-                      </View>
-                      {/* Mini floating elements */}
-                      <View style={styles.onboardingMiniFloating}>
-                        <Star size={10} color="#FDE68A" fill="#FDE68A" />
-                      </View>
-                    </View>
-                  </View>
-                </LinearGradient>
-              </Pressable>
-            )}
-
             {/* CAROUSEL */}
             <View style={styles.carouselContainer}>
               <ScrollView
@@ -1516,6 +1495,70 @@ export default function HomeScreen({ navigation }: Props) {
         />
       )}
 
+      {/* ONBOARDING MODAL */}
+      <Modal
+        visible={showOnboardingModal}
+        transparent={true}
+        animationType="fade"
+        onRequestClose={() => setHasDismissedOnboarding(true)}
+      >
+        <View style={styles.onboardingModalOverlay}>
+          <View style={styles.onboardingModalContainer}>
+            <Pressable
+              onPress={() => {
+                setShowOnboardingModal(false);
+                setTimeout(() => {
+                  navigation.navigate('CategoryPreference', { signupData: undefined });
+                }, 300);
+              }}
+              style={({ pressed }) => [styles.onboardingBanner, pressed && { opacity: 0.95 }, { marginHorizontal: 0, marginTop: 0, marginBottom: 0 }]}
+            >
+              <LinearGradient
+                colors={['#EA580C', '#F59E0B']}
+                start={{ x: 0, y: 0 }}
+                end={{ x: 1, y: 1 }}
+                style={styles.onboardingGradient}
+              >
+                {/* Decorative Elements */}
+                <View style={styles.onboardingGlowTop} />
+                <View style={styles.onboardingGlowBottom} />
+
+                <View style={styles.onboardingContent}>
+                  <View style={styles.onboardingRight}>
+                    <View style={styles.onboardingIconWrapper}>
+                      <ShoppingBag size={32} color="#FFF" strokeWidth={1.5} />
+                    </View>
+                    {/* Mini floating elements */}
+                    <View style={styles.onboardingMiniFloating}>
+                      <Star size={10} color="#FDE68A" fill="#FDE68A" />
+                    </View>
+                  </View>
+
+                  <View style={styles.onboardingTextContainer}>
+                    <Text style={styles.onboardingEyebrow}>ALMOST THERE!</Text>
+                    <Text style={styles.onboardingTitle}>Unlock Your BazaarX Experience</Text>
+                    <Text style={styles.onboardingSub}>Complete your onboarding to get personalized products.</Text>
+                  </View>
+
+                  <View style={styles.onboardingButtonContainer}>
+                    <View style={styles.onboardingButton}>
+                      <Text style={styles.onboardingButtonText}>Complete Profile</Text>
+                      <ChevronRight size={14} color="#FFF" />
+                    </View>
+                  </View>
+                </View>
+              </LinearGradient>
+            </Pressable>
+          </View>
+          <Pressable
+            style={styles.remindMeLaterBtn}
+            onPress={() => setHasDismissedOnboarding(true)}
+          >
+            <Text style={styles.remindMeLaterText}>Remind me later</Text>
+          </Pressable>
+        </View>
+      </Modal>
+
       {/* Modal code removed */}
     </View>
   );
@@ -1528,7 +1571,7 @@ const styles = StyleSheet.create({
   locationLabel: { color: COLORS.textMuted, fontSize: 14, paddingBottom: 5 },
   locationSelector: { flexDirection: 'row', alignItems: 'center', gap: 5 },
   locationText: { color: COLORS.textHeadline, fontWeight: 'bold', fontSize: 16 },
-  headerIconButton: { padding: 4, marginTop: 15},
+  headerIconButton: { padding: 4, marginTop: 15 },
   notifBadge: {
     position: 'absolute',
     top: -2,
@@ -1933,7 +1976,33 @@ const styles = StyleSheet.create({
     color: '#FFFFFF',
   },
 
-  /* ── Onboarding Banner ── */
+  /* ── Onboarding Modal & Banner ── */
+  onboardingModalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.5)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  onboardingModalContainer: {
+    width: '90%',
+    maxWidth: 400,
+    borderRadius: 20,
+    backgroundColor: 'transparent',
+    overflow: 'hidden',
+  },
+  remindMeLaterBtn: {
+    marginTop: 16,
+    paddingVertical: 10,
+    paddingHorizontal: 20,
+  },
+  remindMeLaterText: {
+    color: '#FFFFFF',
+    fontSize: 16,
+    fontWeight: '600',
+    textShadowColor: 'rgba(0, 0, 0, 0.75)',
+    textShadowOffset: { width: 0, height: 1 },
+    textShadowRadius: 3,
+  },
   onboardingBanner: {
     marginHorizontal: 20,
     marginTop: 12,
@@ -1969,44 +2038,55 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(0, 0, 0, 0.05)',
   },
   onboardingContent: {
-    flexDirection: 'row',
+    flexDirection: 'column',
     alignItems: 'center',
-    justifyContent: 'space-between',
+    justifyContent: 'center',
     gap: 16,
+    paddingVertical: 20,
   },
-  onboardingLeft: {
-    flex: 1,
+  onboardingTextContainer: {
+    alignItems: 'center',
+    marginTop: 8,
+    marginBottom: 12,
+  },
+  onboardingButtonContainer: {
+    alignItems: 'center',
+    width: '100%',
   },
   onboardingEyebrow: {
-    fontSize: 10,
+    fontSize: 12,
     fontWeight: '800',
     color: 'rgba(255, 255, 255, 0.8)',
     letterSpacing: 1.5,
-    marginBottom: 4,
+    marginBottom: 8,
+    textAlign: 'center',
   },
   onboardingTitle: {
-    fontSize: 20,
+    fontSize: 24,
     fontWeight: '900',
     color: '#FFFFFF',
-    lineHeight: 24,
-    marginBottom: 6,
+    lineHeight: 30,
+    marginBottom: 10,
+    textAlign: 'center',
   },
   onboardingSub: {
-    fontSize: 12,
+    fontSize: 14,
     color: 'rgba(255, 255, 255, 0.9)',
-    lineHeight: 18,
+    lineHeight: 20,
     marginBottom: 16,
     fontWeight: '500',
+    textAlign: 'center',
   },
   onboardingButton: {
     backgroundColor: '#7C2D12',
-    paddingHorizontal: 16,
-    paddingVertical: 8,
-    borderRadius: 20,
+    paddingHorizontal: 30,
+    paddingVertical: 14,
+    borderRadius: 30,
     flexDirection: 'row',
     alignItems: 'center',
-    alignSelf: 'flex-start',
-    gap: 6,
+    justifyContent: 'center',
+    gap: 8,
+    width: '85%',
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.2,
