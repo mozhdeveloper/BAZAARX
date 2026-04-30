@@ -39,20 +39,34 @@ import type { Order } from '../src/types';
 import { safeImageUri } from '../src/utils/imageUtils';
 import { supabase } from '../src/lib/supabase';
 import { reviewService } from '../src/services/reviewService';
+import { getPaymentMethodLabel, isPayMongoPayment } from '../src/constants/paymentMethods';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'Orders'>;
 
 const { width } = Dimensions.get('window');
 
-type OrdersTab = 'all' | 'pending' | 'processing' | 'shipped' | 'delivered' | 'received' | 'returned' | 'cancelled';
+type OrdersTab = 'all' | 'pending' | 'processing' | 'shipped' | 'delivered' | 'received' | 'reviewed' | 'returned' | 'cancelled';
+
+const ORDER_TAB_LABELS: Record<OrdersTab, string> = {
+  all: 'All',
+  pending: 'Pending',
+  processing: 'Processing',
+  shipped: 'Shipped',
+  delivered: 'Delivered',
+  received: 'Received',
+  reviewed: 'Reviewed',
+  returned: 'Return/Refund',
+  cancelled: 'Cancelled',
+};
 
 const normalizeInitialTab = (tab?: string): OrdersTab => {
   const normalized = (tab || 'pending').toLowerCase();
+  if (normalized === 'reviewed') return 'reviewed';
   if (normalized === 'topay') return 'pending';
   if (normalized === 'toship') return 'processing';
   if (normalized === 'toreceive') return 'shipped';
-  if (normalized === 'toreview') return 'cancelled';
-  if (normalized === 'completed') return 'cancelled';
+  if (normalized === 'toreview') return 'received';
+  if (normalized === 'completed') return 'received';
   if (normalized === 'returns') return 'returned';
   if (
     normalized === 'all' ||
@@ -473,17 +487,37 @@ export default function OrdersScreen({ navigation, route }: Props) {
             postalCode: linkedAddress.postal_code || '',
           },
           paymentMethod: (() => {
-            const paymentData = (order.payments && order.payments.length > 0) ? order.payments[0]?.payment_method : null;
+            // CRITICAL FIX: order.payments is a SINGLE OBJECT (not array) due to UNIQUE constraint
+            // Try to access payment_method from the payments object or array
+            let paymentData = null;
+            
+            if (order.payments) {
+              // If payments is an array (shouldn't happen, but defensive)
+              if (Array.isArray(order.payments) && order.payments.length > 0) {
+                paymentData = order.payments[0]?.payment_method;
+              } 
+              // If payments is a single object (expected case)
+              else if (typeof order.payments === 'object' && !Array.isArray(order.payments)) {
+                paymentData = (order.payments as any)?.payment_method;
+              }
+            }
+            
+            const directPaymentMethod = (order as any).payment_method;
+
+            if (isPayMongoPayment(paymentData) || isPayMongoPayment(directPaymentMethod)) {
+              return 'PayMongo';
+            }
+
             if (typeof paymentData === 'string') {
-              return paymentData;
+              return getPaymentMethodLabel(paymentData);
             }
             if (typeof paymentData === 'object' && paymentData) {
-              const type = (paymentData as any)?.type;
-              if (type === 'cod') return 'Cash on Delivery';
-              if (type === 'gcash') return 'GCash';
-              if (type === 'card') return 'Card';
-              if (type === 'paymongo') return 'PayMongo';
-              return type || 'Cash on Delivery';
+              return getPaymentMethodLabel(paymentData as any);
+            }
+
+            if (directPaymentMethod) {
+              const label = getPaymentMethodLabel(directPaymentMethod as any);
+              if (label !== 'Unknown') return label;
             }
             return 'Cash on Delivery';
           })(),
@@ -1045,17 +1079,7 @@ export default function OrdersScreen({ navigation, route }: Props) {
           showsHorizontalScrollIndicator={false}
           contentContainerStyle={styles.tabsContentContainer}
         >
-          {(['all', 'pending', 'processing', 'shipped', 'delivered', 'received', 'returned', 'cancelled'] as const).map((tab) => {
-            const labelMap: Record<string, string> = {
-              all: 'All',
-              pending: 'Pending',
-              processing: 'Processing',
-              shipped: 'Shipped',
-              delivered: 'Delivered',
-              received: 'Received',
-              returned: 'Return/Refund',
-              cancelled: 'Cancelled'
-            };
+          {(['all', 'pending', 'processing', 'shipped', 'delivered', 'received', 'returned', 'cancelled', 'reviewed'] as const).map((tab) => {
             return (
               <Pressable
                 key={tab}
@@ -1063,7 +1087,7 @@ export default function OrdersScreen({ navigation, route }: Props) {
                 style={[styles.newTab, activeTab === tab && styles.newTabActive, { borderColor: BRAND_COLOR }]}
               >
                 <Text style={[styles.newTabText, activeTab === tab ? { color: BRAND_COLOR, fontWeight: '600' } : { color: COLORS.textMuted }]}>
-                  {labelMap[tab]}
+                  {ORDER_TAB_LABELS[tab]}
                 </Text>
               </Pressable>
             );
@@ -1094,14 +1118,28 @@ export default function OrdersScreen({ navigation, route }: Props) {
         ) : filteredOrders.length === 0 ? (
           <View style={styles.emptyContainer}>
             <Package size={64} color="#D1D5DB" />
-            <Text style={styles.emptyTitle}>No Orders Found</Text>
-            <Text style={styles.emptyText}>Items you purchase will appear here</Text>
-            <Pressable 
-              style={[styles.primaryButton, { marginTop: 24, backgroundColor: BRAND_COLOR, paddingVertical: 12, paddingHorizontal: 32 }]} 
-              onPress={() => navigation.navigate('MainTabs', { screen: 'Home' })}
-            >
-              <Text style={styles.primaryButtonText}>Shop Now</Text>
-            </Pressable>
+            <Text style={styles.emptyTitle}>
+              {activeTab === 'reviewed'
+                ? 'No Reviews Yet'
+                : activeTab === 'received'
+                  ? 'No Received Orders Yet'
+                  : 'No Orders Found'}
+            </Text>
+            <Text style={styles.emptyText}>
+              {activeTab === 'reviewed'
+                ? 'Orders you have reviewed will appear here.'
+                : activeTab === 'received'
+                  ? 'Orders you have received will appear here.'
+                  : 'Items you purchase will appear here'}
+            </Text>
+            {activeTab !== 'reviewed' && (
+              <Pressable 
+                style={[styles.primaryButton, { marginTop: 24, backgroundColor: BRAND_COLOR, paddingVertical: 12, paddingHorizontal: 32 }]} 
+                onPress={() => navigation.navigate('MainTabs', { screen: 'Home' })}
+              >
+                <Text style={styles.primaryButtonText}>Shop Now</Text>
+              </Pressable>
+            )}
           </View>
         ) : (
           filteredOrders.map(renderOrderCard)

@@ -34,7 +34,8 @@ import {
     Text,
     TextInput,
     useWindowDimensions,
-    View
+    View,
+    Alert
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import AIChatModal from '../src/components/AIChatModal';
@@ -237,6 +238,10 @@ export default function HomeScreen({ navigation }: Props) {
   const [flashCountdown, setFlashCountdown] = useState('00:00:00');
   const [featuredProducts, setFeaturedProducts] = useState<FeaturedProductMobile[]>([]);
   const [boostedProducts, setBoostedProducts] = useState<AdBoostMobile[]>([]);
+
+  // Discount map: productId → { price, originalPrice, discountPercent, campaignName }
+  // Built from both seller campaign flash sales and global flash sales
+  const [discountMap, setDiscountMap] = useState<Map<string, { price: number; originalPrice: number; discountPercent: number; campaignName?: string }>>(new Map());
   const scrollRef = useRef<ScrollView>(null);
   const [showLocationRow, setShowLocationRow] = useState(true); // Keep for future use if needed
   const [debouncedSearchQuery, setDebouncedSearchQuery] = useState('');
@@ -302,15 +307,33 @@ export default function HomeScreen({ navigation }: Props) {
       row.image || row.primary_image_url || row.primary_image || images[0] || ''
     );
 
+    // Check if product already has a discount from transformProduct (product_discounts campaigns)
+    const rowPrice = typeof row.price === 'number' ? row.price : parseFloat(String(row.price || '0'));
+    const rowOriginalPrice = row.originalPrice ?? row.original_price;
+    const hasExistingDiscount = rowOriginalPrice > 0 && rowPrice > 0 && rowOriginalPrice > rowPrice;
+
+    // Cross-reference flash sale discount map for products not already discounted
+    const flashInfo = discountMap.get(row.id);
+    const finalPrice = (!hasExistingDiscount && flashInfo) ? flashInfo.price : rowPrice;
+    const finalOriginalPrice = (!hasExistingDiscount && flashInfo)
+      ? flashInfo.originalPrice
+      : (hasExistingDiscount ? rowOriginalPrice : row.originalPrice);
+    const campaignDiscountType = row.campaignDiscountType || (flashInfo && !hasExistingDiscount ? 'percentage' : undefined);
+    const campaignDiscountValue = row.campaignDiscountValue || (flashInfo && !hasExistingDiscount ? flashInfo.discountPercent : undefined);
+
     return {
       ...row,
-      price: typeof row.price === 'number' ? row.price : parseFloat(String(row.price || '0')),
+      price: finalPrice,
+      originalPrice: finalOriginalPrice,
+      original_price: finalOriginalPrice,
       image: primaryImage,
       images: images.length > 0 ? images.map((img: string) => safeImageUri(img)) : [primaryImage],
       seller: row.seller?.store_name || row.sellerName || 'Verified Seller',
       category: typeof row.category === 'string' ? row.category : row.category?.name || '',
+      campaignDiscountType,
+      campaignDiscountValue,
     } as Product;
-  }, []);
+  }, [discountMap]);
 
   useEffect(() => {
     let active = true;
@@ -359,14 +382,33 @@ export default function HomeScreen({ navigation }: Props) {
     setIsLoadingProducts(true);
     setFetchError(null);
 
-    const [productsResult, flashResult, featuredResult, boostedResult, sellersResult, categoriesResult] = await Promise.allSettled([
+    const [productsResult, flashResult, sellerFlashResult, featuredResult, boostedResult, sellersResult, categoriesResult] = await Promise.allSettled([
       productService.getProducts({ isActive: true, approvalStatus: 'approved', limit: 20 }),
       discountService.getGlobalFlashSaleProducts(),
+      discountService.getFlashSaleProducts(),
       featuredProductService.getFeaturedProducts(50),
       adBoostService.getActiveBoostedProducts('featured', 50),
       sellerService.getAllSellers(),
       categoryService.getActiveCategories(),
     ]);
+
+    // Build discount map from both flash sale sources
+    const dsMap = new Map<string, { price: number; originalPrice: number; discountPercent: number; campaignName?: string }>();
+    const addToDiscountMap = (items: any[]) => {
+      (items || []).forEach((fp: any) => {
+        if (fp.id && fp.originalPrice > 0 && fp.price < fp.originalPrice) {
+          dsMap.set(fp.id, {
+            price: fp.price,
+            originalPrice: fp.originalPrice,
+            discountPercent: fp.discountBadgePercent || Math.round(((fp.originalPrice - fp.price) / fp.originalPrice) * 100),
+            campaignName: fp.campaignName,
+          });
+        }
+      });
+    };
+    if (flashResult.status === 'fulfilled') addToDiscountMap(flashResult.value);
+    if (sellerFlashResult.status === 'fulfilled') addToDiscountMap(sellerFlashResult.value);
+    setDiscountMap(dsMap);
 
     if (categoriesResult.status === 'fulfilled') {
       const rawCategories = categoriesResult.value || [];
@@ -407,12 +449,30 @@ export default function HomeScreen({ navigation }: Props) {
           thumbnail_url: v.thumbnail_url ? safeImageUri(v.thumbnail_url) : undefined,
         }));
 
+        // Check if product already has a discount from transformProduct (product_discounts campaigns)
+        const rowPrice = typeof row.price === 'number' ? row.price : parseFloat(row.price || '0');
+        const rowOriginalPrice = row.originalPrice ?? row.original_price;
+        const hasExistingDiscount = rowOriginalPrice > 0 && rowPrice > 0 && rowOriginalPrice > rowPrice;
+
+        // Cross-reference flash sale discount map for products not already discounted
+        const flashInfo = dsMap.get(row.id);
+        const finalPrice = (!hasExistingDiscount && flashInfo) ? flashInfo.price : rowPrice;
+        const finalOriginalPrice = (!hasExistingDiscount && flashInfo)
+          ? flashInfo.originalPrice
+          : (hasExistingDiscount ? rowOriginalPrice : undefined);
+        const campaignDiscountType = row.campaignDiscountType || (flashInfo && !hasExistingDiscount ? 'percentage' : undefined);
+        const campaignDiscountValue = row.campaignDiscountValue || (flashInfo && !hasExistingDiscount ? flashInfo.discountPercent : undefined);
+
         return {
           ...row,
-          price: typeof row.price === 'number' ? row.price : parseFloat(row.price || '0'),
+          price: finalPrice,
+          originalPrice: finalOriginalPrice,
+          original_price: finalOriginalPrice,
           image: primaryImage,
           images: images.length > 0 ? images.map((img: string) => safeImageUri(img)) : [primaryImage],
           seller: row.seller?.store_name || row.sellerName || 'Verified Seller',
+          campaignDiscountType,
+          campaignDiscountValue,
         } as Product;
       });
       const uniqueMapped = Array.from(new Map(mapped.map(item => [item.id, item])).values())
@@ -648,6 +708,58 @@ export default function HomeScreen({ navigation }: Props) {
     const seenIds = new Set<string>();
     const allItems: { key: string; mapped: any }[] = [];
 
+    // Helper: compute discount pricing from product_discounts (active campaigns)
+    const computeDiscountedPrice = (product: any): { price: number; originalPrice?: number; campaignDiscountType?: string; campaignDiscountValue?: number } => {
+      const basePrice = Number(product.price) || 0;
+      const now = new Date();
+
+      // Check for active discount campaign via product_discounts join
+      const activeDiscount = product.product_discounts?.find((pd: any) => {
+        const campaign = pd.campaign;
+        if (!campaign || campaign.status !== 'active') return false;
+        const startsAt = new Date(campaign.starts_at);
+        const endsAt = new Date(campaign.ends_at);
+        return now >= startsAt && now <= endsAt;
+      });
+
+      if (activeDiscount) {
+        const campaign = activeDiscount.campaign;
+        const dType = activeDiscount.discount_type || campaign.discount_type;
+        const dValue = Number(activeDiscount.discount_value || campaign.discount_value);
+        let discountedPrice = basePrice;
+
+        if (dType === 'percentage') {
+          discountedPrice = Math.round(basePrice * (1 - dValue / 100));
+          if (campaign.max_discount_amount) {
+            const maxD = parseFloat(String(campaign.max_discount_amount));
+            discountedPrice = Math.max(discountedPrice, basePrice - maxD);
+          }
+        } else if (dType === 'fixed_amount') {
+          discountedPrice = Math.max(0, basePrice - dValue);
+        }
+
+        return {
+          price: discountedPrice,
+          originalPrice: basePrice,
+          campaignDiscountType: dType === 'percentage' ? 'percentage' : undefined,
+          campaignDiscountValue: dType === 'percentage' ? Math.round(dValue) : undefined,
+        };
+      }
+
+      // Check flash sale discount map
+      const flashInfo = discountMap.get(product.id);
+      if (flashInfo && flashInfo.originalPrice > 0 && flashInfo.price < flashInfo.originalPrice) {
+        return {
+          price: flashInfo.price,
+          originalPrice: flashInfo.originalPrice,
+          campaignDiscountType: 'percentage',
+          campaignDiscountValue: flashInfo.discountPercent,
+        };
+      }
+
+      return { price: basePrice, originalPrice: (product as any).original_price };
+    };
+
     for (const bp of boostedProducts) {
       const product = bp.product;
       if (!product || !product.name || seenIds.has(product.id)) continue;
@@ -657,12 +769,17 @@ export default function HomeScreen({ navigation }: Props) {
       const primaryImg = product.images?.find((img: any) => img.is_primary) || product.images?.[0];
       const reviews = product.reviews || [];
       const avgRating = reviews.length > 0 ? Math.round((reviews.reduce((s: number, r: any) => s + r.rating, 0) / reviews.length) * 10) / 10 : 0;
+      const discountInfo = computeDiscountedPrice(product);
       allItems.push({
         key: `boost-${bp.id}`, mapped: {
-          id: product.id, name: product.name, price: product.price,
-          originalPrice: (product as any).original_price, original_price: (product as any).original_price,
+          id: product.id, name: product.name,
+          price: discountInfo.price,
+          originalPrice: discountInfo.originalPrice,
+          original_price: discountInfo.originalPrice,
+          campaignDiscountType: discountInfo.campaignDiscountType,
+          campaignDiscountValue: discountInfo.campaignDiscountValue,
           primary_image_url: primaryImg?.image_url, primary_image: primaryImg?.image_url,
-          image: primaryImg?.image_url, // Added fallback for ProductCard
+          image: primaryImg?.image_url,
           images: product.images?.map((img: any) => img.image_url) || [],
           category: product.category?.name, seller: product.seller,
           rating: avgRating, review_count: reviews.length, stock: totalStock,
@@ -681,12 +798,17 @@ export default function HomeScreen({ navigation }: Props) {
       const primaryImg = product.images?.find((img: any) => img.is_primary) || product.images?.[0];
       const reviews = product.reviews || [];
       const avgRating = reviews.length > 0 ? Math.round((reviews.reduce((s: number, r: any) => s + r.rating, 0) / reviews.length) * 10) / 10 : 0;
+      const discountInfo = computeDiscountedPrice(product);
       allItems.push({
         key: `feat-${(fp as any).id}`, mapped: {
-          id: product.id, name: product.name, price: product.price,
-          originalPrice: product.original_price, original_price: product.original_price,
+          id: product.id, name: product.name,
+          price: discountInfo.price,
+          originalPrice: discountInfo.originalPrice,
+          original_price: discountInfo.originalPrice,
+          campaignDiscountType: discountInfo.campaignDiscountType,
+          campaignDiscountValue: discountInfo.campaignDiscountValue,
           primary_image_url: primaryImg?.image_url, primary_image: primaryImg?.image_url,
-          image: primaryImg?.image_url, // Added fallback for ProductCard
+          image: primaryImg?.image_url,
           images: product.images?.map((img: any) => img.image_url) || [],
           category: product.category?.name, seller: product.seller,
           rating: avgRating, review_count: reviews.length, stock: totalStock,
@@ -697,7 +819,7 @@ export default function HomeScreen({ navigation }: Props) {
     }
 
     return allItems.slice(0, 10);
-  }, [boostedProducts, featuredProducts]);
+  }, [boostedProducts, featuredProducts, discountMap]);
 
   // Pre-index products by seller_id for O(n+m) verified stores computation
   const productsBySeller = useMemo(() => {
@@ -1135,8 +1257,8 @@ export default function HomeScreen({ navigation }: Props) {
 
             {/* ── BAZAARX LAB PIPELINE BANNER ── */}
             <Pressable
-              onPress={() => navigation.navigate('LabPipeline')}
-              style={({ pressed }) => [styles.labBanner, pressed && { opacity: 0.92 }]}
+              onPress={() => Alert.alert("Coming Soon", "The Bazaarx Lab Pipeline is currently under development. Stay tuned for community-tested products!")}
+              style={({ pressed }) => [styles.labBanner, { opacity: 0.6 }]}
             >
               <LinearGradient
                 colors={['#4C1D95', '#6B46C1', '#7C3AED']}
@@ -1150,7 +1272,12 @@ export default function HomeScreen({ navigation }: Props) {
                     <FlaskConical size={22} color="#E9D5FF" strokeWidth={2} />
                   </View>
                   <View style={{ flex: 1 }}>
-                    <Text style={styles.labBannerEyebrow}>BAZAARX</Text>
+                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                      <Text style={styles.labBannerEyebrow}>BAZAARX</Text>
+                      <View style={{ backgroundColor: '#FCD34D', paddingHorizontal: 6, paddingVertical: 2, borderRadius: 4 }}>
+                        <Text style={{ fontSize: 8, fontWeight: '900', color: '#78350F' }}>COMING SOON</Text>
+                      </View>
+                    </View>
                     <Text style={styles.labBannerTitle}>Lab Pipeline</Text>
                     <Text style={styles.labBannerSub}>Community-requested & tested products</Text>
                   </View>
@@ -1174,15 +1301,15 @@ export default function HomeScreen({ navigation }: Props) {
             {/* Lab Quick Actions */}
             <View style={styles.labActionRow}>
               <Pressable
-                onPress={() => setShowProductRequest(true)}
-                style={({ pressed }) => [styles.labActionBtn, styles.labRequestBtn, pressed && { opacity: 0.85 }]}
+                onPress={() => Alert.alert("Coming Soon", "This feature is currently under development. Stay tuned!")}
+                style={[styles.labActionBtn, styles.labRequestBtn, { opacity: 0.5 }]}
               >
                 <Plus size={16} color="#FFFFFF" />
                 <Text style={styles.labActionBtnText}>Request a Product</Text>
               </Pressable>
               <Pressable
-                onPress={() => navigation.navigate('MyRequests')}
-                style={({ pressed }) => [styles.labActionBtn, styles.labMyRequestsBtn, pressed && { opacity: 0.85 }]}
+                onPress={() => Alert.alert("Coming Soon", "This feature is currently under development. Stay tuned!")}
+                style={[styles.labActionBtn, styles.labMyRequestsBtn, { opacity: 0.5 }]}
               >
                 <Package size={16} color={COLORS.primary} />
                 <Text style={[styles.labActionBtnText, { color: COLORS.primary }]}>My Requests</Text>

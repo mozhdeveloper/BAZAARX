@@ -346,7 +346,7 @@ export default function ProfileScreen({ navigation }: Props) {
     { icon: RotateCcw, label: 'My Returns', onPress: () => navigation.navigate('ReturnOrders') },
     { icon: MapPin, label: 'My Addresses', onPress: () => navigation.navigate('Addresses') },
     { icon: Store, label: 'Following Shops', onPress: () => navigation.navigate('FollowingShops') },
-    { icon: Package, label: 'My Requests', onPress: () => navigation.navigate('MyRequests') },
+    { icon: Package, label: 'My Requests', onPress: () => navigation.navigate('MyRequests'), comingSoon: true },
   ];
 
   const settingsMenuItems = [
@@ -584,12 +584,29 @@ export default function ProfileScreen({ navigation }: Props) {
         <View style={styles.menuGroup}>
           <Text style={styles.groupTitle}>Activity</Text>
           <View style={styles.card}>
-            {accountMenuItems.map((item, i) => (
-              <Pressable key={i} style={[styles.menuItem, i !== accountMenuItems.length - 1 && styles.borderBottom]} onPress={item.onPress}>
+            {accountMenuItems.map((item: any, i) => (
+              <Pressable 
+                key={i} 
+                style={[styles.menuItem, i !== accountMenuItems.length - 1 && styles.borderBottom, item.comingSoon && { opacity: 0.5 }]} 
+                onPress={() => {
+                  if (item.comingSoon) {
+                    Alert.alert("Coming Soon", `The ${item.label} feature is currently under development. Stay tuned!`);
+                  } else {
+                    item.onPress();
+                  }
+                }}
+              >
                 <View style={styles.iconContainer}>
                   <item.icon size={20} color={BRAND_COLOR} strokeWidth={2} />
                 </View>
-                <Text style={styles.menuLabel}>{item.label}</Text>
+                <View style={{ flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingRight: 8 }}>
+                  <Text style={styles.menuLabel}>{item.label}</Text>
+                  {item.comingSoon && (
+                    <View style={{ backgroundColor: '#FEF3C7', paddingHorizontal: 6, paddingVertical: 2, borderRadius: 4, borderHighlight: '#F59E0B' }}>
+                      <Text style={{ fontSize: 7, fontWeight: '900', color: '#B45309' }}>COMING SOON</Text>
+                    </View>
+                  )}
+                </View>
                 <ChevronRight size={18} color={COLORS.textMuted} />
               </Pressable>
             ))}
