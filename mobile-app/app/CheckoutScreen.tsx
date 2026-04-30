@@ -1434,7 +1434,7 @@ export default function CheckoutScreen({ navigation, route }: Props) {
           ));
         }
 
-        navigation.replace('Orders', { initialTab: 'processing' });
+        navigation.replace('Orders', { initialTab: 'pending' });
         return;
       }
 

@@ -375,7 +375,7 @@ export default function PaymentGatewayScreen({ navigation, route }: Props) {
           }).catch((statusErr) => {
             console.error('[PaymentGateway] Failed to promote PayMongo order to processing:', statusErr);
           });
-          navigation.replace('Orders', { initialTab: 'processing' });
+          navigation.replace('Orders', { initialTab: 'pending' });
           return;
         }
 

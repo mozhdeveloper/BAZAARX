@@ -563,7 +563,7 @@ export default function ProfileScreen({ navigation }: Props) {
                 <View style={{ flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingRight: 8 }}>
                   <Text style={styles.menuLabel}>{item.label}</Text>
                   {item.comingSoon && (
-                    <View style={{ backgroundColor: '#FEF3C7', paddingHorizontal: 6, paddingVertical: 2, borderRadius: 4, borderHighlight: '#F59E0B' }}>
+                    <View style={{ backgroundColor: '#FEF3C7', paddingHorizontal: 6, paddingVertical: 2, borderRadius: 4, borderColor: '#F59E0B', borderWidth: 1 }}>
                       <Text style={{ fontSize: 7, fontWeight: '900', color: '#B45309' }}>COMING SOON</Text>
                     </View>
                   )}

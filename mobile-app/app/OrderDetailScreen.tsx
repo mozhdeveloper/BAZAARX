@@ -467,12 +467,12 @@ export default function OrderDetailScreen({ route, navigation }: Props) {
       // Update local order object immediately
       const updatedOrder = {
         ...order,
-        status: 'delivered',
+        status: 'delivered' as any,
         buyerUiStatus: 'received',
         isPaid: true,
       };
       setCurrentBuyerUiStatus('received');
-      navigation.setParams({ order: updatedOrder });
+      navigation.setParams({ order: updatedOrder as any });
 
       useOrderStore.setState((state: any) => ({
         orders: state.orders.map((existingOrder: any) =>

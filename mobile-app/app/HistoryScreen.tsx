@@ -98,7 +98,7 @@ export default function HistoryScreen({ navigation }: Props) {
             orderId: order.id,
             transactionId: order.order_number || order.id,
             // Preserve shipment_status/buyer UI status for History -> OrderDetail
-            status: (order.shipment_status || order.status || 'delivered') as const,
+            status: (order.shipment_status || order.status || 'delivered') as Order['status'],
             buyerUiStatus: (order.shipment_status || order.status || 'delivered'),
             items: items.map((it: any) => {
               // Get primary image or first image

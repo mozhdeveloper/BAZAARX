@@ -163,7 +163,7 @@ export default function OrderConfirmation({ navigation, route }: Props) {
   };
   
   const handleViewPurchases = () => {
-    navigation.navigate('Orders', { initialTab: 'processing' });
+    navigation.navigate('Orders', { initialTab: 'pending' });
   };
 
   const handleViewOrderStatus = () => {
