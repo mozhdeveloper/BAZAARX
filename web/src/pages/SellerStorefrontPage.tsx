@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useMemo } from 'react';
 import { motion } from 'framer-motion';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useBuyerStore, demoSellers } from '../stores/buyerStore';
@@ -477,7 +477,7 @@ export default function SellerStorefrontPage() {
       campaignDiscount: (p as any).campaignDiscount || null,
       discountBadgePercent: (p as any).discountBadgePercent,
       discountBadgeTooltip: (p as any).discountBadgeTooltip,
-      image: (p.images && p.images.length > 0 && p.images[0].image_url) || 'https://images.unsplash.com/photo-1560393464-5c69a73c5770?w=400&h=400&fit=crop',
+      image: (p as any).image || (p.images && p.images.length > 0 && (typeof p.images[0] === 'string' ? p.images[0] : p.images[0].image_url)) || 'https://placehold.co/400x400?text=No+Image',
       rating: p.rating || 5.0,
       review_count: (p as any).reviewCount || p.review_count || 0,
       sold: (p as any).sold || (p as any).lifetimeSold || p.sales_count || 0,
@@ -512,10 +512,46 @@ export default function SellerStorefrontPage() {
       isVacationMode: (seller as any)?.isVacationMode ?? false,
     }));
 
-  // Get all unique categories from the displayed products
-  const sellerCategories = Array.from(new Set(displayProducts.map(p => p.category))).sort();
+  // Fetch and apply active campaign discounts (covers global flash sales + seller campaigns)
+  const [storefrontDiscounts, setStorefrontDiscounts] = useState<Record<string, any>>({});
+  useEffect(() => {
+    let isMounted = true;
+    const productIds = displayProducts.map(p => p.id).filter(Boolean);
+    if (productIds.length === 0) { setStorefrontDiscounts({}); return; }
+    discountService.getActiveDiscountsForProducts(productIds).then(discounts => {
+      if (isMounted) setStorefrontDiscounts(discounts);
+    }).catch(() => { if (isMounted) setStorefrontDiscounts({}); });
+    return () => { isMounted = false; };
+  }, [realProducts]);
 
-  const filteredProducts = displayProducts
+  const enrichedDisplayProducts = useMemo(() => {
+    if (Object.keys(storefrontDiscounts).length === 0) return displayProducts;
+    return displayProducts.map(p => {
+      const discount = storefrontDiscounts[p.id];
+      if (!discount) return p;
+      if (p.originalPrice && p.originalPrice > p.price) {
+        return { ...p,
+          discountBadgePercent: p.discountBadgePercent ?? (discount.discountType === 'percentage' ? Math.round(discount.discountValue) : undefined),
+          discountBadgeTooltip: p.discountBadgeTooltip ?? (discount.discountType === 'percentage' && typeof discount.maxDiscountAmount === 'number' ? `Up to ₱${discount.maxDiscountAmount.toLocaleString()} off` : undefined),
+          campaignDiscount: p.campaignDiscount ?? { discountType: discount.discountType, discountValue: discount.discountValue, maxDiscountAmount: discount.maxDiscountAmount },
+        };
+      }
+      const calc = discountService.calculateLineDiscount(p.price, 1, discount);
+      if (calc.discountPerUnit <= 0) return p;
+      return { ...p,
+        price: calc.discountedUnitPrice,
+        originalPrice: discount.originalPrice || p.price,
+        campaignDiscount: { discountType: discount.discountType, discountValue: discount.discountValue, maxDiscountAmount: discount.maxDiscountAmount },
+        discountBadgePercent: discount.discountType === 'percentage' ? Math.round(discount.discountValue) : Math.round(((p.price - calc.discountedUnitPrice) / p.price) * 100),
+        discountBadgeTooltip: discount.discountType === 'percentage' && typeof discount.maxDiscountAmount === 'number' ? `Up to ₱${discount.maxDiscountAmount.toLocaleString()} off` : undefined,
+      };
+    });
+  }, [displayProducts, storefrontDiscounts]);
+
+  // Get all unique categories from the displayed products
+  const sellerCategories = Array.from(new Set(enrichedDisplayProducts.map(p => p.category))).sort();
+
+  const filteredProducts = enrichedDisplayProducts
     .filter(p => selectedCategory === 'all' || p.category === selectedCategory)
     .sort((a, b) => {
       switch (sortBy) {
@@ -823,7 +859,7 @@ export default function SellerStorefrontPage() {
                   {activeCampaigns
                     .filter(campaign => campaign.endsAt > new Date())
                     .map(campaign => {
-                      const allCampaignProducts = displayProducts.filter(
+                      const allCampaignProducts = enrichedDisplayProducts.filter(
                         p => (p as any).campaignDiscount
                       );
 

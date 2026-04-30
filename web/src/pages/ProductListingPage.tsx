@@ -1,5 +1,6 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { categoryService } from "@/services/categoryService";
+import { discountService } from "@/services/discountService";
 import { productService } from "@/services/productService";
 import type { Category } from "@/types";
 import type { ProductFilters, SortOption } from "@/types/filter.types";
@@ -9,7 +10,7 @@ import {
   ArrowLeft, BadgeCheck, ChevronRight, Loader2, MapPin, Search,
   ShoppingCart, SlidersHorizontal, Star, Truck, X
 } from "lucide-react";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import Header from "../components/Header";
 import ProductFilterModal from "../components/ProductFilterModal";
@@ -33,6 +34,8 @@ interface ListingProduct {
   isVerified: boolean; isFreeShipping: boolean; location: string;
   stock: number; variants: any[]; variantLabel1Values: string[];
   variantLabel2Values: string[]; isVacationMode: boolean;
+  discountBadgePercent?: number; discountBadgeTooltip?: string;
+  campaignDiscount?: { discountType: string; discountValue: number; maxDiscountAmount?: number } | null;
 }
 
 function normalizeProduct(row: any): ListingProduct {
@@ -58,6 +61,9 @@ function normalizeProduct(row: any): ListingProduct {
     stock: variants.reduce((sum: number, v: any) => sum + (v.stock || 0), 0) || row.stock || 0,
     variants: variants.map((v: any) => ({ id: v.id, name: v.variant_name, price: Number(v.price ?? row.price ?? 0), stock: v.stock || 0 })),
     variantLabel1Values: row.variantLabel1Values || [], variantLabel2Values: row.variantLabel2Values || [],
+    discountBadgePercent: row.discountBadgePercent ?? undefined,
+    discountBadgeTooltip: row.discountBadgeTooltip ?? undefined,
+    campaignDiscount: row.campaignDiscount ?? null,
     isVacationMode: row.seller?.is_vacation_mode === true,
   };
 }
@@ -73,7 +79,7 @@ function applyClientFilters(products: ListingProduct[], filters: ProductFilters)
     if (filters.priceRange.min !== null && p.price < filters.priceRange.min) return false;
     if (filters.priceRange.max !== null && p.price > filters.priceRange.max) return false;
     if (filters.minRating !== null && p.rating < filters.minRating) return false;
-    if (filters.onSale && !(p.originalPrice && p.originalPrice > p.price)) return false;
+    if (filters.onSale && !(p.originalPrice && p.originalPrice > p.price) && !p.campaignDiscount) return false;
     if (filters.freeShipping && !p.isFreeShipping) return false;
     if (filters.officialStore && !p.isVerified) return false;
     if (filters.shippedFrom) {
@@ -139,10 +145,77 @@ export default function ProductListingPage() {
   rawRef.current = rawProducts;
   const prevSearchKeyRef = useRef<string | null>(null);  // tracks previous search to detect changes
 
+  // Fetch active campaign discounts for all loaded products (covers global flash sales + seller campaigns)
+  const [activeCampaignDiscounts, setActiveCampaignDiscounts] = useState<Record<string, any>>({});
+  useEffect(() => {
+    let isMounted = true;
+    const productIds = [...new Set(rawProducts.map(p => p.id).filter(Boolean))];
+    if (productIds.length === 0) { setActiveCampaignDiscounts({}); return; }
+    discountService.getActiveDiscountsForProducts(productIds).then(discounts => {
+      if (isMounted) setActiveCampaignDiscounts(discounts);
+    }).catch(() => { if (isMounted) setActiveCampaignDiscounts({}); });
+    return () => { isMounted = false; };
+  }, [rawProducts]);
+
+  // Apply campaign discounts to products (enriches price, originalPrice, badges)
+  const enrichedProducts = useMemo(() => {
+    if (Object.keys(activeCampaignDiscounts).length === 0) return rawProducts;
+    return rawProducts.map(p => {
+      const discount = activeCampaignDiscounts[p.id];
+      if (!discount) return p;
+      // Already discounted by transformProduct
+      if (p.originalPrice && p.originalPrice > p.price) {
+        return { ...p,
+          discountBadgePercent: p.discountBadgePercent ?? (discount.discountType === 'percentage' ? Math.round(discount.discountValue) : undefined),
+          discountBadgeTooltip: p.discountBadgeTooltip ?? (discount.discountType === 'percentage' && typeof discount.maxDiscountAmount === 'number' ? `Up to ₱${discount.maxDiscountAmount.toLocaleString()} off` : undefined),
+          campaignDiscount: p.campaignDiscount ?? { discountType: discount.discountType, discountValue: discount.discountValue, maxDiscountAmount: discount.maxDiscountAmount },
+        };
+      }
+      // Apply discount now
+      const calc = discountService.calculateLineDiscount(p.price, 1, discount);
+      if (calc.discountPerUnit <= 0) return p;
+      return { ...p,
+        price: calc.discountedUnitPrice,
+        originalPrice: discount.originalPrice || p.price,
+        campaignDiscount: { discountType: discount.discountType, discountValue: discount.discountValue, maxDiscountAmount: discount.maxDiscountAmount },
+        discountBadgePercent: discount.discountType === 'percentage' ? Math.round(discount.discountValue) : Math.round(((p.price - calc.discountedUnitPrice) / p.price) * 100),
+        discountBadgeTooltip: discount.discountType === 'percentage' && typeof discount.maxDiscountAmount === 'number' ? `Up to ₱${discount.maxDiscountAmount.toLocaleString()} off` : undefined,
+      };
+    });
+  }, [rawProducts, activeCampaignDiscounts]);
+
+  const enrichedCategoryProducts = useMemo(() => {
+    if (Object.keys(activeCampaignDiscounts).length === 0) return categoryProducts;
+    return categoryProducts.map(p => {
+      const discount = activeCampaignDiscounts[p.id];
+      if (!discount) return p;
+      if (p.originalPrice && p.originalPrice > p.price) {
+        return { ...p, discountBadgePercent: p.discountBadgePercent ?? (discount.discountType === 'percentage' ? Math.round(discount.discountValue) : undefined), campaignDiscount: p.campaignDiscount ?? { discountType: discount.discountType, discountValue: discount.discountValue, maxDiscountAmount: discount.maxDiscountAmount } };
+      }
+      const calc = discountService.calculateLineDiscount(p.price, 1, discount);
+      if (calc.discountPerUnit <= 0) return p;
+      return { ...p, price: calc.discountedUnitPrice, originalPrice: discount.originalPrice || p.price, campaignDiscount: { discountType: discount.discountType, discountValue: discount.discountValue, maxDiscountAmount: discount.maxDiscountAmount }, discountBadgePercent: discount.discountType === 'percentage' ? Math.round(discount.discountValue) : Math.round(((p.price - calc.discountedUnitPrice) / p.price) * 100) };
+    });
+  }, [categoryProducts, activeCampaignDiscounts]);
+
+  const enrichedRelatedProducts = useMemo(() => {
+    if (Object.keys(activeCampaignDiscounts).length === 0) return relatedProducts;
+    return relatedProducts.map(p => {
+      const discount = activeCampaignDiscounts[p.id];
+      if (!discount) return p;
+      if (p.originalPrice && p.originalPrice > p.price) {
+        return { ...p, discountBadgePercent: p.discountBadgePercent ?? (discount.discountType === 'percentage' ? Math.round(discount.discountValue) : undefined), campaignDiscount: p.campaignDiscount ?? { discountType: discount.discountType, discountValue: discount.discountValue, maxDiscountAmount: discount.maxDiscountAmount } };
+      }
+      const calc = discountService.calculateLineDiscount(p.price, 1, discount);
+      if (calc.discountPerUnit <= 0) return p;
+      return { ...p, price: calc.discountedUnitPrice, originalPrice: discount.originalPrice || p.price, campaignDiscount: { discountType: discount.discountType, discountValue: discount.discountValue, maxDiscountAmount: discount.maxDiscountAmount }, discountBadgePercent: discount.discountType === 'percentage' ? Math.round(discount.discountValue) : Math.round(((p.price - calc.discountedUnitPrice) / p.price) * 100) };
+    });
+  }, [relatedProducts, activeCampaignDiscounts]);
+
   // Derived: apply client-side filters + sort
-  const products = applySorting(applyClientFilters(rawProducts, filters), sortOption);
-  const filteredCategoryProducts = applySorting(applyClientFilters(categoryProducts, filters), sortOption);
-  const filteredRelatedProducts = applySorting(applyClientFilters(relatedProducts, filters), sortOption);
+  const products = applySorting(applyClientFilters(enrichedProducts, filters), sortOption);
+  const filteredCategoryProducts = applySorting(applyClientFilters(enrichedCategoryProducts, filters), sortOption);
+  const filteredRelatedProducts = applySorting(applyClientFilters(enrichedRelatedProducts, filters), sortOption);
 
   useEffect(() => { categoryService.getActiveCategories().then((d) => { if (d) setCategories(d); }); }, []);
 
@@ -281,8 +354,8 @@ export default function ProductListingPage() {
       <div className="relative aspect-square overflow-hidden bg-gray-50">
         <img loading="lazy" src={product.image} alt={product.name} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300" onError={(e) => { (e.target as HTMLImageElement).src = "https://placehold.co/400x400?text=No+Image"; }} />
         {product.originalPrice && product.originalPrice > product.price && (
-          <div className="absolute top-3 left-3 bg-[#DC2626] text-white px-2 py-[2px] rounded text-[11px] font-black uppercase tracking-wider z-10 shadow-sm">
-            {Math.round(((product.originalPrice - product.price) / product.originalPrice) * 100)}% OFF
+          <div title={product.discountBadgeTooltip} className="absolute top-3 left-3 bg-[#DC2626] text-white px-2 py-[2px] rounded text-[11px] font-black uppercase tracking-wider z-10 shadow-sm">
+            {typeof product.discountBadgePercent === "number" ? product.discountBadgePercent : Math.round(((product.originalPrice - product.price) / product.originalPrice) * 100)}% OFF
           </div>
         )}
         {product.isFreeShipping && <div className="absolute top-3 right-3 bg-emerald-500 text-white p-1.5 rounded-lg shadow-sm"><Truck className="w-3 h-3" /></div>}

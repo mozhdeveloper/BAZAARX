@@ -4,7 +4,6 @@ import {
   Users,
   TrendingUp,
   TrendingDown,
-  DollarSign,
   Eye,
   Download,
   ShoppingCart,
@@ -111,7 +110,7 @@ const DashboardContent = () => {
         value: `₱${totalRevenue.toLocaleString()}`,
         change: "Actual",
         trend: 'up',
-        icon: <DollarSign className="h-5 w-5" />
+        icon: <span className="h-5 w-5 flex items-center justify-center font-bold text-base">₱</span>
       },
       {
         title: 'Total Orders',

@@ -1223,7 +1223,6 @@ export default function ShopScreen({ navigation, route }: Props) {
         onApply={handleFilterApply}
         initialFilters={filters}
         hideCategoryFilter={selectedCategory !== 'all'}
-        hideShippingFilter={true}
         availableCategories={
           // Exclude the currently selected category chip from filter options
           // since the user is already viewing that category's products
