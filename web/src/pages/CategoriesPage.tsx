@@ -4,7 +4,6 @@ import { ArrowLeft, ChevronRight, FolderTree, Loader2, Package, Search } from 'l
 import React, { useEffect, useMemo, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import Header from '../components/Header';
-import { ComingSoonWrapper } from '../components/ComingSoonWrapper';
 import { BazaarFooter } from '../components/ui/bazaar-footer';
 import { Input } from '../components/ui/input';
 import { isSupabaseConfigured } from '../lib/supabase';
@@ -168,9 +167,7 @@ const CategoriesPage: React.FC = () => {
         <div className="flex items-center justify-center gap-10 pt-1 pb-1">
           <Link to="/shop" className="text-sm text-[var(--text-muted)] hover:text-[var(--brand-primary)] transition-all duration-300">Shop</Link>
           <Link to="/categories" className="text-sm font-bold text-[var(--brand-primary)] border-b-2 border-[var(--brand-primary)] pb-0.5">Categories</Link>
-          <ComingSoonWrapper>
-            <Link to="#" className="text-sm text-[var(--text-muted)] hover:text-[var(--brand-primary)] transition-all duration-300 opacity-50 cursor-not-allowed" onClick={(e) => e.preventDefault()}>Collections</Link>
-          </ComingSoonWrapper>
+          <Link to="/collections" className="text-sm text-[var(--text-muted)] hover:text-[var(--brand-primary)] transition-all duration-300">Collections</Link>
           <Link to="/stores" className="text-sm text-[var(--text-muted)] hover:text-[var(--brand-primary)] transition-all duration-300">Stores</Link>
           <Link to="/registry" className="text-sm text-[var(--text-muted)] hover:text-[var(--brand-primary)] transition-all duration-300">Registry & Gifting</Link>
         </div>

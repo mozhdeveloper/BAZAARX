@@ -23,7 +23,6 @@ export type SellerNavLink = {
   label: string;
   href: string;
   icon: ReactNode;
-  comingSoon?: boolean;
 };
 
 export const sellerLinks: SellerNavLink[] = [
@@ -75,7 +74,6 @@ export const sellerLinks: SellerNavLink[] = [
     icon: (
       <CreditCard className="h-5 w-5 flex-shrink-0" />
     ),
-    comingSoon: true,
   },
   {
     label: "POS Settings",
@@ -83,7 +81,6 @@ export const sellerLinks: SellerNavLink[] = [
     icon: (
       <Settings className="h-5 w-5 flex-shrink-0" />
     ),
-    comingSoon: true,
   },
   {
     label: "Discounts",
@@ -103,9 +100,8 @@ export const sellerLinks: SellerNavLink[] = [
     label: "Marketing",
     href: "/seller/marketing",
     icon: (
-      <TrendingUp className="h-5 w-5 flex-shrink-0" />
+      <Mail className="h-5 w-5 flex-shrink-0" />
     ),
-    comingSoon: true,
   },
   {
     label: "Messages",
@@ -120,7 +116,6 @@ export const sellerLinks: SellerNavLink[] = [
     icon: (
       <Wallet className="h-5 w-5 flex-shrink-0" />
     ),
-    comingSoon: true,
   },
   {
     label: "Reviews",

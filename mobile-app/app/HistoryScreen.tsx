@@ -97,9 +97,6 @@ export default function HistoryScreen({ navigation }: Props) {
             id: order.id,
             orderId: order.id,
             transactionId: order.order_number || order.id,
-            // Preserve shipment_status/buyer UI status for History -> OrderDetail
-            status: (order.shipment_status || order.status || 'delivered') as const,
-            buyerUiStatus: (order.shipment_status || order.status || 'delivered'),
             items: items.map((it: any) => {
               // Get primary image or first image
               const primaryImage = it.product?.images?.find((img: any) => img.is_primary)?.image_url
@@ -123,6 +120,7 @@ export default function HistoryScreen({ navigation }: Props) {
             }),
             total: calculatedTotal,
             shippingFee: items.reduce((sum: number, it: any) => sum + (it.shipping_price || 0), 0),
+            status: 'delivered' as const,
             isPaid: order.payment_status === 'paid',
             scheduledDate: new Date(order.created_at).toLocaleDateString(),
             createdAt: order.created_at,
@@ -229,11 +227,11 @@ export default function HistoryScreen({ navigation }: Props) {
               return (
                 <Pressable key={order.id} style={styles.orderCard} onPress={() => navigation.navigate('OrderDetail', { order })}>
                   <View style={styles.cardHeader}>
-                      <View style={styles.statusBadge}>
-                        <Text style={styles.statusText}>{(order.buyerUiStatus || order.status || 'delivered').toString().toUpperCase() === 'RECEIVED' ? 'ORDER RECEIVED' : ((order.status || 'DELIVERED').toString().toUpperCase())}</Text>
-                      </View>
-                      <Text style={styles.orderIdText}>#{order.transactionId}</Text>
+                    <View style={styles.statusBadge}>
+                      <Text style={styles.statusText}>DELIVERED</Text>
                     </View>
+                    <Text style={styles.orderIdText}>#{order.transactionId}</Text>
+                  </View>
 
                   <View style={styles.cardBody}>
                     <Image source={{ uri: productImage }} style={styles.productThumb} />

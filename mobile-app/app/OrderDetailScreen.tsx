@@ -21,7 +21,6 @@ import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context'
 import { LinearGradient } from 'expo-linear-gradient';
 import { ArrowLeft, Package, MapPin, CreditCard, Receipt, CheckCircle, MessageCircle, Send, X, Truck, Clock, CheckCircle2, RotateCcw, Tag, ArrowRight, Store } from 'lucide-react-native';
 import { COLORS } from '../src/constants/theme';
-import { PAYMENT_METHODS, getPaymentMethodLabel, isPayMongoPayment } from '../src/constants/paymentMethods';
 
 // Helper function to format date reliably across platforms
 const formatDatePH = (dateString: string | Date | null | undefined): string | null => {
@@ -67,6 +66,13 @@ type Props = NativeStackScreenProps<RootStackParamList, 'OrderDetail'>;
 export default function OrderDetailScreen({ route, navigation }: Props) {
   const { order } = route.params;
   const { autoOpenAddressModal } = (route.params as any) || {};
+  
+  // Comprehensive logging of order object
+  console.log('[OrderDetail] Full order object keys:', Object.keys(order || {}).join(', '));
+  console.log('[OrderDetail] order.paymentMethod:', order?.paymentMethod);
+  console.log('[OrderDetail] order.payments:', order?.payments);
+  console.log('[OrderDetail] Full order:', JSON.stringify(order, null, 2));
+  
   // Guard clause for invalid order
   if (!order) {
     return (
@@ -112,34 +118,9 @@ export default function OrderDetailScreen({ route, navigation }: Props) {
   const fetchTrackingByOrderId = useDeliveryStore((s) => s.fetchTrackingByOrderId);
   const deliveryStoreTracking = useDeliveryStore((s) => s.tracking);
 
-  // State to track current buyer UI status (for immediate re-render on confirmation)
-  const [currentBuyerUiStatus, setCurrentBuyerUiStatus] = useState(order?.buyerUiStatus || 'pending');
-
   // --- BULLETPROOF GRACE PERIOD LOGIC ---
-  const resolvedUiStatus = String(currentBuyerUiStatus || order?.buyerUiStatus || order?.status || 'pending').toLowerCase();
+  const resolvedUiStatus = String(order?.buyerUiStatus || order?.status || 'pending').toLowerCase();
   const hasEditedAddress = Array.isArray((order as any).history) && (order as any).history.some((h: any) => h.note === 'Address Updated');
-  const resolvedPaymentMethod = (() => {
-    // CRITICAL FIX: order.payments is a SINGLE OBJECT (not array) due to UNIQUE constraint on order_payments
-    let paymentData = null;
-    
-    if ((order as any)?.payments) {
-      // If payments is an array (shouldn't happen)
-      if (Array.isArray((order as any).payments)) {
-        paymentData = (order as any).payments[0]?.payment_method;
-      }
-      // If payments is a single object (expected case)
-      else if (typeof (order as any).payments === 'object') {
-        paymentData = (order as any).payments.payment_method;
-      }
-    }
-    
-    if (paymentData) return paymentData;
-
-    const directPaymentMethod = (order as any)?.payment_method;
-    if (directPaymentMethod) return directPaymentMethod;
-
-    return order?.paymentMethod;
-  })();
 
   // Fix iOS/Android Date Parsing Bug from Checkout
   const rawDate = order?.createdAt || (order as any).created_at;
@@ -463,16 +444,6 @@ export default function OrderDetailScreen({ route, navigation }: Props) {
       const uploaded = (await Promise.all(uploadTasks)).filter((u): u is string => Boolean(u));
 
       await orderMutationService.confirmOrderReceived(realOrderId, buyerId, uploaded.length > 0 ? uploaded : undefined);
-
-      // Update local order object immediately
-      const updatedOrder = {
-        ...order,
-        status: 'delivered',
-        buyerUiStatus: 'received',
-        isPaid: true,
-      };
-      setCurrentBuyerUiStatus('received');
-      navigation.setParams({ order: updatedOrder });
 
       useOrderStore.setState((state: any) => ({
         orders: state.orders.map((existingOrder: any) =>
@@ -996,13 +967,33 @@ export default function OrderDetailScreen({ route, navigation }: Props) {
               <View style={{ borderTopWidth: 1, borderTopColor: '#E5E7EB', paddingTop: 16, gap: 12 }}>
                  {/* Payment Method - with proper extraction and label mapping */}
                  {(() => {
-                   const rawPaymentMethod = resolvedPaymentMethod;
-
-                   const paymentMethod = getPaymentMethodLabel(rawPaymentMethod);
-                   const isCOD = typeof rawPaymentMethod === 'string'
-                     ? rawPaymentMethod.toLowerCase().trim() === PAYMENT_METHODS.COD || rawPaymentMethod.toLowerCase().trim() === 'cash on delivery'
-                     : (rawPaymentMethod as any)?.type?.toLowerCase() === PAYMENT_METHODS.COD;
-                   const hideCODInfo = isPayMongoPayment(rawPaymentMethod);
+                   const rawPaymentMethod = order.paymentMethod;
+                   console.log('[OrderDetail] Raw paymentMethod:', rawPaymentMethod, 'Type:', typeof rawPaymentMethod);
+                   
+                   const getPaymentMethod = (): string => {
+                     if (!rawPaymentMethod) return 'Unknown';
+                     
+                     if (typeof rawPaymentMethod === 'string') {
+                       const pm = rawPaymentMethod.toLowerCase().trim();
+                       if (pm === 'cod' || pm === 'cash on delivery') return 'Cash on Delivery';
+                       if (pm === 'gcash') return 'GCash';
+                       if (pm === 'card') return 'Card';
+                       if (pm === 'paymongo') return 'PayMongo';
+                       return rawPaymentMethod;
+                     }
+                     const type = (rawPaymentMethod as any)?.type?.toLowerCase();
+                     if (type === 'cod') return 'Cash on Delivery';
+                     if (type === 'gcash') return 'GCash';
+                     if (type === 'card') return 'Card';
+                     if (type === 'paymongo') return 'PayMongo';
+                     return type || 'Unknown';
+                   };
+                   
+                   const paymentMethod = getPaymentMethod();
+                   const isCOD = paymentMethod === 'Cash on Delivery' || 
+                                 (typeof rawPaymentMethod === 'string' && (rawPaymentMethod.toLowerCase().trim() === 'cod' || rawPaymentMethod.toLowerCase().trim() === 'cash on delivery'));
+                   
+                   console.log('[OrderDetail] Payment Method Result:', paymentMethod, 'isCOD:', isCOD);
                    
                    return (
                      <>
@@ -1012,9 +1003,11 @@ export default function OrderDetailScreen({ route, navigation }: Props) {
                        </View>
                        
                        {/* COD Payment Instruction Message - Only show when order is processing, confirmed, or shipped (not yet delivered) */}
-                       {!hideCODInfo && isCOD && order.buyerUiStatus !== 'delivered' && order.status !== 'delivered' && (() => {
+                       {isCOD && order.buyerUiStatus !== 'delivered' && order.status !== 'delivered' && (() => {
                          const estimatedDelivery = deliveryTracking?.booking?.estimatedDelivery || order.estimatedDelivery;
                          const formattedDeadline = formatDatePH(estimatedDelivery);
+                         
+                         console.log('[OrderDetail COD] Payment Method:', paymentMethod, 'isCOD:', isCOD, 'estimatedDelivery:', estimatedDelivery, 'formatted:', formattedDeadline);
                          
                          return (
                            <View style={{ backgroundColor: '#FFFBF0', borderLeftWidth: 4, borderLeftColor: '#F59E0B', paddingHorizontal: 12, paddingVertical: 10, borderRadius: 8, gap: 6, marginTop: 8 }}>
@@ -1130,7 +1123,7 @@ export default function OrderDetailScreen({ route, navigation }: Props) {
         )}
 
         {/* DELIVERED: Confirm Received — item has arrived, buyer confirms receipt */}
-        {resolvedUiStatus === 'delivered' && order.buyerUiStatus !== 'received' && (
+        {resolvedUiStatus === 'delivered' && (
           <>
             <Pressable
               onPress={() => setShowChatModal(true)}

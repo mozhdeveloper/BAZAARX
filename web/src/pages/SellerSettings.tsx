@@ -211,9 +211,15 @@ export function SellerSettings() {
 
             {/* Main Content */}
             <div className="flex-1">
-              <Tabs defaultValue="notifications" className="w-full">
+              <Tabs defaultValue="profile" className="w-full">
                 <div className="flex items-center justify-between gap-4 mb-4">
                   <TabsList className="inline-flex h-auto p-1 bg-white rounded-full shadow-sm border border-orange-100/50 overflow-x-auto scrollbar-hide max-w-full mb-0">
+                    <TabsTrigger value="profile" className="rounded-full px-4 py-2 text-xs transition-all duration-300 data-[state=active]:bg-[var(--brand-primary)] data-[state=active]:text-white data-[state=active]:shadow-md data-[state=active]:shadow-orange-500/20 text-gray-500 hover:text-[var(--brand-primary)] hover:bg-orange-50/50 gap-2">
+                      Profile
+                    </TabsTrigger>
+                    <TabsTrigger value="store" className="rounded-full px-4 py-2 text-xs transition-all duration-300 data-[state=active]:bg-[var(--brand-primary)] data-[state=active]:text-white data-[state=active]:shadow-md data-[state=active]:shadow-orange-500/20 text-gray-500 hover:text-[var(--brand-primary)] hover:bg-orange-50/50 gap-2">
+                      Store Info
+                    </TabsTrigger>
                     <TabsTrigger value="notifications" className="rounded-full px-4 py-2 text-xs transition-all duration-300 data-[state=active]:bg-[var(--brand-primary)] data-[state=active]:text-white data-[state=active]:shadow-md data-[state=active]:shadow-orange-500/20 text-gray-500 hover:text-[var(--brand-primary)] hover:bg-orange-50/50 gap-2">
                       Notifications
                     </TabsTrigger>
@@ -247,6 +253,133 @@ export function SellerSettings() {
                   </Button>
                 </div>
 
+                {/* Profile Settings */}
+                <TabsContent value="profile">
+                  <Card className="border-0 shadow-md rounded-xl bg-white overflow-hidden">
+                    <CardHeader className="bg-white p-8">
+                      <CardTitle className="flex items-center gap-3 text-xl font-black text-[var(--text-headline)]">
+                        Personal Information
+                      </CardTitle>
+                      <CardDescription className="text-[var(--text-muted)]">Update your personal details and profile picture</CardDescription>
+                    </CardHeader>
+                    <CardContent className="space-y-8 pl-8 pt-4">
+                      {/* Profile Header with Picture and Fields */}
+                      <div className="flex flex-col lg:flex-row gap-12">
+                        {/* Profile Picture Column */}
+                        <div className="flex flex-col items-center lg:items-start gap-4 flex-shrink-0">
+                          <div className="relative">
+                            <div className="w-32 h-32 rounded-full overflow-hidden shadow-xl shadow-orange-500/20 bg-gradient-to-br from-orange-400 to-orange-600 flex items-center justify-center">
+                              {seller?.avatar ? (
+                                <img loading="lazy" 
+                                  src={seller.avatar}
+                                  alt={seller?.name || "Seller"}
+                                  className="w-full h-full object-cover transition-transform duration-500 hover:scale-110"
+                                />
+                              ) : (
+                                <span className="text-white text-4xl font-black">
+                                  {seller?.name?.charAt(0) || 'S'}
+                                </span>
+                              )}
+                            </div>
+                            <button className="absolute bottom-1 right-1 w-10 h-10 bg-white rounded-full border-2 border-gray-100 shadow-md flex items-center justify-center hover:bg-gray-50 transition-all hover:scale-110 active:scale-95 group">
+                              <Camera className="h-5 w-5 text-gray-600 group-hover:text-[var(--brand-primary)]" />
+                            </button>
+                          </div>
+                          <div className="text-center lg:text-left">
+                            <h4 className="text-sm font-bold text-[var(--text-headline)]">Profile Picture</h4>
+                            <p className="text-[12px] text-[var(--text-muted)] mt-1 whitespace-nowrap">JPG, PNG or GIF. Max size 2MB</p>
+                          </div>
+                        </div>
+
+                        {/* Form Fields Column */}
+                        <div className="flex-1">
+                          <div className="grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-6">
+                            <div className="space-y-2">
+                              <Label htmlFor="firstName" className="font-bold text-[var(--text-secondary)]">First Name</Label>
+                              <Input id="firstName" defaultValue="John" className="h-11 rounded-xl" onChange={() => setHasChanges(true)} />
+                            </div>
+                            <div className="space-y-2">
+                              <Label htmlFor="lastName" className="font-bold text-[var(--text-secondary)]">Last Name</Label>
+                              <Input id="lastName" defaultValue="Doe" className="h-11 rounded-xl" onChange={() => setHasChanges(true)} />
+                            </div>
+                            <div className="space-y-2">
+                              <Label htmlFor="email" className="font-bold text-[var(--text-secondary)]">Email</Label>
+                              <Input id="email" type="email" defaultValue="john@example.com" className="h-11 rounded-xl" onChange={() => setHasChanges(true)} />
+                            </div>
+                            <div className="space-y-2">
+                              <Label htmlFor="phone" className="font-bold text-[var(--text-secondary)]">Phone Number</Label>
+                              <Input id="phone" defaultValue="+63 912 345 6789" className="h-11 rounded-xl" onChange={() => setHasChanges(true)} />
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    </CardContent>
+                  </Card>
+                </TabsContent>
+
+                {/* Store Settings */}
+                <TabsContent value="store">
+                  <Card className="border-0 shadow-md rounded-xl bg-white overflow-hidden">
+                    <CardHeader className="bg-white p-8 pb-2">
+                      <CardTitle className="flex items-center gap-3 text-xl font-black text-[var(--text-headline)]">
+                        Store Information
+                      </CardTitle>
+                      <CardDescription className="text-[var(--text-muted)]">Manage your store details and public information</CardDescription>
+                    </CardHeader>
+                    <CardContent className="space-y-8 pl-8 pt-4">
+                      <div className="grid grid-cols-1 lg:grid-cols-2 gap-12">
+                        {/* Left Side: Name and Location */}
+                        <div className="space-y-6">
+                          <div className="space-y-2">
+                            <Label htmlFor="storeName" className="font-bold text-[var(--text-secondary)]">Store Name</Label>
+                            <Input id="storeName" defaultValue="My Awesome Store" className="h-11 rounded-xl" onChange={() => setHasChanges(true)} />
+                          </div>
+
+                          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            <div className="space-y-2">
+                              <Label htmlFor="storeAddress" className="font-bold text-[var(--text-secondary)]">Store Address</Label>
+                              <Input id="storeAddress" defaultValue="123 Main St, Manila" className="h-11 rounded-xl" onChange={() => setHasChanges(true)} />
+                            </div>
+                            <div className="space-y-2">
+                              <Label htmlFor="storeCity" className="font-bold text-[var(--text-secondary)]">City</Label>
+                              <Input id="storeCity" defaultValue="Manila" className="h-11 rounded-xl" onChange={() => setHasChanges(true)} />
+                            </div>
+                          </div>
+                        </div>
+
+                        {/* Right Side: Description */}
+                        <div className="flex flex-col space-y-2 h-full">
+                          <Label htmlFor="storeDesc" className="font-bold text-[var(--text-secondary)]">Store Description</Label>
+                          <Textarea
+                            id="storeDesc"
+                            className="flex-1 min-h-[148px] lg:min-h-0 w-full rounded-xl border-gray-200"
+                            placeholder="Tell customers about your store..."
+                            defaultValue="We sell quality products at affordable prices."
+                            onChange={() => setHasChanges(true)}
+                          />
+                        </div>
+                      </div>
+
+                      <div className="border-t pt-6">
+                        <h4 className="text-sm font-semibold text-gray-900 mb-4">Social Media Links</h4>
+                        <div className="space-y-3">
+                          <div className="flex items-center gap-3">
+                            <Facebook className="h-5 w-5 text-blue-600 flex-shrink-0" />
+                            <Input placeholder="Facebook page URL" defaultValue="https://facebook.com/mystore" onChange={() => setHasChanges(true)} />
+                          </div>
+                          <div className="flex items-center gap-3">
+                            <Instagram className="h-5 w-5 text-pink-600 flex-shrink-0" />
+                            <Input placeholder="Instagram profile URL" defaultValue="https://instagram.com/mystore" onChange={() => setHasChanges(true)} />
+                          </div>
+                          <div className="flex items-center gap-3">
+                            <Twitter className="h-5 w-5 text-blue-400 flex-shrink-0" />
+                            <Input placeholder="Twitter profile URL" onChange={() => setHasChanges(true)} />
+                          </div>
+                        </div>
+                      </div>
+                    </CardContent>
+                  </Card>
+                </TabsContent>
 
                 {/* Notification Settings */}
                 <TabsContent value="notifications">

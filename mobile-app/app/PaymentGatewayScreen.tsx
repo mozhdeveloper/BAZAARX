@@ -30,9 +30,6 @@ import { useCartStore } from '../src/stores/cartStore';
 import { usePaymentStore } from '../src/stores/paymentStore';
 import { useAuthStore } from '../src/stores/authStore';
 import { paymentMethodService } from '../src/services/paymentMethodService';
-import { orderMutationService } from '../src/services/orders/orderMutationService';
-import { rollbackOrphanOrder } from '../src/services/checkoutService';
-import { PAYMENT_METHODS } from '../src/constants/paymentMethods';
 import type { GatewayPaymentType } from '../src/types/database.types';
 
 export default function PaymentGatewayScreen({ navigation, route }: Props) {
@@ -52,7 +49,6 @@ export default function PaymentGatewayScreen({ navigation, route }: Props) {
   const params = route.params as RouteParams;
   const { paymentMethod: rawPaymentMethod, order, checkoutPayload, isQuickCheckout, earnedBazcoins = 0, bazcoinDiscount = 0, appliedVoucher, isGift = false, isAnonymous = false, recipientId } = params;
   const paymentMethod = rawPaymentMethod || 'card';
-  const isPayMongoPayment = paymentMethod.toLowerCase() === PAYMENT_METHODS.PAYMONGO;
   
   console.log('[PaymentGateway] Route params received:', {
     hasOrder: !!order,
@@ -366,20 +362,7 @@ export default function PaymentGatewayScreen({ navigation, route }: Props) {
           }
         }
         
-        // Promote successful PayMongo orders to Processing and go straight to My Orders
-        if (isPayMongoPayment && finalOrder) {
-          const orderUuid = finalOrder.orderId || finalOrder.id;
-          void orderMutationService.updateOrderStatus({
-            orderId: orderUuid,
-            nextStatus: 'processing',
-          }).catch((statusErr) => {
-            console.error('[PaymentGateway] Failed to promote PayMongo order to processing:', statusErr);
-          });
-          navigation.replace('Orders', { initialTab: 'processing' });
-          return;
-        }
-
-        // Go to OrderConfirmation to show order confirmation for non-PayMongo flows
+        // Go to OrderConfirmation to show order confirmation
         if (finalOrder) {
           navigation.replace('OrderConfirmation', { order: finalOrder, earnedBazcoins, isQuickCheckout });
         } else {
@@ -387,14 +370,6 @@ export default function PaymentGatewayScreen({ navigation, route }: Props) {
         }
       }, 1500);
     } catch (err: any) {
-      if (isPayMongoPayment) {
-        const orderUuid = order?.orderId || order?.id || checkoutPayload?.orderId || checkoutPayload?.orderUuid;
-        if (orderUuid) {
-          void rollbackOrphanOrder(orderUuid, 'paymongo-payment-failed', err).catch((cleanupErr) => {
-            console.error('[PaymentGateway] Failed to clean up failed PayMongo order:', cleanupErr);
-          });
-        }
-      }
       console.error('[PaymentGateway] Error in onPaymentApproved:', err);
       setStatus('failed');
       setErrorMessage(err?.message || 'Failed to complete payment. Please contact support.');

@@ -1,8 +1,7 @@
 import React from "react";
 import Header from "../components/Header";
 import { useState, useEffect } from "react";
-import { useNavigate, useLocation, Link } from "react-router-dom";
-import { ComingSoonWrapper } from "../components/ComingSoonWrapper";
+import { Link, useLocation } from "react-router-dom";
 import { motion } from "framer-motion";
 import { Plus, Globe, Gift, RotateCcw } from "lucide-react";
 import { RegistryDetailModal } from "../components/RegistryDetailModal";
@@ -170,15 +169,12 @@ const RegistryAndGiftingPage = () => {
           >
             Categories
           </Link>
-          <ComingSoonWrapper>
-            <Link
-              to="#"
-              className="text-sm text-[var(--text-muted)] hover:text-[var(--brand-primary)] transition-all duration-300 opacity-50 cursor-not-allowed"
-              onClick={(e) => e.preventDefault()}
-            >
-              Collections
-            </Link>
-          </ComingSoonWrapper>
+          <Link
+            to="/collections"
+            className="text-sm text-[var(--text-muted)] hover:text-[var(--brand-primary)] transition-all duration-300"
+          >
+            Collections
+          </Link>
           <Link
             to="/stores"
             className="text-sm text-[var(--text-muted)] hover:text-[var(--brand-primary)] transition-all duration-300"

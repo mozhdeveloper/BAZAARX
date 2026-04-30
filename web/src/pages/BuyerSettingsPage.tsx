@@ -1,41 +1,3 @@
-import { useEffect, useState } from 'react';
-import { motion } from 'framer-motion';
-import { useNavigate, useLocation } from 'react-router-dom';
-import Header from '../components/Header';
-import { BazaarFooter } from '../components/ui/bazaar-footer';
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '../components/ui/card';
-import { Button } from '../components/ui/button';
-import { Input } from '../components/ui/input';
-import { Label } from '../components/ui/label';
-import { Switch } from '../components/ui/switch';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '../components/ui/tabs';
-import { Badge } from '../components/ui/badge';
-import {
-  MapPin,
-  CreditCard,
-  Wallet,
-  Bell,
-  Shield,
-  Smartphone,
-  Mail,
-  Lock,
-  Trash2,
-  Plus,
-  Edit3,
-  Facebook,
-  Twitter,
-  Eye,
-  EyeOff,
-  Save,
-  Loader2,
-  Map,
-  LocateFixed,
-  Check,
-  ChevronLeft,
-  AlertTriangle,
-} from 'lucide-react';
-import { ComingSoonWrapper } from '../components/ComingSoonWrapper';
-import { supabase } from '../lib/supabase';
 import { AddressPicker } from '@/components/ui/address-picker';
 import {
   Dialog,
@@ -48,7 +10,42 @@ import {
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useToast } from '@/hooks/use-toast';
 import { cn } from '@/lib/utils';
+import { motion } from 'framer-motion';
+import {
+  AlertTriangle,
+  Bell,
+  Check,
+  ChevronLeft,
+  CreditCard,
+  Edit3,
+  Eye,
+  EyeOff,
+  Loader2,
+  LocateFixed,
+  Lock,
+  Mail,
+  Map,
+  MapPin,
+  Plus,
+  Save,
+  Shield,
+  Smartphone,
+  Trash2,
+  Wallet
+} from 'lucide-react';
+import { useEffect, useState } from 'react';
+import { useLocation, useNavigate } from 'react-router-dom';
 import { barangays, cities, provinces, regions } from "select-philippines-address";
+import Header from '../components/Header';
+import { Badge } from '../components/ui/badge';
+import { BazaarFooter } from '../components/ui/bazaar-footer';
+import { Button } from '../components/ui/button';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../components/ui/card';
+import { Input } from '../components/ui/input';
+import { Label } from '../components/ui/label';
+import { Switch } from '../components/ui/switch';
+import { Tabs, TabsContent } from '../components/ui/tabs';
+import { supabase } from '../lib/supabase';
 import { authService } from '../services/authService';
 import { Address, useBuyerStore } from '../stores/buyerStore';
 import { validatePassword } from '../utils/validation';
@@ -595,26 +592,23 @@ export default function BuyerSettingsPage() {
               {[
                 { value: 'addresses', label: 'Addresses', icon: MapPin },
                 { value: 'payment', label: 'Payment', icon: CreditCard },
-                { value: 'wallet', label: 'Wallet', icon: Wallet, comingSoon: true },
+                { value: 'wallet', label: 'Wallet', icon: Wallet },
                 { value: 'notifications', label: 'Notifications', icon: Bell },
-                { value: 'security', label: 'Security', icon: Shield, comingSoon: true },
+                { value: 'security', label: 'Security', icon: Shield },
               ].map((tab) => (
-                <ComingSoonWrapper key={tab.value} enabled={!!tab.comingSoon}>
-                  <button
-                    onClick={() => !tab.comingSoon && setActiveTab(tab.value)}
-                    disabled={tab.comingSoon}
-                    className={cn(
-                      "flex items-center gap-2 px-4 py-2 rounded-full text-[11px] sm:text-xs font-semibold whitespace-nowrap transition-all duration-300",
-                      activeTab === tab.value
-                        ? "bg-[var(--brand-primary)] text-white shadow-md shadow-[var(--brand-primary)]/20"
-                        : "text-gray-500 hover:text-[var(--brand-primary)] hover:bg-orange-50/50",
-                      tab.comingSoon && "opacity-50 cursor-not-allowed"
-                    )}
-                  >
-                    <tab.icon className="h-3.5 w-3.5" />
-                    {tab.label}
-                  </button>
-                </ComingSoonWrapper>
+                <button
+                  key={tab.value}
+                  onClick={() => setActiveTab(tab.value)}
+                  className={cn(
+                    "flex items-center gap-2 px-4 py-2 rounded-full text-[11px] sm:text-xs font-semibold whitespace-nowrap transition-all duration-300",
+                    activeTab === tab.value
+                      ? "bg-[var(--brand-primary)] text-white shadow-md shadow-[var(--brand-primary)]/20"
+                      : "text-gray-500 hover:text-[var(--brand-primary)] hover:bg-orange-50/50"
+                  )}
+                >
+                  <tab.icon className="h-3.5 w-3.5" />
+                  {tab.label}
+                </button>
               ))}
             </div>
           </div>

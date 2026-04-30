@@ -18,7 +18,6 @@ import {
 import React, { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
-import { ComingSoonWrapper } from "@/components/ComingSoonWrapper";
 import { SellerWorkspaceLayout } from "@/components/seller/SellerWorkspaceLayout";
 import { useSupportStore } from "../stores/supportStore";
 import { useAuthStore } from "@/stores/sellerStore";
@@ -225,76 +224,69 @@ export function SellerHelpCenter() {
                     badge={buyerReportCount > 0 ? buyerReportCount : undefined}
                     disabled={!isApprovedSeller}
                   />
-                  <ComingSoonWrapper>
-                    <QuickActionCard
-                      icon={<Wallet size={24} />}
-                      label="Payout Help"
-                      disabled={true}
-                    />
-                  </ComingSoonWrapper>
-                  <ComingSoonWrapper>
-                    <QuickActionCard
-                      icon={<FileText size={24} />}
-                      label="Policies"
-                      disabled={true}
-                    />
-                  </ComingSoonWrapper>
+                  <QuickActionCard
+                    icon={<Wallet size={24} />}
+                    label="Payout Help"
+                    onClick={() => navigate("/seller/earnings")}
+                    disabled={!isApprovedSeller}
+                  />
+                  <QuickActionCard
+                    icon={<FileText size={24} />}
+                    label="Policies"
+                  />
                 </div>
 
                 {/* FAQ Section */}
-                <ComingSoonWrapper>
-                  <div className="mb-6 opacity-60">
-                    <h2 className="text-lg font-bold text-gray-900 mb-4">Frequently Asked Questions</h2>
-                    <div className="flex gap-4 border-b border-gray-100 mb-4 text-sm font-medium overflow-x-auto pb-1">
-                      {[
-                        { key: "hot", label: "Hot Questions" },
-                        { key: "products", label: "Products" },
-                        { key: "orders", label: "Orders" },
-                        { key: "payouts", label: "Payouts" },
-                      ].map(tab => (
-                        <button
-                          key={tab.key}
-                          disabled
-                          className={`whitespace-nowrap pb-2 transition-colors ${activeTab === tab.key
-                            ? "text-[var(--brand-accent)] border-b-2 border-[var(--brand-accent)]"
-                            : "text-gray-400 hover:text-[var(--brand-accent)]"
-                            }`}
-                        >
-                          {tab.label}
-                        </button>
-                      ))}
-                    </div>
-
-                    <div className="space-y-2">
-                      {faqCategories[activeTab as keyof typeof faqCategories]?.map((q, idx) => (
-                        <button
-                          key={idx}
-                          disabled
-                          className="w-full flex items-center justify-between text-sm py-3 px-3 rounded-lg hover:bg-gray-50 group transition-colors text-left"
-                        >
-                          <p className="flex items-center gap-4">
-                            <span className="italic font-bold text-[var(--brand-accent)] w-4 text-center">
-                              {idx + 1}
-                            </span>
-                            <span className="text-gray-600 group-hover:text-gray-900 font-medium">
-                              {q}
-                            </span>
-                          </p>
-                          <ChevronRight
-                            size={16}
-                            className="text-gray-300 group-hover:text-[var(--brand-primary)]"
-                          />
-                        </button>
-                      ))}
-                    </div>
-
-                    <div className="mt-4 flex justify-center">
-                      <button disabled className="flex items-center gap-2 text-xs text-[var(--brand-primary)] hover:text-[var(--brand-primary-dark)] transition-colors">
-                        <RefreshCw size={12} /> View More Topics
+                <div className="mb-6">
+                  <h2 className="text-lg font-bold text-gray-900 mb-4">Frequently Asked Questions</h2>
+                  <div className="flex gap-4 border-b border-gray-100 mb-4 text-sm font-medium overflow-x-auto pb-1">
+                    {[
+                      { key: "hot", label: "Hot Questions" },
+                      { key: "products", label: "Products" },
+                      { key: "orders", label: "Orders" },
+                      { key: "payouts", label: "Payouts" },
+                    ].map(tab => (
+                      <button
+                        key={tab.key}
+                        onClick={() => setActiveTab(tab.key)}
+                        className={`whitespace-nowrap pb-2 transition-colors ${activeTab === tab.key
+                          ? "text-[var(--brand-accent)] border-b-2 border-[var(--brand-accent)]"
+                          : "text-gray-400 hover:text-[var(--brand-accent)]"
+                          }`}
+                      >
+                        {tab.label}
                       </button>
-                    </div>
+                    ))}
                   </div>
-                </ComingSoonWrapper>
+
+                  <div className="space-y-2">
+                    {faqCategories[activeTab as keyof typeof faqCategories]?.map((q, idx) => (
+                      <button
+                        key={idx}
+                        className="w-full flex items-center justify-between text-sm py-3 px-3 rounded-lg hover:bg-gray-50 group transition-colors text-left"
+                      >
+                        <p className="flex items-center gap-4">
+                          <span className="italic font-bold text-[var(--brand-accent)] w-4 text-center">
+                            {idx + 1}
+                          </span>
+                          <span className="text-gray-600 group-hover:text-gray-900 font-medium">
+                            {q}
+                          </span>
+                        </p>
+                        <ChevronRight
+                          size={16}
+                          className="text-gray-300 group-hover:text-[var(--brand-primary)]"
+                        />
+                      </button>
+                    ))}
+                  </div>
+
+                  <div className="mt-4 flex justify-center">
+                    <button className="flex items-center gap-2 text-xs text-[var(--brand-primary)] hover:text-[var(--brand-primary-dark)] transition-colors">
+                      <RefreshCw size={12} /> View More Topics
+                    </button>
+                  </div>
+                </div>
 
                 {/* Recent Tickets Section */}
                 {tickets.length > 0 && (

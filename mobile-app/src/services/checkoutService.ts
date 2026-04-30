@@ -3,7 +3,6 @@ import type { CartItem } from '../types';
 import { cartService } from './cartService';
 import { orderNotificationService } from './orderNotificationService';
 import { notificationService } from './notificationService';
-import { PAYMENT_METHODS, normalizePaymentMethod } from '../constants/paymentMethods';
 
 /**
  * ORPHAN-ORDER GUARD (migration 046, 2026-04-24)
@@ -18,11 +17,10 @@ import { PAYMENT_METHODS, normalizePaymentMethod } from '../constants/paymentMet
  * dashboards or aggregates. Best-effort — if the rollback itself fails the
  * DB-side trigger is the structural backstop.
  */
-export async function rollbackOrphanOrder(orderId: string, reason: string, originalErr?: unknown): Promise<void> {
+async function rollbackOrphanOrder(orderId: string, reason: string, originalErr?: unknown): Promise<void> {
     console.error('[Checkout] Rolling back orphan orders row', { orderId, reason, originalErr });
     try {
         // Best-effort dependent cleanup, then orders row.
-        await supabase.from('order_items').delete().eq('order_id', orderId);
         await supabase.from('order_payments').delete().eq('order_id', orderId);
         await supabase.from('order_shipments').delete().eq('order_id', orderId);
         const { error } = await supabase.from('orders').delete().eq('id', orderId);
@@ -137,7 +135,6 @@ export const processCheckout = async (payload: CheckoutPayload): Promise<Checkou
         campaignDiscountTotal,
         campaignDiscounts
     } = payload;
-    const normalizedPaymentMethod = normalizePaymentMethod(paymentMethod);
 
     try {
         // 1. Validate Stock — batch query all variants at once instead of per-item loop
@@ -388,6 +385,7 @@ export const processCheckout = async (payload: CheckoutPayload): Promise<Checkou
                         recipient_id: recipientId,
                         payment_status: 'pending_payment',
                         shipment_status: 'waiting_for_seller',
+                        payment_method: { type: paymentMethod },
                         notes: `Order from ${shippingAddress.fullName}`,
                         created_at: new Date().toISOString(),
                         updated_at: new Date().toISOString()
@@ -452,6 +450,13 @@ export const processCheckout = async (payload: CheckoutPayload): Promise<Checkou
 
             createdOrderIds.push(orderData.order_number);
             createdOrderUuids.push(orderData.id);
+
+            // Store payment_method (create_order_safe RPC doesn't accept it, so patch after creation)
+            await supabase
+                .from('orders')
+                .update({ payment_method: { type: paymentMethod } } as any)
+                .eq('id', orderData.id)
+                .is('payment_method', null); // only patch if not already set by direct insert
 
             if (__DEV__) console.log(`[Checkout] ✅ Order created: ${orderData.order_number} (UUID: ${orderData.id}) for seller ${sellerId}`);
             if (__DEV__) console.log(`[Checkout] Total createdOrderUuids so far:`, createdOrderUuids);
@@ -691,16 +696,13 @@ export const processCheckout = async (payload: CheckoutPayload): Promise<Checkou
                 .from('order_payments')
                 .insert({
                     order_id: orderData.id,
-                    payment_method: { type: normalizedPaymentMethod }, // Store payment method as JSON (normalized)
+                    payment_method: { type: paymentMethod }, // Store payment method as JSON
                     amount: orderSubtotal,
                     status: 'pending', // Payment status
                     created_at: new Date().toISOString()
                 });
 
-            if (paymentError) {
-                console.error('[Checkout] ❌ Payment record insert FAILED:', paymentError);
-                throw paymentError;
-            }
+            if (paymentError) throw paymentError;
 
             // Record voucher usage if voucher was applied
             if (voucherId && discountAmount && discountAmount > 0) {

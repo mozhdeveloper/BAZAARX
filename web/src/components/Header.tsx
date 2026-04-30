@@ -11,7 +11,6 @@ import {
     Package,
     RotateCcw,
     Settings,
-    ShoppingBag,
     User
 } from "lucide-react";
 import React, { useEffect, useRef, useState } from "react";
@@ -20,7 +19,6 @@ import { authService } from "../services/authService";
 import { chatService } from "../services/chatService";
 import { useBuyerStore } from "../stores/buyerStore";
 import { NotificationsDropdown } from "./NotificationsDropdown";
-import { ComingSoonWrapper } from "./ComingSoonWrapper";
 import ProductRequestModal from "./ProductRequestModal";
 import SupportModal from "./SupportModal";
 import VisualSearchModal from "./VisualSearchModal";
@@ -308,18 +306,16 @@ const Header: React.FC<HeaderProps> = ({ transparentOnTop = false, hideSearch = 
             </button>
 
             {/* Community Requests */}
-            <ComingSoonWrapper showOnHover>
-              <button
-                disabled
-                className={`relative p-2 rounded-full transition-all duration-300 ${location.pathname.startsWith("/requests")
-                  ? "text-[var(--brand-primary)] bg-[var(--brand-wash)] shadow-sm scale-110"
-                  : "text-[var(--text-primary)] hover:text-[var(--brand-primary)] hover:bg-[var(--brand-wash)]"
-                  }`}
-                title="Community Requests"
-              >
-                <Lightbulb className="h-6 w-6" />
-              </button>
-            </ComingSoonWrapper>
+            <button
+              onClick={() => navigate("/requests")}
+              className={`relative p-2 rounded-full transition-all duration-300 ${location.pathname.startsWith("/requests")
+                ? "text-[var(--brand-primary)] bg-[var(--brand-wash)] shadow-sm scale-110"
+                : "text-[var(--text-primary)] hover:text-[var(--brand-primary)] hover:bg-[var(--brand-wash)]"
+                }`}
+              title="Community Requests"
+            >
+              <Lightbulb className="h-6 w-6" />
+            </button>
 
             {/* Notifications */}
             <NotificationsDropdown />
@@ -406,15 +402,16 @@ const Header: React.FC<HeaderProps> = ({ transparentOnTop = false, hideSearch = 
                           My Returns
                         </button>
 
-                        <ComingSoonWrapper className="w-full">
-                          <button
-                            disabled
-                            className="w-full flex items-center gap-3 px-3 py-2 text-xs font-bold text-[var(--text-primary)] hover:bg-[var(--brand-wash)] hover:text-[var(--brand-primary)] rounded-lg transition-all"
-                          >
-                            <Package className="h-3.5 w-3.5" />
-                            My Requests
-                          </button>
-                        </ComingSoonWrapper>
+                        <button
+                          onClick={() => {
+                            navigate("/my-requests");
+                            setShowProfileMenu(false);
+                          }}
+                          className="w-full flex items-center gap-3 px-3 py-2 text-xs font-bold text-[var(--text-primary)] hover:bg-[var(--brand-wash)] hover:text-[var(--brand-primary)] rounded-lg transition-all"
+                        >
+                          <Package className="h-3.5 w-3.5" />
+                          My Requests
+                        </button>
 
                         <div className="h-px bg-gray-100 my-1 mx-2"></div>
 

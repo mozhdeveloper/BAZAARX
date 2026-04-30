@@ -1,55 +1,60 @@
-# Mobile Order & Payment Fixes + History/Order Details UI
+# Registry Privacy, Guest Authentication Flow, and Type Hotfixes
 
-This PR contains a focused set of bug fixes and UI improvements across the mobile app's order flow and a small related update to the web Order Detail page. Key areas addressed include payment-method normalization, Order Details/History UI parity (received state), return request validation, and a few checkout/service type fixes.
+This PR implements crucial privacy and user experience enhancements for the Registry Gifting feature, alongside fixing critical TypeScript build errors in the mobile application.
 
 ---
 
-## Summary of Changes (based on working tree)
+## 🛠️ Changes by Area
 
-### Mobile (`mobile-app/`)
-- `app/OrderDetailScreen.tsx` (modified): Ensure Order Details reflects `received` state consistently; improved status resolution and immediate UI update after confirming receipt; defensive fixes around payment resolution and action-button rendering.
-- `app/OrdersScreen.tsx` (modified): Robust payment resolution to handle Supabase returning either object or array for `order.payments`; use normalized payment method labels.
-- `app/CheckoutScreen.tsx` (modified): Store normalized payment method on checkout flow and fix related edge cases.
-- `app/PaymentGatewayScreen.tsx` (modified): Payment flow adjustments and UI labels for payment methods.
-- `app/OrderConfirmation.tsx` (modified): Minor flow/label fixes post-checkout.
-- `app/ProductDetailScreen.tsx` (modified): Removed Free Shipping badge and minor spacing tweaks.
-- `app/ReturnRequestScreen.tsx` (modified): Make description and evidence mandatory when required, add validation and error states, and reposition asterisk indicators.
-- `src/services/checkoutService.ts` (modified): Normalize payment method when creating `order_payments` records to avoid mismatched values (e.g., 'PayMongo' vs 'paymongo').
-- `src/services/orderService.ts` (modified): Minor service adjustments to map statuses/fields consistently for UI rendering.
-- `src/constants/paymentMethods.ts` (new, untracked): Centralized payment method constants and helpers to normalize, detect PayMongo, and produce labels.
+### 1. Registry Data Privacy & Integrity
+- **Recipient Identity Fix**: Resolved a critical data leakage issue where Registry Gifting orders were incorrectly defaulting to the Gifter's (Buyer's) profile information in the Seller Dashboard instead of the intended recipient.
+- **Source of Truth Migration**: Modified `checkoutService.ts` to derive the recipient's name directly from the immutable `shipping_addresses` table during order creation, deprecating the use of stale registry metadata strings.
+- **Data Fallbacks**: Updated `orderService.ts` and `mappers.ts` to include `first_name` and `last_name` in the database join queries, ensuring accurate naming is always available for the UI.
+- **Type Consistency**: Synchronized `SellerOrder` and `SellerOrderSnapshot` interfaces to support the `is_registry_order` flag and properly type extended payment methods (e.g., e-wallets) and order statuses.
+
+### 2. Registry Guest Redirection Flow
+- **View-Only Guest Mode**: Allowed unauthenticated users to access shared registry links (`/registry/share/:id`) in a read-only state. Added an informational banner indicating guest status.
+- **Seamless Login Routing**: Replaced "Buy Gift" buttons for guests with "Log in to Buy Gift", which automatically captures the current registry URL into session storage (`redirect_to`) before routing to the login screen.
+- **Post-Auth Callback**: Upgraded the authentication listeners across `App.tsx`, `BuyerLoginPage.tsx`, and `AuthCallbackPage.tsx` to detect the stored `redirect_to` path. Upon a successful login or email-verified signup, users are automatically routed back to their specific shared registry link rather than the default shop page.
+
+### 3. Mobile TypeScript Hotfixes
+- **Cart Null Safety**: Fixed a potential null reference bug in `CartScreen.tsx` by ensuring `editingItem` is verified before accessing its quantity.
+- **Checkout Service Typings**: Resolved a persistent TypeScript error in the mobile app's `checkoutService.ts` related to the `payment_method` schema by safely casting the direct database insert payload.
+
+---
+
+## 📄 Files Changed Summary
 
 ### Web (`web/`)
-- `src/pages/OrderDetailPage.tsx` (modified): Small UI/label updates to match mobile Order Details behavior for received orders.
+
+| File | Type | Description |
+|---|---|---|
+| `src/services/checkoutService.ts` | Modified | Updated recipient name resolution to use `shipping_addresses`. |
+| `src/services/orderService.ts` | Modified | Enhanced joins to fetch name elements for fallback mapping. |
+| `src/utils/orders/mappers.ts` | Modified | Applied address-based recipient name fallbacks. |
+| `src/types/orders.ts` & `sellerTypes.ts` | Modified | Added `is_registry_order` and updated payment method unions. |
+| `src/pages/SharedRegistryPage.tsx` | Modified | Implemented Guest Mode banner and redirect logic. |
+| `src/pages/BuyerLoginPage.tsx` | Modified | Added standard login redirect interception. |
+| `src/pages/AuthCallbackPage.tsx` | Modified | Added post-signup redirect interception. |
+| `src/App.tsx` | Modified | Updated OAuth `onAuthStateChange` listener to respect redirect paths. |
+
+### Mobile (`mobile-app/`)
+
+| File | Type | Description |
+|---|---|---|
+| `app/CartScreen.tsx` | Modified | Fixed null checks for `editingItem`. |
+| `src/services/checkoutService.ts` | Modified | Fixed `payment_method` update schema typescript error. |
 
 ---
 
-## Files Changed (git status)
+## ✅ Testing Done
 
-Modified:
-- mobile-app/app/CheckoutScreen.tsx
-- mobile-app/app/HistoryScreen.tsx
-- mobile-app/app/OrderConfirmation.tsx
-- mobile-app/app/OrderDetailScreen.tsx
-- mobile-app/app/OrdersScreen.tsx
-- mobile-app/app/PaymentGatewayScreen.tsx
-- mobile-app/app/ProductDetailScreen.tsx
-- mobile-app/app/ReturnRequestScreen.tsx
-- mobile-app/src/services/checkoutService.ts
-- mobile-app/src/services/orderService.ts
-- web/src/pages/OrderDetailPage.tsx
-
-Added (untracked):
-- mobile-app/src/constants/paymentMethods.ts
+- [x] **Registry Privacy**: Confirmed that new registry orders correctly display the recipient's information to the seller.
+- [x] **Guest Redirection**: Verified that visiting a registry unauthenticated, clicking login, and authenticating properly returns the user to the registry URL.
+- [x] **OAuth Continuity**: Confirmed Google Sign-In respects the registry redirect path.
+- [x] **Mobile Builds**: Verified `npx tsc --noEmit` passes with 0 errors in the mobile workspace.
 
 ---
 
-## Notes / Rationale
-- Root cause for multiple PayMongo vs COD display issues: inconsistent casing/format of `payment_method` across services and Supabase responses (array vs object). Standardizing storage (lowercase) and adding normalization utilities fixes display and logic bugs.
-- History -> OrderDetails flow now passes `buyerUiStatus` so the Order Details screen can render the same received-state UI and hide action buttons consistently.
-- Return request validation was tightened to reduce incomplete submissions and improve UX.
-
-## Next Steps / Recommendations
-- Run the mobile app and verify the Order Details flow: confirm receipt, ensure button disappears and status shows `Order Received` in History.
-- Run unit/type checks: `npx tsc --noEmit` in `mobile-app` to verify typings after these changes.
-
-If you'd like, I can open a draft PR with these changes and include screenshots verifying the Order Received state.
+## 💡 Notes for Reviewer
+Existing incorrect registry orders in the database are immutable and will remain unchanged. These fixes apply only to newly created registry orders going forward. The `redirect_to` flow has been built robustly using `sessionStorage` to survive OAuth redirects.
