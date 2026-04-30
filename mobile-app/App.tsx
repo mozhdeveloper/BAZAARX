@@ -104,7 +104,11 @@ export type RootStackParamList = {
     errorCode?: string;
     errorMessage?: string;
   };
+<<<<<<< HEAD
   Orders: { initialTab?: 'all' | 'pending' | 'confirmed' | 'processing' | 'shipped' | 'delivered' | 'received' | 'reviewed' | 'returned' | 'cancelled' };
+=======
+  Orders: { initialTab?: 'all' | 'pending' | 'processing' | 'confirmed' | 'shipped' | 'delivered' | 'reviewed' | 'returned' | 'cancelled' };
+>>>>>>> 4bfdad01 (Add onboarding modal and Google linking rules)
   OrderDetail: { order: Order };
   SellerOrderDetail: { orderId: string };
   DeliveryTracking: { order: Order };
@@ -325,6 +329,7 @@ export default function App() {
   const sessionVerified = useAuthStore((s) => s.sessionVerified);
   const appState = useRef(AppState.currentState);
   const hasOnboarding = useAuthStore((s) => s.hasCompletedOnboarding);
+  const hasSeenWelcome = useAuthStore((s) => s.hasSeenWelcome);
 
   // Handle logout and T&C enforcement navigation
   React.useEffect(() => {
@@ -333,11 +338,11 @@ export default function App() {
       return;
     }
 
-    console.log(`[App] 🧭 Routing check: user=${!!user}, onboarding=${hasOnboarding}`);
+    console.log(`[App] 🧭 Routing check: user=${!!user}, onboarding=${hasOnboarding}, welcome=${hasSeenWelcome}`);
 
     if (!user) {
       // User has logged out or session check confirmed no user
-      if (hasOnboarding) {
+      if (hasSeenWelcome) {
         console.log('[App] 🚪 Redirecting to Login...');
         navigationRef.current.reset({
           index: 0,
@@ -356,7 +361,7 @@ export default function App() {
       // while the user is mid-session, unless there's a specific reason.
       console.log('[App] ✅ User authenticated, staying on current screen.');
     }
-  }, [user, sessionVerified, hasOnboarding]);
+  }, [user, sessionVerified, hasOnboarding, hasSeenWelcome]);
 
   React.useEffect(() => {
     // Suppress noisy warnings that are already handled in supabase.ts

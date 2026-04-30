@@ -44,7 +44,11 @@ export const processAuthSessionResultUrl = async (url: string, supabase: any) =>
         }
       }
     }
-  } catch (error) {
+  } catch (error: any) {
+    // Ignore PKCE errors as the global Supabase deep link listener typically handles the code exchange automatically in the background.
+    if (error?.message?.includes('code verifier should be non-empty')) {
+      return false;
+    }
     console.error('[urlUtils] Error processing auth URL:', error);
   }
   return false;

@@ -43,6 +43,7 @@ const formatDatePH = (dateString: string | Date | null | undefined): string | nu
 };
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import type { RootStackParamList } from '../App';
+import type { Order } from '../src/types';
 import { useOrderStore } from '../src/stores/orderStore';
 import { useCartStore } from '../src/stores/cartStore';
 import { supabase } from '../src/lib/supabase';
@@ -391,6 +392,7 @@ export default function OrderDetailScreen({ route, navigation }: Props) {
     }
   };
 
+<<<<<<< HEAD
   const handleConfirmReceivedSuccess = (photoUrls: string[]) => {
     const realOrderId = (order as any).orderId || order.id;
     
@@ -408,6 +410,125 @@ export default function OrderDetailScreen({ route, navigation }: Props) {
     }));
     
     setShowReviewModal(true);
+=======
+  const handlePickPhoto = async (source: 'camera' | 'gallery') => {
+    try {
+      if (source === 'camera') {
+        const { status } = await ImagePicker.requestCameraPermissionsAsync();
+        if (status !== 'granted') {
+          Alert.alert('Permission Required', 'Camera access is needed to take a proof-of-receipt photo.');
+          return;
+        }
+        const result = await ImagePicker.launchCameraAsync({
+          mediaTypes: 'images',
+          quality: 0.8,
+          allowsEditing: true,
+        });
+        if (!result.canceled) {
+          setReceiptPhotos(prev => [...prev, ...result.assets.map(a => a.uri)].slice(0, 5));
+        }
+      } else {
+        const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+        if (status !== 'granted') {
+          Alert.alert('Permission Required', 'Photo library access is needed to upload a receipt photo.');
+          return;
+        }
+        const result = await ImagePicker.launchImageLibraryAsync({
+          mediaTypes: 'images',
+          quality: 0.8,
+          allowsMultipleSelection: true,
+          selectionLimit: 5,
+        });
+        if (!result.canceled) {
+          setReceiptPhotos(prev => [...prev, ...result.assets.map(a => a.uri)].slice(0, 5));
+        }
+      }
+    } catch (err) {
+      console.error('[OrderDetail] Photo picker error:', err);
+      Alert.alert('Error', 'Failed to open photo picker. Please try again.');
+    }
+  };
+
+  const handleConfirmReceipt = async () => {
+    if (receiptPhotos.length === 0) {
+      Alert.alert('Photo Required', 'Please take or upload at least one photo as proof of receipt.');
+      return;
+    }
+    setIsSubmittingReceipt(true);
+    try {
+      const realOrderId = (order as any).orderId || order.id;
+      const { user } = useAuthStore.getState();
+
+      // Upload photos to storage
+      const timestamp = Date.now();
+      const buyerId = user?.id || '';
+      const uploadTasks = receiptPhotos.map(async (uri, index) => {
+        try {
+          let fileData: ArrayBuffer;
+          try {
+            const base64 = await FileSystem.readAsStringAsync(uri, {
+              encoding: FileSystem.EncodingType.Base64,
+            });
+            fileData = decode(base64);
+          } catch {
+            const res = await fetch(uri);
+            fileData = await res.arrayBuffer();
+          }
+          const extMatch = uri.match(/\.([a-zA-Z0-9]+)(?:\?|$)/);
+          const fileExt = (extMatch?.[1] || 'jpg').toLowerCase();
+          const contentType =
+            fileExt === 'png' ? 'image/png' :
+              fileExt === 'webp' ? 'image/webp' :
+                (fileExt === 'heic' || fileExt === 'heif') ? 'image/heic' : 'image/jpeg';
+          const suffix = Math.random().toString(36).slice(2, 8);
+          const fileName = `${buyerId}/${realOrderId}/receipt-${timestamp}-${index}-${suffix}.${fileExt}`;
+          const { error } = await supabase.storage
+            .from('review-images')
+            .upload(fileName, fileData, { contentType, upsert: false });
+          if (error) throw error;
+          const { data } = supabase.storage.from('review-images').getPublicUrl(fileName);
+          return data.publicUrl;
+        } catch (err) {
+          console.warn('[OrderDetail] Failed to upload receipt photo:', err);
+          return null;
+        }
+      });
+      const uploaded = (await Promise.all(uploadTasks)).filter((u): u is string => Boolean(u));
+
+      await orderMutationService.confirmOrderReceived(realOrderId, buyerId, uploaded.length > 0 ? uploaded : undefined);
+
+      // Update local order object immediately
+      const updatedOrder = {
+        ...order,
+        status: 'delivered' as const,
+        buyerUiStatus: 'received' as const,
+        isPaid: true,
+      } as Order;
+      setCurrentBuyerUiStatus('received');
+      navigation.setParams({ order: updatedOrder });
+
+      useOrderStore.setState((state: any) => ({
+        orders: state.orders.map((existingOrder: any) =>
+          existingOrder.orderId === realOrderId || existingOrder.id === realOrderId
+            ? {
+                ...existingOrder,
+                status: 'delivered',
+                buyerUiStatus: 'received',
+                isPaid: true,
+              }
+            : existingOrder,
+        ),
+      }));
+      setShowReceiptModal(false);
+      setReceiptPhotos([]);
+      setShowReviewModal(true);
+    } catch (e) {
+      console.error('[OrderDetail] Error confirming receipt:', e);
+      Alert.alert('Error', 'Failed to confirm receipt. Please try again.');
+    } finally {
+      setIsSubmittingReceipt(false);
+    }
+>>>>>>> 4bfdad01 (Add onboarding modal and Google linking rules)
   };
 
   const handleMarkAsReceived = () => {
