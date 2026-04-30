@@ -795,7 +795,7 @@ export default function ShopPage() {
             <motion.div 
               initial={{ opacity: 0, y: -20 }}
               animate={{ opacity: 1, y: 0 }}
-              className="mb-6 relative overflow-hidden rounded-[20px] p-4 shadow-[0_15px_40px_rgba(245,158,11,0.15)]"
+              className="mb-6 relative overflow-hidden rounded-[20px] py-3 px-6 shadow-[0_15px_40px_rgba(245,158,11,0.15)]"
               style={{
                 background: "linear-gradient(135deg, #EA580C 0%, #F59E0B 100%)"
               }}
@@ -804,10 +804,10 @@ export default function ShopPage() {
               <div className="absolute top-0 right-0 w-64 h-64 bg-white/10 rounded-full blur-3xl -mr-20 -mt-20 pointer-events-none" />
               <div className="absolute bottom-0 left-0 w-32 h-32 bg-black/5 rounded-full blur-2xl -ml-10 -mb-10 pointer-events-none" />
 
-              <div className="relative z-10 flex flex-col md:flex-row items-center justify-between gap-6">
+              <div className="relative z-10 flex flex-col md:flex-row items-center justify-between gap-4">
                 <div className="flex items-center gap-4 flex-1">
-                  {/* Decorative Icon - Scaled Down */}
-                  <div className="relative shrink-0 flex items-center justify-center w-16 h-16">
+                  {/* Decorative Icon - Scaled Down Further */}
+                  <div className="relative shrink-0 flex items-center justify-center w-14 h-14">
                     <motion.div
                       animate={{ 
                         y: [0, -3, 0],
@@ -818,9 +818,9 @@ export default function ShopPage() {
                         repeat: Infinity, 
                         ease: "easeInOut" 
                       }}
-                      className="relative z-20 w-12 h-12 bg-white/20 backdrop-blur-xl rounded-xl border border-white/30 flex items-center justify-center shadow-lg"
+                      className="relative z-20 w-10 h-10 bg-white/20 backdrop-blur-xl rounded-xl border border-white/30 flex items-center justify-center shadow-lg"
                     >
-                      <ShoppingBag size={24} className="text-white" />
+                      <ShoppingBag size={20} className="text-white" />
                     </motion.div>
                     <div className="absolute inset-0 bg-white/20 blur-[20px] rounded-full scale-125" />
                   </div>
