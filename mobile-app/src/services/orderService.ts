@@ -1151,24 +1151,31 @@ export class OrderService {
       // Get order first to get buyer info
       const order = await this.getOrderById(orderId);
 
-      if (!order) {
-        throw new Error('Order not found', { cause: { orderId } });
-      }
+      const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(orderId);
 
       // Map legacy status to new payment_status + shipment_status
       const newStatuses = LEGACY_STATUS_MAP[status] || LEGACY_STATUS_MAP['pending_payment'];
 
       // Update order with new schema fields
-      const { error: orderError } = await supabase
+      const orderFilter = isUuid ? 'id' : 'order_number';
+      const { data: orderUpdateData, error: orderError } = await supabase
         .from('orders')
-        .update({ 
+        .update({
           payment_status: newStatuses.payment_status,
           shipment_status: newStatuses.shipment_status,
-          updated_at: new Date().toISOString() 
+          updated_at: new Date().toISOString()
         })
-        .eq('id', orderId);
+        .eq(orderFilter, orderId)
+        .select('id, order_number, buyer_id')
+        .maybeSingle();
 
       if (orderError) throw orderError;
+
+      const resolvedOrder = order || orderUpdateData;
+
+      if (!resolvedOrder) {
+        console.warn('[OrderService] Order status updated without prefetch result:', { orderId, status });
+      }
 
       // Create status history entry
       const { error: historyError } = await supabase
@@ -1186,23 +1193,23 @@ export class OrderService {
 
       // Get seller ID from order items for notification
       let sellerId: string | undefined;
-      if (order.items && order.items.length > 0) {
+      if (resolvedOrder?.items && resolvedOrder.items.length > 0) {
         const { data: product } = await supabase
           .from('products')
           .select('seller_id')
-          .eq('id', order.items[0].product_id)
+          .eq('id', resolvedOrder.items[0].product_id)
           .single();
         sellerId = product?.seller_id ?? undefined;
       }
 
       // Send notification to buyer if seller made the update
-      if (userRole === 'seller' && order.buyer_id && sellerId) {
+      if (userRole === 'seller' && resolvedOrder?.buyer_id && sellerId) {
         const statusMessages: Record<string, string> = {
-          confirmed: `Your order #${order.order_number || orderId.substring(0, 8)} has been confirmed by the seller.`,
-          processing: `Your order #${order.order_number || orderId.substring(0, 8)} is now being prepared.`,
-          shipped: `Your order #${order.order_number || orderId.substring(0, 8)} has been shipped!`,
-          delivered: `Your order #${order.order_number || orderId.substring(0, 8)} has been delivered!`,
-          cancelled: `Your order #${order.order_number || orderId.substring(0, 8)} has been cancelled.`,
+          confirmed: `Your order #${resolvedOrder.order_number || orderId.substring(0, 8)} has been confirmed by the seller.`,
+          processing: `Your order #${resolvedOrder.order_number || orderId.substring(0, 8)} is now being prepared.`,
+          shipped: `Your order #${resolvedOrder.order_number || orderId.substring(0, 8)} has been shipped!`,
+          delivered: `Your order #${resolvedOrder.order_number || orderId.substring(0, 8)} has been delivered!`,
+          cancelled: `Your order #${resolvedOrder.order_number || orderId.substring(0, 8)} has been cancelled.`,
         };
 
         const message = statusMessages[status] || `Your order status has been updated to ${status}.`;
@@ -1212,12 +1219,12 @@ export class OrderService {
             orderId,
             status,
             sellerId,
-            order.buyer_id
+            resolvedOrder.buyer_id
           ),
           notificationService.notifyBuyerOrderStatus({
-            buyerId: order.buyer_id,
+            buyerId: resolvedOrder.buyer_id,
             orderId: orderId,
-            orderNumber: order.order_number || orderId.substring(0, 8),
+            orderNumber: resolvedOrder.order_number || orderId.substring(0, 8),
             status: status,
             message: message,
           }),
