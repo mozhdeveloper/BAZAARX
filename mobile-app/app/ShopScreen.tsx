@@ -30,6 +30,7 @@ import { adBoostService, type AdBoostMobile } from '../src/services/adBoostServi
 import { addressService } from '../src/services/addressService';
 import { featuredProductService, type FeaturedProductMobile } from '../src/services/featuredProductService';
 import { notificationService } from '../src/services/notificationService';
+import { discountService } from '../src/services/discountService';
 import { productService } from '../src/services/productService';
 import { useAuthStore } from '../src/stores/authStore';
 import type { Product } from '../src/types';
@@ -115,7 +116,7 @@ const toNumber = (value: unknown, fallback = 0): number => {
   return fallback;
 };
 
-const normalizeProductForShop = (row: any): Product => {
+const normalizeProductForShop = (row: any, flashSaleMap?: Map<string, { price: number; originalPrice: number; discountPercent: number; campaignName?: string }>): Product => {
   const rawImages: any[] = Array.isArray(row.images) ? row.images : [];
   const imageUrls = rawImages
     .map((img: any) => (typeof img === 'string' ? img : img?.image_url))
@@ -165,18 +166,31 @@ const normalizeProductForShop = (row: any): Product => {
   // Note: if ProductService already transformed it, category is a string.
   // We want to ensure category_id is always available from the source row.
 
+  // Check if this product has a flash sale discount that isn't already reflected
+  const flashSaleInfo = flashSaleMap?.get(row.id);
+  const hasExistingDiscount = originalPrice > 0 && toNumber(row.price, 0) > 0 && originalPrice > toNumber(row.price, 0);
+
+  // Use flash sale pricing if available and product doesn't already have a discount applied
+  const finalPrice = (!hasExistingDiscount && flashSaleInfo) ? flashSaleInfo.price : toNumber(row.price, 0);
+  const finalOriginalPrice = (!hasExistingDiscount && flashSaleInfo) ? flashSaleInfo.originalPrice : (originalPrice > 0 ? originalPrice : row.originalPrice);
+  const campaignDiscountType = row.campaignDiscountType || (flashSaleInfo && !hasExistingDiscount ? 'percentage' : undefined);
+  const campaignDiscountValue = row.campaignDiscountValue || (flashSaleInfo && !hasExistingDiscount ? flashSaleInfo.discountPercent : undefined);
+
   return {
     ...row,
     id: row.id,
     name: row.name ?? 'Unknown Product',
-    price: toNumber(row.price, 0),
-    originalPrice: originalPrice > 0 ? originalPrice : row.originalPrice,
+    price: finalPrice,
+    originalPrice: finalOriginalPrice,
+    original_price: finalOriginalPrice,
     image: primaryImage,
     images: imageUrls.length > 0 ? imageUrls : [primaryImage],
     category: categoryName,
     category_id: categoryId,
     seller: row.seller?.store_name || row.sellerName || 'Verified Seller',
     isFreeShipping: !!(row.is_free_shipping ?? row.isFreeShipping),
+    campaignDiscountType,
+    campaignDiscountValue,
   };
 };
 
@@ -268,6 +282,9 @@ export default function ShopScreen({ navigation, route }: Props) {
   const [categoryProducts, setCategoryProducts] = useState<Product[]>([]);
   const [isCategoryLoading, setIsCategoryLoading] = useState(false);
 
+  // Flash sale discount map: productId → { price, originalPrice, discountPercent, campaignName }
+  const [flashSaleMap, setFlashSaleMap] = useState<Map<string, { price: number; originalPrice: number; discountPercent: number; campaignName?: string }>>(new Map());
+
   const [showFilterModal, setShowFilterModal] = useState(false);
   const [showSortModal, setShowSortModal] = useState(false);
   const [showCameraSearch, setShowCameraSearch] = useState(false);
@@ -292,17 +309,47 @@ export default function ShopScreen({ navigation, route }: Props) {
     const loadData = async () => {
       setIsLoading(true);
       try {
-        const [productsResult, categoriesResult] = await Promise.allSettled([
+        const [productsResult, categoriesResult, flashSaleResult, globalFlashSaleResult] = await Promise.allSettled([
           productService.getProducts({
             isActive: true,
             approvalStatus: 'approved',
             limit: SHOP_SCREEN_FETCH_LIMIT,
           }),
           productService.getCategoriesWithProducts(),
+          discountService.getFlashSaleProducts(),
+          discountService.getGlobalFlashSaleProducts(),
         ]);
 
+        // Build flash sale discount map from both sources
+        const fsMap = new Map<string, { price: number; originalPrice: number; discountPercent: number; campaignName?: string }>();
+        if (flashSaleResult.status === 'fulfilled') {
+          (flashSaleResult.value || []).forEach((fp: any) => {
+            if (fp.id && fp.originalPrice > 0 && fp.price < fp.originalPrice) {
+              fsMap.set(fp.id, {
+                price: fp.price,
+                originalPrice: fp.originalPrice,
+                discountPercent: fp.discountBadgePercent || Math.round(((fp.originalPrice - fp.price) / fp.originalPrice) * 100),
+                campaignName: fp.campaignName,
+              });
+            }
+          });
+        }
+        if (globalFlashSaleResult.status === 'fulfilled') {
+          (globalFlashSaleResult.value || []).forEach((fp: any) => {
+            if (fp.id && fp.originalPrice > 0 && fp.price < fp.originalPrice) {
+              fsMap.set(fp.id, {
+                price: fp.price,
+                originalPrice: fp.originalPrice,
+                discountPercent: fp.discountBadgePercent || Math.round(((fp.originalPrice - fp.price) / fp.originalPrice) * 100),
+                campaignName: fp.campaignName,
+              });
+            }
+          });
+        }
+        setFlashSaleMap(fsMap);
+
         if (productsResult.status === 'fulfilled') {
-          const mapped: Product[] = (productsResult.value || []).map((row: any) => normalizeProductForShop(row));
+          const mapped: Product[] = (productsResult.value || []).map((row: any) => normalizeProductForShop(row, fsMap));
           const uniqueMapped = Array.from(new Map(mapped.map((item) => [item.id, item])).values())
             .filter(p => {
               // Filter out products with no available stock
@@ -351,17 +398,47 @@ export default function ShopScreen({ navigation, route }: Props) {
     shuffledIdsRef.current = [];
 
     try {
-      const [productsResult, categoriesResult] = await Promise.allSettled([
+      const [productsResult, categoriesResult, flashSaleResult, globalFlashSaleResult] = await Promise.allSettled([
         productService.getProducts({
           isActive: true,
           approvalStatus: 'approved',
           limit: SHOP_SCREEN_FETCH_LIMIT,
         }),
         productService.getCategoriesWithProducts(),
+        discountService.getFlashSaleProducts(),
+        discountService.getGlobalFlashSaleProducts(),
       ]);
 
+      // Rebuild flash sale discount map
+      const fsMap = new Map<string, { price: number; originalPrice: number; discountPercent: number; campaignName?: string }>();
+      if (flashSaleResult.status === 'fulfilled') {
+        (flashSaleResult.value || []).forEach((fp: any) => {
+          if (fp.id && fp.originalPrice > 0 && fp.price < fp.originalPrice) {
+            fsMap.set(fp.id, {
+              price: fp.price,
+              originalPrice: fp.originalPrice,
+              discountPercent: fp.discountBadgePercent || Math.round(((fp.originalPrice - fp.price) / fp.originalPrice) * 100),
+              campaignName: fp.campaignName,
+            });
+          }
+        });
+      }
+      if (globalFlashSaleResult.status === 'fulfilled') {
+        (globalFlashSaleResult.value || []).forEach((fp: any) => {
+          if (fp.id && fp.originalPrice > 0 && fp.price < fp.originalPrice) {
+            fsMap.set(fp.id, {
+              price: fp.price,
+              originalPrice: fp.originalPrice,
+              discountPercent: fp.discountBadgePercent || Math.round(((fp.originalPrice - fp.price) / fp.originalPrice) * 100),
+              campaignName: fp.campaignName,
+            });
+          }
+        });
+      }
+      setFlashSaleMap(fsMap);
+
       if (productsResult.status === 'fulfilled') {
-        const mapped: Product[] = (productsResult.value || []).map((row: any) => normalizeProductForShop(row));
+        const mapped: Product[] = (productsResult.value || []).map((row: any) => normalizeProductForShop(row, fsMap));
         const uniqueMapped = Array.from(new Map(mapped.map((item) => [item.id, item])).values())
           .filter(p => {
             // Filter out products with no available stock
@@ -598,7 +675,7 @@ export default function ShopScreen({ navigation, route }: Props) {
           offset: 0,
         });
 
-        const mapped: Product[] = (results || []).map((row: any) => normalizeProductForShop(row));
+        const mapped: Product[] = (results || []).map((row: any) => normalizeProductForShop(row, flashSaleMap));
         const uniqueMapped = Array.from(new Map(mapped.map((item) => [item.id, item])).values())
           .filter(p => {
             const variants = Array.isArray((p as any).variants) ? (p as any).variants : [];
@@ -696,7 +773,14 @@ export default function ShopScreen({ navigation, route }: Props) {
       // Free shipping filter
       const shippingMatch = !filters.freeShipping || !!(product as any).isFreeShipping || !!(product as any).is_free_shipping;
 
-      return searchMatch && categoryMatch && priceMatch && ratingMatch && shippingMatch;
+      // On Sale filter — checks if product has a discount (from campaign or flash sale)
+      const onSaleMatch = !filters.onSale || (() => {
+        const orig = Number((product as any).originalPrice || (product as any).original_price || 0);
+        const price = Number(product.price || 0);
+        return orig > 0 && price > 0 && orig > price;
+      })();
+
+      return searchMatch && categoryMatch && priceMatch && ratingMatch && shippingMatch && onSaleMatch;
     });
 
     if (isFeaturedView) {
@@ -1139,6 +1223,7 @@ export default function ShopScreen({ navigation, route }: Props) {
         onApply={handleFilterApply}
         initialFilters={filters}
         hideCategoryFilter={selectedCategory !== 'all'}
+        hideShippingFilter={true}
         availableCategories={
           // Exclude the currently selected category chip from filter options
           // since the user is already viewing that category's products

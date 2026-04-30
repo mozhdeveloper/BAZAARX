@@ -20,6 +20,7 @@ import { MasonryProductCard } from '../src/components/ProductCard';
 import ProductFilterModal from '../src/components/ProductFilterModal';
 import SortModal from '../src/components/SortModal';
 import { COLORS } from '../src/constants/theme';
+import { discountService } from '../src/services/discountService';
 import { productService } from '../src/services/productService';
 import type { Product } from '../src/types';
 import type { ActiveFilterChip, ProductFilters, SortOption } from '../src/types/filter.types';
@@ -59,7 +60,42 @@ export default function ProductListingScreen({ navigation, route }: Props) {
   const [availableCategories, setAvailableCategories] = useState<any[]>([]);
   const [availableBrands, setAvailableBrands] = useState<any[]>([]);
 
+  // Discount map: productId → { price, originalPrice, discountPercent }
+  // Built from flash sale sources so discount badges show on search results
+  // Use a ref so executeSearch always reads the latest value without needing it as a dependency
+  const discountMapRef = useRef<Map<string, { price: number; originalPrice: number; discountPercent: number; campaignName?: string }>>(new Map());
+
   const flashListRef = useRef<ScrollView>(null);
+
+  // Helper: build discount map from flash sale data
+  const buildDiscountMap = async (): Promise<Map<string, { price: number; originalPrice: number; discountPercent: number; campaignName?: string }>> => {
+    try {
+      const [globalFlash, sellerFlash] = await Promise.allSettled([
+        discountService.getGlobalFlashSaleProducts(),
+        discountService.getFlashSaleProducts(),
+      ]);
+      const dsMap = new Map<string, { price: number; originalPrice: number; discountPercent: number; campaignName?: string }>();
+      const addItems = (items: any[]) => {
+        (items || []).forEach((fp: any) => {
+          if (fp.id && fp.originalPrice > 0 && fp.price < fp.originalPrice) {
+            dsMap.set(fp.id, {
+              price: fp.price,
+              originalPrice: fp.originalPrice,
+              discountPercent: fp.discountBadgePercent || Math.round(((fp.originalPrice - fp.price) / fp.originalPrice) * 100),
+              campaignName: fp.campaignName,
+            });
+          }
+        });
+      };
+      if (globalFlash.status === 'fulfilled') addItems(globalFlash.value);
+      if (sellerFlash.status === 'fulfilled') addItems(sellerFlash.value);
+      discountMapRef.current = dsMap;
+      return dsMap;
+    } catch (e) {
+      console.error('[ProductListingScreen] Error loading discount map:', e);
+      return discountMapRef.current;
+    }
+  };
 
   // Load available categories and brands
   const loadFilterOptions = useCallback(async (query: string) => {
@@ -279,7 +315,7 @@ export default function ProductListingScreen({ navigation, route }: Props) {
             minRating: filtersToUse.minRating,
             shippedFrom: filtersToUse.shippedFrom,
             withVouchers: filtersToUse.withVouchers,
-            onSale: filtersToUse.onSale,
+            onSale: false, // Handled client-side after normalization so flash sale discounts are included
             freeShipping: filtersToUse.freeShipping,
             preferredSeller: filtersToUse.preferredSeller,
             officialStore: filtersToUse.officialStore,
@@ -293,7 +329,7 @@ export default function ProductListingScreen({ navigation, route }: Props) {
             minRating: filtersToUse.minRating,
             shippedFrom: filtersToUse.shippedFrom,
             withVouchers: filtersToUse.withVouchers,
-            onSale: filtersToUse.onSale,
+            onSale: false, // Handled client-side after normalization so flash sale discounts are included
             freeShipping: filtersToUse.freeShipping,
             preferredSeller: filtersToUse.preferredSeller,
             officialStore: filtersToUse.officialStore,
@@ -312,16 +348,35 @@ export default function ProductListingScreen({ navigation, route }: Props) {
           const primaryImage =
             rawImages.find((img: any) => typeof img === 'object' && img?.is_primary)?.image_url ||
             row.primary_image_url || row.primary_image || row.image || imageUrls[0] || PLACEHOLDER_IMAGE;
+
+          // Check if product already has a discount from transformProduct
+          const rowPrice = typeof row.price === 'number' ? row.price : parseFloat(String(row.price || 0));
+          const rowOriginalPrice = row.originalPrice ?? row.original_price;
+          const hasExistingDiscount = rowOriginalPrice > 0 && rowPrice > 0 && rowOriginalPrice > rowPrice;
+
+          // Cross-reference flash sale discount map
+          const flashInfo = discountMapRef.current.get(row.id);
+          const finalPrice = (!hasExistingDiscount && flashInfo) ? flashInfo.price : rowPrice;
+          const finalOriginalPrice = (!hasExistingDiscount && flashInfo)
+            ? flashInfo.originalPrice
+            : (hasExistingDiscount ? rowOriginalPrice : row.originalPrice);
+          const campaignDiscountType = row.campaignDiscountType || (flashInfo && !hasExistingDiscount ? 'percentage' : undefined);
+          const campaignDiscountValue = row.campaignDiscountValue || (flashInfo && !hasExistingDiscount ? flashInfo.discountPercent : undefined);
+
           return {
             ...row,
             id: row.id,
             name: row.name ?? 'Unknown Product',
-            price: typeof row.price === 'number' ? row.price : parseFloat(String(row.price || 0)),
+            price: finalPrice,
+            originalPrice: finalOriginalPrice,
+            original_price: finalOriginalPrice,
             image: primaryImage,
             images: imageUrls.length > 0 ? imageUrls : [primaryImage],
             category: typeof row.category === 'string' ? row.category : (row.category?.name || ''),
             seller: row.seller?.store_name || row.sellerName || 'Verified Seller',
             isFreeShipping: !!(row.is_free_shipping ?? row.isFreeShipping),
+            campaignDiscountType,
+            campaignDiscountValue,
           };
         };
 
@@ -329,6 +384,12 @@ export default function ProductListingScreen({ navigation, route }: Props) {
           const variants = Array.isArray((p as any).variants) ? (p as any).variants : [];
           if (variants.length > 0) return variants.some((v: any) => Number(v.stock || 0) > 0);
           return Number((p as any).stock || 0) > 0;
+        }).filter(p => {
+          // Client-side "On Sale" filter: keep only discounted products (covers both campaign + flash sale discounts)
+          if (!filtersToUse.onSale) return true;
+          const orig = Number((p as any).originalPrice || (p as any).original_price || 0);
+          const price = Number(p.price || 0);
+          return orig > 0 && price > 0 && orig > price;
         });
         const catProdIds = new Set(catProds.map(p => p.id));
 
@@ -340,6 +401,12 @@ export default function ProductListingScreen({ navigation, route }: Props) {
             const variants = Array.isArray((p as any).variants) ? (p as any).variants : [];
             if (variants.length > 0) return variants.some((v: any) => Number(v.stock || 0) > 0);
             return Number((p as any).stock || 0) > 0;
+          })
+          .filter(p => {
+            if (!filtersToUse.onSale) return true;
+            const orig = Number((p as any).originalPrice || (p as any).original_price || 0);
+            const price = Number(p.price || 0);
+            return orig > 0 && price > 0 && orig > price;
           });
 
         setMatchedCategory(matched.name);
@@ -356,7 +423,7 @@ export default function ProductListingScreen({ navigation, route }: Props) {
           minRating: filtersToUse.minRating,
           shippedFrom: filtersToUse.shippedFrom,
           withVouchers: filtersToUse.withVouchers,
-          onSale: filtersToUse.onSale,
+          onSale: false, // Handled client-side after normalization so flash sale discounts are included
           freeShipping: filtersToUse.freeShipping,
           preferredSeller: filtersToUse.preferredSeller,
           officialStore: filtersToUse.officialStore,
@@ -374,21 +441,46 @@ export default function ProductListingScreen({ navigation, route }: Props) {
           const primaryImage =
             rawImages.find((img: any) => typeof img === 'object' && img?.is_primary)?.image_url ||
             row.primary_image_url || row.primary_image || row.image || imageUrls[0] || PLACEHOLDER_IMAGE;
+
+          // Check if product already has a discount from transformProduct
+          const rowPrice = typeof row.price === 'number' ? row.price : parseFloat(String(row.price || 0));
+          const rowOriginalPrice = row.originalPrice ?? row.original_price;
+          const hasExistingDiscount = rowOriginalPrice > 0 && rowPrice > 0 && rowOriginalPrice > rowPrice;
+
+          // Cross-reference flash sale discount map
+          const flashInfo = discountMapRef.current.get(row.id);
+          const finalPrice = (!hasExistingDiscount && flashInfo) ? flashInfo.price : rowPrice;
+          const finalOriginalPrice = (!hasExistingDiscount && flashInfo)
+            ? flashInfo.originalPrice
+            : (hasExistingDiscount ? rowOriginalPrice : row.originalPrice);
+          const campaignDiscountType = row.campaignDiscountType || (flashInfo && !hasExistingDiscount ? 'percentage' : undefined);
+          const campaignDiscountValue = row.campaignDiscountValue || (flashInfo && !hasExistingDiscount ? flashInfo.discountPercent : undefined);
+
           return {
             ...row,
             id: row.id,
             name: row.name ?? 'Unknown Product',
-            price: typeof row.price === 'number' ? row.price : parseFloat(String(row.price || 0)),
+            price: finalPrice,
+            originalPrice: finalOriginalPrice,
+            original_price: finalOriginalPrice,
             image: primaryImage,
             images: imageUrls.length > 0 ? imageUrls : [primaryImage],
             category: typeof row.category === 'string' ? row.category : (row.category?.name || ''),
             seller: row.seller?.store_name || row.sellerName || 'Verified Seller',
             isFreeShipping: !!(row.is_free_shipping ?? row.isFreeShipping),
+            campaignDiscountType,
+            campaignDiscountValue,
           };
         }).filter(p => {
           const variants = Array.isArray((p as any).variants) ? (p as any).variants : [];
           if (variants.length > 0) return variants.some((v: any) => Number(v.stock || 0) > 0);
           return Number((p as any).stock || 0) > 0;
+        }).filter(p => {
+          // Client-side "On Sale" filter: keep only discounted products (covers both campaign + flash sale discounts)
+          if (!filtersToUse.onSale) return true;
+          const orig = Number((p as any).originalPrice || (p as any).original_price || 0);
+          const price = Number(p.price || 0);
+          return orig > 0 && price > 0 && orig > price;
         });
 
         if (reset) {
@@ -419,16 +511,22 @@ export default function ProductListingScreen({ navigation, route }: Props) {
     }
   }, [offset, products, filters, sortOption, availableCategories]);
 
-  // Initial search on mount — load categories first so separation works
+  // Initial search on mount — load discount map and categories first so discount badges and separation work
   useEffect(() => {
     if (initialQuery) {
       setSearchQuery(initialQuery);
       const init = async () => {
-        const cats = await loadFilterOptions(initialQuery) ?? [];
+        // Load discount map before searching so flash sale discounts are available
+        const [cats] = await Promise.all([
+          loadFilterOptions(initialQuery).then(c => c ?? []),
+          buildDiscountMap(),
+        ]);
         executeSearch(initialQuery, true, undefined, cats);
       };
       init();
     } else {
+      // Still load discount map for later searches
+      buildDiscountMap();
       setIsLoading(false);
     }
   }, []);
@@ -519,6 +617,7 @@ export default function ProductListingScreen({ navigation, route }: Props) {
   // Pull to refresh
   const handleRefresh = useCallback(async () => {
     setIsRefreshing(true);
+    await buildDiscountMap();
     await executeSearch(searchQuery, true);
   }, [searchQuery, executeSearch]);
 
@@ -774,6 +873,7 @@ export default function ProductListingScreen({ navigation, route }: Props) {
         onClose={() => setShowFilterModal(false)}
         onApply={handleFilterApply}
         initialFilters={filters}
+        hideCategoryFilter={!!matchedCategory}
         availableCategories={availableCategories}
         availableBrands={availableBrands}
       />
