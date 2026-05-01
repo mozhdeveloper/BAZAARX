@@ -120,7 +120,7 @@ export const productRequestService = {
     rewarded: boolean;
   }[]> {
     if (!isSupabaseConfigured()) return [];
-    const { data: supports } = await (supabase as any)
+    const { data: supports } = await supabase
       .from('request_supports')
       .select('request_id, support_type, bazcoin_amount, rewarded')
       .eq('user_id', userId);
@@ -162,7 +162,7 @@ export const productRequestService = {
     Promise<{ success: boolean; newBalance?: number; error?: string }>
   {
     if (!isSupabaseConfigured()) return { success: false, error: 'Not configured' };
-    const { data, error } = await (supabase as any).rpc('support_product_request', {
+    const { data, error } = await supabase.rpc('support_product_request', {
       p_request_id: requestId, p_support_type: type, p_bazcoin_amount: amount,
     });
     if (error) return { success: false, error: error.message };
@@ -171,7 +171,7 @@ export const productRequestService = {
 
   async getMySupports(userId: string, requestId: string) {
     if (!isSupabaseConfigured()) return [];
-    const { data } = await (supabase as any)
+    const { data } = await supabase
       .from('request_supports')
       .select('*')
       .eq('user_id', userId)
@@ -185,12 +185,12 @@ export const productRequestService = {
     reason?: string; targetId?: string; newStage?: string;
   }) {
     if (!isSupabaseConfigured()) return { success: false, error: 'Not configured' };
-    const { data, error } = await (supabase as any).rpc('admin_action_product_request', {
+    const { data, error } = await supabase.rpc('admin_action_product_request', {
       p_request_id: params.requestId,
       p_action: params.action,
-      p_reason: params.reason ?? null,
-      p_target_id: params.targetId ?? null,
-      p_new_stage: params.newStage ?? null,
+      p_reason: params.reason ?? undefined,
+      p_target_id: params.targetId ?? undefined,
+      p_new_stage: params.newStage ?? undefined,
     });
     if (error) return { success: false, error: error.message };
     return { success: true, newStatus: (data as any)?.new_status };
@@ -198,7 +198,7 @@ export const productRequestService = {
 
   async convertToListing(requestId: string, productId: string) {
     if (!isSupabaseConfigured()) return { success: false, error: 'Not configured' };
-    const { data, error } = await (supabase as any).rpc('convert_request_to_listing', {
+    const { data, error } = await supabase.rpc('convert_request_to_listing', {
       p_request_id: requestId, p_product_id: productId,
     });
     if (error) return { success: false, error: error.message };
@@ -207,7 +207,7 @@ export const productRequestService = {
 
   async getAuditLog(requestId: string) {
     if (!isSupabaseConfigured()) return [];
-    const { data } = await (supabase as any)
+    const { data } = await supabase
       .from('request_audit_logs').select('*')
       .eq('request_id', requestId)
       .order('created_at', { ascending: false });
@@ -218,7 +218,7 @@ export const productRequestService = {
 export const supplierOfferService = {
   async listForRequest(requestId: string): Promise<SupplierOfferDTO[]> {
     if (!isSupabaseConfigured()) return [];
-    const { data } = await (supabase as any)
+    const { data } = await supabase
       .from('supplier_offers')
       .select('*, sellers ( store_name )')
       .eq('request_id', requestId)
@@ -228,7 +228,7 @@ export const supplierOfferService = {
 
   async listForSupplier(supplierId: string): Promise<SupplierOfferDTO[]> {
     if (!isSupabaseConfigured()) return [];
-    const { data } = await (supabase as any)
+    const { data } = await supabase
       .from('supplier_offers')
       .select('*, sellers ( store_name )')
       .eq('supplier_id', supplierId)
@@ -241,7 +241,7 @@ export const supplierOfferService = {
     leadTimeDays: number; terms?: string; qualityNotes?: string;
   }) {
     if (!isSupabaseConfigured()) throw new Error('Not configured');
-    const { data, error } = await (supabase as any)
+    const { data, error } = await supabase
       .from('supplier_offers').insert({
         request_id: p.requestId,
         supplier_id: p.supplierId,
@@ -257,7 +257,7 @@ export const supplierOfferService = {
 
   async setStatus(offerId: string, status: OfferStatus) {
     if (!isSupabaseConfigured()) return;
-    const { error } = await (supabase as any)
+    const { error } = await supabase
       .from('supplier_offers')
       .update({ status, updated_at: new Date().toISOString() })
       .eq('id', offerId);
