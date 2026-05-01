@@ -590,7 +590,8 @@ export class OrderService {
           ),
           order_shipments(id, status, tracking_number, shipped_at, delivered_at, created_at),
           order_cancellations(id, reason, cancelled_at, created_at),
-          order_status_history(status, created_at)
+          order_status_history(status, created_at),
+          order_payments(payment_method, status)
         `)
         .eq('buyer_id', buyerId)
         .order('created_at', { ascending: false })
@@ -676,7 +677,18 @@ export class OrderService {
             region: '',
             postalCode: '',
           },
-          paymentMethod: (order as any).payment_method || 'Cash on Delivery',
+          paymentMethod: (() => {
+            const extracted = ((order as any).order_payments?.[0]?.payment_method as any)?.type || 'Cash on Delivery';
+            if (__DEV__) {
+              console.log('[OrderService] Payment method extraction:', {
+                orderId: order.id,
+                order_payments: JSON.stringify((order as any).order_payments),
+                extracted,
+                full_payment_method: JSON.stringify(((order as any).order_payments?.[0]?.payment_method))
+              });
+            }
+            return extracted;
+          })(),
           createdAt: order.created_at,
           confirmedAt: (order.order_status_history || []).find((h: any) => h.status === 'processing' || h.status === 'confirmed')?.created_at || order.paid_at || null,
           shippedAt: (order.order_status_history || []).find((h: any) => h.status === 'shipped')?.created_at || latestShipment?.shipped_at || null,
@@ -845,7 +857,7 @@ export class OrderService {
           tracking_number: latestShipment?.tracking_number || order.tracking_number || null,
           shipped_at: latestShipment?.shipped_at || order.shipped_at || null,
           delivered_at: latestShipment?.delivered_at || order.delivered_at || null,
-          payment_method: latestPayment?.payment_method || null,
+          payment_method: (latestPayment?.payment_method as any)?.type || null,
         };
       });
 

@@ -1627,11 +1627,20 @@ export default function OrderDetailPage() {
                   </div>
 
                   {/* COD Payment Instruction Section */}
-                  {order.paymentMethod.type === 'cod' && order.status !== 'delivered' && (() => {
+                  {order.paymentMethod.type === 'cod' && !['received', 'returned', 'reviewed', 'cancelled'].includes(order.status) && (() => {
                     const estimatedDelivery = order.estimatedDelivery;
-                    const formattedDeadline = estimatedDelivery
-                      ? new Date(estimatedDelivery).toLocaleDateString('en-PH', { year: 'numeric', month: 'long', day: 'numeric' })
-                      : null;
+                    let formattedDeadline: string | null = null;
+                    
+                    if (estimatedDelivery) {
+                      // If we have estimated delivery date, use that
+                      formattedDeadline = new Date(estimatedDelivery).toLocaleDateString('en-PH', { year: 'numeric', month: 'long', day: 'numeric' });
+                    } else if (order.createdAt) {
+                      // Calculate estimated due date based on order creation date + typical delivery window
+                      // Typical COD delivery: 3-5 business days, use 5 days as estimate
+                      const createdDate = new Date(order.createdAt);
+                      const estimatedDueDate = new Date(createdDate.getTime() + 5 * 24 * 60 * 60 * 1000);
+                      formattedDeadline = estimatedDueDate.toLocaleDateString('en-PH', { year: 'numeric', month: 'long', day: 'numeric' });
+                    }
 
                     return (
                       <div className="mt-4 pt-4 border-t border-dashed border-[var(--btn-border)]">

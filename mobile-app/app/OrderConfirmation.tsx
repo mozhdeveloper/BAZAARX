@@ -163,7 +163,15 @@ export default function OrderConfirmation({ navigation, route }: Props) {
   };
   
   const handleViewPurchases = () => {
-    navigation.navigate('Orders', {});
+    // BX-PAYMENT-FIX: Navigate to the correct tab based on payment method
+    // PayMongo orders go to 'processing' tab (already paid)
+    // COD orders go to 'pending' tab (awaiting seller confirmation)
+    const paymentMethod = order?.paymentMethod;
+    const isPayMongo = paymentMethod && 
+      (typeof paymentMethod === 'string' ? paymentMethod.toLowerCase() : paymentMethod?.type?.toLowerCase()) === 'paymongo';
+    
+    const initialTab = isPayMongo ? 'processing' : 'pending';
+    navigation.navigate('Orders', { initialTab });
   };
 
   const handleViewOrderStatus = () => {
@@ -344,7 +352,10 @@ export default function OrderConfirmation({ navigation, route }: Props) {
               ? paymentMethod.toLowerCase() === 'cod'
               : (paymentMethod as any)?.type?.toLowerCase() === 'cod';
             
-            if (!isCOD) return null;
+            // Don't show payment info for received, returned, reviewed, or cancelled orders
+            if (!isCOD || (order.status && ['received', 'returned', 'reviewed', 'cancelled'].includes(order.status))) {
+              return null;
+            }
             
             const formattedDeadline = formatDatePH(estimatedDeliveryDate);
             

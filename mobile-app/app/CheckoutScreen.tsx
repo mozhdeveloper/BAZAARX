@@ -1288,7 +1288,7 @@ export default function CheckoutScreen({ navigation, route }: Props) {
     setProcessingMessage('Processing your order...');
 
     try {
-      console.log('[Checkout] 🔄 Starting checkout process...');
+      console.log('[Checkout] 🔄 Starting checkout process...', { paymentMethod, selectedPaymentMethodId });
       // Prepare checkout payload
       const payload = {
         userId: user.id,
@@ -1340,6 +1340,8 @@ export default function CheckoutScreen({ navigation, route }: Props) {
             destinationZone: r.destinationZone,
           };
         }),
+        // BX-PAYMENT-FIX: Track if this is a paid PayMongo order
+        isPaid: paymentMethod === 'paymongo' && selectedPaymentMethodId ? true : false,
         // Include saved PayMongo card ID if user selected one
         ...(paymentMethod === 'paymongo' && selectedPaymentMethodId ? { savedPaymentMethodId: selectedPaymentMethodId } : {}),
       };
@@ -1491,7 +1493,9 @@ export default function CheckoutScreen({ navigation, route }: Props) {
         buyerId: order.buyerId,
         sellerId: order.sellerId,
         total: order.total,
-        itemCount: order.items?.length
+        itemCount: order.items?.length,
+        paymentMethod: order.paymentMethod,
+        paymentMethodType: typeof order.paymentMethod
       });
 
       // Create a serializable version of the order for navigation
@@ -1514,7 +1518,8 @@ export default function CheckoutScreen({ navigation, route }: Props) {
       console.log('[Checkout] ✅ Serializable order created:', {
         id: serializableOrder.id,
         orderId: serializableOrder.orderId,
-        itemCount: serializableOrder.items?.length
+        itemCount: serializableOrder.items?.length,
+        paymentMethod: serializableOrder.paymentMethod
       });
 
       // Check if online payment (GCash, PayMongo, PayMaya, Card)

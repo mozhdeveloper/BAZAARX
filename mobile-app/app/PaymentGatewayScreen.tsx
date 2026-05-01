@@ -23,6 +23,8 @@ import type { Order } from '../src/types';
 import { COLORS } from '../src/constants/theme';
 import { BASIC_TEST_CARDS, SCENARIO_TEST_CARDS, getTestCardByNumber } from '../src/constants/testCards';
 import { AlertCircle } from 'lucide-react-native';
+import { supabase } from '../src/lib/supabase';
+import { PAYMENT_METHODS, normalizePaymentMethod } from '../src/constants/paymentMethods';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'PaymentGateway'>;
 
@@ -308,6 +310,50 @@ export default function PaymentGatewayScreen({ navigation, route }: Props) {
       // We just need to mark the order as paid
       
       finalOrder.isPaid = true;
+
+      // 🔧 BX-PAYMENT-FIX: Update order status in database after successful payment
+      // For PayMongo orders, set payment_status to 'paid' so they appear in Processing tab
+      // For other online payments, also mark as paid and processing
+      if (finalOrder.orderId) {
+        const paymentMethod = finalOrder.paymentMethod;
+        const normalized = normalizePaymentMethod(paymentMethod);
+        
+        try {
+          // Update the order status in orders table
+          const { error: updateOrderError } = await supabase
+            .from('orders')
+            .update({
+              payment_status: 'paid',
+              shipment_status: normalized === PAYMENT_METHODS.PAYMONGO ? 'processing' : 'waiting_for_seller',
+              updated_at: new Date().toISOString()
+            })
+            .eq('id', finalOrder.orderId);
+          
+          if (updateOrderError) {
+            console.error('[PaymentGateway] ⚠️ Failed to update order status after payment:', updateOrderError);
+            // Don't throw - payment succeeded, just log the warning
+          } else {
+            console.log('[PaymentGateway] ✅ Order status updated to paid:', finalOrder.orderId);
+          }
+
+          // Also update order_payments record status
+          const { error: updatePaymentError } = await supabase
+            .from('order_payments')
+            .update({
+              status: 'paid',
+              payment_date: new Date().toISOString()
+            })
+            .eq('order_id', finalOrder.orderId);
+
+          if (updatePaymentError) {
+            console.error('[PaymentGateway] ⚠️ Failed to update order_payments after payment:', updatePaymentError);
+            // Don't throw - order status already updated
+          }
+        } catch (err) {
+          console.error('[PaymentGateway] Error updating order status:', err);
+          // Don't throw - payment succeeded, this is a secondary update
+        }
+      }
 
       // ✅ NEW: Save manually entered card to Payment Methods (not autofilled test cards)
       if (isManualEntry && showCardForm && cardName !== 'TEST CARD') {
