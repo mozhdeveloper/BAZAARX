@@ -1,7 +1,7 @@
-import { useState, useRef } from "react";
-import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
-import { Plus, Trash2, Upload, Link as LinkIcon, ImagePlus, X, Star } from "lucide-react";
+import { cn } from "@/lib/utils";
+import { ImagePlus, Link as LinkIcon, Plus, Star, Trash2, Upload } from "lucide-react";
+import { useRef, useState } from "react";
 
 interface GeneralInfoTabProps {
     formData: {
@@ -125,7 +125,7 @@ function FileSlot({
                     type="button"
                     variant="outline"
                     onClick={onRemove}
-                    className="px-3 py-2 flex-shrink-0 self-start"
+                    className="px-3 py-2 flex-shrink-0 self-center"
                 >
                     <Trash2 className="h-4 w-4" />
                 </Button>
@@ -178,6 +178,7 @@ export function GeneralInfoTab({
                     name="name"
                     value={formData.name}
                     onChange={handleChange}
+                    maxLength={120}
                     className={cn(
                         "w-full rounded-xl border px-3 py-3 text-sm shadow-sm focus:outline-none focus:ring-2 focus:ring-orange-500 focus:border-orange-500",
                         errors.name ? "border-red-500" : "border-gray-200",
@@ -185,9 +186,14 @@ export function GeneralInfoTab({
                     placeholder="E.g., Classic Linen Button-Down Shirt"
                     required
                 />
-                {errors.name && (
-                    <p className="text-sm text-red-600">{errors.name}</p>
-                )}
+                <div className="flex items-center justify-between">
+                    {errors.name ? (
+                        <p className="text-sm text-red-600">{errors.name}</p>
+                    ) : <span />}
+                    <span className={cn("text-xs", formData.name.length >= 120 ? "text-red-500" : "text-gray-400")}>
+                        {formData.name.length}/120
+                    </span>
+                </div>
             </div>
 
             {/* Description */}
@@ -209,13 +215,19 @@ export function GeneralInfoTab({
                     value={formData.description}
                     onChange={handleChange}
                     rows={4}
+                    maxLength={2000}
                     className="w-full rounded-xl border border-gray-200 px-3 py-3 text-sm shadow-sm focus:outline-none focus:ring-2 focus:ring-orange-500 focus:border-orange-500"
                     placeholder="Material, fit, key features, and what makes it special."
                     required
                 />
-                {errors.description && (
-                    <p className="text-sm text-red-600">{errors.description}</p>
-                )}
+                <div className="flex items-center justify-between">
+                    {errors.description ? (
+                        <p className="text-sm text-red-600">{errors.description}</p>
+                    ) : <span />}
+                    <span className={cn("text-xs", formData.description.length >= 2000 ? "text-red-500" : "text-gray-400")}>
+                        {formData.description.length}/2000
+                    </span>
+                </div>
             </div>
 
             {/* Price and Original Price */}
@@ -259,7 +271,7 @@ export function GeneralInfoTab({
                         htmlFor="originalPrice"
                         className="block text-sm font-semibold text-gray-800 mb-1"
                     >
-                        Original Price (₱)
+                        Original Price (₱) *
                         <span className="text-xs font-normal text-gray-500 ml-1">
                             (for strikethrough display)
                         </span>
@@ -270,9 +282,15 @@ export function GeneralInfoTab({
                         name="originalPrice"
                         value={formData.originalPrice}
                         onChange={handleChange}
-                        className="w-full rounded-xl border border-gray-200 px-3 py-3 text-sm shadow-sm focus:outline-none focus:ring-2 focus:ring-orange-500 focus:border-orange-500"
+                        className={cn(
+                            "w-full rounded-xl border border-gray-200 px-3 py-3 text-sm shadow-sm focus:outline-none focus:ring-2 focus:ring-orange-500 focus:border-orange-500",
+                            errors.originalPrice && "border-red-500",
+                        )}
                         placeholder="0"
                     />
+                    {errors.originalPrice && (
+                        <p className="text-sm text-red-600">{errors.originalPrice}</p>
+                    )}
                 </div>
             </div>
 
@@ -283,7 +301,7 @@ export function GeneralInfoTab({
                         htmlFor="stock"
                         className="block text-sm font-semibold text-gray-800 mb-1"
                     >
-                        Total Stock Quantity
+                        Total Stock Quantity *
                     </label>
                     <input
                         type="number"
@@ -295,10 +313,14 @@ export function GeneralInfoTab({
                         disabled={variantConfigs.length > 0}
                         className={cn(
                             "w-full rounded-xl border border-gray-200 px-3 py-3 text-sm shadow-sm focus:outline-none focus:ring-2 focus:ring-orange-500 focus:border-orange-500",
-                            variantConfigs.length > 0 && "bg-gray-50 cursor-not-allowed opacity-75"
+                            variantConfigs.length > 0 && "bg-gray-50 cursor-not-allowed opacity-75",
+                            errors.stock && "border-red-500",
                         )}
                         placeholder="0"
                     />
+                    {errors.stock && (
+                        <p className="text-sm text-red-600">{errors.stock}</p>
+                    )}
                     {variantConfigs.length > 0 && (
                         <p className="text-[11px] text-green-700 mt-1 font-medium">
                             Automatically calculated from {variantConfigs.length} variants.
@@ -415,7 +437,7 @@ export function GeneralInfoTab({
                                         size="sm"
                                         onClick={() => reorderImages(index, 0)}
                                         title="Set as primary image"
-                                        className="px-2 py-1 text-orange-500 hover:text-orange-600 flex-shrink-0"
+                                        className="px-2 py-1 text-[var(--brand-primary)] hover:text-[var(--brand-primary-dark)] hover:bg-orange-50 flex-shrink-0"
                                     >
                                         <Star className="h-4 w-4" />
                                     </Button>

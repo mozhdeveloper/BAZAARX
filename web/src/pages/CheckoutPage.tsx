@@ -7,6 +7,7 @@ import { discountService } from "@/services/discountService";
 import { paymentService } from "@/services/paymentService";
 import { BASIC_TEST_CARDS, THREE_DS_TEST_CARDS, SCENARIO_TEST_CARDS, getTestCardByNumber } from "@/constants/testCards";
 import { validateTestCard } from "@/utils/testCardValidator";
+import { useRegistryCheckout } from "@/hooks/useRegistryCheckout";
 import {
   ChevronLeft,
   MapPin,
@@ -134,11 +135,27 @@ export default function CheckoutPage() {
 
   useEffect(() => {
     if (addresses.length > 0) {
+      // If we have a selected address, try to find it again in the new addresses list
+      // to pick up any changes (like name/phone updates) from the store
+      if (selectedAddress) {
+        const updated = addresses.find(a => a.id === selectedAddress.id);
+        if (updated && (updated !== selectedAddress)) {
+          setSelectedAddress(updated);
+        }
+      }
+
+      if (confirmedAddress) {
+        const updated = addresses.find(a => a.id === confirmedAddress.id);
+        if (updated && (updated !== confirmedAddress)) {
+          setConfirmedAddress(updated);
+        }
+      }
+
       const defaultAddr = addresses.find(a => a.isDefault) || addresses[0];
-      if (!selectedAddress) {
+      if (!selectedAddress || !addresses.find(a => a.id === selectedAddress.id)) {
         setSelectedAddress(defaultAddr);
       }
-      if (!confirmedAddress) {
+      if (!confirmedAddress || !addresses.find(a => a.id === confirmedAddress.id)) {
         setConfirmedAddress(defaultAddr);
       }
     }
@@ -161,9 +178,7 @@ export default function CheckoutPage() {
 
   const isQuickCheckout = quickOrder !== null || isBuyAgainMode;
 
-  const isRegistryOrder = useMemo(() => {
-    return checkoutItems.some(item => !!item.registryId);
-  }, [checkoutItems]);
+  const { isRegistryOrder, registryData, recipientAddress, isLoading: isRegistryLoading } = useRegistryCheckout(checkoutItems);
 
   // Check for vacation sellers
   const [vacationSellers, setVacationSellers] = useState<string[]>([]);
@@ -444,20 +459,27 @@ export default function CheckoutPage() {
         }
       }
 
+      // Registry Order Override: Use recipient name from registry meta if available
+      if (isRegistryOrder && (registryData?.delivery?.recipientName || registryData?.recipientName)) {
+        fullName = registryData.delivery?.recipientName || registryData.recipientName || fullName;
+        phone = registryData.delivery?.recipientPhone || phone;
+      }
+
       console.log('📍 Syncing formData from confirmedAddress:', {
         confirmedAddress,
         derivedFullName: fullName,
         derivedPhone: phone,
-        derivedStreet: street
+        derivedStreet: street,
+        isRegistryOrder
       });
 
       setFormData(prev => ({
         ...prev,
         fullName: fullName || prev.fullName,
-        street: street || prev.street,
+        street: isRegistryOrder ? "SECURE REGISTRY Gifting (Hidden)" : (street || prev.street),
         city: confirmedAddress.city || prev.city,
         province: confirmedAddress.province || prev.province,
-        postalCode: confirmedAddress.postalCode || prev.postalCode,
+        postalCode: isRegistryOrder ? "****" : (confirmedAddress.postalCode || prev.postalCode),
         phone: phone || prev.phone,
       }));
       setErrors({});
@@ -490,7 +512,7 @@ export default function CheckoutPage() {
   useEffect(() => {
     if (shippingTimerRef.current) clearTimeout(shippingTimerRef.current);
 
-    if (!confirmedAddress) {
+    if (!confirmedAddress && !isRegistryOrder) {
       setShippingResults([]);
       setIsCalculatingShipping(false);
       return;
@@ -508,7 +530,7 @@ export default function CheckoutPage() {
     // Debounce 300ms
     shippingTimerRef.current = setTimeout(async () => {
       try {
-        const buyerCoords = (confirmedAddress.coordinates as any)?.latitude
+        const buyerCoords = confirmedAddress && (confirmedAddress.coordinates as any)?.latitude
           ? { latitude: (confirmedAddress.coordinates as any).latitude, longitude: (confirmedAddress.coordinates as any).longitude }
           : null;
 
@@ -527,8 +549,8 @@ export default function CheckoutPage() {
         const results = await calculateShippingForSellers(
           sellerInputs,
           buyerCoords,
-          confirmedAddress.province,
-          confirmedAddress.region
+          isRegistryOrder ? (registryData?.delivery?.province || '') : confirmedAddress?.province,
+          isRegistryOrder ? (registryData?.delivery?.province || '') : confirmedAddress?.region
         );
 
         setShippingResults(results);
@@ -710,13 +732,21 @@ export default function CheckoutPage() {
       }
     }
 
-    // Strict validation for shipping address
-    if (!fullNameToValidate?.trim()) newErrors.fullName = "Full name is required";
-    if (!streetToValidate?.trim()) newErrors.street = "Street address is required";
-    if (!formData.city?.trim()) newErrors.city = "City is required";
-    if (!formData.province?.trim()) newErrors.province = "Province is required";
-    if (!formData.postalCode?.trim()) newErrors.postalCode = "Postal code is required";
-    if (!phoneToValidate?.trim()) newErrors.phone = "Phone number is required";
+    // Strict validation for shipping address (Skip for Registry Orders)
+    if (isRegistryOrder) {
+      // For registry orders, we only need to ensure some address exists in registry meta
+      if (!registryData?.delivery?.addressId) {
+        // Provide a clearer message if the registry owner hasn't linked an address yet
+        newErrors.fullName = "Recipient's delivery address not fully configured by owner";
+      }
+    } else {
+      if (!fullNameToValidate?.trim()) newErrors.fullName = "Full name is required";
+      if (!streetToValidate?.trim()) newErrors.street = "Street address is required";
+      if (!formData.city?.trim()) newErrors.city = "City is required";
+      if (!formData.province?.trim()) newErrors.province = "Province is required";
+      if (!formData.postalCode?.trim()) newErrors.postalCode = "Postal code is required";
+      if (!phoneToValidate?.trim()) newErrors.phone = "Phone number is required";
+    }
 
     if (!formData.paymentMethod) {
       newErrors.paymentMethod = "Please select a payment method";
@@ -901,8 +931,8 @@ export default function CheckoutPage() {
       const payloadItems = checkoutItems.map(item => ({
         // We cast to any to satisfy the strict database type requirement
         // since we are adapting from BuyerStore structure
-        id: item.id, // This is Product ID in BuyerStore
-        product_id: item.id,
+        id: (item as any).cartItemId || item.id, // Prefer cartItemId for cleanup; fallback to product/registry id
+        product_id: (item as any).sourceProductId || item.id, // Registry items use sourceProductId for the actual product reference
         name: item.name, // REQUIRED: For stock validation error messages
         cart_id: '', // Not needed for our new cleanup logic
         quantity: item.quantity,
@@ -944,15 +974,27 @@ export default function CheckoutPage() {
         items: payloadItems as any[], // Casting to match service expectation
         totalAmount: finalTotal,
         shippingAddress: {
-          fullName: formData.fullName,
-          street: formData.street,
-          city: formData.city,
-          province: formData.province,
-          postalCode: formData.postalCode,
-          phone: formData.phone,
+          fullName: (() => {
+            if (!isRegistryOrder) return formData.fullName;
+            // For Registry: Try specific delivery name, then registry top-level name, then form (if not generic)
+            const name = registryData?.delivery?.recipientName || registryData?.recipientName;
+            if (name) return name;
+            // If formData name is just the generic label, use registry title or 'Registry Recipient'
+            if (!formData.fullName || formData.fullName === 'Checkout Address') {
+              return registryData?.title || 'Registry Recipient';
+            }
+            return formData.fullName;
+          })(),
+          street: isRegistryOrder ? "SECURE REGISTRY Gifting (Hidden)" : formData.street,
+          city: isRegistryOrder ? (registryData?.delivery?.city || formData.city) : formData.city,
+          province: isRegistryOrder ? (registryData?.delivery?.province || formData.province) : formData.province,
+          postalCode: isRegistryOrder ? '****' : formData.postalCode,
+          phone: isRegistryOrder ? (registryData?.delivery?.recipientPhone || formData.phone) : (formData.phone || ''),
           country: 'Philippines' // Default
         },
         paymentMethod: formData.paymentMethod,
+        isRegistryOrder: isRegistryOrder,
+        registryId: isRegistryOrder ? registryData?.id : null,
         usedBazcoins: useBazcoins ? bazcoinDiscount : 0, // Deduct based on discount value (1 coin = 1 peso)
         earnedBazcoins: earnedBazcoins,
         shippingFee: shippingFee,
@@ -960,6 +1002,7 @@ export default function CheckoutPage() {
         email: profile.email,
         voucherId: appliedVoucher?.id ?? null,
         selectedAddressId: selectedAddress?.id ?? null,
+        selectedSavedCardId: !useDifferentCard ? (selectedSavedCardId || null) : null,
         // BX-09-001 — Add per-seller shipping breakdown
         shippingBreakdown: shippingBreakdown,
         // Add card details only for manual different-card PayMongo entry
@@ -1180,18 +1223,31 @@ export default function CheckoutPage() {
 
                 </div>
 
-                {isRegistryOrder ? (
-                  <div className="bg-orange-50/50 border border-orange-200 rounded-xl p-6 flex flex-col items-center justify-center text-center space-y-3">
-                    <div className="w-12 h-12 bg-orange-100 rounded-full flex items-center justify-center">
-                      <Shield className="w-6 h-6 text-orange-600" />
+                {isRegistryLoading ? (
+                  <div className="h-32 flex items-center justify-center bg-gray-50 rounded-xl border-2 border-dashed border-gray-200">
+                    <div className="flex flex-col items-center gap-2">
+                      <div className="w-6 h-6 border-2 border-[var(--brand-primary)] border-t-transparent rounded-full animate-spin"></div>
+                      <p className="text-sm text-gray-500">Loading registry details...</p>
                     </div>
-                    <div>
-                      <h3 className="font-bold text-gray-900">Registry Address (Hidden)</h3>
-                      <p className="text-gray-600 text-sm mt-1">
-                        For privacy, the recipient's address is hidden.
-                        <br />
-                        We will deliver this gift directly to them.
-                      </p>
+                  </div>
+                ) : isRegistryOrder && registryData ? (
+                  <div className="p-4 border-2 border-[var(--brand-primary)] bg-orange-50 rounded-xl">
+                    <div className="flex items-start gap-4">
+                      <div className="w-12 h-12 bg-white rounded-full flex items-center justify-center shrink-0 shadow-sm border border-orange-100">
+                        <Shield className="w-6 h-6 text-[var(--brand-primary)]" />
+                      </div>
+                      <div className="space-y-1">
+                        <div className="flex items-center gap-2">
+                          <h3 className="font-bold text-gray-900 text-lg">Registry Gifting: Secure Delivery</h3>
+                          <Badge className="bg-[var(--brand-primary)] text-white border-none text-[10px] uppercase font-bold px-2">Privacy Active</Badge>
+                        </div>
+                        <p className="text-sm text-gray-700">
+                          Purchasing for: <span className="font-bold">{recipientAddress?.recipientName || 'Recipient'}</span>
+                        </p>
+                        <p className="text-sm text-gray-600 mt-2 leading-relaxed bg-white/50 p-2 rounded border border-orange-100/50 italic">
+                          "Recipient's address is hidden for privacy. Your gift will be delivered safely to their pre-configured destination in <span className="font-medium text-gray-900">{registryData.delivery?.city || 'the Philippines'}</span>."
+                        </p>
+                      </div>
                     </div>
                   </div>
                 ) : selectedAddress ? (
@@ -1258,7 +1314,9 @@ export default function CheckoutPage() {
                 </div>
 
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-6">
-                  {paymentMethods.map((method) => (
+                  {paymentMethods
+                    .filter(method => isRegistryOrder ? method.id !== 'cod' : true)
+                    .map((method) => (
                     <div
                       key={method.id}
                       className={`border-2 rounded-xl p-4 transition-colors relative ${method.comingSoon

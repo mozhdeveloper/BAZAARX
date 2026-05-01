@@ -35,6 +35,10 @@ interface ProductFilterModalProps {
   availableCategories?: CategoryOption[];
   availableBrands?: BrandOption[];
   hideCategoryFilter?: boolean;
+  /** Hide specific promo options by key (e.g. ['onSale'] to hide "On Sale" toggle) */
+  hidePromoOptions?: string[];
+  /** Hide the entire Shipping Option section */
+  hideShippingFilter?: boolean;
 }
 
 export default function ProductFilterModal({
@@ -45,6 +49,8 @@ export default function ProductFilterModal({
   availableCategories = [],
   availableBrands = [],
   hideCategoryFilter = false,
+  hidePromoOptions = [],
+  hideShippingFilter = false,
 }: ProductFilterModalProps) {
   const [filters, setFilters] = useState<ProductFilters>(initialFilters);
   const [selectedFilterGroup, setSelectedFilterGroup] = useState<FilterCategory | null>(null);
@@ -386,7 +392,7 @@ export default function ProductFilterModal({
       { key: 'freeShipping', label: 'Free Shipping' },
       { key: 'preferredSeller', label: 'Preferred Seller' },
       { key: 'officialStore', label: 'Official Store' },
-    ];
+    ].filter(opt => !hidePromoOptions.includes(opt.key));
 
     return (
       <View style={styles.filterContent}>
@@ -540,8 +546,8 @@ export default function ProductFilterModal({
             {renderBrandSection()}
 
             {/* Shipping Option */}
-            {renderFilterHeader('Shipping Option', 'shipping')}
-            {renderShippingSection()}
+            {!hideShippingFilter && renderFilterHeader('Shipping Option', 'shipping')}
+            {!hideShippingFilter && renderShippingSection()}
 
             {/* Spacer for bottom buttons */}
             <View style={styles.bottomSpacer} />

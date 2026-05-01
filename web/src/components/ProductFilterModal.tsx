@@ -16,6 +16,8 @@ interface ProductFilterModalProps {
   onApply: (filters: ProductFilters) => void;
   initialFilters: ProductFilters;
   availableCategories?: CategoryOption[];
+  /** Hide specific promo options by key (e.g. ['onSale'] to hide "On Sale" toggle) */
+  hidePromoOptions?: string[];
 }
 
 export default function ProductFilterModal({
@@ -24,6 +26,7 @@ export default function ProductFilterModal({
   onApply,
   initialFilters,
   availableCategories = [],
+  hidePromoOptions = [],
 }: ProductFilterModalProps) {
   const [filters, setFilters] = useState<ProductFilters>(initialFilters);
   const [openGroup, setOpenGroup] = useState<FilterCategory | null>(null);
@@ -139,19 +142,19 @@ export default function ProductFilterModal({
   );
 
   return (
-    <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center">
+    <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center" style={{ isolation: "isolate" }}>
+      {/* Backdrop */}
       <div className="absolute inset-0 bg-black/50" onClick={onClose} />
-      <div className="relative bg-white w-full sm:max-w-lg sm:rounded-2xl rounded-t-2xl max-h-[90vh] flex flex-col shadow-2xl">
+
+      {/* Modal panel */}
+      <div className="relative bg-white w-full sm:max-w-lg sm:rounded-2xl rounded-t-2xl shadow-2xl overflow-hidden" style={{ maxHeight: "85vh", display: "flex", flexDirection: "column" }}>
         {/* Header */}
-        <div className="flex items-center justify-between px-5 py-4 border-b border-gray-100">
+        <div style={{ flexShrink: 0 }} className="px-5 py-4 border-b border-gray-100">
           <h2 className="text-lg font-bold text-gray-900">Filters</h2>
-          <button onClick={onClose} className="p-1 hover:bg-gray-100 rounded-full" aria-label="Close filters">
-            <X className="w-5 h-5 text-gray-500" />
-          </button>
         </div>
 
-        {/* Body */}
-        <div className="flex-1 overflow-y-auto px-5 py-3">
+        {/* Scrollable body */}
+        <div style={{ flex: "1 1 0%", minHeight: 0, overflowY: "auto" }} className="overscroll-contain px-5 py-3">
           {/* Category */}
           <GroupHeader title="Category" category="category" />
           {openGroup === "category" && (
@@ -224,7 +227,7 @@ export default function ProductFilterModal({
           <GroupHeader title="Shops & Promos" category="promo" />
           {openGroup === "promo" && (
             <div className="py-3 border-b border-gray-100">
-              <CheckboxRow label="On Sale" checked={filters.onSale} onChange={() => update("onSale", !filters.onSale)} />
+              {!hidePromoOptions.includes("onSale") && <CheckboxRow label="On Sale" checked={filters.onSale} onChange={() => update("onSale", !filters.onSale)} />}
               <CheckboxRow label="Free Shipping" checked={filters.freeShipping} onChange={() => update("freeShipping", !filters.freeShipping)} />
               <CheckboxRow label="With Vouchers" checked={filters.withVouchers} onChange={() => update("withVouchers", !filters.withVouchers)} />
               <CheckboxRow label="Preferred Seller" checked={filters.preferredSeller} onChange={() => update("preferredSeller", !filters.preferredSeller)} />
@@ -247,7 +250,7 @@ export default function ProductFilterModal({
         </div>
 
         {/* Footer */}
-        <div className="flex gap-3 px-5 py-4 border-t border-gray-100">
+        <div style={{ flexShrink: 0 }} className="flex gap-3 px-5 py-4 border-t border-gray-100">
           <Button variant="outline" onClick={handleReset} className="flex-1 h-11 rounded-xl font-semibold">Reset</Button>
           <Button onClick={handleApply} className="flex-1 h-11 rounded-xl font-semibold bg-[var(--brand-primary)] hover:bg-[var(--brand-primary-dark)] text-white">
             Apply{getActiveCount() > 0 ? ` (${getActiveCount()})` : ""}

@@ -188,12 +188,7 @@ const CategoriesPage: React.FC = () => {
 
       <div className="max-w-7xl mx-auto px-4 md:px-6 lg:px-8 py-8">
         {/* Search */}
-        {!selectedParent && (
-          <div className="relative max-w-md mx-auto mb-10">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
-            <Input placeholder="Search categories…" value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} className="pl-10" />
-          </div>
-        )}
+       
 
         {/* Loading */}
         {loading && (

@@ -1,84 +1,60 @@
-## What does this PR do?
+# Registry Privacy, Guest Authentication Flow, and Type Hotfixes
 
-This PR fixes critical issues in the **Seller Dashboard Product Management** flow, specifically focusing on the "Edit Product" functionality. It ensures that product details, variants, and draft statuses are correctly persisted to Supabase, while improving the UI/UX with loading states and corrected styling.
+This PR implements crucial privacy and user experience enhancements for the Registry Gifting feature, alongside fixing critical TypeScript build errors in the mobile application.
 
 ---
 
 ## 🛠️ Changes by Area
 
-### 1. Seller Dashboard — Product Editing & Persistence
+### 1. Registry Data Privacy & Integrity
+- **Recipient Identity Fix**: Resolved a critical data leakage issue where Registry Gifting orders were incorrectly defaulting to the Gifter's (Buyer's) profile information in the Seller Dashboard instead of the intended recipient.
+- **Source of Truth Migration**: Modified `checkoutService.ts` to derive the recipient's name directly from the immutable `shipping_addresses` table during order creation, deprecating the use of stale registry metadata strings.
+- **Data Fallbacks**: Updated `orderService.ts` and `mappers.ts` to include `first_name` and `last_name` in the database join queries, ensuring accurate naming is always available for the UI.
+- **Type Consistency**: Synchronized `SellerOrder` and `SellerOrderSnapshot` interfaces to support the `is_registry_order` flag and properly type extended payment methods (e.g., e-wallets) and order statuses.
 
-**File:** `src/pages/SellerProducts.tsx`
+### 2. Registry Guest Redirection Flow
+- **View-Only Guest Mode**: Allowed unauthenticated users to access shared registry links (`/registry/share/:id`) in a read-only state. Added an informational banner indicating guest status.
+- **Seamless Login Routing**: Replaced "Buy Gift" buttons for guests with "Log in to Buy Gift", which automatically captures the current registry URL into session storage (`redirect_to`) before routing to the login screen.
+- **Post-Auth Callback**: Upgraded the authentication listeners across `App.tsx`, `BuyerLoginPage.tsx`, and `AuthCallbackPage.tsx` to detect the stored `redirect_to` path. Upon a successful login or email-verified signup, users are automatically routed back to their specific shared registry link rather than the default shop page.
 
-- **Refactored `onEditProduct` logic**: Improved the mapping of database fields to the form state, specifically handling `isDraft` status and sub-category selection more robustly.
-- **Improved Update Flow**:
-    - Replaced monolithic update logic with a more granular approach.
-    - Uses `productService.updateProduct` for core product metadata.
-    - Iterates through variants to update them individually via `productService.updateVariant`, ensuring `sku`, `price`, `stock`, and `thumbnail_url` are correctly synced.
-- **Removed deprecated audit logging**: Cleaned up the `admin_audit_logs` insert call from the frontend to reduce unnecessary API calls and potential failures during product saving.
-
-### 2. Variant Management & Service Updates
-
-**File:** `src/services/productService.ts`
-
-- **Enhanced `updateVariant` API**: Expanded the `updates` object to support all critical variant fields:
-    - `variant_name`
-    - `option_1_value`
-    - `option_2_value`
-    - `sku`
-    - `thumbnail_url`
-- This allows for precise updates to individual variants when editing a product.
-
-### 3. Data Model & Mapping (Draft Support)
-
-**Files:** `src/stores/seller/sellerTypes.ts`, `src/utils/productMapper.ts`
-
-- **Draft Status Integration**: 
-    - Added `"draft"` as a valid `approvalStatus` in `sellerTypes.ts`.
-    - Added `isDraft` and `isVacationMode` properties to the `SellerProduct` interface.
-- **Mapper Logic**: Updated `mapDbProductToSellerProduct` to automatically set the `isDraft` flag based on the database `approval_status`.
-- **Bug Fix**: Fixed a property access bug in `mapDbProductToNormalized` where `original_price` (snake_case) wasn't being correctly mapped from the database response.
-
-### 4. UI/UX Polish & Error Handling
-
-**Files:** `src/pages/SellerProducts.tsx`, `src/components/seller/products/VariantItem.tsx`, `src/components/seller/products/VariantManager.tsx`
-
-- **Loading Feedback**: Added a spinning loader to the "Save Changes" / "Publish Product" button during submission to prevent multiple clicks and provide visual feedback.
-- **Button Styling Fixes**:
-    - **Cancel Button**: Fixed the "Cancel" button in the Add/Edit Product form. It previously incorrectly used the orange brand gradient; it now uses a clean `outline` variant with gray text and borders.
-- **Variant UI Improvements**:
-    - **Optional Images**: Updated `VariantItem.tsx` to mark variant images as "(Optional)" instead of required, providing more flexibility for sellers.
-    - **Error Visibility**: Added explicit error message blocks in `VariantManager.tsx` to display validation errors related to variants and variant images, improving form troubleshooting.
+### 3. Mobile TypeScript Hotfixes
+- **Cart Null Safety**: Fixed a potential null reference bug in `CartScreen.tsx` by ensuring `editingItem` is verified before accessing its quantity.
+- **Checkout Service Typings**: Resolved a persistent TypeScript error in the mobile app's `checkoutService.ts` related to the `payment_method` schema by safely casting the direct database insert payload.
 
 ---
 
-## Files Changed Summary
+## 📄 Files Changed Summary
 
 ### Web (`web/`)
 
 | File | Type | Description |
 |---|---|---|
-| `src/pages/SellerProducts.tsx` | Modified | Refactored product/variant update logic, added loading states, fixed button styles. |
-| `src/services/productService.ts` | Modified | Expanded `updateVariant` to support more fields (SKU, thumbnails, etc.). |
-| `src/stores/seller/sellerTypes.ts` | Modified | Added `draft` status and `isDraft` property to `SellerProduct` type. |
-| `src/utils/productMapper.ts` | Modified | Added mapping for `isDraft` and fixed `original_price` mapping. |
-| `src/components/seller/products/VariantItem.tsx` | Modified | Marked variant images as optional in the UI. |
-| `src/components/seller/products/VariantManager.tsx` | Modified | Added dedicated error message displays for variants and variant images. |
+| `src/services/checkoutService.ts` | Modified | Updated recipient name resolution to use `shipping_addresses`. |
+| `src/services/orderService.ts` | Modified | Enhanced joins to fetch name elements for fallback mapping. |
+| `src/utils/orders/mappers.ts` | Modified | Applied address-based recipient name fallbacks. |
+| `src/types/orders.ts` & `sellerTypes.ts` | Modified | Added `is_registry_order` and updated payment method unions. |
+| `src/pages/SharedRegistryPage.tsx` | Modified | Implemented Guest Mode banner and redirect logic. |
+| `src/pages/BuyerLoginPage.tsx` | Modified | Added standard login redirect interception. |
+| `src/pages/AuthCallbackPage.tsx` | Modified | Added post-signup redirect interception. |
+| `src/App.tsx` | Modified | Updated OAuth `onAuthStateChange` listener to respect redirect paths. |
+
+### Mobile (`mobile-app/`)
+
+| File | Type | Description |
+|---|---|---|
+| `app/CartScreen.tsx` | Modified | Fixed null checks for `editingItem`. |
+| `src/services/checkoutService.ts` | Modified | Fixed `payment_method` update schema typescript error. |
 
 ---
 
-## Testing Done
+## ✅ Testing Done
 
-- [x] **Product Editing**: Successfully updated existing products and verified changes in Supabase.
-- [x] **Variant Sync**: Verified that price, stock, and SKU changes for individual variants are persisted correctly.
-- [x] **Draft Mode**: Verified that products saved as drafts correctly display the "draft" status and map the `isDraft` flag.
-- [x] **UI Feedback**: Verified the loading spinner appears during product submission.
-- [x] **Style Regression**: Verified the "Cancel" button now has the correct neutral styling instead of the brand orange gradient.
-- [x] **Navigation**: Verified that saving a product correctly redirects the user back to the product list with a success toast.
+- [x] **Registry Privacy**: Confirmed that new registry orders correctly display the recipient's information to the seller.
+- [x] **Guest Redirection**: Verified that visiting a registry unauthenticated, clicking login, and authenticating properly returns the user to the registry URL.
+- [x] **OAuth Continuity**: Confirmed Google Sign-In respects the registry redirect path.
+- [x] **Mobile Builds**: Verified `npx tsc --noEmit` passes with 0 errors in the mobile workspace.
 
 ---
 
-## Notes for Reviewer
-
-- The individual variant update approach in `SellerProducts.tsx` was chosen to ensure maximum reliability over bulk updates, which were occasionally failing due to constraint conflicts.
-- Audit logging has been removed from the frontend as it should ideally be handled via database triggers or a dedicated backend service for security and performance reasons.
+## 💡 Notes for Reviewer
+Existing incorrect registry orders in the database are immutable and will remain unchanged. These fixes apply only to newly created registry orders going forward. The `redirect_to` flow has been built robustly using `sessionStorage` to survive OAuth redirects.

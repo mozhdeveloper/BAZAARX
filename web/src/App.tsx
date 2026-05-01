@@ -293,6 +293,13 @@ function App() {
           if (isOAuthRedirect && oauthRedirectDone !== '1') {
             let targetPath = isFirstOAuthLogin ? '/buyer-onboarding' : '/shop';
             
+            // If returning user, check for redirect_to path
+            const redirectTo = sessionStorage.getItem('redirect_to');
+            if (redirectTo && !isFirstOAuthLogin) {
+              targetPath = redirectTo;
+              sessionStorage.removeItem('redirect_to');
+            }
+            
             // If they were linking, send them back to settings (security tab)
             if (oauthIntent === 'link_google') {
               targetPath = '/settings?tab=security';

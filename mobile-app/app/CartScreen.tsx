@@ -134,13 +134,20 @@ export default function CartScreen({ navigation, route }: any) {
   // Edit Variant State
   const [showVariantModal, setShowVariantModal] = useState(false);
   const [editingItem, setEditingItem] = useState<CartItem | null>(null);
+  const [updatingItemId, setUpdatingItemId] = useState<string | null>(null);
 
   const handleEditVariant = (item: CartItem) => {
     setEditingItem(item);
     setShowVariantModal(true);
   };
 
-  const handleSaveVariant = async (
+  /**
+   * handleVariantChange
+   * Step 1: Accepts cartItemId, variantData (contains newVariantId), and quantity.
+   * Step 4: Implements loading state for the dropdown.
+   */
+  const handleVariantChange = async (
+    cartItemId: string,
     variantData: {
       option1Value?: string;
       option2Value?: string;
@@ -148,25 +155,36 @@ export default function CartScreen({ navigation, route }: any) {
     },
     newQuantity: number
   ) => {
-    if (!editingItem) return;
+    if (!cartItemId) return;
+    
+    setUpdatingItemId(cartItemId);
 
-    // Build personalized options
-    const newOptions: any = {
-      ...editingItem.selectedVariant, // Keep existing (like fallback)
-      option1Value: variantData.option1Value,
-      option2Value: variantData.option2Value,
-      variantId: variantData.variantId,
-    };
-    // Also update legacy fields if applicable (though store might handle mapping)
-    if (variantData.option1Value) newOptions.size = variantData.option1Value;
-    if (variantData.option2Value) newOptions.color = variantData.option2Value;
+    try {
+      // Build clean personalized options object (Replacement logic)
+      const newOptions: any = {
+        option1Value: variantData.option1Value,
+        option2Value: variantData.option2Value,
+        variantId: variantData.variantId,
+      };
 
-    // Update variant - this includes merging logic that combines quantities properly
-    await updateItemVariant(editingItem.cartItemId, variantData.variantId, newOptions);
-    // Do NOT call updateQuantity here - the variant update with merge already handles
-    // setting the correct combined quantity in the database
+      // Map legacy fields for compatibility
+      if (variantData.option1Value) newOptions.size = variantData.option1Value;
+      if (variantData.option2Value) newOptions.color = variantData.option2Value;
 
-    setEditingItem(null);
+      // Call store update (which now handles optimistic Scenario A/B)
+      await updateItemVariant(cartItemId, variantData.variantId, newOptions);
+      
+      // If the user also changed quantity in the modal, sync that too
+      if (editingItem && newQuantity !== editingItem.quantity) {
+        await updateQuantity(cartItemId, newQuantity);
+      }
+    } catch (e: any) {
+      // Error Handling: Already handled by store rollback, but we can show additional UI feedback here if needed
+      console.error('[CartScreen] Variant update error:', e);
+    } finally {
+      setUpdatingItemId(null);
+      setEditingItem(null);
+    }
   };
 
   // Delete Handlers
@@ -213,8 +231,8 @@ export default function CartScreen({ navigation, route }: any) {
   }, [getItemStock]);
 
   // BX-04-005: Segregate valid items from unavailable items
-  const validItems = useMemo(() => items.filter(i => !isItemUnavailable(i)), [items, isItemUnavailable]);
-  const unavailableItems = useMemo(() => items.filter(i => isItemUnavailable(i)), [items, isItemUnavailable]);
+  const validItems = useMemo(() => items.map(i => i.cartItemId === updatingItemId ? { ...i, isUpdating: true } : i).filter(i => !isItemUnavailable(i)), [items, isItemUnavailable, updatingItemId]);
+  const unavailableItems = useMemo(() => items.map(i => i.cartItemId === updatingItemId ? { ...i, isUpdating: true } : i).filter(i => isItemUnavailable(i)), [items, isItemUnavailable, updatingItemId]);
 
   const groupedItems = useMemo(() => {
     return validItems.reduce((groups, item) => {
@@ -598,7 +616,7 @@ export default function CartScreen({ navigation, route }: any) {
             variants={editingItem.variants}
             initialSelectedVariant={editingItem.selectedVariant}
             initialQuantity={editingItem.quantity}
-            onConfirm={handleSaveVariant}
+            onConfirm={(v, q) => handleVariantChange(editingItem.cartItemId, v, q)}
             confirmLabel="Update Cart"
             hideQuantity={true}
             activeCampaignDiscount={editingItemDiscount}

@@ -21,8 +21,8 @@ import type {
   SellerPayoutSettings,
   SellerPayout,
   SellerEarningsSummary,
+  PaymentTransactionStatus,
 } from '@/types/payment.types';
-import type { PaymentTransactionStatus } from '@/types/database.types';
 import { supabase, isSupabaseConfigured } from '@/lib/supabase';
 import { sendPaymentReceivedEmail, sendDigitalReceiptEmail, sendPaymentFailedEmail } from '@/services/transactionalEmails';
 import { fetchOrderEmailData } from '@/services/receiptService';
@@ -189,33 +189,34 @@ export class PayMongoGatewayService {
       },
     });
 
-    // Step 2: Create Payment Method with card details
-    const paymentMethod = await this.apiCreatePaymentMethod({
-      type: 'card',
-      details: request.cardDetails ? {
-        card_number: request.cardDetails.cardNumber,
-        exp_month: request.cardDetails.expMonth,
-        exp_year: request.cardDetails.expYear,
-        cvc: request.cardDetails.cvc,
-      } : undefined,
-      billing: request.billing ? {
-        name: request.billing.name,
-        email: request.billing.email,
-        phone: request.billing.phone,
-      } : undefined,
-    });
+    // Step 2: Use saved payment method or create a new one
+    let paymentMethodId = request.paymentMethodId;
+
+    if (!paymentMethodId) {
+      const pm = await this.apiCreatePaymentMethod({
+        type: 'card',
+        details: request.cardDetails ? {
+          card_number: request.cardDetails.cardNumber,
+          exp_month: request.cardDetails.expMonth,
+          exp_year: request.cardDetails.expYear,
+          cvc: request.cardDetails.cvc,
+        } : undefined,
+        billing: request.billing,
+      });
+      paymentMethodId = pm.id;
+    }
 
     // Step 3: Attach Payment Method to Intent
     const attachedIntent = await this.apiAttachPaymentIntent(
       intent.id,
-      paymentMethod.id,
+      paymentMethodId,
       request.returnUrl || `${window.location.origin}/payment/callback`,
     );
 
     // Update transaction with gateway IDs
     await this.updateTransactionStatus(transactionId, 'processing', {
       gatewayPaymentIntentId: intent.id,
-      gatewayPaymentMethodId: paymentMethod.id,
+      gatewayPaymentMethodId: paymentMethodId,
     });
 
     const status = attachedIntent.attributes.status;
@@ -504,7 +505,7 @@ export class PayMongoGatewayService {
       bankName: data.bank_name,
       bankAccountName: data.bank_account_name,
       bankAccountNumber: data.bank_account_number,
-      ewalletProvider: data.ewallet_provider,
+      ewalletProvider: data.ewallet_provider as 'gcash' | 'maya',
       ewalletNumber: data.ewallet_number,
       autoPayout: data.auto_payout,
       minPayoutAmount: Number(data.min_payout_amount),
@@ -531,7 +532,7 @@ export class PayMongoGatewayService {
 
     const { error } = await supabase
       .from('seller_payout_settings')
-      .upsert(payload, { onConflict: 'seller_id' });
+      .upsert(payload as any, { onConflict: 'seller_id' });
 
     if (error) throw new Error(error.message || 'Failed to save payout settings');
   }

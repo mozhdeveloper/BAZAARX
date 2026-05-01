@@ -1,6 +1,6 @@
 import { Button } from "@/components/ui/button";
-import { Edit, Trash2, Check, Upload, Package } from "lucide-react";
 import { VariantConfig } from "@/types";
+import { Check, Edit, Package, Trash2, Upload } from "lucide-react";
 
 // Update the interface to accept the local file object
 interface VariantItemProps {
@@ -61,7 +61,7 @@ export function VariantItem({
           </div>
           <div className="grid grid-cols-3 gap-3">
             <div>
-              <label className="text-xs font-medium text-gray-500">Stock *</label>
+              <label className="text-xs font-medium text-gray-500 block h-4 leading-4">Stock *</label>
               <input
                 type="number"
                 min="0"
@@ -71,8 +71,8 @@ export function VariantItem({
               />
             </div>
             <div>
-              <label className="text-xs font-medium text-orange-600 flex items-center gap-1">
-                Variant Price (₱) *
+              <label className="text-xs font-medium text-orange-600 block h-4 leading-4 truncate">
+                Price (₱) *
               </label>
               <input
                 type="number"
@@ -83,7 +83,7 @@ export function VariantItem({
               />
             </div>
             <div>
-              <label className="text-xs font-medium text-gray-500">SKU</label>
+              <label className="text-xs font-medium text-gray-500 block h-4 leading-4">SKU</label>
               <input
                 type="text"
                 value={variant.sku}
@@ -93,54 +93,54 @@ export function VariantItem({
             </div>
           </div>
 
-          {/* Variant Image: File Upload OR URL */}
-          <div>
-            <label className="text-xs font-medium text-gray-500">Variant Image (Optional)</label>
-            <div className="flex gap-2 mt-1 items-start">
-              {/* File Upload Thumbnail */}
-              <label
-                htmlFor={`file-upload-${variant.id}`}
-                className="relative h-10 w-10 flex-shrink-0 rounded-lg border border-gray-200 bg-gray-50 hover:bg-orange-50 overflow-hidden flex items-center justify-center transition-colors cursor-pointer group"
-                title="Click to upload image"
-              >
-                {previewUrl ? (
-                  <>
-                    <img loading="lazy" src={previewUrl} alt="Variant preview" className="h-full w-full object-cover" />
-                    <div className="absolute inset-0 bg-black/40 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
-                      <Edit className="h-4 w-4 text-white" />
-                    </div>
-                  </>
-                ) : (
-                  <Upload className="h-4 w-4 text-gray-400 group-hover:text-orange-500" />
-                )}
-                <input
-                  id={`file-upload-${variant.id}`}
-                  type="file"
-                  accept="image/jpeg,image/jpg,image/png,image/webp"
-                  className="hidden"
-                  onChange={(e) => {
-                    const file = e.target.files?.[0] || null;
-                    if (file) {
-                      updateVariantConfig(variant.id, 'file', file);
-                      updateVariantConfig(variant.id, 'image', ""); // Clear URL if they upload a file
-                    }
-                    e.target.value = ""; // Reset so same file can be selected again
-                  }}
-                />
-              </label>
+          {/* Variant Image: File Upload OR URL — aligned as a full-width row */}
+          <div className="grid grid-cols-3 gap-3 items-end">
+            <div className="col-span-3">
+              <label className="text-xs font-medium text-gray-500">Variant Image (Optional)</label>
+              <div className="flex gap-2 mt-1 items-center">
+                {/* File Upload Thumbnail */}
+                <label
+                  htmlFor={`file-upload-${variant.id}`}
+                  className="relative h-[34px] w-[34px] flex-shrink-0 rounded-lg border border-gray-200 bg-gray-50 hover:bg-orange-50 overflow-hidden flex items-center justify-center transition-colors cursor-pointer group"
+                  title="Click to upload image"
+                >
+                  {previewUrl ? (
+                    <>
+                      <img loading="lazy" src={previewUrl} alt="Variant preview" className="h-full w-full object-cover" />
+                      <div className="absolute inset-0 bg-black/40 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
+                        <Edit className="h-3 w-3 text-white" />
+                      </div>
+                    </>
+                  ) : (
+                    <Upload className="h-3.5 w-3.5 text-gray-400 group-hover:text-orange-500" />
+                  )}
+                  <input
+                    id={`file-upload-${variant.id}`}
+                    type="file"
+                    accept="image/jpeg,image/jpg,image/png,image/webp"
+                    className="hidden"
+                    onChange={(e) => {
+                      const file = e.target.files?.[0] || null;
+                      if (file) {
+                        updateVariantConfig(variant.id, 'file', file);
+                        updateVariantConfig(variant.id, 'image', "");
+                      }
+                      e.target.value = "";
+                    }}
+                  />
+                </label>
 
-              {/* URL Input */}
-              <div className="flex-1 flex flex-col gap-1">
+                {/* URL Input */}
                 <input
                   type="url"
                   value={variant.image || ""}
                   onChange={(e) => {
                     updateVariantConfig(variant.id, 'image', e.target.value);
                     if (variant.file) {
-                      updateVariantConfig(variant.id, 'file', null); // Clear file if they type a URL
+                      updateVariantConfig(variant.id, 'file', null);
                     }
                   }}
-                  className="w-full rounded-lg border border-gray-200 px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-orange-500"
+                  className="flex-1 rounded-lg border border-gray-200 px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-orange-500"
                   placeholder="https://... (or click icon to upload)"
                 />
                 {(variant.file || variant.image) && (
@@ -150,9 +150,9 @@ export function VariantItem({
                       updateVariantConfig(variant.id, 'file', null);
                       updateVariantConfig(variant.id, 'image', "");
                     }}
-                    className="text-[10px] text-red-500 hover:underline text-left self-start"
+                    className="text-[10px] text-red-500 hover:underline flex-shrink-0"
                   >
-                    Remove image
+                    Remove
                   </button>
                 )}
               </div>

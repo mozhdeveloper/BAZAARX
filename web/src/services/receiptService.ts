@@ -269,7 +269,8 @@ export async function fetchOrderEmailData(orderId: string): Promise<OrderEmailDa
     );
 
     // 5. Payment info — use most recent confirmed payment
-    const payments = (order.order_payments ?? []) as Array<{
+    const paymentsArr = Array.isArray(order.order_payments) ? order.order_payments : (order.order_payments ? [order.order_payments] : []);
+    const payments = (paymentsArr ?? []) as Array<{
       payment_method: unknown;
       payment_reference: string | null;
       payment_date: string | null;
@@ -295,7 +296,8 @@ export async function fetchOrderEmailData(orderId: string): Promise<OrderEmailDa
       : formatReceiptDate(order.created_at);
 
     // 6. Tracking number from most recent shipment
-    const shipments = (order.order_shipments ?? []) as Array<{ tracking_number: string | null }>;
+    const shipmentsArr = Array.isArray(order.order_shipments) ? order.order_shipments : (order.order_shipments ? [order.order_shipments] : []);
+    const shipments = (shipmentsArr ?? []) as Array<{ tracking_number: string | null }>;
     const trackingNumber = shipments[shipments.length - 1]?.tracking_number ?? '';
 
     return {

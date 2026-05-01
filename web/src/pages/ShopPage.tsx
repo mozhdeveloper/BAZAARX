@@ -2,12 +2,11 @@
 import { AnimatePresence, motion } from "framer-motion";
 import {
   BadgeCheck,
-  ShoppingCart,
-  ShoppingBag,
-  Menu,
-  Flame,
   ChevronRight,
   MapPin,
+  Menu,
+  ShoppingBag,
+  ShoppingCart,
   Star,
   Truck,
   X
@@ -90,7 +89,8 @@ export default function ShopPage() {
   const [isFeaturedView, setIsFeaturedView] = useState(false);
   const [categoryProducts, setCategoryProducts] = useState<any[]>([]);
   const [isCategoryLoading, setIsCategoryLoading] = useState(false);
-  const isProductsLoading = storeLoading || isCategoryLoading;
+  const [isDiscountsLoading, setIsDiscountsLoading] = useState(false);
+  const isProductsLoading = storeLoading || isCategoryLoading || isDiscountsLoading;
   const shuffledIdsRef = useRef<string[]>([]);
   const [priceRange, setPriceRange] = useState<number[]>([0, 100000]);
   const [minRating, setMinRating] = useState<number>(0);
@@ -132,6 +132,7 @@ export default function ShopPage() {
   const [featuredProducts, setFeaturedProducts] = useState<FeaturedProductWithDetails[]>([]);
   const [boostedProducts, setBoostedProducts] = useState<AdBoostWithProduct[]>([]);
   const [featuredLoading, setFeaturedLoading] = useState(true);
+  const [featuredDiscounts, setFeaturedDiscounts] = useState<Record<string, any>>({});
 
   const hasCompletedOnboarding = profile && profile.preferences?.interestedCategories && profile.preferences.interestedCategories.length > 0;
   const showOnboardingBanner = profile && !hasCompletedOnboarding;
@@ -141,22 +142,50 @@ export default function ShopPage() {
     discountService.getGlobalFlashSaleProducts()
       .then((data) => {
         if (data && data.length > 0) {
-          setFlashSaleProducts(data);
+          // Filter out products with 0 stock (including variant stock)
+          const inStockProducts = data.filter((p: any) => {
+            const variants = p.variants || [];
+            if (variants.length > 0) {
+              const totalVariantStock = variants.reduce((sum: number, v: any) => sum + (v.stock || 0), 0);
+              return totalVariantStock > 0;
+            }
+            return (p.stock || 0) > 0;
+          });
+          setFlashSaleProducts(inStockProducts);
         }
       })
       .catch((e) => console.error('Failed to load flash sales:', e));
 
-    // Fetch featured products
-    const featuredPromise = featuredProductService.getFeaturedProducts(12).then(data => {
-      setFeaturedProducts(data);
-    }).catch(e => console.error('Failed to load featured products:', e));
+    // Fetch featured + boosted products, then immediately fetch their discounts
+    // so the discount badges appear at the same time as the cards (no delay).
+    const loadFeatured = async () => {
+      try {
+        const [featData, boostData] = await Promise.all([
+          featuredProductService.getFeaturedProducts(12).catch(() => [] as FeaturedProductWithDetails[]),
+          adBoostService.getActiveBoostedProducts('featured', 12).catch(() => [] as AdBoostWithProduct[]),
+        ]);
 
-    // Fetch boosted products (ad boosts)
-    const boostedPromise = adBoostService.getActiveBoostedProducts('featured', 12).then(data => {
-      setBoostedProducts(data);
-    }).catch(e => console.error('Failed to load boosted products:', e));
+        setFeaturedProducts(featData);
+        setBoostedProducts(boostData);
 
-    Promise.all([featuredPromise, boostedPromise]).finally(() => setFeaturedLoading(false));
+        // Collect all product IDs from both sources
+        const ids = new Set<string>();
+        for (const bp of boostData) { if ((bp as any).product?.id) ids.add((bp as any).product.id); }
+        for (const fp of featData) { if ((fp as any).product?.id) ids.add((fp as any).product.id); }
+        const productIds = [...ids];
+
+        if (productIds.length > 0) {
+          const discounts = await discountService.getActiveDiscountsForProducts(productIds).catch(() => ({}));
+          setFeaturedDiscounts(discounts);
+        }
+      } catch (e) {
+        console.error('Failed to load featured products:', e);
+      } finally {
+        setFeaturedLoading(false);
+      }
+    };
+
+    loadFeatured();
   }, []);
 
   // 2. Fetch categories on mount
@@ -192,12 +221,22 @@ export default function ShopPage() {
       sellerVerified: p.approvalStatus === "pending",
       variantLabel2Values: p.variantLabel2Values || [],
       variantLabel1Values: p.variantLabel1Values || [],
-      stock: p.stock || 99,
+      stock: p.stock || 0,
       variants: p.variants || [],
       lifetimeSold: (p as any).lifetimeSold || p.sales || 0,
       isVacationMode: (p as any).isVacationMode || false,
       createdAt: (p as any).createdAt || "",
     });
+
+    // Helper: check if a product has any available stock (via variants or direct stock field)
+    const hasStock = (product: ShopProduct): boolean => {
+      const variants = product.variants || [];
+      if (variants.length > 0) {
+        const totalVariantStock = variants.reduce((sum: number, v: any) => sum + (v.stock || 0), 0);
+        return totalVariantStock > 0;
+      }
+      return (product.stock || 0) > 0;
+    };
 
     // Start with store products (the initial 200-product fetch)
     const storeProducts = sellerProducts
@@ -216,7 +255,8 @@ export default function ShopPage() {
         if (sellerTempBlacklistUntil && new Date(sellerTempBlacklistUntil) > new Date()) return false;
         return true;
       })
-      .map(mapToShopProduct);
+      .map(mapToShopProduct)
+      .filter(hasStock);
 
     // Merge in category-specific products from server-side fetch
     // These may include products not in the initial store fetch
@@ -240,7 +280,7 @@ export default function ShopPage() {
           return true;
         })
         .map(mapToShopProduct);
-      return [...storeProducts, ...extraProducts];
+      return [...storeProducts, ...extraProducts].filter(hasStock);
     }
 
     return storeProducts;
@@ -263,10 +303,11 @@ export default function ShopPage() {
     const loadDiscounts = async () => {
       const productIds = [...new Set(allProducts.map(product => product.id).filter(Boolean))];
       if (productIds.length === 0) {
-        if (isMounted) setActiveCampaignDiscounts({});
+        if (isMounted) { setActiveCampaignDiscounts({}); setIsDiscountsLoading(false); }
         return;
       }
 
+      setIsDiscountsLoading(true);
       try {
         const discounts = await discountService.getActiveDiscountsForProducts(productIds);
         if (isMounted) {
@@ -277,6 +318,8 @@ export default function ShopPage() {
         if (isMounted) {
           setActiveCampaignDiscounts({});
         }
+      } finally {
+        if (isMounted) setIsDiscountsLoading(false);
       }
     };
 
@@ -519,12 +562,14 @@ export default function ShopPage() {
 
     const addItem = (product: any, isBoosted: boolean) => {
       if (!product || seen.has(product.id)) return;
-      seen.add(product.id);
       const reviews = product.reviews || [];
       const avgRating = reviews.length > 0
         ? Math.round((reviews.reduce((s: number, r: any) => s + r.rating, 0) / reviews.length) * 10) / 10
         : 0;
       const totalStock = product.variants?.reduce((sum: number, v: any) => sum + (v.stock || 0), 0) || 0;
+      // Skip out-of-stock products (all variants have 0 stock)
+      if (totalStock <= 0) return;
+      seen.add(product.id);
       const primaryImage = product.images?.find((img: any) => img.is_primary) || product.images?.[0];
       const imageUrl = primaryImage?.image_url || 'https://placehold.co/400x400?text=No+Image';
       items.push({
@@ -999,6 +1044,8 @@ export default function ShopPage() {
                     for (const bp of boostedProducts) {
                       const product = bp.product;
                       if (!product || seenIds.has(product.id)) continue;
+                      const totalStock = (product.variants || []).reduce((sum: number, v: any) => sum + (v.stock || 0), 0);
+                      if (totalStock <= 0) continue;
                       seenIds.add(product.id);
                       allItems.push({ key: `boost-${bp.id}`, product, isBoosted: true });
                     }
@@ -1006,6 +1053,8 @@ export default function ShopPage() {
                     for (const fp of featuredProducts) {
                       const product = (fp as any).product;
                       if (!product || seenIds.has(product.id)) continue;
+                      const totalStock = (product.variants || []).reduce((sum: number, v: any) => sum + (v.stock || 0), 0);
+                      if (totalStock <= 0) continue;
                       seenIds.add(product.id);
                       allItems.push({ key: `feat-${(fp as any).id}`, product, isBoosted: false });
                     }
@@ -1020,6 +1069,28 @@ export default function ShopPage() {
                       const totalStock = product.variants?.reduce((sum: number, v: any) => sum + (v.stock || 0), 0) || 0;
                       const sellerName = product.seller?.store_name || 'BazaarX Store';
                       const soldCount = product.soldCount || product.sold_count || 0;
+
+                      // Compute discount info from fetched campaign discounts
+                      const featDiscount = featuredDiscounts[product.id];
+                      let displayPrice = Number(product.price ?? 0);
+                      let originalPrice: number | undefined = product.original_price ?? undefined;
+                      let discountPercent: number | undefined;
+                      let discountTooltip: string | undefined;
+                      if (featDiscount) {
+                        originalPrice = featDiscount.originalPrice || displayPrice;
+                        if (featDiscount.discountType === 'percentage') {
+                          displayPrice = originalPrice * (1 - featDiscount.discountValue / 100);
+                          discountPercent = Math.round(featDiscount.discountValue);
+                          if (typeof featDiscount.maxDiscountAmount === 'number') {
+                            displayPrice = Math.max(displayPrice, originalPrice - featDiscount.maxDiscountAmount);
+                            discountTooltip = `Up to ₱${featDiscount.maxDiscountAmount.toLocaleString()} off`;
+                          }
+                        } else if (featDiscount.discountType === 'fixed_amount') {
+                          displayPrice = Math.max(0, originalPrice - featDiscount.discountValue);
+                          discountPercent = originalPrice > 0 ? Math.round((featDiscount.discountValue / originalPrice) * 100) : undefined;
+                        }
+                      }
+                      const hasDiscount = originalPrice !== undefined && originalPrice > displayPrice;
 
                       return (
                         <motion.div
@@ -1048,6 +1119,15 @@ export default function ShopPage() {
                                 (e.target as HTMLImageElement).src = 'https://placehold.co/400x400?text=No+Image';
                               }}
                             />
+                            {/* Discount Badge */}
+                            {hasDiscount && discountPercent && (
+                              <div
+                                title={discountTooltip}
+                                className="absolute top-2 right-2 bg-[#DC2626] text-white px-2 py-[2px] rounded text-[11px] font-black uppercase tracking-wider z-10 shadow-sm"
+                              >
+                                {discountPercent}% OFF
+                              </div>
+                            )}
                             {/* Gradient overlay at bottom */}
                             <div className="absolute inset-x-0 bottom-0 h-8 bg-gradient-to-t from-black/10 to-transparent" />
                           </div>
@@ -1076,8 +1156,13 @@ export default function ShopPage() {
 
                             {/* Price */}
                             <div className="mb-2">
-                              <span className="text-lg font-extrabold text-[#D97706] leading-none">
-                                ₱{product.price?.toLocaleString() || '0'}
+                              {hasDiscount && originalPrice && (
+                                <span className="text-[11px] text-gray-400 line-through font-medium leading-none block mb-[3px]">
+                                  ₱{originalPrice.toLocaleString()}
+                                </span>
+                              )}
+                              <span className={`text-lg font-extrabold leading-none ${hasDiscount ? 'text-[#DC2626]' : 'text-[#D97706]'}`}>
+                                ₱{displayPrice?.toLocaleString() || '0'}
                               </span>
                             </div>
 
@@ -1981,7 +2066,7 @@ export default function ShopPage() {
                                   variants: (product as any).variants || [],
                                   variantLabel2Values: (product as any).variantLabel2Values || [],
                                   variantLabel1Values: (product as any).variantLabel1Values || [],
-                                  stock: product.stock || 99,
+                                  stock: product.stock || 0,
                                 } as any);
                                 setShowBuyNowModal(true);
                               }
