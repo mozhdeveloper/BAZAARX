@@ -168,8 +168,9 @@ export default function OrderConfirmation({ navigation, route }: Props) {
     // COD orders go to 'pending' tab (awaiting seller confirmation)
     const paymentMethod = order?.paymentMethod;
     const isPayMongo = paymentMethod && 
-      (typeof paymentMethod === 'string' ? paymentMethod.toLowerCase() : paymentMethod?.type?.toLowerCase()) === 'paymongo';
+      (typeof paymentMethod === 'string' ? paymentMethod.toLowerCase() : (paymentMethod as any)?.type?.toLowerCase()) === 'paymongo';
     
+    // Map paid PayMongo orders to 'processing' tab, COD orders to 'pending' tab
     const initialTab = isPayMongo ? 'processing' : 'pending';
     navigation.navigate('Orders', { initialTab });
   };

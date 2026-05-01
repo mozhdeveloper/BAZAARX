@@ -1028,7 +1028,7 @@ export default function OrderDetailScreen({ route, navigation }: Props) {
                        </View>
                        
                        {/* 🔧 BX-PAYMENT-FIX: COD Payment Instruction Message - Only show when COD AND not in terminal statuses */}
-                       {isCODPayment && !['received', 'returned', 'reviewed', 'cancelled'].includes(order.buyerUiStatus) && !['received', 'returned', 'reviewed', 'cancelled'].includes(order.status) && (() => {
+                       {isCODPayment && !['received', 'returned', 'reviewed', 'cancelled'].includes(order.buyerUiStatus ?? '') && !['received', 'returned', 'reviewed', 'cancelled'].includes(order.status ?? '') && (() => {
                          const estimatedDelivery = deliveryTracking?.booking?.estimatedDelivery || order.estimatedDelivery;
                          let formattedDeadline: string | null = null;
                          

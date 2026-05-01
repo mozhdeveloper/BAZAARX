@@ -115,7 +115,7 @@ export const isPayMongo = (method: any): boolean => {
  */
 export const isOnlinePayment = (method: any): boolean => {
   const normalized = normalizePaymentMethod(method);
-  return ![PAYMENT_METHODS.COD].includes(normalized);
+  return normalized !== PAYMENT_METHODS.COD;
 };
 
 /**
