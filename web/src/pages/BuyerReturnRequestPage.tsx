@@ -1,5 +1,5 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { createPortal } from "react-dom";
 import { useParams, useNavigate } from "react-router-dom";
 import {
@@ -120,6 +120,8 @@ export default function BuyerReturnRequestPage() {
   const [description, setDescription] = useState("");
   const [evidenceFiles, setEvidenceFiles] = useState<File[]>([]);
   const [evidencePreviews, setEvidencePreviews] = useState<string[]>([]);
+  const photoInputRef = useRef<HTMLInputElement>(null);
+  const videoInputRef = useRef<HTMLInputElement>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [selectedImageIndex, setSelectedImageIndex] = useState<number | null>(null);
   // Return method
@@ -881,52 +883,104 @@ export default function BuyerReturnRequestPage() {
                       <span>At least <strong>2 photos</strong> and <strong>1 video</strong> are required. Max 6 files total. Photos: JPG/PNG up to 10 MB &middot; Videos: MP4/MOV up to 50 MB.</span>
                     </div>
 
-                    {/* Upload area — hidden when at 6-file cap */}
-                    {evidenceFiles.length < 6 && (
-                      <label className="block w-full border-2 border-dashed rounded-lg p-5 text-center cursor-pointer transition-colors border-orange-200 hover:border-[var(--brand-primary)] hover:bg-orange-50/30">
-                        <input type="file" accept="image/jpeg,image/png,video/mp4,video/quicktime" multiple onChange={handleEvidenceUpload} className="hidden" />
-                        <Camera className="w-6 h-6 text-gray-400 mx-auto mb-1" />
-                        <p className="text-xs font-medium text-gray-700">Click to upload photos or videos</p>
-                        <p className="text-[10px] text-gray-400 mt-0.5">
-                          {evidenceFiles.length}/6 files &middot; {evidenceFiles.filter(f => f.type.startsWith("image/")).length}/2 photos &middot; {evidenceFiles.some(f => f.type.startsWith("video/")) ? "✓" : "0"}/1 video
-                        </p>
-                      </label>
-                    )}
+                    {/* Hidden file inputs — separate for photo and video */}
+                    <input ref={photoInputRef} type="file" accept="image/jpeg,image/png" multiple className="hidden" onChange={handleEvidenceUpload} />
+                    <input ref={videoInputRef} type="file" accept="video/mp4,video/quicktime" multiple className="hidden" onChange={handleEvidenceUpload} />
 
-                    {/* Previews — horizontal scroll strip with arrow nav */}
-                    {evidencePreviews.length > 0 && (
-                      <div className="relative">
-                        <div id="evidence-scroll" className="flex gap-2 overflow-x-auto scroll-smooth pb-1 pt-3 px-1 scrollbar-hide">
-                          {evidencePreviews.map((preview, i) => (
-                            <div key={i} className="relative group flex-shrink-0">
-                              <button onClick={() => setSelectedImageIndex(i)} className="cursor-pointer hover:opacity-80 transition-opacity block">
-                                {evidenceFiles[i]?.type.startsWith("video/") ? (
-                                  <div className="w-24 h-24 rounded-lg bg-gray-900 flex flex-col items-center justify-center border border-gray-200">
-                                    <Video className="w-6 h-6 text-white" />
-                                    <p className="text-[8px] text-white/70 mt-1 truncate px-1 w-full text-center">{evidenceFiles[i].name}</p>
-                                  </div>
-                                ) : (
-                                  <img loading="lazy" src={preview} alt={`Evidence ${i + 1}`} className="w-24 h-24 rounded-lg object-cover border border-gray-200" />
-                                )}
-                              </button>
-                              <button onClick={() => removeEvidence(i)} className="absolute -top-2 -right-2 w-4 h-4 bg-red-500 text-white rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity z-10">
-                                <X className="w-2 h-2" />
-                              </button>
-                            </div>
-                          ))}
+                    {/* Shopee-style upload grid */}
+                    {(() => {
+                      const photoCount = evidenceFiles.filter(f => f.type.startsWith("image/")).length;
+                      const hasVideo = evidenceFiles.some(f => f.type.startsWith("video/"));
+                      const atCap = evidenceFiles.length >= 6;
+                      const showAddPhoto = !atCap;
+                      const showAddVideo = !atCap;
+                      return (
+                        <div className="flex flex-wrap gap-2 pt-1">
+                          {/* Filled thumbnails */}
+                          {evidencePreviews.map((preview, i) => {
+                            const isVideo = evidenceFiles[i]?.type.startsWith("video/");
+                            return (
+                              <div key={i} className="relative group flex-shrink-0">
+                                <button
+                                  type="button"
+                                  onClick={() => setSelectedImageIndex(i)}
+                                  className="block w-[72px] h-[72px] rounded-xl overflow-hidden border-2 border-gray-200 hover:border-[var(--brand-primary)] transition-colors focus:outline-none"
+                                >
+                                  {isVideo ? (
+                                    <div className="w-full h-full bg-gray-900 flex flex-col items-center justify-center">
+                                      <Video className="w-5 h-5 text-white" />
+                                      <span className="text-[7px] text-white/60 mt-1 px-1 truncate w-full text-center">{evidenceFiles[i].name}</span>
+                                    </div>
+                                  ) : (
+                                    <img loading="lazy" src={preview} alt={`Evidence ${i + 1}`} className="w-full h-full object-cover" />
+                                  )}
+                                  {/* Media type badge */}
+                                  <span className={cn(
+                                    "absolute bottom-0 left-0 right-0 text-[8px] font-bold text-white text-center py-0.5",
+                                    isVideo ? "bg-blue-600/80" : "bg-[var(--brand-primary)]/80"
+                                  )}>
+                                    {isVideo ? "VIDEO" : "PHOTO"}
+                                  </span>
+                                </button>
+                                {/* Remove button */}
+                                <button
+                                  type="button"
+                                  onClick={(e) => { e.stopPropagation(); removeEvidence(i); }}
+                                  className="absolute -top-1.5 -right-1.5 w-5 h-5 bg-red-500 hover:bg-red-600 text-white rounded-full flex items-center justify-center shadow-md transition-colors z-10 opacity-0 group-hover:opacity-100"
+                                >
+                                  <X className="w-2.5 h-2.5" />
+                                </button>
+                              </div>
+                            );
+                          })}
+
+                          {/* Add Photo tile */}
+                          {showAddPhoto && (
+                            <button
+                              type="button"
+                              onClick={() => photoInputRef.current?.click()}
+                              className="w-[72px] h-[72px] rounded-xl border-2 border-dashed border-orange-300 hover:border-[var(--brand-primary)] hover:bg-orange-50 transition-all flex flex-col items-center justify-center gap-1 group"
+                            >
+                              <div className="w-8 h-8 rounded-full bg-orange-100 group-hover:bg-orange-200 flex items-center justify-center transition-colors">
+                                <Camera className="w-4 h-4 text-[var(--brand-primary)]" />
+                              </div>
+                              <span className="text-[9px] font-semibold text-[var(--brand-primary)] leading-tight">
+                                {photoCount === 0 ? "Add Photo" : "+ Photo"}
+                              </span>
+                            </button>
+                          )}
+
+                          {/* Add Video tile */}
+                          {showAddVideo && (
+                            <button
+                              type="button"
+                              onClick={() => videoInputRef.current?.click()}
+                              className="w-[72px] h-[72px] rounded-xl border-2 border-dashed border-blue-200 hover:border-blue-500 hover:bg-blue-50 transition-all flex flex-col items-center justify-center gap-1 group"
+                            >
+                              <div className="w-8 h-8 rounded-full bg-blue-100 group-hover:bg-blue-200 flex items-center justify-center transition-colors">
+                                <Video className="w-4 h-4 text-blue-600" />
+                              </div>
+                              <span className="text-[9px] font-semibold text-blue-600 leading-tight">
+                                {!hasVideo ? "Add Video" : "+ Video"}
+                              </span>
+                            </button>
+                          )}
                         </div>
-                        {evidencePreviews.length > 3 && (
-                          <div className="flex justify-end gap-1 mt-1">
-                            <button onClick={() => { const el = document.getElementById('evidence-scroll'); if (el) el.scrollLeft -= 200; }} className="w-6 h-6 rounded-full bg-gray-100 hover:bg-gray-200 flex items-center justify-center transition-colors">
-                              <ChevronLeft className="w-3.5 h-3.5 text-gray-600" />
-                            </button>
-                            <button onClick={() => { const el = document.getElementById('evidence-scroll'); if (el) el.scrollLeft += 200; }} className="w-6 h-6 rounded-full bg-gray-100 hover:bg-gray-200 flex items-center justify-center transition-colors">
-                              <ChevronRight className="w-3.5 h-3.5 text-gray-600" />
-                            </button>
-                          </div>
-                        )}
-                      </div>
-                    )}
+                      );
+                    })()}
+
+                    {/* File count summary */}
+                    <div className="flex items-center gap-3 text-[10px] text-gray-500 pt-0.5">
+                      <span className={cn("flex items-center gap-1", evidenceFiles.filter(f => f.type.startsWith("image/")).length >= 2 ? "text-green-600 font-semibold" : "")}>
+                        <Camera className="w-3 h-3" />
+                        {evidenceFiles.filter(f => f.type.startsWith("image/")).length}/2 photos
+                      </span>
+                      <span className={cn("flex items-center gap-1", evidenceFiles.some(f => f.type.startsWith("video/")) ? "text-green-600 font-semibold" : "")}>
+                        <Video className="w-3 h-3" />
+                        {evidenceFiles.some(f => f.type.startsWith("video/")) ? "1" : "0"}/1 video
+                      </span>
+                      <span className="ml-auto">{evidenceFiles.length}/6 files</span>
+                    </div>
 
                     {/* Media Preview Modal — rendered via portal so no parent click handler can interfere */}
                     {selectedImageIndex !== null && (currentStep === "evidence" || currentStep === "review") && createPortal(

@@ -34,6 +34,7 @@ import {
   LifeBuoy,
   Megaphone,
   RotateCcw,
+  Lightbulb,
 } from 'lucide-react-native';
 import { useSellerStore } from '../stores/sellerStore';
 import { useAuthStore } from '../stores/authStore';
@@ -259,6 +260,7 @@ export default function SellerDrawer({ visible, onClose }: SellerDrawerProps) {
         { icon: DollarSign, label: 'Earnings', route: 'Earnings' },
         { icon: Zap, label: 'Discounts', route: 'Discounts' },
         { icon: Megaphone, label: 'Boost Product', route: 'BoostProduct' },
+        { icon: Lightbulb, label: 'Sourcing Requests', route: 'SellerDemand' },
         { icon: TrendingUp, label: 'Analytics', route: 'Analytics' }
       ],
     },

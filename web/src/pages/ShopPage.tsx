@@ -746,7 +746,7 @@ export default function ShopPage() {
               to="/registry"
               className="text-sm text-[var(--text-muted)] hover:text-[var(--brand-primary)] transition-all duration-300"
             >
-              Registry & Gifting
+              Wishlist & Gifting
             </Link>
           </div>
 

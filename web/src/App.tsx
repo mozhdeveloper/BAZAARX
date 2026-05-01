@@ -12,6 +12,7 @@ import ScrollToTop from "./components/ScrollToTop";
 import TrackingForm from "./components/TrackingForm";
 import { Toaster } from "./components/ui/toaster";
 import { usePresence } from './hooks/usePresence';
+import { useGlobalOrderNotifications } from './hooks/useGlobalOrderNotifications';
 import { supabase } from "./lib/supabase";
 import { webPushService } from "./services/webPushService";
 import "./styles/globals.css";
@@ -57,6 +58,7 @@ const AboutUsPage = lazy(() => import("./pages/AboutUsPage"));
 const EnhancedCartPage = lazy(() => import("./pages/EnhancedCartPage"));
 const BuyerProfilePage = lazy(() => import("./pages/BuyerProfilePage"));
 const SellerStorefrontPage = lazy(() => import("./pages/SellerStorefrontPage"));
+const SellerSourcingRequestsPage = lazy(() => import("./pages/SellerSourcingRequestsPage"));
 const BuyerFollowingPage = lazy(() => import("./pages/BuyerFollowingPage"));
 const BuyerSettingsPage = lazy(() => import("./pages/BuyerSettingsPage"));
 const BuyerProductRequestsPage = lazy(() => import("./pages/BuyerProductRequestsPage"));
@@ -144,6 +146,8 @@ const AdminQADashboard = lazy(() => import("./pages/AdminQADashboard"));
 function App() {
   // 👉 NEW: This single line powers the entire global presence system!
   usePresence();
+  // 👉 Real-time in-app toast banners for order status changes (buyer + seller)
+  useGlobalOrderNotifications();
 
   // Global auth state listener — handles token refresh, sign-out, and session sync
   useEffect(() => {
@@ -686,6 +690,14 @@ function App() {
               element={
                 <ProtectedSellerRoute>
                   <SellerProductStatus />
+                </ProtectedSellerRoute>
+              }
+            />
+            <Route
+              path="/seller/sourcing-requests"
+              element={
+                <ProtectedSellerRoute>
+                  <SellerSourcingRequestsPage />
                 </ProtectedSellerRoute>
               }
             />

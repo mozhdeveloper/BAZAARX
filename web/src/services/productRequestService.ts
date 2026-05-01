@@ -4,9 +4,26 @@
  */
 import { supabase, isSupabaseConfigured } from '@/lib/supabase';
 
+export type RequestStatus =
+  | 'new'
+  | 'under_review'
+  | 'already_available'
+  | 'approved_for_sourcing'
+  | 'rejected'
+  | 'on_hold'
+  | 'converted_to_listing'
+  // legacy values kept for back-compat with existing rows
+  | 'pending'
+  | 'approved'
+  | 'in_progress';
+
+export type SourcingStage = 'quoting' | 'sampling' | 'negotiating' | 'ready_for_verification' | null;
+
 export interface ProductRequest {
   id: string;
   productName: string;
+  title: string;
+  summary: string;
   description: string;
   category: string;
   requestedBy: string;
@@ -14,10 +31,26 @@ export interface ProductRequest {
   requestDate: Date;
   votes: number;
   comments: number;
-  status: 'pending' | 'approved' | 'rejected' | 'in_progress';
+  status: RequestStatus;
   priority: 'low' | 'medium' | 'high';
   estimatedDemand: number;
+  demandCount: number;
+  stakedBazcoins: number;
+  sourcingStage: SourcingStage;
+  linkedProductId: string | null;
+  rejectionHoldReason: string | null;
+  mergedIntoId: string | null;
+  rewardAmount: number;
   adminNotes?: string;
+}
+
+export interface RequestAuditEntry {
+  id: string;
+  requestId: string;
+  adminId: string | null;
+  action: string;
+  details: any;
+  createdAt: Date;
 }
 
 class ProductRequestService {
@@ -25,6 +58,8 @@ class ProductRequestService {
     return {
       id: row.id,
       productName: row.product_name,
+      title: row.title || row.product_name || 'Untitled request',
+      summary: row.summary || row.description || '',
       description: row.description || '',
       category: row.category || '',
       requestedBy: row.requested_by_name || 'Anonymous',
@@ -35,6 +70,13 @@ class ProductRequestService {
       status: row.status,
       priority: row.priority || 'medium',
       estimatedDemand: row.estimated_demand || 0,
+      demandCount: row.demand_count || 0,
+      stakedBazcoins: row.staked_bazcoins || 0,
+      sourcingStage: (row.sourcing_stage as SourcingStage) ?? null,
+      linkedProductId: row.linked_product_id ?? null,
+      rejectionHoldReason: row.rejection_hold_reason ?? null,
+      mergedIntoId: row.merged_into_id ?? null,
+      rewardAmount: row.reward_amount ?? 50,
       adminNotes: row.admin_notes ?? undefined,
     };
   }
@@ -213,6 +255,100 @@ class ProductRequestService {
     } catch (error: any) {
       console.error('Failed to upvote product request:', error);
     }
+  }
+
+  // ──────────────────────────────────────────────────────────
+  // EPIC 7 — admin actions, audit log, ranking, conversion
+  // ──────────────────────────────────────────────────────────
+
+  /** Admin moderation actions go through the SECURITY DEFINER RPC. */
+  async adminAction(params: {
+    requestId: string;
+    action: 'approve' | 'reject' | 'hold' | 'resolve' | 'merge' | 'link_product' | 'stage_change';
+    reason?: string;
+    targetId?: string;
+    newStage?: 'quoting' | 'sampling' | 'negotiating' | 'ready_for_verification';
+  }): Promise<{ success: boolean; newStatus?: string; error?: string }> {
+    if (!isSupabaseConfigured()) return { success: false, error: 'Not configured' };
+    const { data, error } = await supabase.rpc('admin_action_product_request', {
+      p_request_id: params.requestId,
+      p_action: params.action,
+      p_reason: params.reason ?? null,
+      p_target_id: params.targetId ?? null,
+      p_new_stage: params.newStage ?? null,
+    });
+    if (error) return { success: false, error: error.message };
+    return { success: true, newStatus: (data as any)?.new_status };
+  }
+
+  /** Convert an approved request into a real product listing & pay rewards. */
+  async convertToListing(requestId: string, productId: string): Promise<{ success: boolean; error?: string }> {
+    if (!isSupabaseConfigured()) return { success: false, error: 'Not configured' };
+    const { data, error } = await supabase.rpc('convert_request_to_listing', {
+      p_request_id: requestId,
+      p_product_id: productId,
+    });
+    if (error) return { success: false, error: error.message };
+    return { success: !!(data as any)?.success };
+  }
+
+  async getAuditLog(requestId: string): Promise<RequestAuditEntry[]> {
+    if (!isSupabaseConfigured()) return [];
+    const { data, error } = await supabase
+      .from('request_audit_logs')
+      .select('*')
+      .eq('request_id', requestId)
+      .order('created_at', { ascending: false });
+    if (error || !data) return [];
+    return data.map((r: any) => ({
+      id: r.id,
+      requestId: r.request_id,
+      adminId: r.admin_id,
+      action: r.action,
+      details: r.details,
+      createdAt: new Date(r.created_at),
+    }));
+  }
+
+  /** BX-07-013, BX-07-021 — search + filter + ranked listing. */
+  async searchRequests(opts: {
+    query?: string;
+    category?: string;
+    status?: string;
+    sort?: 'demand' | 'recent' | 'staked';
+    limit?: number;
+    offset?: number;
+  } = {}): Promise<ProductRequest[]> {
+    if (!isSupabaseConfigured()) return [];
+    let q = supabase.from('product_requests').select('*');
+    if (opts.query) {
+      q = q.or(`title.ilike.%${opts.query}%,product_name.ilike.%${opts.query}%,summary.ilike.%${opts.query}%,description.ilike.%${opts.query}%`);
+    }
+    if (opts.category) q = q.eq('category', opts.category);
+    if (opts.status)   q = q.eq('status', opts.status);
+
+    if (opts.sort === 'staked')      q = q.order('staked_bazcoins', { ascending: false });
+    else if (opts.sort === 'recent') q = q.order('created_at', { ascending: false });
+    else                             q = q.order('demand_count', { ascending: false }).order('staked_bazcoins', { ascending: false });
+
+    q = q.range(opts.offset ?? 0, (opts.offset ?? 0) + (opts.limit ?? 30) - 1);
+
+    const { data, error } = await q;
+    if (error || !data) return [];
+    return data.map((r: any) => this.mapRow(r));
+  }
+
+  /** BX-07-025 — auto-suggest existing products to admins. */
+  async suggestExistingProducts(req: ProductRequest, max = 5): Promise<Array<{ id: string; name: string }>> {
+    if (!isSupabaseConfigured()) return [];
+    const term = req.title || req.productName;
+    if (!term) return [];
+    const { data } = await supabase
+      .from('products')
+      .select('id, name')
+      .ilike('name', `%${term.split(/\s+/).slice(0, 2).join(' ')}%`)
+      .limit(max);
+    return (data as any[]) ?? [];
   }
 }
 

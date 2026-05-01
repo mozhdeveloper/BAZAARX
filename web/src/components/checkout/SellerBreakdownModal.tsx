@@ -359,7 +359,7 @@ export function SellerBreakdownModal({
                           </div>
 
                           <div className="flex justify-between text-sm font-semibold pt-1.5 border-t border-orange-200">
-                            <span className="text-gray-700">Seller Total</span>
+                            <span className="text-gray-700">Total</span>
                             <span className="text-[var(--brand-primary)]">
                               ₱{(sellerSubtotal + sellerShipping).toLocaleString()}
                             </span>

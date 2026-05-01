@@ -144,7 +144,7 @@ export const CreateRegistryModal = ({
 
               <div className="mb-6">
                 <h2 className="text-2xl font-bold text-[var(--text-primary)]">
-                  Create New Registry
+                  Create New Wishlist
                 </h2>
                 <p className="text-[var(--text-secondary)] text-sm mt-1">
                   Start your wishlist for your special occasion.
@@ -159,7 +159,7 @@ export const CreateRegistryModal = ({
                     Link-Only Access
                   </p>
                   <p className="text-xs text-[var(--text-secondary)] mt-0.5">
-                    All registries are link-only. Anyone with the link can view your registry, but it won't appear in public searches.
+                    All wishlists are link-only. Anyone with the link can view your wishlist, but it won't appear in public searches.
                   </p>
                 </div>
               </div>
@@ -167,7 +167,7 @@ export const CreateRegistryModal = ({
               <div className="space-y-4">
                 {/* Registry Name Input */}
                 <div className="space-y-2">
-                  <Label htmlFor="registryName">Registry Name</Label>
+                  <Label htmlFor="registryName">Wishlist Name</Label>
                   <Input
                     id="registryName"
                     placeholder="e.g., Sarah's Wedding, Baby Doe 2026"
@@ -218,7 +218,7 @@ export const CreateRegistryModal = ({
 
                 {!hideBrowseLink && (
                   <div className="space-y-3">
-                    <Label>Registry Products</Label>
+                    <Label>Wishlist Products</Label>
                     <div className="border border-dashed border-gray-300 rounded-xl p-6 flex flex-col items-center justify-center text-center bg-gray-50/50">
                       <div className="p-4 bg-white rounded-full shadow-sm mb-3">
                         <Gift className="w-6 h-6 text-[var(--brand-primary)]" />
@@ -226,11 +226,11 @@ export const CreateRegistryModal = ({
                       {products.length === 0 ? (
                         <>
                           <p className="text-sm text-[var(--text-secondary)] font-medium">
-                            Your registry is empty
+                            Your wishlist is empty
                           </p>
                           <p className="text-xs text-[var(--text-muted)] mt-1 mb-4">
                             Add products from the shop after creating your
-                            registry.
+                            wishlist.
                           </p>
                           <Button
                             onClick={() => navigate("/shop")}
@@ -255,7 +255,7 @@ export const CreateRegistryModal = ({
                 {/* Share Link Section */}
                 {registryName && (
                   <div className="space-y-2 pt-2">
-                    <Label>Registry Link Preview</Label>
+                    <Label>Wishlist Link Preview</Label>
                     <div className="flex items-center gap-2">
                       <div className="flex-1 bg-gray-100 px-4 py-2 rounded-lg text-sm text-[var(--text-secondary)] font-mono truncate border border-gray-200">
                         {shareLink || "..."}

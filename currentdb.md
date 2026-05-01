@@ -803,6 +803,7 @@ Order recipient details
 | `phone` | `text` |  Nullable |
 | `email` | `text` |  Nullable |
 | `created_at` | `timestamptz` |  |
+| `is_registry_recipient` | `bool` |  Nullable |
 
 ## Table `order_shipments`
 
@@ -886,6 +887,8 @@ Order master table
 | `receipt_number` | `text` |  Nullable |
 | `shipping_address_snapshot` | `jsonb` |  Nullable |
 | `recipient_snapshot` | `jsonb` |  Nullable |
+| `is_registry_order` | `bool` |  Nullable |
+| `registry_id` | `uuid` |  Nullable |
 
 ## Table `payment_method_banks`
 
@@ -1189,6 +1192,16 @@ Per-assessment rejection record. Currently 0 rows (no products rejected yet) but
 | `admin_notes` | `text` |  Nullable |
 | `created_at` | `timestamptz` |  |
 | `updated_at` | `timestamptz` |  |
+| `title` | `text` |  Nullable |
+| `summary` | `text` |  Nullable |
+| `sourcing_stage` | `text` |  Nullable |
+| `demand_count` | `int4` |  |
+| `staked_bazcoins` | `int4` |  |
+| `linked_product_id` | `uuid` |  Nullable |
+| `rejection_hold_reason` | `text` |  Nullable |
+| `merged_into_id` | `uuid` |  Nullable |
+| `converted_at` | `timestamptz` |  Nullable |
+| `reward_amount` | `int4` |  |
 
 ## Table `product_revisions`
 
@@ -1447,6 +1460,48 @@ Registry wish items
 | `received_qty` | `int4` |  |
 | `requested_qty` | `int4` |  |
 | `selected_variant` | `jsonb` |  Nullable |
+
+## Table `request_attachments`
+
+### Columns
+
+| Name | Type | Constraints |
+|------|------|-------------|
+| `id` | `uuid` | Primary |
+| `request_id` | `uuid` |  |
+| `uploaded_by` | `uuid` |  Nullable |
+| `file_url` | `text` |  |
+| `file_type` | `text` |  |
+| `caption` | `text` |  Nullable |
+| `is_supplier_link` | `bool` |  |
+| `created_at` | `timestamptz` |  |
+
+## Table `request_audit_logs`
+
+### Columns
+
+| Name | Type | Constraints |
+|------|------|-------------|
+| `id` | `uuid` | Primary |
+| `request_id` | `uuid` |  |
+| `admin_id` | `uuid` |  Nullable |
+| `action` | `text` |  |
+| `details` | `jsonb` |  Nullable |
+| `created_at` | `timestamptz` |  |
+
+## Table `request_supports`
+
+### Columns
+
+| Name | Type | Constraints |
+|------|------|-------------|
+| `id` | `uuid` | Primary |
+| `request_id` | `uuid` |  |
+| `user_id` | `uuid` |  |
+| `support_type` | `text` |  |
+| `bazcoin_amount` | `int4` |  |
+| `rewarded` | `bool` |  |
+| `created_at` | `timestamptz` |  |
 
 ## Table `return_messages`
 
@@ -1831,6 +1886,24 @@ Shop follower relationships
 | `seller_id` | `uuid` |  |
 | `created_at` | `timestamptz` |  |
 
+## Table `supplier_offers`
+
+### Columns
+
+| Name | Type | Constraints |
+|------|------|-------------|
+| `id` | `uuid` | Primary |
+| `request_id` | `uuid` |  |
+| `supplier_id` | `uuid` |  |
+| `price` | `numeric` |  |
+| `moq` | `int4` |  |
+| `lead_time_days` | `int4` |  |
+| `terms` | `text` |  Nullable |
+| `quality_notes` | `text` |  Nullable |
+| `status` | `text` |  |
+| `created_at` | `timestamptz` |  |
+| `updated_at` | `timestamptz` |  |
+
 ## Table `support_tickets`
 
 Support ticketing system
@@ -1897,6 +1970,21 @@ Ticket conversation thread
 | `sender_type` | `text` |  |
 | `message` | `text` |  |
 | `is_internal_note` | `bool` |  |
+| `created_at` | `timestamptz` |  |
+
+## Table `trust_artifacts`
+
+### Columns
+
+| Name | Type | Constraints |
+|------|------|-------------|
+| `id` | `uuid` | Primary |
+| `product_id` | `uuid` |  |
+| `request_id` | `uuid` |  Nullable |
+| `artifact_type` | `text` |  |
+| `url` | `text` |  |
+| `grade` | `text` |  Nullable |
+| `notes` | `text` |  Nullable |
 | `created_at` | `timestamptz` |  |
 
 ## Table `user_consent`

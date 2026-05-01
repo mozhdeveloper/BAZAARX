@@ -294,7 +294,7 @@ CREATE TABLE public.delivery_bookings (
   insurance_fee numeric DEFAULT 0,
   cod_amount numeric DEFAULT 0,
   is_cod boolean DEFAULT false,
-  status text NOT NULL DEFAULT 'pending'::character varying CHECK (status = ANY (ARRAY['pending'::character varying::text, 'booked'::character varying::text, 'pickup_scheduled'::character varying::text, 'picked_up'::character varying::text, 'in_transit'::character varying::text, 'out_for_delivery'::character varying::text, 'delivered'::character varying::text, 'failed'::character varying::text, 'returned_to_sender'::character varying::text, 'cancelled'::character varying::text])),
+  status text NOT NULL DEFAULT 'pending'::character varying CHECK (status = ANY (ARRAY['pending'::text, 'booked'::text, 'pickup_scheduled'::text, 'picked_up'::text, 'in_transit'::text, 'out_for_delivery'::text, 'delivered'::text, 'failed'::text, 'returned_to_sender'::text, 'cancelled'::text])),
   booked_at timestamp with time zone,
   picked_up_at timestamp with time zone,
   delivered_at timestamp with time zone,
@@ -633,6 +633,7 @@ CREATE TABLE public.order_recipients (
   phone text,
   email text,
   created_at timestamp with time zone NOT NULL DEFAULT now(),
+  is_registry_recipient boolean DEFAULT false,
   CONSTRAINT order_recipients_pkey PRIMARY KEY (id)
 );
 CREATE TABLE public.order_shipments (
@@ -648,7 +649,7 @@ CREATE TABLE public.order_shipments (
   estimated_days_text text NOT NULL,
   chargeable_weight_kg numeric NOT NULL DEFAULT 0,
   tracking_number text,
-  status text NOT NULL DEFAULT 'pending'::text CHECK (status = ANY (ARRAY['pending'::text, 'shipped'::text, 'in_transit'::text, 'delivered'::text, 'returned'::text])),
+  status text NOT NULL DEFAULT 'pending'::text CHECK (status = ANY (ARRAY['pending'::text, 'processing'::text, 'ready_to_ship'::text, 'shipped'::text, 'out_for_delivery'::text, 'delivered'::text, 'failed_to_deliver'::text, 'returned'::text, 'cancelled'::text])),
   shipped_at timestamp with time zone,
   delivered_at timestamp with time zone,
   created_at timestamp with time zone NOT NULL DEFAULT now(),
@@ -699,10 +700,13 @@ CREATE TABLE public.orders (
   receipt_number text,
   shipping_address_snapshot jsonb,
   recipient_snapshot jsonb,
+  is_registry_order boolean DEFAULT false,
+  registry_id uuid,
   CONSTRAINT orders_pkey PRIMARY KEY (id),
   CONSTRAINT orders_buyer_id_fkey FOREIGN KEY (buyer_id) REFERENCES public.buyers(id),
   CONSTRAINT orders_recipient_id_fkey FOREIGN KEY (recipient_id) REFERENCES public.order_recipients(id),
-  CONSTRAINT orders_address_id_fkey FOREIGN KEY (address_id) REFERENCES public.shipping_addresses(id)
+  CONSTRAINT orders_address_id_fkey FOREIGN KEY (address_id) REFERENCES public.shipping_addresses(id),
+  CONSTRAINT orders_registry_id_fkey FOREIGN KEY (registry_id) REFERENCES public.registries(id)
 );
 CREATE TABLE public.payment_method_banks (
   payment_method_id uuid NOT NULL,
@@ -944,13 +948,25 @@ CREATE TABLE public.product_requests (
   requested_by_id uuid,
   votes integer NOT NULL DEFAULT 0,
   comments_count integer NOT NULL DEFAULT 0,
-  status text NOT NULL DEFAULT 'pending'::text CHECK (status = ANY (ARRAY['pending'::text, 'approved'::text, 'rejected'::text, 'in_progress'::text])),
+  status text NOT NULL DEFAULT 'new'::text CHECK (status = ANY (ARRAY['new'::text, 'under_review'::text, 'already_available'::text, 'approved_for_sourcing'::text, 'rejected'::text, 'on_hold'::text, 'converted_to_listing'::text, 'pending'::text, 'approved'::text, 'in_progress'::text])),
   priority text NOT NULL DEFAULT 'medium'::text CHECK (priority = ANY (ARRAY['low'::text, 'medium'::text, 'high'::text])),
   estimated_demand integer DEFAULT 0,
   admin_notes text,
   created_at timestamp with time zone NOT NULL DEFAULT now(),
   updated_at timestamp with time zone NOT NULL DEFAULT now(),
-  CONSTRAINT product_requests_pkey PRIMARY KEY (id)
+  title text,
+  summary text,
+  sourcing_stage text,
+  demand_count integer NOT NULL DEFAULT 0,
+  staked_bazcoins integer NOT NULL DEFAULT 0,
+  linked_product_id uuid,
+  rejection_hold_reason text,
+  merged_into_id uuid,
+  converted_at timestamp with time zone,
+  reward_amount integer NOT NULL DEFAULT 50,
+  CONSTRAINT product_requests_pkey PRIMARY KEY (id),
+  CONSTRAINT product_requests_linked_product_id_fkey FOREIGN KEY (linked_product_id) REFERENCES public.products(id),
+  CONSTRAINT product_requests_merged_into_id_fkey FOREIGN KEY (merged_into_id) REFERENCES public.product_requests(id)
 );
 CREATE TABLE public.product_revisions (
   id uuid NOT NULL DEFAULT gen_random_uuid(),
@@ -997,7 +1013,7 @@ CREATE TABLE public.products (
   brand text,
   sku text UNIQUE,
   specifications jsonb DEFAULT '{}'::jsonb,
-  approval_status text NOT NULL DEFAULT 'pending'::text CHECK (approval_status = ANY (ARRAY['pending'::text, 'accepted'::text, 'approved'::text, 'rejected'::text, 'reclassified'::text])),
+  approval_status text NOT NULL DEFAULT 'pending'::text CHECK (approval_status = ANY (ARRAY['pending'::text, 'accepted'::text, 'approved'::text, 'rejected'::text, 'reclassified'::text, 'draft'::text, 'disabled'::text])),
   variant_label_1 text,
   variant_label_2 text,
   price numeric NOT NULL CHECK (price >= 0::numeric),
@@ -1162,6 +1178,42 @@ CREATE TABLE public.registry_items (
   CONSTRAINT registry_items_pkey PRIMARY KEY (id),
   CONSTRAINT registry_items_registry_id_fkey FOREIGN KEY (registry_id) REFERENCES public.registries(id),
   CONSTRAINT registry_items_product_id_fkey FOREIGN KEY (product_id) REFERENCES public.products(id)
+);
+CREATE TABLE public.request_attachments (
+  id uuid NOT NULL DEFAULT gen_random_uuid(),
+  request_id uuid NOT NULL,
+  uploaded_by uuid,
+  file_url text NOT NULL,
+  file_type text NOT NULL,
+  caption text,
+  is_supplier_link boolean NOT NULL DEFAULT false,
+  created_at timestamp with time zone NOT NULL DEFAULT now(),
+  CONSTRAINT request_attachments_pkey PRIMARY KEY (id),
+  CONSTRAINT request_attachments_request_id_fkey FOREIGN KEY (request_id) REFERENCES public.product_requests(id),
+  CONSTRAINT request_attachments_uploaded_by_fkey FOREIGN KEY (uploaded_by) REFERENCES public.profiles(id)
+);
+CREATE TABLE public.request_audit_logs (
+  id uuid NOT NULL DEFAULT gen_random_uuid(),
+  request_id uuid NOT NULL,
+  admin_id uuid,
+  action text NOT NULL,
+  details jsonb,
+  created_at timestamp with time zone NOT NULL DEFAULT now(),
+  CONSTRAINT request_audit_logs_pkey PRIMARY KEY (id),
+  CONSTRAINT request_audit_logs_request_id_fkey FOREIGN KEY (request_id) REFERENCES public.product_requests(id),
+  CONSTRAINT request_audit_logs_admin_id_fkey FOREIGN KEY (admin_id) REFERENCES public.profiles(id)
+);
+CREATE TABLE public.request_supports (
+  id uuid NOT NULL DEFAULT gen_random_uuid(),
+  request_id uuid NOT NULL,
+  user_id uuid NOT NULL,
+  support_type text NOT NULL CHECK (support_type = ANY (ARRAY['upvote'::text, 'pledge'::text, 'stake'::text])),
+  bazcoin_amount integer NOT NULL DEFAULT 0 CHECK (bazcoin_amount >= 0),
+  rewarded boolean NOT NULL DEFAULT false,
+  created_at timestamp with time zone NOT NULL DEFAULT now(),
+  CONSTRAINT request_supports_pkey PRIMARY KEY (id),
+  CONSTRAINT request_supports_request_id_fkey FOREIGN KEY (request_id) REFERENCES public.product_requests(id),
+  CONSTRAINT request_supports_user_id_fkey FOREIGN KEY (user_id) REFERENCES public.profiles(id)
 );
 CREATE TABLE public.return_messages (
   id uuid NOT NULL DEFAULT gen_random_uuid(),
@@ -1468,6 +1520,22 @@ CREATE TABLE public.store_followers (
   CONSTRAINT store_followers_buyer_id_fkey FOREIGN KEY (buyer_id) REFERENCES public.buyers(id),
   CONSTRAINT store_followers_seller_id_fkey FOREIGN KEY (seller_id) REFERENCES public.sellers(id)
 );
+CREATE TABLE public.supplier_offers (
+  id uuid NOT NULL DEFAULT gen_random_uuid(),
+  request_id uuid NOT NULL,
+  supplier_id uuid NOT NULL,
+  price numeric NOT NULL CHECK (price >= 0::numeric),
+  moq integer NOT NULL DEFAULT 1 CHECK (moq >= 1),
+  lead_time_days integer NOT NULL DEFAULT 7 CHECK (lead_time_days >= 0),
+  terms text,
+  quality_notes text,
+  status text NOT NULL DEFAULT 'submitted'::text CHECK (status = ANY (ARRAY['submitted'::text, 'shortlisted'::text, 'rejected'::text, 'awarded'::text])),
+  created_at timestamp with time zone NOT NULL DEFAULT now(),
+  updated_at timestamp with time zone NOT NULL DEFAULT now(),
+  CONSTRAINT supplier_offers_pkey PRIMARY KEY (id),
+  CONSTRAINT supplier_offers_request_id_fkey FOREIGN KEY (request_id) REFERENCES public.product_requests(id),
+  CONSTRAINT supplier_offers_supplier_id_fkey FOREIGN KEY (supplier_id) REFERENCES public.sellers(id)
+);
 CREATE TABLE public.support_tickets (
   id uuid NOT NULL DEFAULT gen_random_uuid(),
   user_id uuid NOT NULL,
@@ -1520,6 +1588,19 @@ CREATE TABLE public.ticket_messages (
   CONSTRAINT ticket_messages_pkey PRIMARY KEY (id),
   CONSTRAINT ticket_messages_ticket_id_fkey FOREIGN KEY (ticket_id) REFERENCES public.support_tickets(id),
   CONSTRAINT ticket_messages_sender_id_fkey FOREIGN KEY (sender_id) REFERENCES public.profiles(id)
+);
+CREATE TABLE public.trust_artifacts (
+  id uuid NOT NULL DEFAULT gen_random_uuid(),
+  product_id uuid NOT NULL,
+  request_id uuid,
+  artifact_type text NOT NULL CHECK (artifact_type = ANY (ARRAY['report'::text, 'test_video'::text, 'true_spec_label'::text, 'certificate'::text])),
+  url text NOT NULL,
+  grade text CHECK (grade = ANY (ARRAY['A'::text, 'B'::text, 'C'::text])),
+  notes text,
+  created_at timestamp with time zone NOT NULL DEFAULT now(),
+  CONSTRAINT trust_artifacts_pkey PRIMARY KEY (id),
+  CONSTRAINT trust_artifacts_product_id_fkey FOREIGN KEY (product_id) REFERENCES public.products(id),
+  CONSTRAINT trust_artifacts_request_id_fkey FOREIGN KEY (request_id) REFERENCES public.product_requests(id)
 );
 CREATE TABLE public.user_consent (
   id uuid NOT NULL DEFAULT gen_random_uuid(),

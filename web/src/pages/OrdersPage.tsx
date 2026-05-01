@@ -663,7 +663,7 @@ export default function OrdersPage() {
                         </div>
                       ))}
                       <div className="flex justify-end items-center pt-2 border-t border-gray-50">
-                        <span className="text-sm text-gray-500 mr-2">Seller Total:</span>
+                        <span className="text-sm text-gray-500 mr-2">Total:</span>
                         <span className="text-lg font-bold text-[var(--price-standard)]">₱{order.total.toLocaleString()}</span>
                       </div>
                     </div>
@@ -853,7 +853,7 @@ export default function OrdersPage() {
                         )
                       })}
                       <div className="flex justify-end items-center pt-2 border-t border-gray-50">
-                        <span className="text-sm text-gray-500 mr-2">Seller Total:</span>
+                        <span className="text-sm text-gray-500 mr-2">Total:</span>
                         <span className="text-lg font-bold text-[var(--price-standard)]">₱{order.total.toLocaleString()}</span>
                       </div>
                     </div>

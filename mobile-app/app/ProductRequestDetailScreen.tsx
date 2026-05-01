@@ -106,12 +106,12 @@ export default function ProductRequestDetailScreen({ navigation, route }: Props)
     if (!request) return;
     setIsVoting(true);
     try {
-      const { error } = await supabase
-        .from('product_requests')
-        .update({ votes: (request.votes || 0) + 1 })
-        .eq('id', request.id);
-      if (!error) {
+      const { productRequestService } = require('../src/services/productRequestService');
+      const res = await productRequestService.support(request.id, 'upvote', 0);
+      if (res.success) {
         setRequest(prev => prev ? { ...prev, votes: (prev.votes || 0) + 1 } : prev);
+      } else if (res.error) {
+        Alert.alert('Cannot upvote', res.error);
       }
     } finally {
       setIsVoting(false);
@@ -119,29 +119,54 @@ export default function ProductRequestDetailScreen({ navigation, route }: Props)
   };
 
   const handlePledge = () => {
+    if (!request) return;
     Alert.alert(
-      'Pledge $25',
-      'By pledging, you signal serious interest. We notify you when this product is verified and available.',
+      'Pledge interest',
+      'Pledging signals serious intent to buy. We will notify you when this product is verified and live.',
       [
         { text: 'Cancel', style: 'cancel' },
         {
-          text: 'Pledge $25',
+          text: 'Pledge',
           onPress: async () => {
-            if (!request) return;
-            const { error } = await supabase
-              .from('product_requests')
-              .update({ estimated_demand: (request.estimated_demand || 0) + 1 })
-              .eq('id', request.id);
-            if (!error) {
-              setRequest(prev => prev
-                ? { ...prev, estimated_demand: (prev.estimated_demand || 0) + 1 }
-                : prev
-              );
+            const { productRequestService } = require('../src/services/productRequestService');
+            const res = await productRequestService.support(request.id, 'pledge', 0);
+            if (res.success) {
+              setRequest((prev) => prev ? { ...prev, estimated_demand: (prev.estimated_demand || 0) + 1 } : prev);
+              Alert.alert('Pledged', 'You will be notified when this product is available.');
+            } else if (res.error) {
+              Alert.alert('Cannot pledge', res.error);
             }
           },
         },
       ]
     );
+  };
+
+  const handleStake = () => {
+    if (!request) return;
+    // RN's Alert.prompt is iOS-only — fall back to fixed amounts for cross-platform.
+    Alert.alert(
+      'Stake BazCoins',
+      'Stake BazCoins to boost this request. If it becomes a real listing you may earn rewards.',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        { text: 'Stake 50 BC', onPress: () => doStake(50) },
+        { text: 'Stake 100 BC', onPress: () => doStake(100) },
+        { text: 'Stake 250 BC', onPress: () => doStake(250) },
+      ]
+    );
+  };
+
+  const doStake = async (amount: number) => {
+    if (!request) return;
+    const { productRequestService } = require('../src/services/productRequestService');
+    const res = await productRequestService.support(request.id, 'stake', amount);
+    if (res.success) {
+      Alert.alert('Staked', `${amount} BC staked. New balance: ${res.newBalance ?? '—'}`);
+      fetchRequest();
+    } else {
+      Alert.alert('Cannot stake', res.error || 'Unknown error');
+    }
   };
 
   if (loading) {
@@ -273,7 +298,14 @@ export default function ProductRequestDetailScreen({ navigation, route }: Props)
             onPress={handlePledge}
           >
             <DollarSign size={18} color="#FFFFFF" />
-            <Text style={styles.actionBtnText}>Pledge $25</Text>
+            <Text style={styles.actionBtnText}>Pledge</Text>
+          </Pressable>
+          <Pressable
+            style={({ pressed }) => [styles.pledgeBtn, { backgroundColor: '#F59E0B' }, pressed && { opacity: 0.85 }]}
+            onPress={handleStake}
+          >
+            <TrendingUp size={18} color="#FFFFFF" />
+            <Text style={styles.actionBtnText}>Stake BC</Text>
           </Pressable>
         </View>
 

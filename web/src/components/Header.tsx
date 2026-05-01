@@ -31,8 +31,11 @@ interface HeaderProps {
 const Header: React.FC<HeaderProps> = ({ transparentOnTop = false, hideSearch = false }) => {
   const navigate = useNavigate();
   const location = useLocation();
-  const { profile, logout, getTotalCartItems, initializeCart, subscribeToProfile, unsubscribeFromProfile } = useBuyerStore();
+  const { profile, logout, getTotalCartItems, cartItems, initializeCart, subscribeToProfile, unsubscribeFromProfile } = useBuyerStore();
   const [showProfileMenu, setShowProfileMenu] = useState(false);
+  const [showCartDropdown, setShowCartDropdown] = useState(false);
+  const cartDropdownRef = useRef<HTMLDivElement>(null);
+  const cartHideTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [showRequestModal, setShowRequestModal] = useState(false);
   const [showVisualSearchModal, setShowVisualSearchModal] = useState(false);
   const [showSupportModal, setShowSupportModal] = useState(false);
@@ -223,34 +226,153 @@ const Header: React.FC<HeaderProps> = ({ transparentOnTop = false, hideSearch = 
 
 
             {/* Cart */}
-            <button
-              onClick={() => navigate("/enhanced-cart")}
-              onMouseEnter={() => prefetchRoute(() => import("../pages/EnhancedCartPage"))}
-              className={`relative p-2 rounded-full transition-all duration-300 ${location.pathname === "/enhanced-cart"
-                ? "text-[var(--brand-primary)] bg-[var(--brand-wash)] shadow-sm scale-110"
-                : "text-[var(--text-primary)] hover:text-[var(--brand-primary)] hover:bg-[var(--brand-wash)]"
-                }`}
-              title="Shopping Cart"
+            <div
+              ref={cartDropdownRef}
+              className="relative"
+              onMouseEnter={() => {
+                if (cartHideTimer.current) clearTimeout(cartHideTimer.current);
+                prefetchRoute(() => import("../pages/EnhancedCartPage"));
+                setShowCartDropdown(true);
+              }}
+              onMouseLeave={() => {
+                cartHideTimer.current = setTimeout(() => setShowCartDropdown(false), 150);
+              }}
             >
-              <svg
-                className="h-6 w-6"
-                fill="none"
-                stroke="currentColor"
-                viewBox="0 0 24 24"
+              <button
+                onClick={() => { setShowCartDropdown(false); navigate("/enhanced-cart"); }}
+                className={`relative p-2 rounded-full transition-all duration-300 ${location.pathname === "/enhanced-cart"
+                  ? "text-[var(--brand-primary)] bg-[var(--brand-wash)] shadow-sm scale-110"
+                  : "text-[var(--text-primary)] hover:text-[var(--brand-primary)] hover:bg-[var(--brand-wash)]"
+                  }`}
+                title="Shopping Cart"
               >
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  strokeWidth="2"
-                  d="M3 3h2l.4 2M7 13h10l4-8H5.4M7 13L5.4 5M7 13l-2.293 2.293c-.63.63-.184 1.707.707 1.707H17m0 0a2 2 0 100 4 2 2 0 000-4zm-8 2a2 2 0 11-4 0 2 2 0 014 0z"
-                />
-              </svg>
-              {profile && getTotalCartItems() > 0 && (
-                <Badge className="absolute top-0 right-0 min-w-[1.25rem] h-5 px-1 flex items-center justify-center bg-red-500 text-white border-none rounded-full text-xs">
-                  {getTotalCartItems() > 9 ? "9+" : getTotalCartItems()}
-                </Badge>
+                <svg
+                  className="h-6 w-6"
+                  fill="none"
+                  stroke="currentColor"
+                  viewBox="0 0 24 24"
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth="2"
+                    d="M3 3h2l.4 2M7 13h10l4-8H5.4M7 13L5.4 5M7 13l-2.293 2.293c-.63.63-.184 1.707.707 1.707H17m0 0a2 2 0 100 4 2 2 0 000-4zm-8 2a2 2 0 11-4 0 2 2 0 014 0z"
+                  />
+                </svg>
+                {profile && getTotalCartItems() > 0 && (
+                  <Badge className="absolute top-0 right-0 min-w-[1.25rem] h-5 px-1 flex items-center justify-center bg-red-500 text-white border-none rounded-full text-xs">
+                    {getTotalCartItems() > 9 ? "9+" : getTotalCartItems()}
+                  </Badge>
+                )}
+              </button>
+
+              {/* Cart Dropdown Preview */}
+              {showCartDropdown && (
+                <div
+                  className="absolute right-0 top-full mt-2 w-80 bg-white rounded-2xl shadow-2xl border border-gray-100 z-[200] overflow-hidden"
+                  onMouseEnter={() => {
+                    if (cartHideTimer.current) clearTimeout(cartHideTimer.current);
+                  }}
+                  onMouseLeave={() => {
+                    cartHideTimer.current = setTimeout(() => setShowCartDropdown(false), 150);
+                  }}
+                >
+                  <div className="px-4 py-3 border-b border-gray-100 flex items-center justify-between">
+                    <span className="font-bold text-sm text-[var(--text-headline)]">
+                      My Cart
+                      {getTotalCartItems() > 0 && (
+                        <span className="ml-1.5 text-xs font-semibold text-white bg-red-500 rounded-full px-1.5 py-0.5">
+                          {getTotalCartItems()}
+                        </span>
+                      )}
+                    </span>
+                    <button
+                      onClick={() => setShowCartDropdown(false)}
+                      className="text-gray-400 hover:text-gray-600 transition-colors"
+                    >
+                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12" />
+                      </svg>
+                    </button>
+                  </div>
+
+                  {cartItems.length === 0 ? (
+                    <div className="flex flex-col items-center justify-center py-8 px-4">
+                      <svg className="w-10 h-10 text-gray-200 mb-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.5" d="M3 3h2l.4 2M7 13h10l4-8H5.4M7 13L5.4 5M7 13l-2.293 2.293c-.63.63-.184 1.707.707 1.707H17m0 0a2 2 0 100 4 2 2 0 000-4zm-8 2a2 2 0 11-4 0 2 2 0 014 0z" />
+                      </svg>
+                      <p className="text-sm font-medium text-gray-500">Your cart is empty</p>
+                      <button
+                        onClick={() => { setShowCartDropdown(false); navigate("/shop"); }}
+                        className="mt-3 text-xs font-bold text-[var(--brand-primary)] hover:underline"
+                      >
+                        Start shopping
+                      </button>
+                    </div>
+                  ) : (
+                    <>
+                      <div className="max-h-64 overflow-y-auto divide-y divide-gray-50 scrollbar-hide">
+                        {cartItems.slice(0, 5).map((item) => {
+                          const img = item.image || (item as any).selectedVariant?.image || '';
+                          const price = (item as any).selectedVariant?.price ?? item.price;
+                          const variantLabel = (item as any).selectedVariant?.name ||
+                            [(item as any).selectedVariant?.size, (item as any).selectedVariant?.color].filter(Boolean).join(' / ');
+                          return (
+                            <div
+                              key={item.cartItemId || item.id}
+                              className="flex items-center gap-3 px-4 py-2.5 hover:bg-gray-50 transition-colors cursor-pointer"
+                              onClick={() => { setShowCartDropdown(false); navigate(`/product/${item.id}`); }}
+                            >
+                              <div className="w-11 h-11 rounded-lg overflow-hidden bg-gray-100 flex-shrink-0">
+                                <img
+                                  src={img || 'https://placehold.co/80x80?text=?'}
+                                  alt={item.name}
+                                  className="w-full h-full object-cover"
+                                  onError={(e) => { (e.target as HTMLImageElement).src = 'https://placehold.co/80x80?text=?'; }}
+                                />
+                              </div>
+                              <div className="flex-1 min-w-0">
+                                <p className="text-xs font-semibold text-[var(--text-headline)] line-clamp-1">{item.name}</p>
+                                {variantLabel && (
+                                  <p className="text-[10px] text-gray-400">{variantLabel}</p>
+                                )}
+                                <div className="flex items-center gap-2 mt-0.5">
+                                  <span className="text-xs font-bold text-[var(--brand-primary)]">₱{price.toLocaleString()}</span>
+                                  <span className="text-[10px] text-gray-400">× {item.quantity}</span>
+                                </div>
+                              </div>
+                            </div>
+                          );
+                        })}
+                        {cartItems.length > 5 && (
+                          <div className="px-4 py-2 text-center text-xs text-gray-400">
+                            +{cartItems.length - 5} more item{cartItems.length - 5 !== 1 ? 's' : ''}
+                          </div>
+                        )}
+                      </div>
+
+                      <div className="px-4 py-3 border-t border-gray-100 bg-gray-50/60">
+                        <div className="flex items-center justify-between mb-3">
+                          <span className="text-xs text-gray-500">{getTotalCartItems()} item{getTotalCartItems() !== 1 ? 's' : ''}</span>
+                          <span className="text-sm font-bold text-[var(--text-headline)]">
+                            ₱{cartItems.reduce((sum, item) => {
+                              const p = (item as any).selectedVariant?.price ?? item.price;
+                              return sum + p * item.quantity;
+                            }, 0).toLocaleString()}
+                          </span>
+                        </div>
+                        <button
+                          onClick={() => { setShowCartDropdown(false); navigate("/enhanced-cart"); }}
+                          className="w-full py-2 rounded-xl bg-[var(--brand-primary)] hover:bg-[var(--brand-primary-dark)] text-white text-sm font-bold transition-all active:scale-95"
+                        >
+                          Go to Cart
+                        </button>
+                      </div>
+                    </>
+                  )}
+                </div>
               )}
-            </button>
+            </div>
 
             {/* Orders */}
             <button
@@ -283,7 +405,7 @@ const Header: React.FC<HeaderProps> = ({ transparentOnTop = false, hideSearch = 
                 ? "text-[var(--brand-primary)] bg-[var(--brand-wash)] shadow-sm scale-110"
                 : "text-[var(--text-primary)] hover:text-[var(--brand-primary)] hover:bg-[var(--brand-wash)]"
                 }`}
-              title="Registry & Gifting"
+              title="Wishlist & Gifting"
             >
               <Gift className="h-6 w-6" />
             </button>

@@ -1602,7 +1602,7 @@ export default function OrderDetailPage() {
                   </div>
                   <div>
                     <div className="flex justify-between">
-                      <span className="font-semibold text-gray-900">Seller Total</span>
+                      <span className="font-semibold text-gray-900">Total</span>
                       <span className="font-bold text-lg text-[var(--brand-accent)]">
                         {"\u20B1"}{totalAmount.toLocaleString()}
                       </span>

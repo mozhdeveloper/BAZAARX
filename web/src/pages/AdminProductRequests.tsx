@@ -46,7 +46,7 @@ import {
 
 type ProductRequestItem = ProductRequest;
 
-type AdminTab = 'pipeline' | 'testing' | 'suppliers' | 'analytics';
+type AdminTab = 'pipeline' | 'testing' | 'suppliers' | 'resolved' | 'analytics';
 
 /* ── Pipeline column config ──────────────────────────────────── */
 
@@ -194,8 +194,14 @@ const AdminProductRequests: React.FC = () => {
     { key: 'pipeline', label: 'Pipeline', icon: FlaskConical },
     { key: 'testing', label: 'Testing Queue', icon: ShieldCheck },
     { key: 'suppliers', label: 'Suppliers', icon: DollarSign },
+    { key: 'resolved', label: 'Already Available', icon: CheckCircle },
     { key: 'analytics', label: 'Analytics', icon: BarChart3 },
   ];
+
+  const resolvedRequests = useMemo(
+    () => requests.filter((r) => r.status === 'already_available' || r.status === 'converted_to_listing'),
+    [requests]
+  );
 
   return (
     <div className="flex h-screen bg-gray-50">
@@ -597,6 +603,52 @@ const AdminProductRequests: React.FC = () => {
                   </div>
                 )}
               </div>
+            </div>
+          )}
+
+          {/* ──────── RESOLVED / ALREADY-AVAILABLE TAB (BX-07-035) ──────── */}
+          {activeTab === 'resolved' && (
+            <div>
+              <h2 className="text-2xl font-extrabold text-[var(--text-headline)] tracking-tight mb-2">Already available & converted</h2>
+              <p className="text-sm text-[var(--text-muted)] mb-6">
+                Requests resolved by linking to an existing product or by converting into a new listing.
+              </p>
+              {resolvedRequests.length === 0 ? (
+                <Card><CardContent className="p-8 text-center text-gray-500">No resolved requests yet.</CardContent></Card>
+              ) : (
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  {resolvedRequests.map((r) => (
+                    <Card key={r.id} className="border hover:shadow-md transition-shadow cursor-pointer"
+                          onClick={() => setSelectedRequest(r)}>
+                      <CardContent className="p-4">
+                        <div className="flex items-start justify-between gap-2 mb-2">
+                          <h3 className="font-bold text-gray-900 line-clamp-1">{r.productName}</h3>
+                          <Badge className={r.status === 'converted_to_listing'
+                            ? 'bg-emerald-100 text-emerald-800 border-emerald-200'
+                            : 'bg-green-100 text-green-800 border-green-200'}>
+                            {r.status === 'converted_to_listing' ? '🎉 Converted' : '🛒 Already available'}
+                          </Badge>
+                        </div>
+                        <p className="text-sm text-gray-600 line-clamp-2 mb-3">{r.description || r.summary}</p>
+                        <div className="flex items-center justify-between text-xs text-gray-500">
+                          <span>{r.demandCount} backers · {r.stakedBazcoins.toLocaleString()} BC staked</span>
+                          {r.linkedProductId && (
+                            <a
+                              href={`/product/${r.linkedProductId}`}
+                              target="_blank"
+                              rel="noreferrer"
+                              onClick={(e) => e.stopPropagation()}
+                              className="text-purple-700 hover:underline font-medium"
+                            >
+                              View product →
+                            </a>
+                          )}
+                        </div>
+                      </CardContent>
+                    </Card>
+                  ))}
+                </div>
+              )}
             </div>
           )}
 

@@ -27,9 +27,13 @@ import type { RootStackParamList } from '../App';
 import { supabase } from '../src/lib/supabase';
 import { useAuthStore } from '../src/stores/authStore';
 import ProductRequestModal from '../src/components/ProductRequestModal';
+import { productRequestService } from '../src/services/productRequestService';
 import { COLORS } from '../src/constants/theme';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'MyRequests'>;
+type Tab = 'mine' | 'supported';
+
+interface SupportMeta { types: string[]; staked: number; rewarded: boolean }
 
 interface ProductRequest {
   id: string;
@@ -67,6 +71,9 @@ export default function MyRequestsScreen({ navigation }: Props) {
   const insets = useSafeAreaInsets();
   const { user } = useAuthStore();
   const [requests, setRequests] = useState<ProductRequest[]>([]);
+  const [supported, setSupported] = useState<ProductRequest[]>([]);
+  const [supportMeta, setSupportMeta] = useState<Record<string, SupportMeta>>({});
+  const [tab, setTab] = useState<Tab>('mine');
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [filterStatus, setFilterStatus] = useState<string | null>(null);
@@ -75,15 +82,39 @@ export default function MyRequestsScreen({ navigation }: Props) {
   const loadRequests = useCallback(async () => {
     if (!user?.id) return;
     try {
-      const { data, error } = await supabase
-        .from('product_requests')
-        .select('*')
-        .eq('requested_by_id', user.id)
-        .order('created_at', { ascending: false });
+      const [{ data, error }, supRows] = await Promise.all([
+        supabase
+          .from('product_requests')
+          .select('*')
+          .eq('requested_by_id', user.id)
+          .order('created_at', { ascending: false }),
+        productRequestService.listSupportedByUser(user.id),
+      ]);
 
       if (!error && data) {
         setRequests(data as unknown as ProductRequest[]);
       }
+
+      const ownIds = new Set((data || []).map((r: any) => r.id));
+      const meta: Record<string, SupportMeta> = {};
+      const supList: ProductRequest[] = [];
+      for (const s of supRows) {
+        if (ownIds.has(s.request.id)) continue;
+        meta[s.request.id] = { types: s.supportTypes, staked: s.staked, rewarded: s.rewarded };
+        supList.push({
+          id: s.request.id,
+          product_name: s.request.productName,
+          description: s.request.description,
+          category: s.request.category,
+          status: (s.request.status as any),
+          priority: '',
+          votes: s.request.votes,
+          admin_notes: s.request.rejectionHoldReason || undefined,
+          created_at: s.request.createdAt.toISOString(),
+        });
+      }
+      setSupported(supList);
+      setSupportMeta(meta);
     } catch (err) {
       console.error('Failed to load requests:', err);
     } finally {
@@ -101,13 +132,14 @@ export default function MyRequestsScreen({ navigation }: Props) {
     loadRequests();
   };
 
-  const filteredRequests = filterStatus ? requests.filter((r) => r.status === filterStatus) : requests;
+  const sourceList = tab === 'mine' ? requests : supported;
+  const filteredRequests = filterStatus ? sourceList.filter((r) => r.status === filterStatus) : sourceList;
 
   const statusCounts = {
-    pending: requests.filter((r) => r.status === 'pending').length,
-    in_progress: requests.filter((r) => r.status === 'in_progress').length,
-    approved: requests.filter((r) => r.status === 'approved').length,
-    rejected: requests.filter((r) => r.status === 'rejected').length,
+    pending: sourceList.filter((r) => r.status === 'pending').length,
+    in_progress: sourceList.filter((r) => r.status === 'in_progress').length,
+    approved: sourceList.filter((r) => r.status === 'approved').length,
+    rejected: sourceList.filter((r) => r.status === 'rejected').length,
   };
 
   const formatDate = (dateStr: string) => {
@@ -145,6 +177,13 @@ export default function MyRequestsScreen({ navigation }: Props) {
           <Text style={styles.headerTitle}>My Requests</Text>
           <View style={{ flexDirection: 'row', gap: 8, alignItems: 'center' }}>
             <Pressable
+              onPress={() => navigation.navigate('BrowseRequests')}
+              style={styles.headerIconButton}
+              accessibilityLabel="Browse community requests"
+            >
+              <Package size={22} color={COLORS.primary} strokeWidth={2.2} />
+            </Pressable>
+            <Pressable
               onPress={() => setShowRequestModal(true)}
               style={styles.headerIconButton}
             >
@@ -160,6 +199,22 @@ export default function MyRequestsScreen({ navigation }: Props) {
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={COLORS.primary} />}
         showsVerticalScrollIndicator={false}
       >
+        {/* Tabs: Mine vs Supported */}
+        <View style={styles.tabsRow}>
+          {([
+            { key: 'mine', label: `Mine (${requests.length})` },
+            { key: 'supported', label: `Supported (${supported.length})` },
+          ] as { key: Tab; label: string }[]).map((t) => (
+            <Pressable
+              key={t.key}
+              onPress={() => { setTab(t.key); setFilterStatus(null); }}
+              style={[styles.tabBtn, tab === t.key && styles.tabBtnActive]}
+            >
+              <Text style={[styles.tabBtnText, tab === t.key && styles.tabBtnTextActive]}>{t.label}</Text>
+            </Pressable>
+          ))}
+        </View>
+
         {/* Stats Row */}
         <View style={styles.statsRow}>
           <StatCard label="Pending" count={statusCounts.pending} statusKey="pending" icon={<Clock size={18} color="#92400E" />} />
@@ -251,6 +306,28 @@ export default function MyRequestsScreen({ navigation }: Props) {
                       </View>
                     </View>
                   ) : null}
+
+                  {/* Participation badges (Supported tab) */}
+                  {tab === 'supported' && supportMeta[request.id] && (
+                    <View style={styles.metaRow}>
+                      {supportMeta[request.id].types.map((t) => (
+                        <View key={t} style={styles.metaPill}>
+                          <Text style={styles.metaPillText}>
+                            {t === 'upvote'
+                              ? '👍 Upvoted'
+                              : t === 'pledge'
+                                ? '🙋 Pledged'
+                                : `💰 Staked ${supportMeta[request.id].staked} BC`}
+                          </Text>
+                        </View>
+                      ))}
+                      {supportMeta[request.id].rewarded && (
+                        <View style={[styles.metaPill, { backgroundColor: '#D1FAE5' }]}>
+                          <Text style={[styles.metaPillText, { color: '#065F46' }]}>🎉 Rewarded</Text>
+                        </View>
+                      )}
+                    </View>
+                  )}
 
                   {/* View Contributions */}
                   <View style={styles.viewContributionsRow}>
@@ -558,5 +635,50 @@ const styles = StyleSheet.create({
     fontSize: 12,
     fontWeight: '600',
     color: COLORS.primary,
+  },
+  tabsRow: {
+    flexDirection: 'row',
+    backgroundColor: '#FFFFFF',
+    borderRadius: 12,
+    marginBottom: 12,
+    padding: 4,
+    borderWidth: 1,
+    borderColor: '#E5E7EB',
+  },
+  tabBtn: {
+    flex: 1,
+    paddingVertical: 10,
+    borderRadius: 8,
+    alignItems: 'center',
+  },
+  tabBtnActive: {
+    backgroundColor: COLORS.primary,
+  },
+  tabBtnText: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: '#6B7280',
+  },
+  tabBtnTextActive: {
+    color: '#FFFFFF',
+  },
+  metaRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 6,
+    marginTop: 8,
+  },
+  metaPill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 999,
+    backgroundColor: '#F3E8FF',
+  },
+  metaPillText: {
+    fontSize: 10,
+    color: '#6B21A8',
+    fontWeight: '600',
   },
 });

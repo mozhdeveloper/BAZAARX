@@ -185,7 +185,7 @@ const RegistryAndGiftingPage = () => {
             to="/registry"
             className="text-sm font-bold text-[var(--brand-primary)] border-b-2 border-[var(--brand-primary)] pb-0.5"
           >
-            Registry & Gifting
+            Wishlist & Gifting
           </Link>
         </div>
 
@@ -196,7 +196,7 @@ const RegistryAndGiftingPage = () => {
             className="text-center px-4"
           >
             <h1 className="text-4xl md:text-6xl font-black text-[var(--text-headline)] mb-2 tracking-tight font-primary">
-              Registry & {""}
+              Wishlist & {""}
               <span className="text-transparent bg-clip-text bg-gradient-to-r from-[var(--brand-primary)] to-[var(--text-accent)]">
                 Gifting
               </span>
@@ -211,7 +211,7 @@ const RegistryAndGiftingPage = () => {
                 onClick={() => setIsCreateModalOpen(true)}
                 className="w-full sm:w-auto px-8 py-3 bg-[var(--brand-primary)] hover:bg-[var(--brand-primary-dark)] text-white rounded-full font-medium hover:shadow-lg hover:opacity-90 transition-all shadow-md"
               >
-                Create a registry
+                Create a wishlist
               </button>
             </div>
           </motion.div>
@@ -221,7 +221,7 @@ const RegistryAndGiftingPage = () => {
         <div className="mb-8">
           <div className="flex flex-wrap items-center gap-2">
             {[
-              { id: null, label: 'All Registries' },
+              { id: null, label: 'All Wishlists' },
               { id: 'wedding', label: 'Wedding' },
               { id: 'baby', label: 'Baby Shower' },
               { id: 'birthday', label: 'Birthday' },
@@ -252,8 +252,8 @@ const RegistryAndGiftingPage = () => {
           <div className="flex items-center space-x-3 mb-4">
             <h3 className="text-xl font-bold">
               {activeCategory
-                ? `${getCategoryLabel(activeCategory)} Registries`
-                : "Your registries and gift lists"}
+                ? `${getCategoryLabel(activeCategory)} Wishlists`
+                : "Your wishlists and gift lists"}
             </h3>
             <button
               onClick={() => setIsCreateModalOpen(true)}
@@ -307,7 +307,7 @@ const RegistryAndGiftingPage = () => {
               return list.category?.toLowerCase() === activeCategory;
             }).length === 0 && (
                 <div className="w-full text-center py-12 text-gray-500 bg-card rounded-3xl border border-dashed border-gray-200">
-                  No registries found.
+                  No wishlists found.
                 </div>
               )}
           </div>
@@ -315,23 +315,23 @@ const RegistryAndGiftingPage = () => {
 
         <section>
           <h3 className="text-xl font-bold mb-4">
-            Reasons to register with BazaarX
+            Reasons to create a wishlist with BazaarX
           </h3>
           <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
             <FeatureCard
               Icon={Globe}
               title="Earth's biggest selection"
-              desc="Add items from BazaarX to create a gift registry for any occasion."
+              desc="Add items from BazaarX to create a wishlist for any occasion."
             />
             <FeatureCard
               Icon={Gift}
               title="Easy to share"
-              desc="Share your gift registry with friends and family so they'll know exactly what gifts to get."
+              desc="Share your wishlist with friends and family so they'll know exactly what gifts to get."
             />
             <FeatureCard
               Icon={RotateCcw}
               title="Extended returns"
-              desc="Not quite right? Registry gifts have an extended return period."
+              desc="Not quite right? Wishlist gifts have an extended return period."
             />
           </div>
         </section>

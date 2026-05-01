@@ -17,6 +17,7 @@ import {
   HelpCircle,
   Megaphone,
   Mail,
+  Lightbulb,
 } from "lucide-react";
 
 export type SellerNavLink = {
@@ -87,6 +88,13 @@ export const sellerLinks: SellerNavLink[] = [
     href: "/seller/discounts",
     icon: (
       <Zap className="h-5 w-5 flex-shrink-0" />
+    ),
+  },
+  {
+    label: "Sourcing Requests",
+    href: "/seller/sourcing-requests",
+    icon: (
+      <Lightbulb className="h-5 w-5 flex-shrink-0" />
     ),
   },
   {

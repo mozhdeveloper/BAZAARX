@@ -211,7 +211,7 @@ export const RegistryDetailModal = ({
                 {/* Editable Registry Name — matches mobile EditCategoryModal */}
                 <div className="space-y-3">
                   <div className="space-y-1">
-                    <Label htmlFor="registry-title" className="text-xs font-semibold text-[var(--text-muted)] uppercase tracking-wider">Registry Name</Label>
+                    <Label htmlFor="registry-title" className="text-xs font-semibold text-[var(--text-muted)] uppercase tracking-wider">Wishlist Name</Label>
                     <Input
                       id="registry-title"
                       value={editTitle}
@@ -346,7 +346,7 @@ export const RegistryDetailModal = ({
 
                 <div className="flex items-center justify-between">
                   <h3 className="text-lg font-semibold text-[var(--text-primary)]">
-                    Registry Items
+                    Wishlist Items
                   </h3>
                   <Button
                     onClick={() => {
@@ -371,7 +371,7 @@ export const RegistryDetailModal = ({
                       </div>
                       <p className="text-gray-900 font-medium">No items yet</p>
                       <p className="text-gray-500 text-sm mt-1">
-                        Start adding items to build your registry.
+                        Start adding items to build your wishlist.
                       </p>
                       <Button
                         onClick={() => navigate("/shop")}
@@ -442,12 +442,37 @@ export const RegistryDetailModal = ({
                               <p className="text-lg font-bold text-[var(--brand-primary)]">
                                 ₱{product.price.toLocaleString()}
                               </p>
-                              <div className="flex justify-between items-center mt-1 text-xs text-gray-500 border-t border-gray-50 pt-2">
-                                <span>
-                                  Requested:{" "}
-                                  {(product as any).requestedQty || 1}
-                                </span>
-                                <span>
+                              <div className="flex justify-between items-center mt-2 text-xs border-t border-gray-100 pt-2">
+                                <div className="flex items-center gap-1" onClick={(e) => e.stopPropagation()}>
+                                  <span className="text-[10px] text-gray-400 mr-0.5 font-medium">Qty</span>
+                                  <button
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      const currentQty = (product as any).requestedQty || 1;
+                                      if (currentQty > 1) {
+                                        updateRegistryItem(liveRegistry.id, product.id, { requestedQty: currentQty - 1 });
+                                      }
+                                    }}
+                                    disabled={((product as any).requestedQty || 1) <= 1}
+                                    className="w-6 h-6 rounded-full border border-gray-200 flex items-center justify-center hover:bg-[var(--brand-wash)] hover:border-[var(--brand-primary)] transition-colors text-gray-600 hover:text-[var(--brand-primary)] disabled:opacity-40 disabled:cursor-not-allowed"
+                                  >
+                                    <span className="text-sm font-bold leading-none select-none">−</span>
+                                  </button>
+                                  <span className="w-6 text-center font-bold text-[var(--text-primary)] text-sm">
+                                    {(product as any).requestedQty || 1}
+                                  </span>
+                                  <button
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      const currentQty = (product as any).requestedQty || 1;
+                                      updateRegistryItem(liveRegistry.id, product.id, { requestedQty: currentQty + 1 });
+                                    }}
+                                    className="w-6 h-6 rounded-full border border-gray-200 flex items-center justify-center hover:bg-[var(--brand-wash)] hover:border-[var(--brand-primary)] transition-colors text-gray-600 hover:text-[var(--brand-primary)]"
+                                  >
+                                    <span className="text-sm font-bold leading-none select-none">+</span>
+                                  </button>
+                                </div>
+                                <span className="text-[10px] text-gray-400">
                                   Has: {(product as any).receivedQty || 0}
                                 </span>
                               </div>
@@ -492,11 +517,11 @@ export const RegistryDetailModal = ({
                   className="bg-white rounded-xl p-6 max-w-md w-full shadow-2xl"
                 >
                   <h3 className="text-xl font-bold text-gray-900 mb-2">
-                    Delete Registry?
+                    Delete Wishlist?
                   </h3>
                   <p className="text-gray-600 mb-6">
                     Are you sure you want to delete "{liveRegistry?.title}"?
-                    This action cannot be undone and all items in this registry
+                    This action cannot be undone and all items in this wishlist
                     will be removed.
                   </p>
                   <div className="flex gap-3 justify-end">
@@ -510,7 +535,7 @@ export const RegistryDetailModal = ({
                       onClick={handleDelete}
                       className="bg-red-600 hover:bg-red-700 text-white"
                     >
-                      Delete Registry
+                      Delete Wishlist
                     </Button>
                   </div>
                 </motion.div>
@@ -541,7 +566,7 @@ export const RegistryDetailModal = ({
                 >
                   <div className="flex items-center justify-between mb-4">
                     <h3 className="text-xl font-bold text-gray-900">
-                      Share Registry
+                      Share Wishlist
                     </h3>
                     <button
                       onClick={() => setShowShareModal(false)}

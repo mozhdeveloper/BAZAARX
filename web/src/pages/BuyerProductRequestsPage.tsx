@@ -22,6 +22,7 @@ import {
 } from 'lucide-react';
 import { cn } from '../lib/utils';
 import { productRequestService, ProductRequest } from '../services/productRequestService';
+import { requestSupportService } from '../services/requestSupportService';
 import { useBuyerStore } from '../stores/buyerStore';
 import ProductRequestModal from '../components/ProductRequestModal';
 
@@ -52,20 +53,47 @@ const STATUS_CONFIG: Record<string, { label: string; color: string; bg: string; 
   },
 };
 
+type Tab = 'mine' | 'supported';
+
 export default function BuyerProductRequestsPage() {
   const navigate = useNavigate();
   const { profile } = useBuyerStore();
   const [requests, setRequests] = useState<ProductRequest[]>([]);
+  const [supported, setSupported] = useState<ProductRequest[]>([]);
+  const [supportMeta, setSupportMeta] = useState<Record<string, { types: string[]; staked: number; rewarded: boolean }>>({});
   const [loading, setLoading] = useState(true);
   const [filterStatus, setFilterStatus] = useState<string | null>(null);
   const [showRequestModal, setShowRequestModal] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
+  const [activeTab, setActiveTab] = useState<Tab>('mine');
 
   const loadRequests = async () => {
     if (!profile?.id) return;
     try {
-      const data = await productRequestService.getRequestsByUser(profile.id);
-      setRequests(data);
+      const [mine, supports] = await Promise.all([
+        productRequestService.getRequestsByUser(profile.id),
+        requestSupportService.getUserSupports(profile.id),
+      ]);
+      setRequests(mine);
+
+      // Aggregate per request_id
+      const meta: Record<string, { types: string[]; staked: number; rewarded: boolean }> = {};
+      const ids = new Set<string>();
+      for (const s of supports) {
+        ids.add(s.requestId);
+        const m = meta[s.requestId] || { types: [], staked: 0, rewarded: false };
+        if (!m.types.includes(s.supportType)) m.types.push(s.supportType);
+        m.staked += s.bazcoinAmount || 0;
+        if (s.rewarded) m.rewarded = true;
+        meta[s.requestId] = m;
+      }
+      setSupportMeta(meta);
+
+      // Load full request rows for each supported id, excluding ones the user authored (already in mine)
+      const ownIds = new Set(mine.map((r) => r.id));
+      const toFetch = Array.from(ids).filter((id) => !ownIds.has(id));
+      const fetched = await Promise.all(toFetch.map((id) => productRequestService.getRequestById(id)));
+      setSupported(fetched.filter((r): r is ProductRequest => !!r));
     } catch (error) {
       console.error('Failed to load requests:', error);
     } finally {
@@ -83,16 +111,17 @@ export default function BuyerProductRequestsPage() {
     loadRequests();
   };
 
+  const sourceList = activeTab === 'mine' ? requests : supported;
   const filteredRequests = filterStatus
-    ? requests.filter((r) => r.status === filterStatus)
-    : requests;
+    ? sourceList.filter((r) => r.status === filterStatus)
+    : sourceList;
 
   const statusCounts = {
-    all: requests.length,
-    pending: requests.filter((r) => r.status === 'pending').length,
-    approved: requests.filter((r) => r.status === 'approved').length,
-    in_progress: requests.filter((r) => r.status === 'in_progress').length,
-    rejected: requests.filter((r) => r.status === 'rejected').length,
+    all: sourceList.length,
+    pending: sourceList.filter((r) => r.status === 'pending').length,
+    approved: sourceList.filter((r) => r.status === 'approved').length,
+    in_progress: sourceList.filter((r) => r.status === 'in_progress').length,
+    rejected: sourceList.filter((r) => r.status === 'rejected').length,
   };
 
   const formatDate = (date: Date) => {
@@ -155,6 +184,27 @@ export default function BuyerProductRequestsPage() {
             </div>
           </div>
         </motion.div>
+
+        {/* Tabs: Mine | Supported */}
+        <div className="flex items-center gap-2 mb-6 border-b border-gray-200">
+          {([
+            { key: 'mine', label: `Mine (${requests.length})` },
+            { key: 'supported', label: `Supported (${supported.length})` },
+          ] as { key: Tab; label: string }[]).map((t) => (
+            <button
+              key={t.key}
+              onClick={() => { setActiveTab(t.key); setFilterStatus(null); }}
+              className={cn(
+                'px-4 py-2 text-sm font-semibold border-b-2 -mb-px transition-colors',
+                activeTab === t.key
+                  ? 'border-[var(--brand-primary)] text-[var(--brand-primary)]'
+                  : 'border-transparent text-[var(--text-muted)] hover:text-[var(--text-primary)]'
+              )}
+            >
+              {t.label}
+            </button>
+          ))}
+        </div>
 
         {/* Stats Cards */}
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 mb-8">
@@ -283,6 +333,16 @@ export default function BuyerProductRequestsPage() {
                                   {request.category}
                                 </Badge>
                               )}
+                              {request.demandCount > 0 && (
+                                <span className="flex items-center gap-1">
+                                  👥 {request.demandCount} {request.demandCount === 1 ? 'backer' : 'backers'}
+                                </span>
+                              )}
+                              {request.stakedBazcoins > 0 && (
+                                <span className="flex items-center gap-1">
+                                  🪙 {request.stakedBazcoins.toLocaleString()} BC staked
+                                </span>
+                              )}
                               {request.votes > 0 && (
                                 <span className="flex items-center gap-1">
                                   👍 {request.votes} {request.votes === 1 ? 'vote' : 'votes'}
@@ -317,6 +377,20 @@ export default function BuyerProductRequestsPage() {
                               <p className="text-sm text-[var(--text-primary)]">{request.adminNotes}</p>
                             </div>
                           </div>
+                        </div>
+                      )}
+
+                      {/* Participation badge (BX-07-012) */}
+                      {(activeTab === 'supported' || supportMeta[request.id]) && supportMeta[request.id] && (
+                        <div className="mt-3 flex flex-wrap items-center gap-2">
+                          {supportMeta[request.id].types.map((t) => (
+                            <Badge key={t} className="bg-purple-100 text-purple-800 border-purple-200">
+                              {t === 'upvote' ? '👍 Upvoted' : t === 'pledge' ? '🙋 Pledged' : `💰 Staked ${supportMeta[request.id].staked} BC`}
+                            </Badge>
+                          ))}
+                          {supportMeta[request.id].rewarded && (
+                            <Badge className="bg-emerald-100 text-emerald-800 border-emerald-200">🎉 Rewarded</Badge>
+                          )}
                         </div>
                       )}
 

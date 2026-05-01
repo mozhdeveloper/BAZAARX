@@ -1177,7 +1177,7 @@ export default function ProductDetailPage({ }: ProductDetailPageProps) {
                                     }
                                 }}
                                 className="p-3 text-[var(--brand-primary)] transition-transform active:scale-95 disabled:opacity-40 disabled:cursor-not-allowed disabled:pointer-events-none hover:scale-110 disabled:hover:scale-100"
-                                title="Add to Registry"
+                                title="Add to Wishlist"
                             >
                                 <Gift
                                     className="w-8 h-8 transition-colors duration-300 text-[var(--brand-primary)]"
@@ -1484,7 +1484,7 @@ export default function ProductDetailPage({ }: ProductDetailPageProps) {
                 <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/60 animate-in fade-in duration-200">
                     <div className="bg-white rounded-[2rem] w-full max-w-md p-6 shadow-2xl scale-100 opacity-100 animate-in zoom-in-95 duration-200 border border-[var(--border)]/40">
                         <div className="flex items-center justify-between mb-8">
-                            <h2 className="text-xl font-black text-[var(--text-headline)] font-heading">Add to Registry</h2>
+                            <h2 className="text-xl font-black text-[var(--text-headline)] font-heading">Add to Wishlist</h2>
                             <button
                                 onClick={() => setShowRegistryModal(false)}
                                 className="text-gray-500 hover:text-gray-700"
@@ -1506,7 +1506,7 @@ export default function ProductDetailPage({ }: ProductDetailPageProps) {
                                         if (alreadyInSelectedRegistry) {
                                             toast({
                                                 title: "Already Added",
-                                                description: "This product is already in that registry folder.",
+                                                description: "This product is already in that wishlist.",
                                                 variant: "destructive",
                                             });
                                             return;
@@ -1524,7 +1524,7 @@ export default function ProductDetailPage({ }: ProductDetailPageProps) {
                                         );
                                         setShowRegistryModal(false);
                                         toast({
-                                            title: "Added to Registry",
+                                            title: "Added to Wishlist",
                                             description: `${productData.name} has been added to ${registry.title}.`,
                                         });
                                     }}
@@ -1580,7 +1580,7 @@ export default function ProductDetailPage({ }: ProductDetailPageProps) {
                                 className="w-full py-4 px-4 rounded-xl border-2 border-dashed border-[var(--border)] text-[var(--text-muted)] font-black uppercase tracking-tight hover:border-[var(--brand-primary)] hover:text-[var(--brand-primary)] hover:bg-[var(--brand-wash)] transition-all flex items-center justify-center gap-2 transform active:scale-[0.98]"
                             >
                                 <Plus className="w-5 h-5" />
-                                Create New Registry
+                                Create New Wishlist
                             </button>
                         </div>
                     </div>

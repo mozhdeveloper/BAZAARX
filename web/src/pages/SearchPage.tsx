@@ -239,10 +239,12 @@ const SearchPage: React.FC = () => {
     setSearchQuery(query);
     setIsSearching(true);
 
-    // Fetch matching stores
+    // Fetch matching stores (include all sellers that have active products, not just fully-verified)
+    let matchedStoresList: any[] = [];
     if (query.trim()) {
       try {
-        const stores = await sellerService.getPublicStores({ searchQuery: query });
+        const stores = await sellerService.getPublicStores({ searchQuery: query, includeUnverified: true });
+        matchedStoresList = stores;
         setMatchedStores(stores);
       } catch (error) {
         console.error("Failed to fetch matching stores:", error);
@@ -257,11 +259,28 @@ const SearchPage: React.FC = () => {
 
       if (query.trim()) {
         const lowerQuery = query.toLowerCase();
+        const matchedStoreIds = new Set(matchedStoresList.map((s: any) => s.id));
         results = results.filter(product =>
           product.name.toLowerCase().includes(lowerQuery) ||
           product.category.toLowerCase().includes(lowerQuery) ||
-          (product.sellerName && product.sellerName.toLowerCase().includes(lowerQuery))
+          (product.sellerName && product.sellerName.toLowerCase().includes(lowerQuery)) ||
+          (product.sellerId && matchedStoreIds.has(product.sellerId))
         );
+
+        // Fallback: if still no results, try matching individual words (length > 2)
+        if (results.length === 0) {
+          const words = lowerQuery.split(/\s+/).filter((w: string) => w.length > 2);
+          if (words.length > 0) {
+            const allActive = sellerProducts.filter((p) => p.approvalStatus === "approved" && p.isActive);
+            results = allActive.filter(product =>
+              words.some((word: string) =>
+                product.name.toLowerCase().includes(word) ||
+                product.category.toLowerCase().includes(word) ||
+                (product.sellerName && product.sellerName.toLowerCase().includes(word))
+              )
+            );
+          }
+        }
       }
 
       const mappedResults = results.map(p => {
@@ -376,15 +395,18 @@ const SearchPage: React.FC = () => {
 
   const recommendedProducts = sellerProducts
     .filter((p) => p.approvalStatus === "approved" && p.isActive)
-    .slice(0, 4)
+    .slice(0, 8)
     .map(p => ({
       id: p.id,
       name: p.name,
       price: p.price,
-      image: (p.images && p.images.length > 0) ? p.images[0] : 'https://via.placeholder.com/400',
+      originalPrice: p.originalPrice,
+      image: (p.images && p.images.length > 0) ? (typeof p.images[0] === 'string' ? p.images[0] : (p.images[0] as any).image_url) : 'https://via.placeholder.com/400',
       rating: p.rating || 4.5,
       sold: p.sales || 0,
       reviewsCount: p.reviews || 0,
+      seller: p.sellerName || 'BazaarX Seller',
+      sellerId: p.sellerId,
     }));
 
   return (
@@ -404,7 +426,7 @@ const SearchPage: React.FC = () => {
             <Link to="/categories" className="text-sm text-[var(--text-muted)] hover:text-[var(--brand-primary)] transition-all duration-300">Categories</Link>
             <Link to="/collections" className="text-sm text-[var(--text-muted)] hover:text-[var(--brand-primary)] transition-all duration-300">Collections</Link>
             <Link to="/stores" className="text-sm text-[var(--text-muted)] hover:text-[var(--brand-primary)] transition-all duration-300">Stores</Link>
-            <Link to="/registry" className="text-sm text-[var(--text-muted)] hover:text-[var(--brand-primary)] transition-all duration-300">Registry & Gifting</Link>
+            <Link to="/registry" className="text-sm text-[var(--text-muted)] hover:text-[var(--brand-primary)] transition-all duration-300">Wishlist & Gifting</Link>
           </div>
         </motion.div>
 
@@ -887,16 +909,64 @@ const SearchPage: React.FC = () => {
               );
             })()
               : (
-                <div className="flex-1 flex flex-col items-center justify-center py-20">
-                  <h3 className="text-xl font-bold text-[var(--text-headline)]">No products found</h3>
-                  <p className="text-[var(--text-muted)] mt-2">Try adjusting your filters or search query</p>
-                  <button
-                    onClick={() => setShowRequestModal(true)}
-                    className="mt-6 inline-flex items-center gap-2 px-6 py-3 rounded-xl bg-[var(--brand-primary)] text-white font-bold text-sm hover:bg-[var(--brand-primary-dark)] transition-all active:scale-95 shadow-lg shadow-[var(--brand-primary)]/20"
-                  >
-                    <Sparkles className="w-4 h-4" />
-                    Request This Product
-                  </button>
+                <div className="flex-1 flex flex-col py-10">
+                  <div className="flex flex-col items-center mb-10">
+                    <h3 className="text-xl font-bold text-[var(--text-headline)]">No exact matches found</h3>
+                    <p className="text-[var(--text-muted)] mt-2 text-center">
+                      {searchQuery ? `We couldn't find products for "${searchQuery}". Try a different term or browse the suggestions below.` : 'Try adjusting your filters or search query'}
+                    </p>
+                    <button
+                      onClick={() => setShowRequestModal(true)}
+                      className="mt-6 inline-flex items-center gap-2 px-6 py-3 rounded-xl bg-[var(--brand-primary)] text-white font-bold text-sm hover:bg-[var(--brand-primary-dark)] transition-all active:scale-95 shadow-lg shadow-[var(--brand-primary)]/20"
+                    >
+                      <Sparkles className="w-4 h-4" />
+                      Request This Product
+                    </button>
+                  </div>
+                  {recommendedProducts.length > 0 && (
+                    <div>
+                      <h4 className="text-base font-bold text-[var(--text-headline)] mb-4">You might also like</h4>
+                      <motion.div
+                        initial={{ opacity: 0 }}
+                        animate={{ opacity: 1 }}
+                        className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6"
+                      >
+                        {recommendedProducts.map((product, index) => (
+                          <motion.div
+                            key={product.id}
+                            initial={{ opacity: 0, y: 20 }}
+                            animate={{ opacity: 1, y: 0 }}
+                            transition={{ delay: index * 0.05 }}
+                            onClick={() => navigate(`/product/${product.id}`)}
+                            className="product-card-premium product-card-premium-interactive h-full flex flex-col group cursor-pointer border-0 rounded-2xl overflow-hidden"
+                          >
+                            <div className="relative aspect-square overflow-hidden bg-white/50">
+                              <img
+                                loading="lazy"
+                                src={product.image as string}
+                                alt={product.name}
+                                className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+                                onError={(e) => { (e.target as HTMLImageElement).src = 'https://placehold.co/400x400?text=No+Image'; }}
+                              />
+                            </div>
+                            <div className="p-3 flex-1 flex flex-col">
+                              <h3 className="font-bold text-[var(--text-headline)] group-hover:text-[var(--brand-primary)] transition-colors duration-200 line-clamp-2 text-sm leading-tight">
+                                {product.name}
+                              </h3>
+                              <div className="mt-1 flex items-center gap-1">
+                                <Star className="w-3.5 h-3.5 text-yellow-500 fill-current" />
+                                <span className="text-xs text-[var(--text-muted)] font-medium">{product.rating}</span>
+                              </div>
+                              <span className={`text-lg font-black mt-2 leading-none ${product.originalPrice ? 'text-[#DC2626]' : 'text-[#D97706]'}`}>
+                                ₱{product.price.toLocaleString()}
+                              </span>
+                              <p className="text-[10px] text-[var(--text-muted)] font-semibold mt-1">{product.seller}</p>
+                            </div>
+                          </motion.div>
+                        ))}
+                      </motion.div>
+                    </div>
+                  )}
                 </div>
               )}
           </main>

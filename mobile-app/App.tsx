@@ -36,6 +36,7 @@ import { supabase } from './src/lib/supabase';
 import { chatService } from './src/services/chatService';
 import { pushNotificationService, PushNotificationData } from './src/services/pushNotificationService';
 import { useAuthStore } from './src/stores/authStore';
+import { useGlobalNotifications } from './src/hooks/useGlobalNotifications';
 import type { Order, Product } from './src/types';
 import { runFullNetworkDiagnostics, logDetailedError } from './src/utils/networkDebug';
 
@@ -131,6 +132,8 @@ export type RootStackParamList = {
   MyRequests: undefined;
   LabPipeline: undefined;
   ProductRequestDetail: { requestId: string };
+  SellerDemand: undefined;
+  BrowseRequests: undefined;
   CreateTicket: undefined;
   TicketDetail: { ticketId: string };
   Messages: undefined;
@@ -191,6 +194,8 @@ const linking: LinkingOptions<RootStackParamList> = {
 function MainTabs() {
   const insets = useSafeAreaInsets();
   const { user } = useAuthStore();
+  // Real-time in-app foreground notifications for order status changes
+  useGlobalNotifications();
   const [unreadMsgCount, setUnreadMsgCount] = React.useState(0);
   const unsubChatRef = useRef<(() => void) | null>(null);
 
@@ -731,6 +736,10 @@ export default function App() {
               <Stack.Screen name="MyRequests" getComponent={() => require('./app/MyRequestsScreen').default} />
               <Stack.Screen name="LabPipeline" getComponent={() => require('./app/LabPipelineScreen').default} options={{ headerShown: false }} />
               <Stack.Screen name="ProductRequestDetail" getComponent={() => require('./app/ProductRequestDetailScreen').default} options={{ headerShown: false }} />
+              <Stack.Screen name="SellerDemand" getComponent={() => require('./app/SellerDemandScreen').default} options={{ headerShown: false }} />
+              <Stack.Screen name="BrowseRequests" getComponent={() => require('./app/BrowseRequestsScreen').default} options={{ headerShown: false }} />
+              <Stack.Screen name="BuyerProductRequests" getComponent={() => require('./app/BuyerProductRequestsScreen').default} options={{ headerShown: false }} />
+              <Stack.Screen name="BrowseRequests" getComponent={() => require('./app/BrowseRequestsScreen').default} options={{ headerShown: false }} />
               <Stack.Screen name="HelpSupport" getComponent={() => require('./app/HelpCenterScreen').default} />
               <Stack.Screen name="ChatSupport" getComponent={() => require('./app/ChatSupportScreen').default} options={{ headerShown: false }} />
               <Stack.Screen name="CreateTicket" getComponent={() => require('./app/tickets/CreateTicketScreen').default} />

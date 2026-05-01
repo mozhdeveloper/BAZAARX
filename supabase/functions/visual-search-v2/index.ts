@@ -84,8 +84,8 @@ Deno.serve(async (req) => {
     // --- STAGE 1: Qwen-VL Detection ---
     console.log("Requesting object detection...");
     
-    // Use direct URL for Qwen if provided, otherwise use base64
-    const qwenImageUrl = image_url ? image_url : `data:image/jpeg;base64,${pureBase64}`;
+    // Use base64 for Qwen always — avoids failures when the URL host blocks external fetchers
+    const qwenImageUrl = `data:image/jpeg;base64,${pureBase64}`;
     
     const qwenResponse = await fetch('https://dashscope-intl.aliyuncs.com/compatible-mode/v1/chat/completions', {
       method: 'POST',
@@ -182,20 +182,68 @@ Deno.serve(async (req) => {
       Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
     );
 
+    // BONUS: Exact URL match — if the caller pasted a direct product image URL,
+    // look it up immediately in product_images and prepend as a perfect match.
+    let exactUrlMatch: any | null = null;
+    if (image_url) {
+      const { data: exactRows } = await supabase
+        .from('product_images')
+        .select('product_id')
+        .eq('image_url', image_url)
+        .limit(1);
+      if (exactRows && exactRows.length > 0) {
+        const { data: exactProduct } = await supabase
+          .from('products')
+          .select('id, name, price')
+          .eq('id', exactRows[0].product_id)
+          .is('deleted_at', null)
+          .single();
+        if (exactProduct) {
+          exactUrlMatch = { ...exactProduct, similarity: 1.0 };
+          console.log(`Exact URL match found: ${exactProduct.name}`);
+        }
+      }
+    }
+
     const results = await Promise.all(jinaData.data.map(async (d: any, i: number) => {
       const detectedLabel = crops[i].label.replace(/['"]/g, "").trim();
 
-      const { data: matches } = await supabase.rpc('match_products', {
+      // Fix: filter_keyword is not a real param in match_products — remove it.
+      // Lower threshold to 0.40 to allow slightly-varied embeddings through.
+      const { data: vectorMatches, error: vectorError } = await supabase.rpc('match_products', {
         query_embedding: d.embedding,
-        match_threshold: 0.50, 
-        match_count: 4,        
-        filter_keyword: detectedLabel 
+        match_threshold: 0.40,
+        match_count: 6,
       });
-      
-      console.log(`\n--- Matches for ${crops[i].label} (Filtered by '${detectedLabel}') ---`);
-      matches?.forEach((m: any) => console.log(`${m.name} | Score: ${m.similarity}`));
 
-      return { object_label: crops[i].label, bbox: crops[i].bbox, matches: matches || [] };
+      if (vectorError) console.error(`Vector search error for "${detectedLabel}": ${vectorError.message}`);
+
+      let matches: any[] = vectorMatches || [];
+
+      // Prepend exact URL match as the top result (for URL-paste searches)
+      if (exactUrlMatch && i === 0) {
+        const alreadyIncluded = matches.some(m => m.id === exactUrlMatch.id);
+        if (!alreadyIncluded) matches = [exactUrlMatch, ...matches];
+      }
+
+      // Text fallback: if vector search returned nothing, try name-based search
+      if (matches.length === 0 && detectedLabel) {
+        console.log(`No vector matches for "${detectedLabel}", trying text search...`);
+        const { data: textMatches } = await supabase
+          .from('products')
+          .select('id, name, price')
+          .ilike('name', `%${detectedLabel}%`)
+          .is('deleted_at', null)
+          .limit(6);
+        if (textMatches && textMatches.length > 0) {
+          matches = textMatches.map((p: any) => ({ ...p, similarity: 0.5 }));
+        }
+      }
+
+      console.log(`\n--- Matches for ${crops[i].label} ---`);
+      matches.forEach((m: any) => console.log(`${m.name} | Score: ${m.similarity}`));
+
+      return { object_label: crops[i].label, bbox: crops[i].bbox, matches };
     }));
 
     return new Response(JSON.stringify({ detected_objects: results }), { 

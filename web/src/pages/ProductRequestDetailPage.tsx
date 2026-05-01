@@ -7,14 +7,19 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { CommentSection } from '@/components/requests/CommentSection';
+import { RequestTimeline } from '@/components/requests/RequestTimeline';
+import { SupportWidget } from '@/components/requests/SupportWidget';
+import { AdminRequestActions } from '@/components/admin/AdminRequestActions';
+import { RequestAuditLog } from '@/components/admin/RequestAuditLog';
+import { SupplierOffersList } from '@/components/admin/SupplierOffersList';
+import { useAdminAuth } from '@/stores/adminStore';
 import {
   ChevronLeft,
-  ThumbsUp,
   MessageSquare,
   TrendingUp,
   Loader2,
-  DollarSign,
   Flame,
+  ExternalLink,
 } from 'lucide-react';
 import { productRequestService, type ProductRequest } from '@/services/productRequestService';
 import { supabase } from '@/lib/supabase';
@@ -22,10 +27,17 @@ import { supabase } from '@/lib/supabase';
 /* ── Status labels matching the pipeline ────────────────────────────── */
 
 const STATUS_CONFIG: Record<string, { label: string; emoji: string; badgeBg: string; message: string }> = {
-  pending:      { label: 'Gathering Interest',  emoji: '📍', badgeBg: 'bg-amber-50 border-amber-300 text-amber-700',   message: 'Community is gathering interest. Upvote to help this reach sourcing!' },
-  in_progress:  { label: 'In Sourcing',         emoji: '🔍', badgeBg: 'bg-blue-50 border-blue-300 text-blue-700',     message: 'Suppliers are being contacted and samples are being sourced and negotiated.' },
-  approved:     { label: 'Verified',            emoji: '✅', badgeBg: 'bg-emerald-50 border-emerald-300 text-emerald-700', message: 'This product has been lab-verified and is ready for the marketplace.' },
-  rejected:     { label: 'Not Available',       emoji: '❌', badgeBg: 'bg-red-50 border-red-300 text-red-700',          message: 'This product did not pass verification.' },
+  new:                    { label: 'New',                   emoji: '🆕', badgeBg: 'bg-gray-50 border-gray-300 text-gray-700',         message: 'Your request has been received and will be reviewed soon.' },
+  under_review:           { label: 'Under Review',          emoji: '👀', badgeBg: 'bg-blue-50 border-blue-300 text-blue-700',         message: 'Our team is evaluating this request.' },
+  approved_for_sourcing:  { label: 'Sourcing',              emoji: '🔍', badgeBg: 'bg-amber-50 border-amber-300 text-amber-700',     message: 'Suppliers are being contacted and samples evaluated.' },
+  already_available:      { label: 'Already Available',     emoji: '🛒', badgeBg: 'bg-green-50 border-green-300 text-green-700',     message: 'This product already exists on BazaarX.' },
+  on_hold:                { label: 'On Hold',               emoji: '⏸', badgeBg: 'bg-amber-50 border-amber-300 text-amber-800',     message: 'We need more information before proceeding.' },
+  rejected:               { label: 'Not Accepted',          emoji: '❌', badgeBg: 'bg-red-50 border-red-300 text-red-700',           message: 'This request did not meet our sourcing criteria.' },
+  converted_to_listing:   { label: 'Listed',                emoji: '🎉', badgeBg: 'bg-emerald-50 border-emerald-300 text-emerald-700', message: 'Now available on BazaarX!' },
+  // legacy
+  pending:                { label: 'Gathering Interest',    emoji: '📍', badgeBg: 'bg-amber-50 border-amber-300 text-amber-700',     message: 'Community is gathering interest.' },
+  in_progress:            { label: 'In Sourcing',           emoji: '🔍', badgeBg: 'bg-blue-50 border-blue-300 text-blue-700',         message: 'Suppliers being contacted.' },
+  approved:               { label: 'Verified',              emoji: '✅', badgeBg: 'bg-emerald-50 border-emerald-300 text-emerald-700', message: 'Lab-verified.' },
 };
 
 /* ── Next stage milestones ──────────────────────────────────────────── */
@@ -47,6 +59,9 @@ const ProductRequestDetailPage: React.FC = () => {
   const [isLoading, setIsLoading] = useState(true);
   const [viewerUserId, setViewerUserId] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<DetailTab>('discussion');
+  const [refreshKey, setRefreshKey] = useState(0);
+
+  const { isAuthenticated: isAdmin } = useAdminAuth();
 
   useEffect(() => {
     supabase.auth.getUser().then(({ data }) => {
@@ -66,7 +81,9 @@ const ProductRequestDetailPage: React.FC = () => {
       }
     };
     load();
-  }, [id]);
+  }, [id, refreshKey]);
+
+  const reload = () => setRefreshKey((k) => k + 1);
 
   if (isLoading) {
     return (
@@ -159,17 +176,33 @@ const ProductRequestDetailPage: React.FC = () => {
               </Card>
             </motion.div>
 
-            {/* Action buttons: Upvote + Pledge */}
-            <div className="flex gap-4">
-              <Button className="flex-1 bg-[var(--brand-primary)] hover:bg-[var(--brand-primary-dark)] text-white rounded-lg py-3 text-base font-bold gap-2 h-auto">
-                <ThumbsUp className="h-5 w-5" />
-                Upvote ({request.votes})
-              </Button>
-              <Button className="flex-1 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg py-3 text-base font-bold gap-2 h-auto">
-                <DollarSign className="h-5 w-5" />
-                Pledge $25
-              </Button>
-            </div>
+            {/* Lifecycle timeline */}
+            <Card className="shadow-sm">
+              <CardContent className="p-6">
+                <RequestTimeline
+                  status={request.status}
+                  sourcingStage={request.sourcingStage}
+                  rejectionReason={request.rejectionHoldReason}
+                />
+              </CardContent>
+            </Card>
+
+            {/* Matched-product CTA */}
+            {request.linkedProductId && (
+              <Card className="border-2 border-green-300 bg-green-50/50 shadow-sm">
+                <CardContent className="p-5 flex items-center justify-between">
+                  <div>
+                    <p className="text-sm font-bold text-green-900">
+                      {request.status === 'converted_to_listing' ? '🎉 Now available on BazaarX' : '🛒 We found a matching product'}
+                    </p>
+                    <p className="text-xs text-green-700 mt-1">Tap to view the product page</p>
+                  </div>
+                  <Button onClick={() => navigate(`/product/${request.linkedProductId}`)} className="bg-green-600 hover:bg-green-700">
+                    <ExternalLink className="h-4 w-4 mr-1" /> View Product
+                  </Button>
+                </CardContent>
+              </Card>
+            )}
 
             {/* Discussion / Lab Pipeline tabs */}
             <div className="flex border-b border-gray-200">
@@ -302,21 +335,13 @@ const ProductRequestDetailPage: React.FC = () => {
               </CardContent>
             </Card>
 
-            {/* Upvotes / Pledges boxes */}
-            <div className="grid grid-cols-2 gap-3">
-              <Card className="border border-blue-200">
-                <CardContent className="p-4 text-center">
-                  <p className="text-[10px] font-bold uppercase tracking-widest text-blue-600 mb-1">Upvotes</p>
-                  <p className="text-2xl font-extrabold text-gray-900">{request.votes}</p>
-                </CardContent>
-              </Card>
-              <Card className="border border-[var(--brand-primary)]">
-                <CardContent className="p-4 text-center">
-                  <p className="text-[10px] font-bold uppercase tracking-widest text-[var(--brand-primary)] mb-1">Pledges</p>
-                  <p className="text-2xl font-extrabold text-gray-900">{request.estimatedDemand}</p>
-                </CardContent>
-              </Card>
-            </div>
+            {/* Support / Stake widget */}
+            <SupportWidget
+              requestId={request.id}
+              demandCount={request.demandCount}
+              stakedBazcoins={request.stakedBazcoins}
+              onSupported={reload}
+            />
 
             {/* Admin notes (public-friendly) */}
             {request.adminNotes && (
@@ -326,6 +351,15 @@ const ProductRequestDetailPage: React.FC = () => {
                   <p className="text-sm text-gray-700">{request.adminNotes}</p>
                 </CardContent>
               </Card>
+            )}
+
+            {/* Admin-only panels */}
+            {isAdmin && (
+              <>
+                <AdminRequestActions request={request} onChanged={reload} />
+                <SupplierOffersList requestId={request.id} isAdmin />
+                <RequestAuditLog requestId={request.id} refreshKey={refreshKey} />
+              </>
             )}
           </div>
         </div>

@@ -268,7 +268,7 @@ export const EditRegistryItemModal = ({
                       disabled={item.receivedQty > 0}
                       className="text-red-500 hover:text-red-600 hover:bg-red-50 border-gray-200 disabled:opacity-40"
                     >
-                      Remove from registry
+                      Remove from wishlist
                     </Button>
                     {item.receivedQty > 0 && (
                       <span className="text-[10px] text-amber-600 font-medium">Cannot remove item with received gifts.</span>
