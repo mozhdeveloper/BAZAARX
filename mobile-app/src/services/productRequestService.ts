@@ -188,9 +188,9 @@ export const productRequestService = {
     const { data, error } = await supabase.rpc('admin_action_product_request', {
       p_request_id: params.requestId,
       p_action: params.action,
-      p_reason: params.reason ?? null,
-      p_target_id: params.targetId ?? null,
-      p_new_stage: params.newStage ?? null,
+      p_reason: params.reason ?? undefined,
+      p_target_id: params.targetId ?? undefined,
+      p_new_stage: params.newStage ?? undefined,
     });
     if (error) return { success: false, error: error.message };
     return { success: true, newStatus: (data as any)?.new_status };
