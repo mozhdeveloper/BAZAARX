@@ -738,8 +738,6 @@ export default function App() {
               <Stack.Screen name="ProductRequestDetail" getComponent={() => require('./app/ProductRequestDetailScreen').default} options={{ headerShown: false }} />
               <Stack.Screen name="SellerDemand" getComponent={() => require('./app/SellerDemandScreen').default} options={{ headerShown: false }} />
               <Stack.Screen name="BrowseRequests" getComponent={() => require('./app/BrowseRequestsScreen').default} options={{ headerShown: false }} />
-              <Stack.Screen name="BuyerProductRequests" getComponent={() => require('./app/BuyerProductRequestsScreen').default} options={{ headerShown: false }} />
-              <Stack.Screen name="BrowseRequests" getComponent={() => require('./app/BrowseRequestsScreen').default} options={{ headerShown: false }} />
               <Stack.Screen name="HelpSupport" getComponent={() => require('./app/HelpCenterScreen').default} />
               <Stack.Screen name="ChatSupport" getComponent={() => require('./app/ChatSupportScreen').default} options={{ headerShown: false }} />
               <Stack.Screen name="CreateTicket" getComponent={() => require('./app/tickets/CreateTicketScreen').default} />
