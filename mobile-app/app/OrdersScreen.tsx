@@ -31,6 +31,7 @@ import { GuestLoginModal } from '../src/components/GuestLoginModal';
 import { OrderCard } from '../src/components/OrderCard';
 import ReviewModal from '../src/components/ReviewModal';
 import CancelOrderModal from '../src/components/seller/CancelOrderModal';
+import ConfirmReceivedModal from '../src/components/ConfirmReceivedModal';
 import { orderService } from '../src/services/orderService';
 import { orderMutationService } from '../src/services/orders/orderMutationService';
 import type { CompositeScreenProps } from '@react-navigation/native';
@@ -140,6 +141,8 @@ export default function OrdersScreen({ navigation, route }: Props) {
   const [showCancelModal, setShowCancelModal] = useState(false);
   const [cancellingOrder, setCancellingOrder] = useState<Order | null>(null);
   const [isCancellingOrder, setIsCancellingOrder] = useState(false);
+  const [showConfirmReceivedModal, setShowConfirmReceivedModal] = useState(false);
+  const [receivingOrder, setReceivingOrder] = useState<Order | null>(null);
 
   const [selectedStatus, setSelectedStatus] = useState<Order['status'] | 'all'>('all');
   const [sortOrder, setSortOrder] = useState<'latest' | 'oldest'>('latest');
@@ -684,65 +687,29 @@ export default function OrdersScreen({ navigation, route }: Props) {
   };
 
   const handleOrderReceived = (order: Order) => {
-    Alert.alert(
-      'Confirm Received',
-      'Have you received your order? By confirming, you acknowledge that the item has been delivered to you.',
-      [
-        { text: 'Not Yet', style: 'cancel' },
-        {
-          text: 'Yes, Received',
-          onPress: async () => {
-            try {
-              const realOrderId = (order as any).orderId || order.id;
-              
-              // Fetch order to check payment_status
-              const { data: orderData, error: fetchError } = await supabase
-                .from('orders')
-                .select('payment_status')
-                .eq('id', realOrderId)
-                .single();
-              
-              if (fetchError) throw fetchError;
-              
-              // Mark as paid when buyer confirms receipt (cash collected on delivery)
-              const needsPaymentUpdate = orderData.payment_status !== 'paid';
-              
-              const now = new Date().toISOString();
-              const updateData: Record<string, any> = { 
-                shipment_status: 'received' 
-              };
-              
-              // Mark as paid if not already paid
-              if (needsPaymentUpdate) {
-                updateData.payment_status = 'paid';
-                updateData.paid_at = now;
-              }
-              
-              const { error } = await supabase
-                .from('orders')
-                .update(updateData)
-                .eq('id', realOrderId);
+    setReceivingOrder(order);
+    setShowConfirmReceivedModal(true);
+  };
 
-              if (error) throw error;
+  const handleConfirmReceivedSuccess = (photoUrls: string[]) => {
+    if (!receivingOrder) return;
+    
+    const realOrderId = (receivingOrder as any).orderId || receivingOrder.id;
+    
+    // Optimistically update to received
+    setDbOrders(prev => prev.map(o =>
+      ((o as any).orderId || o.id) === realOrderId
+        ? { ...o, buyerUiStatus: 'received' as any }
+        : o
+    ));
 
-              // Optimistically update to received
-              setDbOrders(prev => prev.map(o =>
-                ((o as any).orderId || o.id) === realOrderId
-                  ? { ...o, buyerUiStatus: 'received' as any }
-                  : o
-              ));
-
-              Alert.alert('Success', 'Order marked as received! You can now leave a review or request a return within 7 days.');
-              // Reload to get fresh data
-              await loadOrders(activeTab);
-            } catch (e) {
-              console.error('Error updating order:', e);
-              Alert.alert('Error', 'Failed to update order status');
-            }
-          },
-        }
-      ]
-    );
+    Alert.alert('Success', 'Order marked as received! You can now leave a review or request a return within 7 days.');
+    
+    // Switch to Received tab to show the updated order
+    setActiveTab('received');
+    
+    // Refresh the list to be sure
+    loadOrders('received');
   };
 
   const handleReview = (order: Order) => {
@@ -1308,6 +1275,18 @@ export default function OrdersScreen({ navigation, route }: Props) {
         }}
         onConfirm={handleConfirmCancel}
         isUpdating={isCancellingOrder}
+      />
+
+      <ConfirmReceivedModal
+        visible={showConfirmReceivedModal}
+        onClose={() => {
+          setShowConfirmReceivedModal(false);
+          setReceivingOrder(null);
+        }}
+        orderId={receivingOrder?.orderId || receivingOrder?.id || ''}
+        transactionId={receivingOrder?.transactionId || receivingOrder?.id || ''}
+        buyerId={user?.id || ''}
+        onSuccess={handleConfirmReceivedSuccess}
       />
 
     </View>

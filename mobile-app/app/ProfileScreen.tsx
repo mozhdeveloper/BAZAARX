@@ -5,6 +5,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import * as ImagePicker from 'expo-image-picker';
 import * as WebBrowser from 'expo-web-browser';
 import * as AuthSession from 'expo-auth-session';
+import { decode } from 'base64-arraybuffer';
 import { User, MapPin, CreditCard, Bell, HelpCircle, Shield, ChevronRight, Store, Star, Package, Heart, Settings, Edit2, Power, X, Camera, RotateCcw, Clock, Gift, Truck, Wallet, MessageSquarePlus, ArrowRight, Lock } from 'lucide-react-native';
 import type { CompositeScreenProps } from '@react-navigation/native';
 import type { BottomTabScreenProps } from '@react-navigation/bottom-tabs';
@@ -121,11 +122,7 @@ export default function ProfileScreen({ navigation }: Props) {
       }
 
       // Convert base64 to ArrayBuffer (most reliable in React Native)
-      const binaryString = atob(base64Data);
-      const bytes = new Uint8Array(binaryString.length);
-      for (let i = 0; i < binaryString.length; i++) {
-        bytes[i] = binaryString.charCodeAt(i);
-      }
+      const bytes = decode(base64Data);
 
       // Determine file extension from mime type
       const extMap: Record<string, string> = {
@@ -140,7 +137,7 @@ export default function ProfileScreen({ navigation }: Props) {
 
       const { error: uploadError } = await supabase.storage
         .from('profile-avatars')
-        .upload(filePath, bytes.buffer, {
+        .upload(filePath, bytes, {
           contentType: mimeType,
           upsert: true
         });

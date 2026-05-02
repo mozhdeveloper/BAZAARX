@@ -144,9 +144,18 @@ class OrderMutationService {
   }: ConfirmOrderReceivedInput): Promise<boolean> {
     try {
       // 1. Update the main orders table
+      const updateData: any = { 
+        shipment_status: 'received', 
+        updated_at: new Date().toISOString() 
+      };
+
+      if (receiptPhotoUrls && receiptPhotoUrls.length > 0) {
+        updateData.proof_image_url = receiptPhotoUrls[0];
+      }
+
       const { error: orderError } = await supabase
         .from('orders')
-        .update({ shipment_status: 'received', updated_at: new Date().toISOString() })
+        .update(updateData)
         .eq('id', orderId)
         .eq('buyer_id', buyerId);
 
