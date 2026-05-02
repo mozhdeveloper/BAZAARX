@@ -40,7 +40,17 @@ interface ProductRequest {
   product_name: string;
   description: string;
   category: string;
-  status: 'pending' | 'approved' | 'rejected' | 'in_progress';
+  status:
+    | 'new'
+    | 'under_review'
+    | 'approved_for_sourcing'
+    | 'already_available'
+    | 'on_hold'
+    | 'converted_to_listing'
+    | 'pending'
+    | 'approved'
+    | 'rejected'
+    | 'in_progress';
   priority: string;
   votes: number;
   admin_notes?: string;
@@ -48,15 +58,32 @@ interface ProductRequest {
 }
 
 const STATUS_CONFIG: Record<string, { label: string; color: string; bg: string; border: string }> = {
+  new:         { label: 'New',                color: '#1F2937', bg: '#F9FAFB', border: '#E5E7EB' },
+  under_review:{ label: 'Under Review',       color: '#1E40AF', bg: '#EFF6FF', border: '#BFDBFE' },
+  approved_for_sourcing: { label: 'In Sourcing', color: '#1E40AF', bg: '#EFF6FF', border: '#BFDBFE' },
+  already_available: { label: 'Already Available', color: '#166534', bg: '#F0FDF4', border: '#BBF7D0' },
+  on_hold:     { label: 'On Hold',            color: '#92400E', bg: '#FFFBEB', border: '#FDE68A' },
+  converted_to_listing: { label: 'Listed',    color: '#166534', bg: '#F0FDF4', border: '#BBF7D0' },
   pending:     { label: 'Gathering Interest', color: '#92400E', bg: '#FFFBEB', border: '#FDE68A' },
   approved:    { label: 'Verified',            color: '#166534', bg: '#F0FDF4', border: '#BBF7D0' },
   in_progress: { label: 'In Sourcing',         color: '#1E40AF', bg: '#EFF6FF', border: '#BFDBFE' },
   rejected:    { label: 'Not Available',       color: '#991B1B', bg: '#FEF2F2', border: '#FECACA' },
 };
 
+const normalizeStatus = (status: ProductRequest['status']) => {
+  if (status === 'new') return 'pending';
+  if (status === 'under_review') return 'in_progress';
+  if (status === 'approved_for_sourcing') return 'in_progress';
+  if (status === 'already_available') return 'approved';
+  if (status === 'converted_to_listing') return 'approved';
+  if (status === 'on_hold') return 'rejected';
+  return status;
+};
+
 const StatusIcon = ({ status, size = 16 }: { status: string; size?: number }) => {
-  const color = STATUS_CONFIG[status]?.color || '#6B7280';
-  switch (status) {
+  const normalized = normalizeStatus(status as ProductRequest['status']);
+  const color = STATUS_CONFIG[normalized]?.color || '#6B7280';
+  switch (normalized) {
     case 'pending': return <Clock size={size} color={color} />;
     case 'approved': return <CheckCircle2 size={size} color={color} />;
     case 'in_progress': return <Loader2 size={size} color={color} />;
@@ -133,13 +160,13 @@ export default function MyRequestsScreen({ navigation }: Props) {
   };
 
   const sourceList = tab === 'mine' ? requests : supported;
-  const filteredRequests = filterStatus ? sourceList.filter((r) => r.status === filterStatus) : sourceList;
+  const filteredRequests = filterStatus ? sourceList.filter((r) => normalizeStatus(r.status) === filterStatus) : sourceList;
 
   const statusCounts = {
-    pending: sourceList.filter((r) => r.status === 'pending').length,
-    in_progress: sourceList.filter((r) => r.status === 'in_progress').length,
-    approved: sourceList.filter((r) => r.status === 'approved').length,
-    rejected: sourceList.filter((r) => r.status === 'rejected').length,
+    pending: sourceList.filter((r) => normalizeStatus(r.status) === 'pending').length,
+    in_progress: sourceList.filter((r) => normalizeStatus(r.status) === 'in_progress').length,
+    approved: sourceList.filter((r) => normalizeStatus(r.status) === 'approved').length,
+    rejected: sourceList.filter((r) => normalizeStatus(r.status) === 'rejected').length,
   };
 
   const formatDate = (dateStr: string) => {
@@ -266,7 +293,8 @@ export default function MyRequestsScreen({ navigation }: Props) {
         ) : (
           <View style={styles.requestsList}>
             {filteredRequests.map((request) => {
-              const config = STATUS_CONFIG[request.status] || STATUS_CONFIG.pending;
+              const normalizedStatus = normalizeStatus(request.status);
+              const config = STATUS_CONFIG[normalizedStatus] || STATUS_CONFIG.pending;
               return (
                 <View key={request.id} style={styles.requestCard}>
                   <View style={styles.requestCardTop}>
@@ -291,7 +319,7 @@ export default function MyRequestsScreen({ navigation }: Props) {
 
                     {/* Status Badge */}
                     <View style={[styles.statusBadge, { backgroundColor: config.bg, borderColor: config.border }]}>
-                      <StatusIcon status={request.status} size={14} />
+                      <StatusIcon status={normalizedStatus} size={14} />
                       <Text style={[styles.statusText, { color: config.color }]}>{config.label}</Text>
                     </View>
                   </View>

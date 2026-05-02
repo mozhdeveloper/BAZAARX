@@ -51,10 +51,10 @@ type AdminTab = 'pipeline' | 'testing' | 'suppliers' | 'resolved' | 'analytics';
 /* ── Pipeline column config ──────────────────────────────────── */
 
 const PIPELINE_COLUMNS = [
-  { key: 'pending', label: 'Gathering\nInterest', borderColor: 'border-amber-500', textColor: 'text-amber-700', bgColor: 'bg-amber-50' },
-  { key: 'in_progress', label: 'Sourcing', borderColor: 'border-amber-600', textColor: 'text-amber-800', bgColor: 'bg-amber-50/60' },
-  { key: 'testing', label: 'Lab Testing', borderColor: 'border-orange-500', textColor: 'text-orange-700', bgColor: 'bg-orange-50' },
-  { key: 'approved', label: 'Verified', borderColor: 'border-green-500', textColor: 'text-green-700', bgColor: 'bg-green-50' },
+  { key: 'new', label: 'Gathering\nInterest', borderColor: 'border-amber-500', textColor: 'text-amber-700', bgColor: 'bg-amber-50' },
+  { key: 'under_review', label: 'Under\nReview', borderColor: 'border-blue-500', textColor: 'text-blue-700', bgColor: 'bg-blue-50' },
+  { key: 'approved_for_sourcing', label: 'Sourcing', borderColor: 'border-amber-600', textColor: 'text-amber-800', bgColor: 'bg-amber-50/60' },
+  { key: 'converted_to_listing', label: 'Verified', borderColor: 'border-green-500', textColor: 'text-green-700', bgColor: 'bg-green-50' },
   { key: 'live', label: 'Live', borderColor: 'border-gray-400', textColor: 'text-gray-600', bgColor: 'bg-gray-50' },
 ] as const;
 
@@ -131,21 +131,22 @@ const AdminProductRequests: React.FC = () => {
 
   const stats = useMemo(() => ({
     total: requests.length,
-    pending: requests.filter(r => r.status === 'pending').length,
-    approved: requests.filter(r => r.status === 'approved').length,
-    inProgress: requests.filter(r => r.status === 'in_progress').length,
+    pending: requests.filter(r => r.status === 'new' || r.status === 'pending').length,
+    approved: requests.filter(r => r.status === 'converted_to_listing' || r.status === 'approved').length,
+    inProgress: requests.filter(r => r.status === 'approved_for_sourcing' || r.status === 'in_progress').length,
     rejected: requests.filter(r => r.status === 'rejected').length,
   }), [requests]);
 
   // Bucket requests into pipeline columns (testing & live are implied from approved / in_progress for now)
   const pipelineBuckets = useMemo(() => {
     const map: Record<string, ProductRequestItem[]> = {
-      pending: [], in_progress: [], testing: [], approved: [], live: [],
+      new: [], under_review: [], approved_for_sourcing: [], converted_to_listing: [], live: [],
     };
     requests.forEach((r) => {
-      if (r.status === 'pending') map.pending.push(r);
-      else if (r.status === 'in_progress') map.in_progress.push(r);
-      else if (r.status === 'approved') map.approved.push(r);
+      if (r.status === 'new' || r.status === 'pending') map.new.push(r);
+      else if (r.status === 'under_review') map.under_review.push(r);
+      else if (r.status === 'approved_for_sourcing' || r.status === 'in_progress') map.approved_for_sourcing.push(r);
+      else if (r.status === 'converted_to_listing' || r.status === 'approved') map.converted_to_listing.push(r);
       // rejected is excluded from the pipeline board
     });
     return map;
@@ -166,17 +167,22 @@ const AdminProductRequests: React.FC = () => {
       .slice(0, 5);
   }, [requests]);
 
-  const handleUpdateStatus = async (requestId: string, newStatus: 'approved' | 'rejected' | 'in_progress', notes?: string) => {
+  const handleUpdateStatus = async (requestId: string, newStatus: 'approved_for_sourcing' | 'rejected', notes?: string) => {
     setUpdatingId(requestId);
     try {
       const notesToSave = notes !== undefined ? notes : adminNotes;
-      await productRequestService.updateStatus(requestId, newStatus, notesToSave || undefined);
-      setRequests(prev =>
-        prev.map(r =>
-          r.id === requestId ? { ...r, status: newStatus, adminNotes: notesToSave || r.adminNotes } : r
-        )
-      );
-      const label = newStatus === 'in_progress' ? 'In Progress' : newStatus.charAt(0).toUpperCase() + newStatus.slice(1);
+      const action = newStatus === 'rejected' ? 'reject' : 'approve';
+      const res = await productRequestService.adminAction({
+        requestId,
+        action,
+        reason: notesToSave || undefined,
+      });
+      if (!res.success) throw new Error(res.error || 'Action failed');
+
+      const data = await productRequestService.getAllRequests();
+      setRequests(data);
+
+      const label = newStatus === 'approved_for_sourcing' ? 'Approved for Sourcing' : 'Rejected';
       showToast(`Request marked as ${label}`);
     } catch (error) {
       console.error('Failed to update status:', error);
@@ -234,7 +240,7 @@ const AdminProductRequests: React.FC = () => {
             <div className="bg-white border-b border-gray-100 h-8 flex justify-center gap-10">
               {TABS.map(({ key, label }) => {
                 const count = key === 'pipeline' ? requests.length :
-                  key === 'testing' ? requests.filter(r => r.status === 'in_progress' || r.status === 'approved').length :
+                  key === 'testing' ? requests.filter(r => r.status === 'approved_for_sourcing' || r.status === 'in_progress' || r.status === 'converted_to_listing' || r.status === 'approved').length :
                     key === 'suppliers' ? SUPPLIERS.length : null;
 
                 return (
@@ -358,7 +364,7 @@ const AdminProductRequests: React.FC = () => {
                                   </div>
 
                                   <div className="flex items-center gap-3 shrink-0">
-                                    {key === 'in_progress' && (
+                                    {key === 'approved_for_sourcing' && (
                                       <Button
                                         size="sm"
                                         variant="outline"
@@ -441,12 +447,12 @@ const AdminProductRequests: React.FC = () => {
               </div>
 
               {/* Testing cards — show approved requests as "in testing" */}
-              {requests.filter(r => r.status === 'in_progress' || r.status === 'approved').length === 0 ? (
+              {requests.filter(r => r.status === 'approved_for_sourcing' || r.status === 'in_progress' || r.status === 'converted_to_listing' || r.status === 'approved').length === 0 ? (
                 <Card><CardContent className="py-16 text-center text-gray-400">No items in testing queue</CardContent></Card>
               ) : (
                 <div className="space-y-5">
                   {requests
-                    .filter(r => r.status === 'in_progress' || r.status === 'approved')
+                    .filter(r => r.status === 'approved_for_sourcing' || r.status === 'in_progress' || r.status === 'converted_to_listing' || r.status === 'approved')
                     .filter(r => !searchQuery || r.productName.toLowerCase().includes(searchQuery.toLowerCase()))
                     .map((req) => (
                       <Card key={req.id} className="border-none shadow-none bg-white">
@@ -465,11 +471,11 @@ const AdminProductRequests: React.FC = () => {
                                 </DropdownMenuTrigger>
                                 <DropdownMenuContent align="end" className="w-48 border-none shadow-xl">
                                   <DropdownMenuItem
-                                    onClick={() => handleUpdateStatus(req.id, 'approved')}
+                                    onClick={() => handleUpdateStatus(req.id, 'approved_for_sourcing')}
                                     disabled={updatingId === req.id}
                                     className="cursor-pointer focus:bg-gray-100 focus:text-[var(--text-headline)]"
                                   >
-                                    <span>Mark as Verified</span>
+                                    <span>Approve for Sourcing</span>
                                   </DropdownMenuItem>
                                   <DropdownMenuItem
                                     onClick={() => handleUpdateStatus(req.id, 'rejected')}
@@ -839,18 +845,18 @@ const AdminProductRequests: React.FC = () => {
               {/* Action buttons */}
               <div className="flex gap-3 flex-wrap mt-6 pt-4 border-t border-gray-200">
                 <Button
-                  onClick={() => handleUpdateStatus(selectedRequest.id, 'approved')}
+                  onClick={() => handleUpdateStatus(selectedRequest.id, 'approved_for_sourcing')}
                   disabled={updatingId === selectedRequest.id}
                   className="flex-1 min-w-[100px] bg-green-700 hover:bg-green-800 text-white gap-1.5"
                 >
-                  <CheckCircle className="h-4 w-4" /> Approve
+                  <CheckCircle className="h-4 w-4" /> Approve for Sourcing
                 </Button>
                 <Button
-                  onClick={() => handleUpdateStatus(selectedRequest.id, 'in_progress')}
+                  onClick={() => handleUpdateStatus(selectedRequest.id, 'approved_for_sourcing')}
                   disabled={updatingId === selectedRequest.id}
                   className="flex-1 min-w-[100px] bg-blue-600 hover:bg-blue-700 text-white gap-1.5"
                 >
-                  <TrendingUp className="h-4 w-4" /> In Progress
+                  <TrendingUp className="h-4 w-4" /> Send to Sourcing
                 </Button>
                 <Button
                   onClick={() => handleUpdateStatus(selectedRequest.id, 'rejected')}

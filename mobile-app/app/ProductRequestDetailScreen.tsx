@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useCallback } from 'react';
+﻿import React, { useEffect, useState, useCallback } from 'react';
 import {
   View,
   Text,
@@ -26,7 +26,17 @@ interface ProductRequest {
   product_name: string;
   description: string;
   category: string;
-  status: 'pending' | 'approved' | 'rejected' | 'in_progress';
+  status:
+    | 'new'
+    | 'under_review'
+    | 'approved_for_sourcing'
+    | 'already_available'
+    | 'on_hold'
+    | 'converted_to_listing'
+    | 'pending'
+    | 'approved'
+    | 'rejected'
+    | 'in_progress';
   priority: string;
   votes: number;
   estimated_demand: number;
@@ -38,6 +48,36 @@ interface ProductRequest {
 
 /* ── Status config: aligned with web version ──────────────────────────────── */
 const STATUS_CONFIG: Record<string, { label: string; emoji: string; color: string; bg: string; border: string; message: string }> = {
+  new: {
+    label: 'New', emoji: '🆕',
+    color: '#1F2937', bg: '#F9FAFB', border: '#E5E7EB',
+    message: 'Your request has been received and will be reviewed soon.',
+  },
+  under_review: {
+    label: 'Under Review', emoji: '👀',
+    color: '#1E40AF', bg: '#EFF6FF', border: '#BFDBFE',
+    message: 'Our team is reviewing this request before sourcing.',
+  },
+  approved_for_sourcing: {
+    label: 'In Sourcing', emoji: '🔍',
+    color: '#1E40AF', bg: '#EFF6FF', border: '#BFDBFE',
+    message: 'Suppliers are being contacted and samples are being sourced and negotiated.',
+  },
+  already_available: {
+    label: 'Already Available', emoji: '🛒',
+    color: '#166534', bg: '#F0FDF4', border: '#BBF7D0',
+    message: 'This request was matched to an existing BazaarX product.',
+  },
+  on_hold: {
+    label: 'On Hold', emoji: '⏸️',
+    color: '#92400E', bg: '#FFFBEB', border: '#FDE68A',
+    message: 'This request is temporarily on hold pending more information.',
+  },
+  converted_to_listing: {
+    label: 'Listed', emoji: '🎉',
+    color: '#166534', bg: '#F0FDF4', border: '#BBF7D0',
+    message: 'This request has been converted into a live marketplace listing.',
+  },
   pending: {
     label: 'Gathering Interest', emoji: '📍',
     color: '#92400E', bg: '#FFFBEB', border: '#FDE68A',
@@ -62,6 +102,12 @@ const STATUS_CONFIG: Record<string, { label: string; emoji: string; color: strin
 
 /* ── Next stage thresholds: aligned with web version ──────────────────────── */
 const NEXT_STAGE: Record<string, { label: string; threshold: number }> = {
+  new:         { label: 'Under Review', threshold: 80 },
+  under_review:{ label: 'Sourcing',     threshold: 140 },
+  approved_for_sourcing: { label: 'Verification', threshold: 260 },
+  already_available: { label: 'Resolved', threshold: 1 },
+  on_hold:     { label: 'Pending Review', threshold: 1 },
+  converted_to_listing: { label: 'Live', threshold: 1 },
   pending:     { label: 'Sourcing', threshold: 200 },
   in_progress: { label: 'Testing',  threshold: 400 },
   approved:    { label: 'Live',     threshold: 500 },
@@ -77,6 +123,16 @@ const PIPELINE_STAGES = [
 ];
 
 const STAGE_ORDER = ['pending', 'in_progress', 'testing', 'approved', 'live'];
+
+const toPipelineStatus = (status: ProductRequest['status']) => {
+  if (status === 'new') return 'pending';
+  if (status === 'under_review') return 'pending';
+  if (status === 'approved_for_sourcing') return 'in_progress';
+  if (status === 'already_available') return 'approved';
+  if (status === 'converted_to_listing') return 'approved';
+  if (status === 'on_hold') return 'rejected';
+  return status;
+};
 
 type ActiveTab = 'discussion' | 'pipeline';
 
@@ -109,7 +165,7 @@ export default function ProductRequestDetailScreen({ navigation, route }: Props)
       const { productRequestService } = require('../src/services/productRequestService');
       const res = await productRequestService.support(request.id, 'upvote', 0);
       if (res.success) {
-        setRequest(prev => prev ? { ...prev, votes: (prev.votes || 0) + 1 } : prev);
+        await fetchRequest();
       } else if (res.error) {
         Alert.alert('Cannot upvote', res.error);
       }
@@ -131,7 +187,7 @@ export default function ProductRequestDetailScreen({ navigation, route }: Props)
             const { productRequestService } = require('../src/services/productRequestService');
             const res = await productRequestService.support(request.id, 'pledge', 0);
             if (res.success) {
-              setRequest((prev) => prev ? { ...prev, estimated_demand: (prev.estimated_demand || 0) + 1 } : prev);
+              await fetchRequest();
               Alert.alert('Pledged', 'You will be notified when this product is available.');
             } else if (res.error) {
               Alert.alert('Cannot pledge', res.error);
@@ -193,7 +249,7 @@ export default function ProductRequestDetailScreen({ navigation, route }: Props)
   const nextStage = NEXT_STAGE[request.status] ?? NEXT_STAGE.approved;
   const progressPct = Math.min(100, Math.round((heatScore / nextStage.threshold) * 100));
   const toGo = Math.max(0, nextStage.threshold - heatScore);
-  const currentStageIdx = STAGE_ORDER.indexOf(request.status);
+  const currentStageIdx = STAGE_ORDER.indexOf(toPipelineStatus(request.status));
 
   return (
     <View style={[styles.container, { paddingTop: insets.top }]}>

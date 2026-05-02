@@ -71,7 +71,7 @@ export default function ProductRequestModal({ visible, onClose }: ProductRequest
         requested_by_name: requestedByName,
         requested_by_id: user?.id || null,
         estimated_demand: quantity ? parseInt(quantity, 10) || 0 : 0,
-        status: 'pending',
+        status: 'new',
         priority: 'medium',
       };
 
