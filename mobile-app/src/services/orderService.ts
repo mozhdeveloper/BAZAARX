@@ -1633,7 +1633,6 @@ export class OrderService {
         updated_at: now 
       };
       
-      // Mark as paid if not already paid
       if (needsPaymentUpdate) {
         updateData.payment_status = 'paid';
         updateData.paid_at = now;

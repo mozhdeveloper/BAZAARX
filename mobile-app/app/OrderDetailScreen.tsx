@@ -53,6 +53,7 @@ import { useAuthStore } from '../src/stores/authStore';
 import { safeImageUri } from '../src/utils/imageUtils';
 import ReviewModal from '../src/components/ReviewModal';
 import AddressFormModal from '../src/components/AddressFormModal';
+import ConfirmReceivedModal from '../src/components/ConfirmReceivedModal';
 import { BuyerBottomNav } from '../src/components/BuyerBottomNav';
 import { reviewService } from '@/services/reviewService';
 import { chatService } from '../src/services/chatService';
@@ -110,10 +111,7 @@ export default function OrderDetailScreen({ route, navigation }: Props) {
   const [deliveryTracking, setDeliveryTracking] = useState<DeliveryTrackingResult | null>(null);
   const [isTrackingError, setIsTrackingError] = useState(false);
   const [isPaymentError, setIsPaymentError] = useState(false);
-  const [receiptPhotos, setReceiptPhotos] = useState<string[]>([]);
-  const [selectedPhoto, setSelectedPhoto] = useState<string | null>(null);
-  const [showReceiptModal, setShowReceiptModal] = useState(false);
-  const [isSubmittingReceipt, setIsSubmittingReceipt] = useState(false);
+  const [showConfirmReceivedModal, setShowConfirmReceivedModal] = useState(false);
   const [isAddressModalVisible, setIsAddressModalVisible] = useState(false);
   const [dbPaymentMethod, setDbPaymentMethod] = useState<any>(null); // BX-PAYMENT-FIX: Fetch from order_payments
   const getTransactionByOrderId = usePaymentStore((s) => s.getTransactionByOrderId);
@@ -393,118 +391,27 @@ export default function OrderDetailScreen({ route, navigation }: Props) {
     }
   };
 
-  const handlePickPhoto = async (source: 'camera' | 'gallery') => {
-    try {
-      if (source === 'camera') {
-        const { status } = await ImagePicker.requestCameraPermissionsAsync();
-        if (status !== 'granted') {
-          Alert.alert('Permission Required', 'Camera access is needed to take a proof-of-receipt photo.');
-          return;
-        }
-        const result = await ImagePicker.launchCameraAsync({
-          mediaTypes: 'images',
-          quality: 0.8,
-          allowsEditing: true,
-        });
-        if (!result.canceled) {
-          setReceiptPhotos(prev => [...prev, ...result.assets.map(a => a.uri)].slice(0, 5));
-        }
-      } else {
-        const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
-        if (status !== 'granted') {
-          Alert.alert('Permission Required', 'Photo library access is needed to upload a receipt photo.');
-          return;
-        }
-        const result = await ImagePicker.launchImageLibraryAsync({
-          mediaTypes: 'images',
-          quality: 0.8,
-          allowsMultipleSelection: true,
-          selectionLimit: 5,
-        });
-        if (!result.canceled) {
-          setReceiptPhotos(prev => [...prev, ...result.assets.map(a => a.uri)].slice(0, 5));
-        }
-      }
-    } catch (err) {
-      console.error('[OrderDetail] Photo picker error:', err);
-      Alert.alert('Error', 'Failed to open photo picker. Please try again.');
-    }
-  };
-
-  const handleConfirmReceipt = async () => {
-    if (receiptPhotos.length === 0) {
-      Alert.alert('Photo Required', 'Please take or upload at least one photo as proof of receipt.');
-      return;
-    }
-    setIsSubmittingReceipt(true);
-    try {
-      const realOrderId = (order as any).orderId || order.id;
-      const { user } = useAuthStore.getState();
-
-      // Upload photos to storage
-      const timestamp = Date.now();
-      const buyerId = user?.id || '';
-      const uploadTasks = receiptPhotos.map(async (uri, index) => {
-        try {
-          let fileData: ArrayBuffer;
-          try {
-            const base64 = await FileSystem.readAsStringAsync(uri, {
-              encoding: FileSystem.EncodingType.Base64,
-            });
-            fileData = decode(base64);
-          } catch {
-            const res = await fetch(uri);
-            fileData = await res.arrayBuffer();
-          }
-          const extMatch = uri.match(/\.([a-zA-Z0-9]+)(?:\?|$)/);
-          const fileExt = (extMatch?.[1] || 'jpg').toLowerCase();
-          const contentType =
-            fileExt === 'png' ? 'image/png' :
-              fileExt === 'webp' ? 'image/webp' :
-                (fileExt === 'heic' || fileExt === 'heif') ? 'image/heic' : 'image/jpeg';
-          const suffix = Math.random().toString(36).slice(2, 8);
-          const fileName = `${buyerId}/${realOrderId}/receipt-${timestamp}-${index}-${suffix}.${fileExt}`;
-          const { error } = await supabase.storage
-            .from('review-images')
-            .upload(fileName, fileData, { contentType, upsert: false });
-          if (error) throw error;
-          const { data } = supabase.storage.from('review-images').getPublicUrl(fileName);
-          return data.publicUrl;
-        } catch (err) {
-          console.warn('[OrderDetail] Failed to upload receipt photo:', err);
-          return null;
-        }
-      });
-      const uploaded = (await Promise.all(uploadTasks)).filter((u): u is string => Boolean(u));
-
-      await orderMutationService.confirmOrderReceived(realOrderId, buyerId, uploaded.length > 0 ? uploaded : undefined);
-
-      useOrderStore.setState((state: any) => ({
-        orders: state.orders.map((existingOrder: any) =>
-          existingOrder.orderId === realOrderId || existingOrder.id === realOrderId
-            ? {
-                ...existingOrder,
-                status: 'delivered',
-                buyerUiStatus: 'received',
-                isPaid: true,
-              }
-            : existingOrder,
-        ),
-      }));
-      setShowReceiptModal(false);
-      setReceiptPhotos([]);
-      setShowReviewModal(true);
-    } catch (e) {
-      console.error('[OrderDetail] Error confirming receipt:', e);
-      Alert.alert('Error', 'Failed to confirm receipt. Please try again.');
-    } finally {
-      setIsSubmittingReceipt(false);
-    }
+  const handleConfirmReceivedSuccess = (photoUrls: string[]) => {
+    const realOrderId = (order as any).orderId || order.id;
+    
+    useOrderStore.setState((state: any) => ({
+      orders: state.orders.map((existingOrder: any) =>
+        existingOrder.orderId === realOrderId || existingOrder.id === realOrderId
+          ? {
+              ...existingOrder,
+              status: 'delivered',
+              buyerUiStatus: 'received',
+              isPaid: true,
+            }
+          : existingOrder,
+      ),
+    }));
+    
+    setShowReviewModal(true);
   };
 
   const handleMarkAsReceived = () => {
-    setReceiptPhotos([]);
-    setShowReceiptModal(true);
+    setShowConfirmReceivedModal(true);
   };
 
   const handleSubmitReview = async (
@@ -1253,93 +1160,14 @@ export default function OrderDetailScreen({ route, navigation }: Props) {
       </View>
 
       {/* Receipt Photo Modal */}
-      <Modal
-        visible={showReceiptModal}
-        animationType="slide"
-        transparent
-        onRequestClose={() => !isSubmittingReceipt && setShowReceiptModal(false)}
-      >
-        <View style={styles.receiptOverlay}>
-          <View style={styles.receiptSheet}>
-            {/* Header */}
-            <View style={styles.receiptHeader}>
-              <Text style={styles.receiptTitle}>Confirm Order Received</Text>
-              <Pressable
-                onPress={() => !isSubmittingReceipt && setShowReceiptModal(false)}
-                hitSlop={8}
-                disabled={isSubmittingReceipt}
-              >
-                <X size={22} color="#6B7280" />
-              </Pressable>
-            </View>
-            <Text style={styles.receiptSubtitle}>
-              Take or upload a photo as proof that your order has arrived.
-            </Text>
-
-            {/* Photo grid */}
-            {receiptPhotos.length > 0 && (
-              <FlatList
-                data={receiptPhotos}
-                horizontal
-                keyExtractor={(_, i) => String(i)}
-                contentContainerStyle={{ gap: 8, paddingBottom: 4, paddingTop: 4 }}
-                style={{ marginBottom: 12 }}
-                renderItem={({ item, index }) => (
-                  <View style={styles.receiptPhotoThumb}>
-                    <Image source={{ uri: item }} style={styles.receiptPhotoImg} />
-                    <Pressable
-                      style={styles.receiptPhotoRemove}
-                      onPress={() => setReceiptPhotos(prev => prev.filter((_, i) => i !== index))}
-                      hitSlop={4}
-                    >
-                      <X size={12} color="#FFFFFF" />
-                    </Pressable>
-                  </View>
-                )}
-              />
-            )}
-
-            {/* Picker buttons */}
-            {receiptPhotos.length < 5 && (
-              <View style={styles.receiptPickerRow}>
-                <Pressable
-                  style={styles.receiptPickerBtn}
-                  onPress={() => handlePickPhoto('camera')}
-                  disabled={isSubmittingReceipt}
-                >
-                  <Text style={styles.receiptPickerIcon}>📷</Text>
-                  <Text style={styles.receiptPickerText}>Take Photo</Text>
-                </Pressable>
-                <Pressable
-                  style={styles.receiptPickerBtn}
-                  onPress={() => handlePickPhoto('gallery')}
-                  disabled={isSubmittingReceipt}
-                >
-                  <Text style={styles.receiptPickerIcon}>🖼️</Text>
-                  <Text style={styles.receiptPickerText}>Upload from Gallery</Text>
-                </Pressable>
-              </View>
-            )}
-
-            {/* Confirm button */}
-            <Pressable
-              style={[
-                styles.receiptConfirmBtn,
-                (receiptPhotos.length === 0 || isSubmittingReceipt) && { opacity: 0.5 },
-              ]}
-              onPress={handleConfirmReceipt}
-              disabled={receiptPhotos.length === 0 || isSubmittingReceipt}
-            >
-              {isSubmittingReceipt ? (
-                <ActivityIndicator size="small" color="#FFFFFF" />
-              ) : null}
-              <Text style={styles.receiptConfirmText}>
-                {isSubmittingReceipt ? 'Confirming...' : 'Confirm Receipt'}
-              </Text>
-            </Pressable>
-          </View>
-        </View>
-      </Modal>
+      <ConfirmReceivedModal
+        visible={showConfirmReceivedModal}
+        onClose={() => setShowConfirmReceivedModal(false)}
+        orderId={(order as any).orderId || order.id}
+        transactionId={order.transactionId}
+        buyerId={user?.id || ''}
+        onSuccess={handleConfirmReceivedSuccess}
+      />
 
       {/* Review Modal */}
       <ReviewModal

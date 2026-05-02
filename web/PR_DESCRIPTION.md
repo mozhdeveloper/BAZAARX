@@ -1,94 +1,42 @@
-# Orders Stability, Legacy Status Compatibility, and Loading UX Improvements
+# Mandatory Photo Proof for Order Confirmation and Mobile Stability Fixes
 
-This PR updates both mobile and web order flows to fix missing legacy orders, improve loading behavior, reduce fetch stalls, and prevent crashes when users have many orders.
+This PR implements the mandatory photo proof requirement for order receipts in the mobile app and resolves several critical stability issues related to image processing and database interactions.
 
 ---
 
 ## What Changed
 
-### 1. Web: Legacy status compatibility for shipped/delivered/received tabs
-- Added support for legacy `completed` shipment values in status mapping.
-- Improved buyer order mapping to derive effective shipment status from:
-  - normalized `shipment_status`
-  - legacy top-level status fallback
-  - latest shipment relation fallback
-- Updated tab filtering behavior so delivered/shipped tabs include equivalent legacy statuses.
+### 1. Mandatory Photo Proof Confirmation (Mobile)
+- **New `ConfirmReceivedModal`**: Replaced the legacy system `Alert` with a high-fidelity modal that requires users to capture or upload photo proof before confirming order receipt.
+- **Enforced Validation**: The "Yes, I Received It" button remains disabled until at least one photo is provided, with clear visual feedback for the user.
+- **Image Processing Refactor**: Switched to `base64` data extraction from `ImagePicker` to bypass unreliable filesystem reads on Android and iOS.
+- **Vibrant UI**: Updated the confirmation button to a more vibrant green (`#16A34A`) that clearly "lights up" when the requirement is met.
 
-### 2. Web: Better tab loading UX
-- Added loading skeletons to orders list while fetching.
-- Kept status-aware empty messages for shipped and delivered tabs.
-- Ensured refetch and hydration occur consistently on tab changes and post-action refreshes.
+### 2. Critical Bug Fixes & Stability
+- **Database ID Alignment**: Fixed the "Order not found" error by ensuring the internal database UUID is used for status updates instead of the display order number.
+- **Schema Compatibility**: Resolved a schema cache error by removing attempts to update the non-existent `proof_image_url` column in the `orders` table, redirecting photo URLs to the `order_status_history` metadata instead.
+- **`atob` Polyfill Fix**: Fixed a crash in `ProfileScreen.tsx` by replacing the web-only `atob` function with the `base64-arraybuffer` decode utility.
+- **TypeScript & Deprecation Fixes**:
+  - Resolved `ImagePicker.MediaTypeOptions` deprecation warnings by using the modern `['images']` array format.
+  - Fixed a `FileSystem.EncodingType` property error by using compatible string literals.
+  - Resolved a "Bucket not found" error by switching to the established `review-images` storage bucket.
 
-### 3. Mobile: OrdersScreen tab behavior and fetch reliability
-- Replaced legacy static tab label logic with centralized tab config (`Received` included).
-- Added active-tab driven fetch and refresh flow via `useEffect`/`useCallback`.
-- Introduced tab-aware server filters using existing DB columns (`shipment_status`, `payment_status`).
-- Bounded fetch size with a configurable cap per tab to avoid loading huge payloads.
-
-### 4. Mobile: Loading UX and large-list stability
-- Added real loading state and skeleton placeholders for all tabs.
-- Upgraded skeletons to animated shimmer so loading feels active.
-- Replaced `ScrollView + map` with virtualized `FlatList` to prevent crashes when order count is high.
-- Tuned list virtualization (`initialNumToRender`, `maxToRenderPerBatch`, `windowSize`, clipping).
-
-### 5. Mobile: Auth/session resilience for startup order loading
-- Seeded a fallback user object during optimistic session hydration so order fetches can proceed even if background profile/role reads fail.
-- Reduced Supabase fetch timeout and made it configurable to avoid long UI stalls on weak connections.
-- Softened abort-like auth/profile fetch logging (warn/fallback instead of noisy hard errors).
-
-### 6. Mobile: Type safety fix in OrderConfirmation -> Orders navigation
-- Fixed route param mismatch by mapping PayMongo shortcut tab to `confirmed` (route-safe value) instead of `processing`.
-- `npx tsc --noEmit` passes after this update.
+### 3. UX & Flow Improvements
+- **Post-Action Redirection**: Added automatic navigation to the "Received" tab in the `OrdersScreen` after a successful receipt confirmation.
+- **Consistent Storage**: Aligned the mobile storage path with the web platform (`buyerId/orderId/filename`) to ensure cross-platform visibility of receipt photos.
 
 ---
 
-## Files Updated
+## Verification Results
 
-### Mobile
-- `mobile-app/app/OrdersScreen.tsx`
-  - tab config refactor
-  - loading state + animated shimmer skeletons
-  - FlatList virtualization
-  - tab-aware query filtering and bounded fetch
-- `mobile-app/src/lib/supabase.ts`
-  - configurable fetch timeout with safer default
-- `mobile-app/src/services/authService.ts`
-  - abort-like error detection and calmer fallback logging
-- `mobile-app/src/stores/authStore.ts`
-  - fallback user seeding during optimistic session check
-- `mobile-app/app/OrderConfirmation.tsx`
-  - route-safe `initialTab` value (`confirmed`/`pending`)
+### Manual Testing
+- [x] **Confirm Received**: Modal opens correctly from both `OrdersScreen` and `OrderDetailScreen`.
+- [x] **Photo Requirement**: Button is disabled when no photos are present; enables immediately after selection.
+- [x] **Upload**: Photos successfully upload to Supabase `review-images` bucket.
+- [x] **Status Update**: Order status updates to `received` in the database, and photo URLs are logged in `order_status_history`.
+- [x] **Navigation**: User is redirected to the "Received" tab upon success.
+- [x] **TypeScript**: `npx tsc --noEmit` passes with 0 errors.
 
-### Web
-- `web/src/pages/OrdersPage.tsx`
-  - loading skeleton integration
-  - improved tab matching for legacy-equivalent statuses
-  - status-aware refetch paths
-- `web/src/services/orderService.ts`
-  - legacy `completed` mapping support
-  - optional shipment status filtering support
-- `web/src/services/orders/orderReadService.ts`
-  - passthrough for optional shipment status filter input
-- `web/src/utils/orders/mappers.ts`
-  - effective shipment status derivation with legacy fallback
-- `web/src/utils/orders/status.ts`
-  - `completed` compatibility in buyer/seller/legacy status mapping
-
----
-
-## Validation
-
-- Type check: `mobile-app` `npx tsc --noEmit` passes.
-- Lint/errors: no file-level errors reported on touched mobile/web order files.
-- Runtime impact:
-  - Orders loading no longer flashes empty state while data is in-flight.
-  - Large order histories no longer attempt to render all cards at once.
-  - Legacy completed orders now map into appropriate visible tabs.
-
----
-
-## Reviewer Notes
-
-- No schema migration is included in this PR.
-- Most changes are compatibility and UI-state handling over existing normalized order data.
-- Mobile query filters intentionally use only verified columns to avoid SQL errors.
+### screenshots
+- [Insert screenshot of new ConfirmReceivedModal here]
+- [Insert screenshot of 'Received' tab redirection here]

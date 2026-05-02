@@ -1479,7 +1479,7 @@ export class ReviewService {
     private async readImageAsArrayBuffer(uri: string): Promise<ArrayBuffer> {
         try {
             const base64 = await FileSystem.readAsStringAsync(uri, {
-                encoding: FileSystem.EncodingType.Base64,
+                encoding: 'base64',
             });
             return decode(base64);
         } catch (fileSystemError) {
