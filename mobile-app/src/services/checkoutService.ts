@@ -3,6 +3,7 @@ import type { CartItem } from '../types';
 import { cartService } from './cartService';
 import { orderNotificationService } from './orderNotificationService';
 import { notificationService } from './notificationService';
+import { PAYMENT_METHODS, normalizePaymentMethod, getInitialOrderStatus, getInitialPaymentStatus } from '../constants/paymentMethods';
 
 /**
  * ORPHAN-ORDER GUARD (migration 046, 2026-04-24)
@@ -56,6 +57,9 @@ export interface CheckoutPayload {
     voucherId?: string | null;
     discountAmount?: number;
     email: string;
+    // BX-PAYMENT-FIX: Track payment status for proper order status initialization
+    isPaid?: boolean;
+    paymentStatus?: string;
     // Campaign discount info
     campaignDiscountTotal?: number;
     campaignDiscounts?: {
@@ -133,7 +137,9 @@ export const processCheckout = async (payload: CheckoutPayload): Promise<Checkou
         discountAmount,
         email,
         campaignDiscountTotal,
-        campaignDiscounts
+        campaignDiscounts,
+        isPaid = false,
+        paymentStatus
     } = payload;
 
     try {
@@ -348,6 +354,17 @@ export const processCheckout = async (payload: CheckoutPayload): Promise<Checkou
 
             // Strategy 1: Try the safe RPC function (if it exists in the database)
             // This function has built-in exception handling for trigger errors
+            // BX-PAYMENT-FIX: Determine proper status based on payment method
+            const normalizedPaymentMethod = normalizePaymentMethod(paymentMethod);
+            // BX-PAYMENT-FIX-2: ALWAYS create orders with payment_status='pending_payment' initially for ONLINE orders
+            // (The database check constraint requires ONLINE orders to use 'pending_payment', not 'pending')
+            // The constraint also prevents 'paid' status until order_items exist
+            // Also, there's a check constraint: shipment_status='processing' requires payment_status='paid'
+            // We'll update BOTH statuses AFTER order_items are inserted
+            const initialPaymentStatus = 'pending_payment'; // ONLINE orders must use this, not 'pending'
+            const shouldMarkAsPaid = isPaid; // Track for later update
+            const initialShipmentStatus = 'waiting_for_seller'; // Always start here
+            
             const { data: rpcResult, error: rpcError } = await supabase
                 .rpc('create_order_safe', {
                     p_order_number: orderNumber,
@@ -355,8 +372,8 @@ export const processCheckout = async (payload: CheckoutPayload): Promise<Checkou
                     p_order_type: 'ONLINE',
                     p_address_id: addressData.id,
                     p_recipient_id: recipientId,
-                    p_payment_status: 'pending_payment',
-                    p_shipment_status: 'waiting_for_seller',
+                    p_payment_status: initialPaymentStatus,
+                    p_shipment_status: initialShipmentStatus,
                     p_notes: `Order from ${shippingAddress.fullName}`
                 });
 
@@ -375,6 +392,9 @@ export const processCheckout = async (payload: CheckoutPayload): Promise<Checkou
                 // Strategy 2: Fall back to direct insert (RPC might not exist yet)
                 if (__DEV__) console.log('[Checkout] RPC not available or failed, using direct insert...');
 
+                // BX-PAYMENT-FIX: payment_method goes in order_payments table, NOT orders table
+                // BX-PAYMENT-FIX-2: Use initialPaymentStatus='pending' and initialShipmentStatus='waiting_for_seller'
+                // to satisfy DB check constraints (shipment_status='processing' requires payment_status='paid')
                 const { data: insertedOrder, error: orderError } = await supabase
                     .from('orders')
                     .insert({
@@ -383,9 +403,8 @@ export const processCheckout = async (payload: CheckoutPayload): Promise<Checkou
                         order_type: 'ONLINE',
                         address_id: addressData.id,
                         recipient_id: recipientId,
-                        payment_status: 'pending_payment',
-                        shipment_status: 'waiting_for_seller',
-                        payment_method: { type: paymentMethod },
+                        payment_status: initialPaymentStatus,
+                        shipment_status: initialShipmentStatus,
                         notes: `Order from ${shippingAddress.fullName}`,
                         created_at: new Date().toISOString(),
                         updated_at: new Date().toISOString()
@@ -450,13 +469,6 @@ export const processCheckout = async (payload: CheckoutPayload): Promise<Checkou
 
             createdOrderIds.push(orderData.order_number);
             createdOrderUuids.push(orderData.id);
-
-            // Store payment_method (create_order_safe RPC doesn't accept it, so patch after creation)
-            await supabase
-                .from('orders')
-                .update({ payment_method: { type: paymentMethod } } as any)
-                .eq('id', orderData.id)
-                .is('payment_method', null); // only patch if not already set by direct insert
 
             if (__DEV__) console.log(`[Checkout] ✅ Order created: ${orderData.order_number} (UUID: ${orderData.id}) for seller ${sellerId}`);
             if (__DEV__) console.log(`[Checkout] Total createdOrderUuids so far:`, createdOrderUuids);
@@ -691,18 +703,48 @@ export const processCheckout = async (payload: CheckoutPayload): Promise<Checkou
                 }
             }
 
+            // BX-PAYMENT-FIX-2: After order_items are confirmed to exist, mark order as paid if needed
+            // This satisfies the database check constraint: no 'paid' orders without order_items
+            // Also update shipment_status to 'processing' for PayMongo (only if payment_status='paid')
+            if (shouldMarkAsPaid) {
+                const finalShipmentStatus = (normalizedPaymentMethod === PAYMENT_METHODS.PAYMONGO) 
+                    ? 'processing' 
+                    : 'waiting_for_seller';
+
+                const { error: updateError } = await supabase
+                    .from('orders')
+                    .update({ 
+                        payment_status: 'paid',
+                        shipment_status: finalShipmentStatus,
+                        updated_at: new Date().toISOString()
+                    })
+                    .eq('id', orderData.id);
+
+                if (updateError) {
+                    console.warn(`[Checkout] ⚠️ Failed to mark order as paid:`, updateError.message);
+                    // Don't throw - order items exist and are committed, payment status update is secondary
+                } else {
+                    if (__DEV__) console.log(`[Checkout] ✅ Order marked as paid with shipment_status=${finalShipmentStatus}: ${orderData.id}`);
+                }
+            }
+
             // Create payment record
+            if (__DEV__) console.log('[Checkout] Creating order_payments with paymentMethod:', { paymentMethod, orderId: orderData.id, type: { type: paymentMethod } });
             const { error: paymentError } = await supabase
                 .from('order_payments')
                 .insert({
                     order_id: orderData.id,
                     payment_method: { type: paymentMethod }, // Store payment method as JSON
                     amount: orderSubtotal,
-                    status: 'pending', // Payment status
+                    status: shouldMarkAsPaid ? 'paid' : 'pending_payment', // Match orders table status
                     created_at: new Date().toISOString()
                 });
 
-            if (paymentError) throw paymentError;
+            if (paymentError) {
+                console.error('[Checkout] ❌ Failed to create order_payments:', paymentError);
+                throw paymentError;
+            }
+            if (__DEV__) console.log('[Checkout] ✅ order_payments created successfully for order:', orderData.id);
 
             // Record voucher usage if voucher was applied
             if (voucherId && discountAmount && discountAmount > 0) {

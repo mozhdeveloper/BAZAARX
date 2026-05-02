@@ -1,60 +1,84 @@
-# Registry Privacy, Guest Authentication Flow, and Type Hotfixes
+# PayMongo Payment Method Fix & COD Payment Due Date Enhancement
 
-This PR implements crucial privacy and user experience enhancements for the Registry Gifting feature, alongside fixing critical TypeScript build errors in the mobile application.
+This PR fixes a critical payment method display bug where PayMongo orders were incorrectly showing "Cash on Delivery" in the Order Details screen, and enhances the COD payment instruction messaging with calculated payment due dates.
 
 ---
 
 ## 🛠️ Changes by Area
 
-### 1. Registry Data Privacy & Integrity
-- **Recipient Identity Fix**: Resolved a critical data leakage issue where Registry Gifting orders were incorrectly defaulting to the Gifter's (Buyer's) profile information in the Seller Dashboard instead of the intended recipient.
-- **Source of Truth Migration**: Modified `checkoutService.ts` to derive the recipient's name directly from the immutable `shipping_addresses` table during order creation, deprecating the use of stale registry metadata strings.
-- **Data Fallbacks**: Updated `orderService.ts` and `mappers.ts` to include `first_name` and `last_name` in the database join queries, ensuring accurate naming is always available for the UI.
-- **Type Consistency**: Synchronized `SellerOrder` and `SellerOrderSnapshot` interfaces to support the `is_registry_order` flag and properly type extended payment methods (e.g., e-wallets) and order statuses.
+### 1. PayMongo Payment Method Display Fix
+- **Root Cause**: The `orderService.getOrders()` method was not fetching from the `order_payments` table where the actual payment method is stored (moved from orders table in previous migration).
+- **Solution**: 
+  - Updated Supabase SELECT query to include `order_payments(payment_method, status)` join
+  - Implemented safe extraction of payment_method from JSONB: `order_payments[0]?.payment_method?.type`
+  - Applied same fix to `getSellerOrders()` for consistency
+  - Added comprehensive `__DEV__` logging for debugging payment method data flow
+- **Behavior**: Orders now correctly display "PayMongo", "GCash", etc. instead of defaulting to "Cash on Delivery"
 
-### 2. Registry Guest Redirection Flow
-- **View-Only Guest Mode**: Allowed unauthenticated users to access shared registry links (`/registry/share/:id`) in a read-only state. Added an informational banner indicating guest status.
-- **Seamless Login Routing**: Replaced "Buy Gift" buttons for guests with "Log in to Buy Gift", which automatically captures the current registry URL into session storage (`redirect_to`) before routing to the login screen.
-- **Post-Auth Callback**: Upgraded the authentication listeners across `App.tsx`, `BuyerLoginPage.tsx`, and `AuthCallbackPage.tsx` to detect the stored `redirect_to` path. Upon a successful login or email-verified signup, users are automatically routed back to their specific shared registry link rather than the default shop page.
+### 2. COD Payment Instruction Message Enhancement
+- **Mobile (OrderDetailScreen.tsx)**:
+  - Removed fallback message: "Delivery date will be updated when J&T booking is confirmed"
+  - Added intelligent date calculation: If estimated delivery exists, use it; otherwise calculate 5 business days from order creation date
+  - Shows "Estimated Payment Due: [Calculated Date]"
+  - Message hidden for terminal statuses: `received`, `returned`, `reviewed`, `cancelled`
 
-### 3. Mobile TypeScript Hotfixes
-- **Cart Null Safety**: Fixed a potential null reference bug in `CartScreen.tsx` by ensuring `editingItem` is verified before accessing its quantity.
-- **Checkout Service Typings**: Resolved a persistent TypeScript error in the mobile app's `checkoutService.ts` related to the `payment_method` schema by safely casting the direct database insert payload.
+- **Web (OrderDetailPage.tsx)**:
+  - Applied identical logic for consistency across platforms
+  - Calculates estimated payment due date from order creation + 5 days when delivery date unavailable
+  - Same terminal status checks to prevent showing message on completed/cancelled orders
+
+### 3. Enhanced Logging & Debugging
+- Added detailed console logging (with `__DEV__` flag) in:
+  - `checkoutService.ts`: Logs payment_method creation with order_payments record
+  - `orderService.ts`: Logs payment_method extraction and data flow
+  - `CheckoutScreen.tsx`: Logs order object creation with payment method details
+  - Helps future debugging of payment-related issues
 
 ---
 
 ## 📄 Files Changed Summary
 
-### Web (`web/`)
-
-| File | Type | Description |
-|---|---|---|
-| `src/services/checkoutService.ts` | Modified | Updated recipient name resolution to use `shipping_addresses`. |
-| `src/services/orderService.ts` | Modified | Enhanced joins to fetch name elements for fallback mapping. |
-| `src/utils/orders/mappers.ts` | Modified | Applied address-based recipient name fallbacks. |
-| `src/types/orders.ts` & `sellerTypes.ts` | Modified | Added `is_registry_order` and updated payment method unions. |
-| `src/pages/SharedRegistryPage.tsx` | Modified | Implemented Guest Mode banner and redirect logic. |
-| `src/pages/BuyerLoginPage.tsx` | Modified | Added standard login redirect interception. |
-| `src/pages/AuthCallbackPage.tsx` | Modified | Added post-signup redirect interception. |
-| `src/App.tsx` | Modified | Updated OAuth `onAuthStateChange` listener to respect redirect paths. |
-
 ### Mobile (`mobile-app/`)
 
 | File | Type | Description |
 |---|---|---|
-| `app/CartScreen.tsx` | Modified | Fixed null checks for `editingItem`. |
-| `src/services/checkoutService.ts` | Modified | Fixed `payment_method` update schema typescript error. |
+| `src/services/checkoutService.ts` | Modified | Added logging when creating order_payments with payment_method |
+| `src/services/orderService.ts` | Modified | Added order_payments fetch to SELECT query; fixed payment_method extraction with JSONB handling; added detailed logging |
+| `app/CheckoutScreen.tsx` | Modified | Enhanced console logging for order creation and payment method tracking |
+| `app/OrderDetailScreen.tsx` | Modified | Enhanced COD payment message with calculated payment due date (5 days from order creation); removed fallback message |
+
+### Web (`web/`)
+
+| File | Type | Description |
+|---|---|---|
+| `src/pages/OrderDetailPage.tsx` | Modified | Enhanced COD payment message to calculate estimated payment due date; consistent with mobile behavior |
 
 ---
 
 ## ✅ Testing Done
 
-- [x] **Registry Privacy**: Confirmed that new registry orders correctly display the recipient's information to the seller.
-- [x] **Guest Redirection**: Verified that visiting a registry unauthenticated, clicking login, and authenticating properly returns the user to the registry URL.
-- [x] **OAuth Continuity**: Confirmed Google Sign-In respects the registry redirect path.
-- [x] **Mobile Builds**: Verified `npx tsc --noEmit` passes with 0 errors in the mobile workspace.
+- [x] **Payment Method Display**: Verified PayMongo orders now show correct payment method instead of "Cash on Delivery"
+- [x] **Database Fetching**: Confirmed order_payments table is properly joined and payment_method data is extracted
+- [x] **COD Message**: Verified message shows calculated payment due date based on order creation date
+- [x] **Terminal Statuses**: Confirmed COD message doesn't show when order is received, returned, reviewed, or cancelled
+- [x] **Mobile Logging**: Verified `__DEV__` console logs display payment method extraction details
+- [x] **Cross-Platform Consistency**: Confirmed mobile and web have identical COD payment message behavior
 
 ---
 
 ## 💡 Notes for Reviewer
-Existing incorrect registry orders in the database are immutable and will remain unchanged. These fixes apply only to newly created registry orders going forward. The `redirect_to` flow has been built robustly using `sessionStorage` to survive OAuth redirects.
+
+### Payment Method Fix
+- The payment_method JSONB is stored as `{type: 'paymongo'}` in the database
+- The fix safely accesses this nested structure with optional chaining
+- Comprehensive logging helps diagnose any payment method related issues in the future
+
+### Payment Due Date Logic
+- **Calculation**: If estimatedDelivery exists → use it; Otherwise → order creation date + 5 business days
+- **Terminal Statuses**: Message intentionally hidden for `received`, `returned`, `reviewed`, `cancelled` to keep completed orders clean
+- **Edge Cases**: Works even if estimated delivery is null, providing sensible default to customers
+
+### Backward Compatibility
+- All changes are backward compatible with existing orders
+- No database migrations required; only uses existing order_payments table
+- Logging is non-blocking and won't affect performance

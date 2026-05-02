@@ -21,6 +21,7 @@ import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context'
 import { LinearGradient } from 'expo-linear-gradient';
 import { ArrowLeft, Package, MapPin, CreditCard, Receipt, CheckCircle, MessageCircle, Send, X, Truck, Clock, CheckCircle2, RotateCcw, Tag, ArrowRight, Store } from 'lucide-react-native';
 import { COLORS } from '../src/constants/theme';
+import { isCOD, normalizePaymentMethod, getPaymentMethodLabel } from '../src/constants/paymentMethods';
 
 // Helper function to format date reliably across platforms
 const formatDatePH = (dateString: string | Date | null | undefined): string | null => {
@@ -114,6 +115,7 @@ export default function OrderDetailScreen({ route, navigation }: Props) {
   const [showReceiptModal, setShowReceiptModal] = useState(false);
   const [isSubmittingReceipt, setIsSubmittingReceipt] = useState(false);
   const [isAddressModalVisible, setIsAddressModalVisible] = useState(false);
+  const [dbPaymentMethod, setDbPaymentMethod] = useState<any>(null); // BX-PAYMENT-FIX: Fetch from order_payments
   const getTransactionByOrderId = usePaymentStore((s) => s.getTransactionByOrderId);
   const fetchTrackingByOrderId = useDeliveryStore((s) => s.fetchTrackingByOrderId);
   const deliveryStoreTracking = useDeliveryStore((s) => s.tracking);
@@ -159,6 +161,8 @@ export default function OrderDetailScreen({ route, navigation }: Props) {
   useEffect(() => {
     const realOrderId = (order as any).orderId || order.id;
     
+    if (__DEV__) console.log('[OrderDetail] useEffect triggered, orderId:', realOrderId);
+    
     setIsPaymentError(false);
     getTransactionByOrderId(realOrderId)
       .then((tx) => {
@@ -177,6 +181,36 @@ export default function OrderDetailScreen({ route, navigation }: Props) {
       .catch(() => {
         setIsTrackingError(true);
       });
+
+    // BX-PAYMENT-FIX: Always fetch payment_method from order_payments table (canonical source)
+    const fetchPaymentMethod = async () => {
+      try {
+        if (__DEV__) console.log('[OrderDetail] Fetching payment_method for order:', realOrderId);
+        
+        const { data, error } = await supabase
+          .from('order_payments')
+          .select('payment_method')
+          .eq('order_id', realOrderId)
+          .maybeSingle();
+        
+        if (error) {
+          console.error('[OrderDetail] Error fetching payment_method:', error);
+          return;
+        }
+        
+        if (data?.payment_method) {
+          if (__DEV__) console.log('[OrderDetail] ✅ Fetched payment_method from order_payments:', JSON.stringify(data.payment_method));
+          setDbPaymentMethod(data.payment_method);
+        } else {
+          if (__DEV__) console.log('[OrderDetail] No payment_method found in order_payments for order:', realOrderId);
+          console.warn('[OrderDetail] No payment_method in order_payments - this order might not have a payment record');
+        }
+      } catch (err) {
+        console.error('[OrderDetail] Failed to fetch payment_method from order_payments:', err);
+      }
+    };
+
+    fetchPaymentMethod();
 
     // BX-09-003 — Fetch ALL shipment records for multi-seller support
     (async () => {
@@ -967,47 +1001,47 @@ export default function OrderDetailScreen({ route, navigation }: Props) {
               <View style={{ borderTopWidth: 1, borderTopColor: '#E5E7EB', paddingTop: 16, gap: 12 }}>
                  {/* Payment Method - with proper extraction and label mapping */}
                  {(() => {
-                   const rawPaymentMethod = order.paymentMethod;
-                   console.log('[OrderDetail] Raw paymentMethod:', rawPaymentMethod, 'Type:', typeof rawPaymentMethod);
+                   // BX-PAYMENT-FIX: Prefer dbPaymentMethod (from order_payments table) since that's the canonical source
+                   // Only fall back to order.paymentMethod if database fetch hasn't completed yet
+                   const rawPaymentMethod = dbPaymentMethod || order.paymentMethod;
+                   const normalized = normalizePaymentMethod(rawPaymentMethod);
+                   const displayLabel = getPaymentMethodLabel(rawPaymentMethod);
+                   const isCODPayment = isCOD(rawPaymentMethod);
                    
-                   const getPaymentMethod = (): string => {
-                     if (!rawPaymentMethod) return 'Unknown';
-                     
-                     if (typeof rawPaymentMethod === 'string') {
-                       const pm = rawPaymentMethod.toLowerCase().trim();
-                       if (pm === 'cod' || pm === 'cash on delivery') return 'Cash on Delivery';
-                       if (pm === 'gcash') return 'GCash';
-                       if (pm === 'card') return 'Card';
-                       if (pm === 'paymongo') return 'PayMongo';
-                       return rawPaymentMethod;
-                     }
-                     const type = (rawPaymentMethod as any)?.type?.toLowerCase();
-                     if (type === 'cod') return 'Cash on Delivery';
-                     if (type === 'gcash') return 'GCash';
-                     if (type === 'card') return 'Card';
-                     if (type === 'paymongo') return 'PayMongo';
-                     return type || 'Unknown';
-                   };
-                   
-                   const paymentMethod = getPaymentMethod();
-                   const isCOD = paymentMethod === 'Cash on Delivery' || 
-                                 (typeof rawPaymentMethod === 'string' && (rawPaymentMethod.toLowerCase().trim() === 'cod' || rawPaymentMethod.toLowerCase().trim() === 'cash on delivery'));
-                   
-                   console.log('[OrderDetail] Payment Method Result:', paymentMethod, 'isCOD:', isCOD);
+                   if (__DEV__) {
+                     console.log('[OrderDetail] Payment Info render:', {
+                       dbPaymentMethod: JSON.stringify(dbPaymentMethod),
+                       orderPaymentMethod: JSON.stringify(order.paymentMethod),
+                       rawPaymentMethod: JSON.stringify(rawPaymentMethod),
+                       normalized,
+                       displayLabel,
+                       isCOD: isCODPayment,
+                       source: dbPaymentMethod ? 'database (order_payments)' : 'navigation/order'
+                     });
+                   }
                    
                    return (
                      <>
                        <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
                          <Text style={styles.metaLabel}>Payment Method</Text>
-                         <Text style={styles.primaryInfo}>{paymentMethod}</Text>
+                         <Text style={styles.primaryInfo}>{displayLabel}</Text>
                        </View>
                        
-                       {/* COD Payment Instruction Message - Only show when order is processing, confirmed, or shipped (not yet delivered) */}
-                       {isCOD && order.buyerUiStatus !== 'delivered' && order.status !== 'delivered' && (() => {
+                       {/* 🔧 BX-PAYMENT-FIX: COD Payment Instruction Message - Only show when COD AND not in terminal statuses */}
+                       {isCODPayment && !['received', 'returned', 'reviewed', 'cancelled'].includes(order.buyerUiStatus ?? '') && !['received', 'returned', 'reviewed', 'cancelled'].includes(order.status ?? '') && (() => {
                          const estimatedDelivery = deliveryTracking?.booking?.estimatedDelivery || order.estimatedDelivery;
-                         const formattedDeadline = formatDatePH(estimatedDelivery);
+                         let formattedDeadline: string | null = null;
                          
-                         console.log('[OrderDetail COD] Payment Method:', paymentMethod, 'isCOD:', isCOD, 'estimatedDelivery:', estimatedDelivery, 'formatted:', formattedDeadline);
+                         if (estimatedDelivery) {
+                           // If we have estimated delivery date, use that
+                           formattedDeadline = formatDatePH(estimatedDelivery);
+                         } else if (order.createdAt) {
+                           // Calculate estimated due date based on order creation date + typical delivery window
+                           // Typical COD delivery: 3-5 business days, use 5 days as estimate
+                           const createdDate = new Date(order.createdAt);
+                           const estimatedDueDate = new Date(createdDate.getTime() + 5 * 24 * 60 * 60 * 1000);
+                           formattedDeadline = formatDatePH(estimatedDueDate);
+                         }
                          
                          return (
                            <View style={{ backgroundColor: '#FFFBF0', borderLeftWidth: 4, borderLeftColor: '#F59E0B', paddingHorizontal: 12, paddingVertical: 10, borderRadius: 8, gap: 6, marginTop: 8 }}>
@@ -1018,11 +1052,6 @@ export default function OrderDetailScreen({ route, navigation }: Props) {
                              {formattedDeadline && (
                                <Text style={{ fontSize: 12, color: '#92400E', fontWeight: '600' }}>
                                  Estimated Payment Due: {formattedDeadline}
-                               </Text>
-                             )}
-                             {!formattedDeadline && (
-                               <Text style={{ fontSize: 11, color: '#D97706', fontStyle: 'italic' }}>
-                                 Delivery date will be updated when J&T booking is confirmed
                                </Text>
                              )}
                            </View>
