@@ -27,9 +27,9 @@ const formatDatePH = (dateString: string | Date | null | undefined): string | nu
   try {
     const date = typeof dateString === 'string' ? new Date(dateString) : dateString;
     if (isNaN(date.getTime())) return null;
-    
+
     const months = ['January', 'February', 'March', 'April', 'May', 'June',
-                    'July', 'August', 'September', 'October', 'November', 'December'];
+      'July', 'August', 'September', 'October', 'November', 'December'];
     const month = months[date.getMonth()];
     const day = date.getDate();
     const year = date.getFullYear();
@@ -91,14 +91,14 @@ export default function OrderConfirmation({ navigation, route }: Props) {
   useEffect(() => {
     const realOrderId = (order as any).orderId || order.id;
     if (!realOrderId) return;
-    
+
     getTransactionByOrderId(realOrderId)
       .then((tx) => setPaymentTx(tx))
-      .catch(() => {});
-    
+      .catch(() => { });
+
     // First, try to use estimatedDelivery from order object
     if (order.estimatedDelivery) {
-      const deliveryDate = typeof order.estimatedDelivery === 'string' 
+      const deliveryDate = typeof order.estimatedDelivery === 'string'
         ? new Date(order.estimatedDelivery)
         : order.estimatedDelivery;
       if (!isNaN(deliveryDate.getTime())) {
@@ -106,7 +106,7 @@ export default function OrderConfirmation({ navigation, route }: Props) {
         return;
       }
     }
-    
+
     // If not in order, fetch estimated delivery from delivery_bookings for COD deadline
     (async () => {
       try {
@@ -140,7 +140,7 @@ export default function OrderConfirmation({ navigation, route }: Props) {
       };
     }, [isQuickCheckout, navigation])
   );
-  
+
   const handleBack = () => {
     // Navigate back to appropriate screen based on checkout type
     if (isQuickCheckout) {
@@ -161,17 +161,16 @@ export default function OrderConfirmation({ navigation, route }: Props) {
       });
     }
   };
-  
+
   const handleViewPurchases = () => {
     // BX-PAYMENT-FIX: Navigate to the correct tab based on payment method
-    // PayMongo orders go to 'confirmed' tab (already paid)
+    // PayMongo orders go to 'processing' tab (already paid)
     // COD orders go to 'pending' tab (awaiting seller confirmation)
     const paymentMethod = order?.paymentMethod;
-    const isPayMongo = paymentMethod && 
+    const isPayMongo = paymentMethod &&
       (typeof paymentMethod === 'string' ? paymentMethod.toLowerCase() : (paymentMethod as any)?.type?.toLowerCase()) === 'paymongo';
-    
-    // Route contract uses 'confirmed' (Orders screen normalizes this as Processing)
-    const initialTab = isPayMongo ? 'confirmed' : 'pending';
+
+    const initialTab = isPayMongo ? 'processing' : 'pending';
     navigation.navigate('Orders', { initialTab });
   };
 
@@ -352,14 +351,14 @@ export default function OrderConfirmation({ navigation, route }: Props) {
             const isCOD = typeof paymentMethod === 'string'
               ? paymentMethod.toLowerCase() === 'cod'
               : (paymentMethod as any)?.type?.toLowerCase() === 'cod';
-            
+
             // Don't show payment info for received, returned, reviewed, or cancelled orders
             if (!isCOD || (order.status && ['received', 'returned', 'reviewed', 'cancelled'].includes(order.status))) {
               return null;
             }
-            
+
             const formattedDeadline = formatDatePH(estimatedDeliveryDate);
-            
+
             return (
               <View style={styles.section}>
                 <View style={styles.codInstructionBox}>

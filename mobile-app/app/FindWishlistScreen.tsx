@@ -2,14 +2,15 @@ import React, { useState, useCallback } from 'react';
 import { View, Text, StyleSheet, TextInput, FlatList, Pressable, ActivityIndicator } from 'react-native';
 import { Image } from 'expo-image';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { ArrowLeft, Search, User, ChevronRight } from 'lucide-react-native';
+import { ArrowLeft, Search, User, ChevronRight, Heart } from 'lucide-react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useNavigation } from '@react-navigation/native';
 import { COLORS } from '../src/constants/theme';
+import { LABELS } from '../src/constants/labels';
 import { safeImageUri, PLACEHOLDER_AVATAR } from '../src/utils/imageUtils';
 import { wishlistService, PublicRegistrySearchResult } from '../src/services/wishlistService';
 
-export default function FindRegistryScreen() {
+export default function FindWishlistScreen() {
     const insets = useSafeAreaInsets();
     const navigation = useNavigation<any>();
     
@@ -28,7 +29,7 @@ export default function FindRegistryScreen() {
             const found = await wishlistService.searchPublicRegistries(query);
             setResults(found);
         } catch (error) {
-            console.error('[FindRegistryScreen] search failed:', error);
+            console.error('[FindWishlistScreen] search failed:', error);
             setResults([]);
         } finally {
             setLoading(false);
@@ -39,13 +40,13 @@ export default function FindRegistryScreen() {
         navigation.navigate('SharedWishlist', { wishlistId: registry.id });
     };
 
-    const renderRegistryItem = useCallback(({ item }: { item: PublicRegistrySearchResult }) => (
+    const renderWishlistItem = useCallback(({ item }: { item: PublicRegistrySearchResult }) => (
         <Pressable style={styles.userCard} onPress={() => handleSelectRegistry(item)}>
             <Image source={{ uri: safeImageUri(undefined, PLACEHOLDER_AVATAR) }} style={styles.avatar} contentFit="cover" cachePolicy="memory-disk" />
             <View style={styles.userInfo}>
                 <Text style={styles.userName}>{item.title}</Text>
                 <Text style={styles.userLocation}>
-                    {(item.category || item.event_type || 'Registry')} • {item.itemCount} Items
+                    {(item.category || item.event_type || 'Wishlist')} • {item.itemCount} Items
                 </Text>
             </View>
             <ChevronRight size={20} color="#9CA3AF" />
@@ -56,9 +57,8 @@ export default function FindRegistryScreen() {
 
     return (
         <View style={styles.container}>
-            {/* Header */}
             <LinearGradient
-                colors={['#FFFBF5', '#FDF2E9', '#FFFBF5']} // Soft Parchment Header
+                colors={['#FFFBF5', '#FDF2E9', '#FFFBF5']}
                 start={{ x: 0, y: 0 }}
                 end={{ x: 1, y: 1 }}
                 style={[styles.headerContainer, { paddingTop: insets.top + 10 }]}
@@ -67,18 +67,17 @@ export default function FindRegistryScreen() {
                     <Pressable onPress={() => navigation.goBack()} style={styles.headerIconButton}>
                         <ArrowLeft size={24} color={COLORS.textHeadline} strokeWidth={2.5} />
                     </Pressable>
-                    <Text style={[styles.headerTitle, { color: COLORS.textHeadline }]}>Find a Registry</Text>
+                    <Text style={[styles.headerTitle, { color: COLORS.textHeadline }]}>{LABELS.FIND_WISHLIST}</Text>
                     <View style={{ width: 40 }} />
                 </View>
             </LinearGradient>
 
-            {/* Search Bar */}
             <View style={styles.searchSection}>
                 <View style={styles.searchBar}>
                     <Search size={20} color="#9CA3AF" />
                     <TextInput
                         style={styles.input}
-                        placeholder="Search by registry name"
+                        placeholder={LABELS.SEARCH_WISHLISTS}
                         value={query}
                         onChangeText={setQuery}
                         onSubmitEditing={handleSearch}
@@ -91,10 +90,9 @@ export default function FindRegistryScreen() {
                         </Pressable>
                     )}
                 </View>
-                <Text style={styles.helperText}>Find shared Registry & Gifting lists.</Text>
+                <Text style={styles.helperText}>Find shared {LABELS.WISHLIST_GIFTING} lists.</Text>
             </View>
 
-            {/* Results */}
             {loading ? (
                 <View style={styles.centerContainer}>
                     <ActivityIndicator size="large" color={COLORS.primary} />
@@ -105,16 +103,12 @@ export default function FindRegistryScreen() {
                     data={results}
                     keyExtractor={keyExtractor}
                     contentContainerStyle={styles.listContent}
-                    initialNumToRender={8}
-                    maxToRenderPerBatch={8}
-                    windowSize={5}
-                    removeClippedSubviews={true}
-                    renderItem={renderRegistryItem}
+                    renderItem={renderWishlistItem}
                     ListEmptyComponent={
                         hasSearched ? (
                             <View style={styles.centerContainer}>
-                                <User size={48} color="#D1D5DB" />
-                                <Text style={styles.emptyTitle}>No registries found</Text>
+                                <Heart size={48} color="#D1D5DB" />
+                                <Text style={styles.emptyTitle}>No wishlists found</Text>
                                 <Text style={styles.emptyText}>Try searching for a different name.</Text>
                             </View>
                         ) : null
@@ -148,7 +142,6 @@ const styles = StyleSheet.create({
         alignItems: 'center',
     },
     headerTitle: { fontSize: 20, fontWeight: '800' },
-
     searchSection: { padding: 20 },
     searchBar: {
         flexDirection: 'row', alignItems: 'center',
@@ -157,7 +150,6 @@ const styles = StyleSheet.create({
         paddingHorizontal: 16,
         height: 56,
         marginBottom: 12,
-        // Shadow
         elevation: 4,
         shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.1, shadowRadius: 4,
     },
@@ -165,13 +157,11 @@ const styles = StyleSheet.create({
     searchBtn: { backgroundColor: COLORS.primary, paddingHorizontal: 16, paddingVertical: 8, borderRadius: 20, marginLeft: 8 },
     searchBtnText: { color: '#FFF', fontSize: 14, fontWeight: '700' },
     helperText: { fontSize: 13, color: '#6B7280', paddingLeft: 4, lineHeight: 20 },
-
     listContent: { paddingHorizontal: 20 },
     centerContainer: { flex: 1, alignItems: 'center', justifyContent: 'center', marginTop: 40 },
     loadingText: { marginTop: 12, color: '#6B7280' },
     emptyTitle: { fontSize: 18, fontWeight: '700', color: '#374151', marginTop: 16 },
     emptyText: { fontSize: 14, color: '#6B7280', marginTop: 4 },
-
     userCard: {
         flexDirection: 'row', alignItems: 'center',
         backgroundColor: '#FFF',

@@ -6,20 +6,23 @@ import {
     ScrollView,
     Pressable,
     Modal,
-    TextInput,
     Dimensions,
     Animated,
-    Keyboard,
     Platform,
     Alert,
+    TextInput,
+    KeyboardAvoidingView,
 } from 'react-native';
-import { useNavigation } from '@react-navigation/native';
-import { X, Gift, PlusCircle } from 'lucide-react-native';
+import { Image } from 'expo-image';
+import { X, PlusCircle, Heart, ChevronRight, Gift } from 'lucide-react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useNavigation } from '@react-navigation/native';
 import { COLORS } from '../constants/theme';
+import { LABELS } from '../constants/labels';
+import { useWishlistStore } from '../stores/wishlistStore';
 import { useAddressStore } from '../stores/addressStore';
 import { useAuthStore } from '../stores/authStore';
-import { useWishlistStore } from '../stores/wishlistStore';
+import { safeImageUri, PLACEHOLDER_PRODUCT } from '../utils/imageUtils';
 
 const { height } = Dimensions.get('window');
 
@@ -41,20 +44,79 @@ const getOccasionLabel = (id: string | undefined | null) => {
     return id.replace('_', ' ').toUpperCase();
 };
 
-interface AddToRegistryModalProps {
+interface WishlistSelectionModalProps {
     visible: boolean;
     onClose: () => void;
     product: any;
+    onItemAdded?: () => void;
 }
 
-export const AddToRegistryModal = ({ visible, onClose, product }: AddToRegistryModalProps) => {
+/**
+ * Sub-component for individual Wishlist Cards
+ */
+const WishlistCard = ({ wishlist, items, onPress }: { wishlist: any; items: any[]; onPress: () => void }) => {
+    const itemCount = items.filter(i => i.categoryId === wishlist.id || (wishlist.id === 'default' && !i.categoryId)).length;
+    const formattedDate = wishlist.created_at ? new Date(wishlist.created_at).toLocaleDateString('en-US', {
+        month: 'short',
+        day: 'numeric',
+        year: 'numeric'
+    }) : 'Just now';
+
+    // Get a thumbnail from the items in this wishlist
+    const item = items.find(i => i.categoryId === wishlist.id || (wishlist.id === 'default' && !i.categoryId));
+    const thumbnail = item?.primary_image || item?.image || (item?.images && item.images[0]);
+
+    return (
+        <Pressable
+            style={({ pressed }) => [
+                styles.card,
+                pressed && styles.cardPressed
+            ]}
+            onPress={onPress}
+        >
+            <View style={styles.cardContent}>
+                <View style={styles.thumbnailContainer}>
+                    {thumbnail ? (
+                        <Image
+                            source={{ uri: safeImageUri(thumbnail, PLACEHOLDER_PRODUCT) }}
+                            style={styles.thumbnail}
+                            contentFit="cover"
+                            cachePolicy="memory-disk"
+                        />
+                    ) : (
+                        <View style={styles.thumbnailEmpty}>
+                            <Gift size={20} color="#D1D5DB" strokeWidth={1.5} />
+                        </View>
+                    )}
+                </View>
+
+                <View style={styles.infoContainer}>
+                    <Text style={styles.wishlistTitle} numberOfLines={1}>{wishlist.name}</Text>
+                    <Text style={styles.wishlistSubline}>
+                        {itemCount} {itemCount === 1 ? 'item' : 'items'} • Shared {formattedDate}
+                    </Text>
+                </View>
+
+                {wishlist.occasion && (
+                    <View style={styles.badge}>
+                        <Text style={styles.badgeText}>{getOccasionLabel(wishlist.occasion)}</Text>
+                    </View>
+                )}
+            </View>
+        </Pressable>
+    );
+};
+
+export const WishlistSelectionModal = ({ visible, onClose, product, onItemAdded }: WishlistSelectionModalProps) => {
     const navigation = useNavigation<any>();
     const insets = useSafeAreaInsets();
     const { categories, items, addItem, createCategory } = useWishlistStore();
     const { user } = useAuthStore();
     const { savedAddresses, defaultAddress, loadSavedAddresses } = useAddressStore();
 
-    const [isCreatingList, setIsCreatingList] = useState(false);
+    const slideAnim = useRef(new Animated.Value(height)).current;
+
+    const [isCreating, setIsCreating] = useState(false);
     const [newListName, setNewListName] = useState('');
     const [selectedOccasion, setSelectedOccasion] = useState(OCCASIONS[2].id);
     const [customOccasion, setCustomOccasion] = useState('');
@@ -62,37 +124,26 @@ export const AddToRegistryModal = ({ visible, onClose, product }: AddToRegistryM
     const [selectedAddressId, setSelectedAddressId] = useState('');
     const [deliveryInstructions, setDeliveryInstructions] = useState('');
 
-    const slideAnim = useRef(new Animated.Value(height)).current;
-    const keyboardOffset = useRef(new Animated.Value(0)).current;
-
-    // Slide animation
     useEffect(() => {
         if (visible) {
             if (user?.id) {
                 loadSavedAddresses(user.id);
             }
 
-            if (categories.length === 0) {
-                setIsCreatingList(true);
-            } else {
-                setIsCreatingList(false);
-            }
-
             setShowAddress(false);
             setSelectedAddressId(defaultAddress?.id || '');
-            setDeliveryInstructions('');
             setDeliveryInstructions('');
 
             Animated.spring(slideAnim, {
                 toValue: 0,
                 tension: 50,
                 friction: 8,
-                useNativeDriver: false,
+                useNativeDriver: true,
             }).start();
         } else {
             slideAnim.setValue(height);
         }
-    }, [visible, categories.length, user?.id, loadSavedAddresses, defaultAddress?.id]);
+    }, [visible, user?.id, loadSavedAddresses, defaultAddress?.id]);
 
     useEffect(() => {
         if (visible && savedAddresses.length > 0 && !selectedAddressId) {
@@ -100,140 +151,127 @@ export const AddToRegistryModal = ({ visible, onClose, product }: AddToRegistryM
         }
     }, [visible, selectedAddressId, savedAddresses, defaultAddress?.id]);
 
-    // Keyboard listener — the reliable cross-platform way inside a Modal
-    useEffect(() => {
-        const showSub = Keyboard.addListener(
-            Platform.OS === 'ios' ? 'keyboardWillShow' : 'keyboardDidShow',
-            (e) => {
-                Animated.timing(keyboardOffset, {
-                    toValue: e.endCoordinates.height,
-                    duration: Platform.OS === 'ios' ? e.duration : 200,
-                    useNativeDriver: false,
-                }).start();
-            }
-        );
-        const hideSub = Keyboard.addListener(
-            Platform.OS === 'ios' ? 'keyboardWillHide' : 'keyboardDidHide',
-            (e) => {
-                Animated.timing(keyboardOffset, {
-                    toValue: 0,
-                    duration: Platform.OS === 'ios' ? e.duration : 200,
-                    useNativeDriver: false,
-                }).start();
-            }
-        );
-        return () => {
-            showSub.remove();
-            hideSub.remove();
-        };
-    }, []);
-
     const handleCloseInternal = () => {
-        Keyboard.dismiss();
         Animated.timing(slideAnim, {
             toValue: height,
             duration: 250,
-            useNativeDriver: false,
+            useNativeDriver: true,
         }).start(() => {
             onClose();
         });
     };
 
-    const handleAddToCategory = (categoryId: string) => {
+    const handleSelectWishlist = async (categoryId: string) => {
         const normalizedProductId = String(product.id);
         const alreadyInFolder = items.some(
             (item) => String(item.id) === normalizedProductId && item.categoryId === categoryId,
         );
+
         if (alreadyInFolder) {
-            Alert.alert('Already Added', 'This product is already in that registry folder.');
+            Alert.alert(LABELS.ALREADY_ADDED_TO_WISHLIST, 'This product is already in that wishlist.');
             return;
         }
 
-        const folderName = categories.find((cat) => cat.id === categoryId)?.name || 'Registry';
-        addItem(product, 'medium', 1, categoryId);
-        Alert.alert('Added to Registry', `Successfully added to "${folderName}".`);
+        const folderName = categories.find((cat) => cat.id === categoryId)?.name || LABELS.WISHLIST;
+        await addItem(product, 'medium', 1, categoryId);
+
+        if (onItemAdded) onItemAdded();
         handleCloseInternal();
     };
-
     const handleCreateAndAdd = async () => {
         if (!newListName.trim()) return;
         const occasionValue = selectedOccasion === 'other' ? (customOccasion.trim() || 'other') : selectedOccasion;
         const createdName = newListName.trim();
-        const newId = await createCategory(newListName, 'private', occasionValue, undefined, {
+
+        const newId = await createCategory(newListName.trim(), 'private', occasionValue, undefined, {
             showAddress,
             addressId: showAddress ? selectedAddressId || undefined : undefined,
             instructions: showAddress ? deliveryInstructions.trim() || undefined : undefined,
         });
         await addItem(product, 'medium', 1, newId);
-        Alert.alert('Added to Registry', `Successfully added to "${createdName}".`);
+
+        Alert.alert(LABELS.ADDED_TO_WISHLIST, `Successfully added to "${createdName}".`);
         setNewListName('');
         setCustomOccasion('');
         setSelectedOccasion(OCCASIONS[2].id);
         setShowAddress(false);
         setSelectedAddressId('');
         setDeliveryInstructions('');
+        setIsCreating(false);
         handleCloseInternal();
     };
+
 
     return (
         <Modal
             visible={visible}
             transparent
-            animationType="fade"
+            animationType="none"
             onRequestClose={handleCloseInternal}
-            statusBarTranslucent={true}
         >
-            <View style={styles.overlay}>
+            <KeyboardAvoidingView
+                behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+                style={{ flex: 1, backgroundColor: 'rgba(0, 0, 0, 0.4)' }}
+                keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 0}
+            >
                 <Pressable style={styles.backdrop} onPress={handleCloseInternal} />
+
                 <Animated.View style={[
                     styles.content,
                     {
                         paddingBottom: Math.max(insets.bottom, 20),
                         transform: [{ translateY: slideAnim }],
-                        marginBottom: keyboardOffset,
                     }
                 ]}>
-                    {/* Bottom Background Filler */}
-                    <View style={{
-                        position: 'absolute',
-                        bottom: -100,
-                        left: 0,
-                        right: 0,
-                        height: 100,
-                        backgroundColor: COLORS.background,
-                    }} />
-
+                    {/* Header */}
                     <View style={styles.header}>
-                        <Text style={styles.title}>
-                            {isCreatingList ? 'Create New Registry' : 'Save to Registry'}
-                        </Text>
-                        <Pressable onPress={handleCloseInternal} style={styles.closeBtn}>
-                            <X size={24} color="#374151" />
-                        </Pressable>
+                        <View style={styles.headerTop}>
+                            <Text style={styles.headerTitle}>
+                                {isCreating ? LABELS.CREATE_NEW_WISHLIST : LABELS.ADD_TO_WISHLIST}
+                            </Text>
+                            <Pressable
+                                onPress={() => isCreating ? setIsCreating(false) : handleCloseInternal()}
+                                style={styles.closeBtn}
+                            >
+                                <X size={24} color="#374151" />
+                            </Pressable>
+                        </View>
+
+                        {/* Product Preview */}
+                        <View style={styles.productPreview}>
+                            <Image
+                                source={{ uri: safeImageUri(product?.primary_image || product?.image || (product?.images && product.images[0])) }}
+                                style={styles.productThumbnail}
+                                contentFit="cover"
+                            />
+                            <View style={styles.productInfo}>
+                                <Text style={styles.productName} numberOfLines={1}>{product?.name}</Text>
+                                <Text style={styles.productPrice}>₱{product?.price?.toLocaleString()}</Text>
+                            </View>
+                        </View>
                     </View>
 
-                    {isCreatingList ? (
-                        <ScrollView
-                            style={styles.creationScroll}
-                            showsVerticalScrollIndicator={false}
-                            bounces={false}
-                            keyboardShouldPersistTaps="handled"
-                        >
+                    {/* Content Section */}
+                    <ScrollView
+                        style={styles.scrollArea}
+                        contentContainerStyle={styles.scrollContent}
+                        showsVerticalScrollIndicator={false}
+                        keyboardShouldPersistTaps="handled"
+                    >
+                        {isCreating ? (
                             <View style={styles.creationForm}>
-                                <Text style={styles.inputLabel}>Registry Name</Text>
+                                <Text style={styles.inputLabel}>{LABELS.WISHLIST_NAME}</Text>
                                 <TextInput
                                     style={styles.input}
                                     placeholder="e.g., Sarah's Wedding, New Home 2026"
                                     placeholderTextColor="#9CA3AF"
                                     value={newListName}
                                     onChangeText={setNewListName}
-                                    maxLength={50}
+                                    maxLength={25}
                                     autoFocus
                                 />
 
-
-
-                                <Text style={styles.inputLabel}>Gift Category</Text>
+                                <Text style={styles.inputLabel}>{LABELS.GIFT_CATEGORY}</Text>
                                 <ScrollView
                                     horizontal
                                     showsHorizontalScrollIndicator={false}
@@ -259,7 +297,7 @@ export const AddToRegistryModal = ({ visible, onClose, product }: AddToRegistryM
 
                                 {selectedOccasion === 'other' && (
                                     <View style={{ marginTop: 12 }}>
-                                        <Text style={styles.inputLabel}>Specify Occasion</Text>
+                                        <Text style={styles.inputLabel}>{LABELS.SPECIFY_OCCASION}</Text>
                                         <TextInput
                                             style={styles.input}
                                             placeholder="e.g. Anniversary, Graduation"
@@ -271,7 +309,7 @@ export const AddToRegistryModal = ({ visible, onClose, product }: AddToRegistryM
                                 )}
 
                                 <View style={styles.deliverySection}>
-                                    <Text style={styles.inputLabel}>Delivery Preference</Text>
+                                    <Text style={styles.inputLabel}>{LABELS.DELIVERY_PREFERENCE}</Text>
                                     <Pressable
                                         style={styles.deliveryToggleRow}
                                         onPress={() => {
@@ -290,21 +328,21 @@ export const AddToRegistryModal = ({ visible, onClose, product }: AddToRegistryM
                                             <View style={[styles.checkbox, showAddress && styles.checkboxActive, !savedAddresses.length && styles.checkboxDisabled]}>
                                                 {showAddress && <View style={styles.checkboxDot} />}
                                             </View>
-                                            <Text style={styles.deliveryToggleText}>Share address with gifters</Text>
+                                            <Text style={styles.deliveryToggleText}>{LABELS.SHARE_ADDRESS_WITH_GIFTERS}</Text>
                                         </View>
-                                        <Pressable 
+                                        <Pressable
                                             onPress={() => {
-                                                onClose();
+                                                handleCloseInternal();
                                                 navigation.navigate('Addresses');
                                             }}
                                         >
-                                            <Text style={{ color: COLORS.primary, fontSize: 13, fontWeight: '600' }}>Manage</Text>
+                                            <Text style={{ color: COLORS.primary, fontSize: 13, fontWeight: '600' }}>{LABELS.MANAGE}</Text>
                                         </Pressable>
                                     </Pressable>
                                     <Text style={styles.deliveryHint}>
                                         {savedAddresses.length
-                                            ? 'Choose a saved address to make it visible on this registry.'
-                                            : 'Add a saved address first to enable address sharing.'}
+                                            ? LABELS.ADDRESS_HINT
+                                            : LABELS.ADDRESS_EMPTY_HINT}
                                     </Text>
 
                                     {showAddress && savedAddresses.length > 0 && (
@@ -329,7 +367,7 @@ export const AddToRegistryModal = ({ visible, onClose, product }: AddToRegistryM
                                     {showAddress && (
                                         <TextInput
                                             style={[styles.input, styles.deliveryInstructionsInput]}
-                                            placeholder="Delivery instructions (optional)"
+                                            placeholder={LABELS.DELIVERY_INSTRUCTIONS}
                                             placeholderTextColor="#9CA3AF"
                                             value={deliveryInstructions}
                                             onChangeText={setDeliveryInstructions}
@@ -341,59 +379,42 @@ export const AddToRegistryModal = ({ visible, onClose, product }: AddToRegistryM
                                 <View style={styles.formFooter}>
                                     <Pressable
                                         style={styles.cancelBtn}
-                                        onPress={() => {
-                                            if (categories.length === 0) {
-                                                handleCloseInternal();
-                                            } else {
-                                                setIsCreatingList(false);
-                                            }
-                                        }}
+                                        onPress={() => setIsCreating(false)}
                                     >
                                         <Text style={styles.cancelBtnText}>Cancel</Text>
                                     </Pressable>
                                     <Pressable
-                                        style={[styles.createBtn, !newListName.trim() && styles.disabledBtn]}
+                                        style={[styles.confirmCreateBtn, !newListName.trim() && styles.disabledBtn]}
                                         onPress={handleCreateAndAdd}
                                         disabled={!newListName.trim()}
                                     >
-                                        <Text style={styles.createBtnText}>Create & Add</Text>
+                                        <Text style={styles.confirmCreateBtnText}>Create & Add</Text>
                                     </Pressable>
                                 </View>
                             </View>
-                        </ScrollView>
-                    ) : (
-                        <View style={styles.listContainer}>
-                            <ScrollView style={{ maxHeight: height * 0.4 }}>
+                        ) : (
+                            <>
                                 {categories.map((cat) => (
-                                    <Pressable
+                                    <WishlistCard
                                         key={cat.id}
-                                        style={styles.listItem}
-                                        onPress={() => handleAddToCategory(cat.id)}
-                                    >
-                                        <View style={styles.listIconContainer}>
-                                            <Gift size={20} color={COLORS.primary} />
-                                        </View>
-                                        <View style={styles.listInfo}>
-                                            <Text style={styles.listName}>{cat.name}</Text>
-                                            <Text style={styles.listOccasion}>
-                                                {cat.occasion ? getOccasionLabel(cat.occasion) : 'General'} List
-                                            </Text>
-                                        </View>
-                                    </Pressable>
+                                        wishlist={cat}
+                                        items={items}
+                                        onPress={() => handleSelectWishlist(cat.id)}
+                                    />
                                 ))}
-                            </ScrollView>
 
-                            <Pressable
-                                style={styles.createNewBtn}
-                                onPress={() => setIsCreatingList(true)}
-                            >
-                                <PlusCircle size={20} color={COLORS.primary} />
-                                <Text style={styles.createNewText}>Create New Registry</Text>
-                            </Pressable>
-                        </View>
-                    )}
+                                <Pressable
+                                    style={styles.createBtn}
+                                    onPress={() => setIsCreating(true)}
+                                >
+                                    <PlusCircle size={20} color={COLORS.primary} />
+                                    <Text style={styles.createBtnText}> CREATE NEW WISHLIST</Text>
+                                </Pressable>
+                            </>
+                        )}
+                    </ScrollView>
                 </Animated.View>
-            </View>
+            </KeyboardAvoidingView>
         </Modal>
     );
 };
@@ -402,44 +423,165 @@ const styles = StyleSheet.create({
     overlay: {
         flex: 1,
         justifyContent: 'flex-end',
-        backgroundColor: 'rgba(0, 0, 0, 0.5)',
+        backgroundColor: 'rgba(0, 0, 0, 0.4)',
     },
     backdrop: {
         ...StyleSheet.absoluteFillObject,
     },
     content: {
-        backgroundColor: COLORS.background,
-        borderTopLeftRadius: 32,
-        borderTopRightRadius: 32,
-        borderBottomLeftRadius: 0,
-        borderBottomRightRadius: 0,
-        paddingTop: 24,
-        paddingHorizontal: 24,
-        maxHeight: '90%',
+        backgroundColor: '#FFFFFF',
+        borderTopLeftRadius: 24,
+        borderTopRightRadius: 24,
         width: '100%',
-    },
-    creationScroll: {
-        maxHeight: height * 0.6,
+        paddingTop: 20,
+        marginTop: 'auto', // Pushes to bottom
     },
     header: {
+        paddingHorizontal: 24,
+        marginBottom: 20,
+    },
+    headerTop: {
         flexDirection: 'row',
         justifyContent: 'space-between',
         alignItems: 'center',
-        marginBottom: 24,
+        marginBottom: 16,
     },
-    title: {
-        fontSize: 20,
-        fontWeight: '900',
-        color: '#1F2937',
+    headerTitle: {
+        fontSize: 18,
+        fontWeight: '800',
+        color: '#111827',
+    },
+    productPreview: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        backgroundColor: '#F9FAFB',
+        padding: 12,
+        borderRadius: 16,
+        borderWidth: 1,
+        borderColor: '#F3F4F6',
+    },
+    productThumbnail: {
+        width: 44,
+        height: 44,
+        borderRadius: 8,
+        backgroundColor: '#FFF',
+    },
+    productInfo: {
+        marginLeft: 12,
+        flex: 1,
+    },
+    productName: {
+        fontSize: 14,
+        fontWeight: '700',
+        color: '#374151',
+    },
+    productPrice: {
+        fontSize: 13,
+        fontWeight: '600',
+        color: COLORS.primary,
+        marginTop: 2,
     },
     closeBtn: {
-        width: 36,
-        height: 36,
-        borderRadius: 18,
+        padding: 4,
+    },
+    scrollArea: {
+        paddingHorizontal: 20,
+    },
+    scrollContent: {
+        paddingBottom: 20,
+    },
+    card: {
+        backgroundColor: '#FFFFFF',
+        borderRadius: 16,
+        padding: 12,
+        marginBottom: 12,
+        borderWidth: 1,
+        borderColor: '#F3F4F6',
+        // Shadow for premium feel
+        elevation: 2,
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 1 },
+        shadowOpacity: 0.05,
+        shadowRadius: 2,
+    },
+    cardPressed: {
+        backgroundColor: '#F9FAFB',
+        transform: [{ scale: 0.98 }],
+    },
+    cardContent: {
+        flexDirection: 'row',
+        alignItems: 'center',
+    },
+    thumbnailContainer: {
+        width: 52,
+        height: 52,
+        borderRadius: 10,
+        overflow: 'hidden',
+    },
+    thumbnail: {
+        width: '100%',
+        height: '100%',
+        backgroundColor: '#F3F4F6',
+    },
+    thumbnailEmpty: {
+        width: '100%',
+        height: '100%',
+        backgroundColor: '#F3F4F6',
+        justifyContent: 'center',
+        alignItems: 'center',
+        borderWidth: 1,
+        borderColor: '#E5E7EB',
+        borderStyle: 'dashed',
+        borderRadius: 10,
+    },
+    infoContainer: {
+        flex: 1,
+        marginLeft: 16,
+    },
+    wishlistTitle: {
+        fontSize: 15,
+        fontWeight: '700',
+        color: '#1F2937',
+        marginBottom: 4,
+    },
+    wishlistSubline: {
+        fontSize: 12,
+        color: '#6B7280',
+    },
+    badge: {
+        backgroundColor: '#FFF7ED',
+        paddingHorizontal: 8,
+        paddingVertical: 4,
+        borderRadius: 6,
+        borderWidth: 1,
+        borderColor: '#FFEDD5',
+    },
+    badgeText: {
+        fontSize: 10,
+        fontWeight: '800',
+        color: COLORS.primary,
+    },
+    createBtn: {
+        flexDirection: 'row',
         alignItems: 'center',
         justifyContent: 'center',
+        gap: 10,
+        marginTop: 8,
+        paddingVertical: 16,
+        borderRadius: 16,
+        borderWidth: 1.5,
+        borderStyle: 'dashed',
+        borderColor: '#D1D5DB',
+        backgroundColor: '#F9FAFB',
     },
-    creationForm: {},
+    createBtnText: {
+        fontSize: 14,
+        fontWeight: '800',
+        color: COLORS.primary,
+    },
+    creationForm: {
+        paddingTop: 8,
+    },
     inputLabel: {
         fontSize: 14,
         fontWeight: '700',
@@ -494,7 +636,7 @@ const styles = StyleSheet.create({
         flex: 1,
         paddingVertical: 16,
         borderRadius: 30,
-        backgroundColor: COLORS.background,
+        backgroundColor: '#FFFFFF',
         borderWidth: 1,
         borderColor: '#D1D5DB',
         alignItems: 'center',
@@ -504,68 +646,20 @@ const styles = StyleSheet.create({
         fontWeight: '700',
         color: '#6B7280',
     },
-    createBtn: {
+    confirmCreateBtn: {
         flex: 2,
         paddingVertical: 16,
         borderRadius: 30,
         backgroundColor: COLORS.primary,
         alignItems: 'center',
     },
-    disabledBtn: {
-        backgroundColor: '#D1D5DB',
-    },
-    createBtnText: {
+    confirmCreateBtnText: {
         fontSize: 16,
         fontWeight: '800',
         color: '#FFFFFF',
     },
-    listContainer: {},
-    listItem: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        paddingVertical: 14,
-        borderBottomWidth: 1,
-        borderBottomColor: '#F3F4F6',
-    },
-    listIconContainer: {
-        width: 44,
-        height: 44,
-        borderRadius: 12,
-        backgroundColor: '#FFF7ED',
-        alignItems: 'center',
-        justifyContent: 'center',
-        marginRight: 16,
-    },
-    listInfo: {
-        flex: 1,
-    },
-    listName: {
-        fontSize: 16,
-        fontWeight: '700',
-        color: '#1F2937',
-    },
-    listOccasion: {
-        fontSize: 12,
-        color: '#9CA3AF',
-        marginTop: 2,
-    },
-    createNewBtn: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        gap: 12,
-        marginVertical: 20,
-        paddingVertical: 12,
-        borderStyle: 'dashed',
-        borderWidth: 1,
-        borderColor: COLORS.primary,
-        borderRadius: 16,
-        justifyContent: 'center',
-        backgroundColor: '#FFF7ED',
-    },
-    createNewText: {
-        fontSize: 15,
-        fontWeight: '700',
-        color: COLORS.primary,
+    disabledBtn: {
+        backgroundColor: '#D1D5DB',
     },
     deliverySection: {
         marginTop: 2,

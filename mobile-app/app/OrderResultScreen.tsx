@@ -138,7 +138,8 @@ export default function OrderResultScreen({ navigation, route }: Props) {
 
   const handleContinue = () => {
     if (isSuccess) {
-      navigation.navigate('Orders', {});
+      const isCOD = paymentMethod?.toLowerCase() === 'cod' || paymentMethod?.toLowerCase().includes('cash on delivery');
+      navigation.navigate('Orders', { initialTab: isCOD ? 'pending' : 'processing' });
     } else {
       // For failed/processing, allow retry
       navigation.navigate('Checkout', {});

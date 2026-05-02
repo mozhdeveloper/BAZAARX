@@ -104,7 +104,7 @@ export type RootStackParamList = {
     errorCode?: string;
     errorMessage?: string;
   };
-  Orders: { initialTab?: 'all' | 'pending' | 'confirmed' | 'shipped' | 'delivered' | 'reviewed' | 'returned' | 'cancelled' };
+  Orders: { initialTab?: 'all' | 'pending' | 'confirmed' | 'processing' | 'shipped' | 'delivered' | 'received' | 'reviewed' | 'returned' | 'cancelled' };
   OrderDetail: { order: Order };
   SellerOrderDetail: { orderId: string };
   DeliveryTracking: { order: Order };
@@ -112,7 +112,7 @@ export type RootStackParamList = {
   FollowingShops: undefined;
   Wishlist: undefined;
   SharedWishlist: { wishlistId?: string; userId?: string };
-  FindRegistry: undefined;
+  FindWishlist: undefined;
   Addresses: undefined;
   Settings: undefined;
   Notifications: undefined;
@@ -719,9 +719,9 @@ export default function App() {
               <Stack.Screen name="DeliveryTracking" getComponent={() => require('./app/DeliveryTrackingScreen').default} />
               <Stack.Screen name="FlashSale" getComponent={() => require('./app/FlashSaleScreen').default} options={{ headerShown: false }} />
               <Stack.Screen name="FollowingShops" getComponent={() => require('./app/FollowingShopsScreen').default} />
-              <Stack.Screen name="Wishlist" getComponent={() => require('./app/RegistryScreen').default} />
+              <Stack.Screen name="Wishlist" getComponent={() => require('./app/WishlistScreen').default} />
               <Stack.Screen name="SharedWishlist" getComponent={() => require('./app/SharedWishlistScreen').default} />
-              <Stack.Screen name="FindRegistry" getComponent={() => require('./app/FindRegistryScreen').default} />
+              <Stack.Screen name="FindWishlist" getComponent={() => require('./app/FindWishlistScreen').default} />
               <Stack.Screen name="Addresses" getComponent={() => require('./app/AddressesScreen').default} />
               <Stack.Screen name="Settings" getComponent={() => require('./app/SettingsScreen').default} />
               <Stack.Screen name="Notifications" getComponent={() => require('./app/NotificationsScreen').default} />

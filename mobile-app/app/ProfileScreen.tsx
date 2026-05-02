@@ -308,7 +308,7 @@ export default function ProfileScreen({ navigation }: Props) {
 
   const accountMenuItems = [
     { icon: Clock, label: 'History', onPress: () => navigation.navigate('History') },
-    { icon: Gift, label: 'Registry & Gifting', onPress: () => navigation.navigate('Wishlist') },
+    { icon: Gift, label: 'Wishlist & Gifting', onPress: () => navigation.navigate('Wishlist') },
     { icon: RotateCcw, label: 'My Returns', onPress: () => navigation.navigate('ReturnOrders') },
     { icon: MapPin, label: 'My Addresses', onPress: () => navigation.navigate('Addresses') },
     { icon: Store, label: 'Following Shops', onPress: () => navigation.navigate('FollowingShops') },
