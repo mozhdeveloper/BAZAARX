@@ -42,6 +42,13 @@ export interface EmailRoleStatus {
 }
 
 export class AuthService {
+  private isAbortLikeError(error: unknown): boolean {
+    const name = (error as any)?.name;
+    const message = String((error as any)?.message || '');
+    const details = String((error as any)?.details || '');
+    return name === 'AbortError' || message.includes('AbortError') || message.includes('Aborted') || details.includes('Aborted');
+  }
+
   /**
    * Get role status for an email for role-aware signup checks.
    */
@@ -384,7 +391,11 @@ export class AuthService {
       .eq('user_id', userId);
 
     if (error) {
-      console.error('Error fetching user roles:', error);
+      if (this.isAbortLikeError(error)) {
+        console.warn('User roles request timed out, continuing with fallback role.');
+      } else {
+        console.error('Error fetching user roles:', error);
+      }
       return [];
     }
 
@@ -644,7 +655,7 @@ export class AuthService {
       }
       return data as unknown as Buyer;
     } catch (error: any) {
-      if (error?.code !== 'PGRST116') {
+      if (error?.code !== 'PGRST116' && !this.isAbortLikeError(error)) {
         console.error('Error fetching buyer profile:', error);
       }
       return null;

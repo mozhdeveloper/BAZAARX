@@ -5,7 +5,7 @@ export const mapNormalizedToLegacyStatus = (
   paymentStatus?: PaymentStatus | null,
   shipmentStatus?: ShipmentStatus | null,
 ): string => {
-  if (shipmentStatus === "delivered" || shipmentStatus === "received") {
+  if (shipmentStatus === "delivered" || shipmentStatus === "received" || shipmentStatus === "completed") {
     return "delivered";
   }
   if (shipmentStatus === "shipped" || shipmentStatus === "out_for_delivery") {
@@ -33,7 +33,7 @@ export const mapNormalizedToBuyerUiStatus = (
     return "reviewed";
   }
 
-  if (shipmentStatus === "received") {
+  if (shipmentStatus === "received" || shipmentStatus === "completed") {
     return "received";
   }
 
@@ -73,7 +73,7 @@ export const mapNormalizedToSellerUiStatus = (
   paymentStatus?: PaymentStatus | null,
   shipmentStatus?: ShipmentStatus | null,
 ): SellerOrderSnapshot["status"] => {
-  if (shipmentStatus === "received") {
+  if (shipmentStatus === "received" || shipmentStatus === "completed") {
     return "delivered";
   }
   if (shipmentStatus === "delivered") {
