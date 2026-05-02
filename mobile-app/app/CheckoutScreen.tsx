@@ -60,7 +60,7 @@ export default function CheckoutScreen({ navigation, route }: Props) {
   // Extract params safely
   const params = (route.params || {}) as any;
   const isGift = params?.isGift || false;
-  const recipientName = params?.recipientName || 'Registry Owner';
+  const recipientName = params?.recipientName || 'Wishlist Owner';
   const registryLocation = params?.registryLocation || 'Philippines';
   const recipientId = params?.recipientId || 'user_123'; // Mock recipient ID if not passed
 
@@ -68,7 +68,7 @@ export default function CheckoutScreen({ navigation, route }: Props) {
   React.useEffect(() => {
     if (isGift) {
       const registryAddress: Omit<Address, 'id'> = {
-        label: 'Registry Address',
+        label: 'Wishlist Recipient Address',
         firstName: recipientName,
         lastName: '(Hidden)',
         phone: '****',
@@ -1825,6 +1825,31 @@ export default function CheckoutScreen({ navigation, route }: Props) {
               </View>
 
               <Pressable
+                onPress={() => {
+                  if (isGift) {
+                    Alert.alert('Not Available', 'Cash on Delivery is not available for wishlist/registry items.');
+                    return;
+                  }
+                  setPaymentMethod('cod');
+                }}
+                style={[
+                  styles.paymentOption,
+                  paymentMethod === 'cod' && styles.paymentOptionActive,
+                  isGift && { opacity: 0.5, backgroundColor: '#F3F4F6' }
+                ]}
+              >
+                <View style={styles.radio}>
+                  {paymentMethod === 'cod' && <View style={styles.radioInner} />}
+                </View>
+                <View style={{ flex: 1 }}>
+                  <Text style={[styles.paymentText, isGift && { color: '#9CA3AF' }]}>Cash on Delivery</Text>
+                  <Text style={styles.paymentSubtext}>
+                    {isGift ? 'Not available for wishlist items' : 'Pay when you receive'}
+                  </Text>
+                </View>
+              </Pressable>
+
+              <Pressable
                 onPress={() => setPaymentMethod('paymongo')}
                 style={[
                   styles.paymentOption,
@@ -2269,30 +2294,7 @@ export default function CheckoutScreen({ navigation, route }: Props) {
                 </View>
               )}
 
-              <Pressable
-                onPress={() => {
-                  if (isGift) {
-                    Alert.alert('Not Available', 'Cash on Delivery is not available for wishlist/registry items.');
-                    return;
-                  }
-                  setPaymentMethod('cod');
-                }}
-                style={[
-                  styles.paymentOption,
-                  paymentMethod === 'cod' && styles.paymentOptionActive,
-                  isGift && { opacity: 0.5, backgroundColor: '#F3F4F6' }
-                ]}
-              >
-                <View style={styles.radio}>
-                  {paymentMethod === 'cod' && <View style={styles.radioInner} />}
-                </View>
-                <View style={{ flex: 1 }}>
-                  <Text style={[styles.paymentText, isGift && { color: '#9CA3AF' }]}>Cash on Delivery</Text>
-                  <Text style={styles.paymentSubtext}>
-                    {isGift ? 'Not available for wishlist items' : 'Pay when you receive'}
-                  </Text>
-                </View>
-              </Pressable>
+              <View style={{ height: 12 }} />
 
               <Pressable
                 onPress={() => { }}

@@ -3,7 +3,7 @@ import { Product } from '../types';
 import { wishlistService } from '../services/wishlistService';
 import { supabase } from '../lib/supabase';
 
-export interface RegistryDeliveryPreference {
+export interface WishlistDeliveryPreference {
     addressId?: string;
     showAddress: boolean;
     instructions?: string;
@@ -28,7 +28,8 @@ export interface WishlistCategory {
     image?: string;
     privacy: 'private' | 'shared';
     occasion?: string;
-    delivery?: RegistryDeliveryPreference;
+    delivery?: WishlistDeliveryPreference;
+    created_at?: string;
 }
 
 interface WishlistState {
@@ -45,7 +46,7 @@ interface WishlistState {
     removeItem: (registryItemId: string) => Promise<void>;
     updateItem: (registryItemId: string, updates: Partial<WishlistItem>) => Promise<void>;
 
-    createCategory: (name: string, privacy: 'private' | 'shared', occasion?: string, description?: string, delivery?: RegistryDeliveryPreference) => Promise<string>;
+    createCategory: (name: string, privacy: 'private' | 'shared', occasion?: string, description?: string, delivery?: WishlistDeliveryPreference) => Promise<string>;
     deleteCategory: (categoryId: string) => Promise<void>;
     updateCategory: (categoryId: string, updates: Partial<WishlistCategory>) => Promise<void>;
 
@@ -75,6 +76,7 @@ function mapDbRowToCategory(row: any): WishlistCategory {
                 instructions: row.delivery.instructions,
             }
             : undefined,
+        created_at: row.created_at,
     };
 }
 
@@ -153,7 +155,7 @@ export const useWishlistStore = create<WishlistState>((set, get) => ({
         if (items.find((i) => i.id === product.id && i.categoryId === categoryId)) return;
 
         // Resolve the real DB registry id
-        const realRegistryId = await resolveRegistryId(categoryId, _buyerId, categories);
+        const realRegistryId = await resolveWishlistId(categoryId, _buyerId, categories);
         if (!realRegistryId) return;
 
         // Optimistic update
@@ -236,6 +238,7 @@ export const useWishlistStore = create<WishlistState>((set, get) => ({
                         instructions: row.delivery.instructions,
                     }
                     : undefined),
+                created_at: row.created_at || new Date().toISOString(),
             };
             set({ categories: [...categories, newCat] });
             return row.id;
@@ -251,7 +254,7 @@ export const useWishlistStore = create<WishlistState>((set, get) => ({
 
         // Move items to default before deleting
         const defaultCat = categories.find((c) => c.id === 'default');
-        const defaultDbId = defaultCat ? await resolveRegistryId('default', _buyerId, categories) : null;
+        const defaultDbId = defaultCat ? await resolveWishlistId('default', _buyerId, categories) : null;
 
         if (defaultDbId) {
             try {
@@ -313,7 +316,7 @@ export const useWishlistStore = create<WishlistState>((set, get) => ({
 
     shareWishlist: async (categoryId: string) => {
         const realId = categoryId === 'default'
-            ? await resolveRegistryId('default', get()._buyerId, get().categories)
+            ? await resolveWishlistId('default', get()._buyerId, get().categories)
             : categoryId;
         return `https://bazaarx.app/registry/${realId || categoryId}`;
     },
@@ -341,7 +344,7 @@ export const useWishlistStore = create<WishlistState>((set, get) => ({
 
 // Helper: resolve the real Supabase registry UUID from a categoryId
 // 'default' maps to the first registry with event_type='general'
-async function resolveRegistryId(
+async function resolveWishlistId(
     categoryId: string,
     buyerId: string | null,
     categories: WishlistCategory[]

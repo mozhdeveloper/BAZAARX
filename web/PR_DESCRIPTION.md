@@ -1,42 +1,39 @@
-# Mandatory Photo Proof for Order Confirmation and Mobile Stability Fixes
+# Mobile UX Refinement: Checkout Payment Reordering and Wishlist Constraints
 
-This PR implements the mandatory photo proof requirement for order receipts in the mobile app and resolves several critical stability issues related to image processing and database interactions.
+This PR introduces several UI/UX improvements to the mobile application, focusing on the checkout flow, payment method prioritization, and input constraints for wishlist management.
 
 ---
 
 ## What Changed
 
-### 1. Mandatory Photo Proof Confirmation (Mobile)
-- **New `ConfirmReceivedModal`**: Replaced the legacy system `Alert` with a high-fidelity modal that requires users to capture or upload photo proof before confirming order receipt.
-- **Enforced Validation**: The "Yes, I Received It" button remains disabled until at least one photo is provided, with clear visual feedback for the user.
-- **Image Processing Refactor**: Switched to `base64` data extraction from `ImagePicker` to bypass unreliable filesystem reads on Android and iOS.
-- **Vibrant UI**: Updated the confirmation button to a more vibrant green (`#16A34A`) that clearly "lights up" when the requirement is met.
+### 1. Checkout & Payment Optimization
+- **Payment Method Prioritization**: Reordered payment options in `CheckoutScreen.tsx`. **Cash on Delivery (COD)** is now the first and default option, followed by PayMongo.
+- **Improved Success Navigation**: Fixed the post-purchase flow to direct users to the correct order tab.
+  - PayMongo orders now navigate directly to the **Processing** tab (since they are already paid).
+  - COD orders correctly navigate to the **Pending** tab.
+- **Type Safety**: Updated `RootStackParamList` in `App.tsx` to include `processing` and `received` tabs, resolving TypeScript compilation errors during navigation.
 
-### 2. Critical Bug Fixes & Stability
-- **Database ID Alignment**: Fixed the "Order not found" error by ensuring the internal database UUID is used for status updates instead of the display order number.
-- **Schema Compatibility**: Resolved a schema cache error by removing attempts to update the non-existent `proof_image_url` column in the `orders` table, redirecting photo URLs to the `order_status_history` metadata instead.
-- **`atob` Polyfill Fix**: Fixed a crash in `ProfileScreen.tsx` by replacing the web-only `atob` function with the `base64-arraybuffer` decode utility.
-- **TypeScript & Deprecation Fixes**:
-  - Resolved `ImagePicker.MediaTypeOptions` deprecation warnings by using the modern `['images']` array format.
-  - Fixed a `FileSystem.EncodingType` property error by using compatible string literals.
-  - Resolved a "Bucket not found" error by switching to the established `review-images` storage bucket.
+### 2. Wishlist & Gifting Enhancements
+- **Input Character Limits**: Applied a strict **20-character limit** to all "Wishlist Name" fields across the app (`WishlistScreen.tsx` and `WishlistSelectionModal.tsx`) to prevent layout breaks and ensure consistency with the web platform.
+- **Visual Indicators**: Replaced the generic heart icon with a **Gift Icon** for empty wishlist states to better align with the gifting feature's branding.
+- **Navigation Logic**: Refined `BackHandler` behavior within wishlist folders to ensure the back button returns the user to the "My Wishlist" list instead of the Profile screen.
 
-### 3. UX & Flow Improvements
-- **Post-Action Redirection**: Added automatic navigation to the "Received" tab in the `OrdersScreen` after a successful receipt confirmation.
-- **Consistent Storage**: Aligned the mobile storage path with the web platform (`buyerId/orderId/filename`) to ensure cross-platform visibility of receipt photos.
+### 3. Bug Fixes & Stability
+- **TypeScript Health**: Resolved several property errors and missing type definitions (`safeImageUri`, `LABELS`, and navigation hooks).
+- **Navigation Flow**: Fixed a bug where "See My Purchases" would default to the "Pending" tab even for successful online payments by normalizing the `initialTab` parameter.
 
 ---
 
 ## Verification Results
 
 ### Manual Testing
-- [x] **Confirm Received**: Modal opens correctly from both `OrdersScreen` and `OrderDetailScreen`.
-- [x] **Photo Requirement**: Button is disabled when no photos are present; enables immediately after selection.
-- [x] **Upload**: Photos successfully upload to Supabase `review-images` bucket.
-- [x] **Status Update**: Order status updates to `received` in the database, and photo URLs are logged in `order_status_history`.
-- [x] **Navigation**: User is redirected to the "Received" tab upon success.
+- [x] **Checkout Reordering**: COD appears first and is selected by default on the checkout screen.
+- [x] **PayMongo Redirect**: Successful PayMongo test payments correctly land the user on the "Processing" tab of the Orders screen.
+- [x] **Character Limits**: Wishlist name inputs prevent entering more than 20 characters.
+- [x] **Wishlist Icons**: Empty folders correctly display the new Gift icon.
 - [x] **TypeScript**: `npx tsc --noEmit` passes with 0 errors.
 
-### screenshots
-- [Insert screenshot of new ConfirmReceivedModal here]
-- [Insert screenshot of 'Received' tab redirection here]
+### Screenshots
+- [Insert screenshot of reordered Payment Methods]
+- [Insert screenshot of 20-char limit in action]
+- [Insert screenshot of Processing tab landing]

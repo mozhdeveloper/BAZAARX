@@ -157,9 +157,9 @@ const GUIDE_SECTIONS: GuideSection[] = [
     ],
   },
   {
-    id: 'wishlist-registry',
+    id: 'wishlist-gifting',
     icon: <Gift size={20} color={COLORS.primary} />,
-    title: 'Wishlists & Gift Registry',
+    title: 'Wishlist & Gifting',
     steps: [
       {
         heading: 'Create a Wishlist',
@@ -170,8 +170,8 @@ const GUIDE_SECTIONS: GuideSection[] = [
         body: 'Tap the share icon on your Wishlist page to generate a link. Friends and family can view and purchase items for you.',
       },
       {
-        heading: 'Gift Registry',
-        body: 'Use Find Registry to search for someone\'s shared wishlist by name and purchase gifts directly from their list.',
+        heading: 'Gifting & Shared Lists',
+        body: 'Use Find Wishlist to search for someone\'s shared list by name and purchase gifts directly from their wishlist.',
       },
     ],
   },

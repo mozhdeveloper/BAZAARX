@@ -55,7 +55,8 @@ import {
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { AIChatBubble } from '../src/components/AIChatBubble';
 import { AddedToCartModal } from '../src/components/AddedToCartModal';
-import { AddToRegistryModal } from '../src/components/AddToRegistryModal';
+import { AddToWishlistModal } from '../src/components/AddToWishlistModal';
+import { WishlistSelectionModal } from '../src/components/WishlistSelectionModal';
 import CameraSearchModal from '../src/components/CameraSearchModal';
 import { MasonryProductCard } from '../src/components/ProductCard';
 import { VariantSelectionModal } from '../src/components/VariantSelectionModal';
@@ -67,6 +68,7 @@ import { useFocusEffect } from '@react-navigation/native';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import type { RootStackParamList } from '../App';
 import { GuestLoginModal } from '../src/components/GuestLoginModal';
+import { LABELS } from '../src/constants/labels';
 import { COLORS } from '../src/constants/theme';
 import { discountService } from '../src/services/discountService';
 import { productService } from '../src/services/productService';
@@ -2295,10 +2297,13 @@ export default function ProductDetailScreen({ route, navigation }: Props) {
         />
       )}
 
-      <AddToRegistryModal
+      <WishlistSelectionModal
         visible={showWishlistModal}
         onClose={() => setShowWishlistModal(false)}
         product={product}
+        onItemAdded={() => {
+          Alert.alert(LABELS.ADDED_TO_WISHLIST, 'Successfully added to your wishlist.');
+        }}
       />
 
       {/* Product Menu Modal */}

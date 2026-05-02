@@ -10,7 +10,7 @@ import { wishlistService } from '../src/services/wishlistService';
 
 const { width } = Dimensions.get('window');
 
-type SharedRegistryItem = {
+type SharedWishlistItem = {
     id: string;
     name: string;
     price: number;
@@ -30,23 +30,23 @@ export default function SharedWishlistScreen() {
     const setQuickOrder = useCartStore((state) => state.setQuickOrder);
     const params = route.params as any;
     const [isLoading, setIsLoading] = useState(true);
-    const [registry, setRegistry] = useState<any>(null);
+    const [wishlist, setWishlist] = useState<any>(null);
 
     useEffect(() => {
         const load = async () => {
             const registryId = params?.wishlistId;
             if (!registryId) {
-                setRegistry(null);
+                setWishlist(null);
                 setIsLoading(false);
                 return;
             }
 
             try {
                 const found = await wishlistService.getPublicRegistry(registryId);
-                setRegistry(found);
+                setWishlist(found);
             } catch (error) {
                 console.error('[SharedWishlistScreen] load failed:', error);
-                setRegistry(null);
+                setWishlist(null);
             } finally {
                 setIsLoading(false);
             }
@@ -56,27 +56,27 @@ export default function SharedWishlistScreen() {
     }, [params?.wishlistId]);
 
     const wishlistOwner = useMemo(() => {
-        if (!registry) return null;
+        if (!wishlist) return null;
 
-        const delivery = registry.delivery || {};
+        const delivery = wishlist.delivery || {};
         return {
-            name: registry.title || 'Shared Registry',
+            name: wishlist.title || 'Shared Wishlist',
             avatar: undefined,
             registryAddress: delivery?.showAddress ? { city: 'Address Shared', province: '' } : null,
         };
-    }, [registry]);
+    }, [wishlist]);
 
-    const registryItems: SharedRegistryItem[] = useMemo(() => {
-        if (!registry?.registry_items) return [];
+    const wishlistItems: SharedWishlistItem[] = useMemo(() => {
+        if (!wishlist?.registry_items) return [];
 
-        return registry.registry_items
+        return wishlist.registry_items
             .map((item: any) => {
                 const snapshot = item.product_snapshot || {};
                 const requestedQty = item.requested_qty ?? item.quantity_desired ?? 1;
                 const receivedQty = item.received_qty ?? 0;
                 return {
                     id: item.id,
-                    name: item.product_name || snapshot.name || 'Registry Item',
+                    name: item.product_name || snapshot.name || 'Wishlist Item',
                     price: Number(snapshot.price || snapshot.originalPrice || 0),
                     image: snapshot.image || snapshot.images?.[0],
                     priority: (item.priority || 'medium') as 'low' | 'medium' | 'high',
@@ -93,8 +93,8 @@ export default function SharedWishlistScreen() {
                             !item.product_id ? 'deleted' : 'available',
                 };
             })
-            .filter((item: SharedRegistryItem) => !item.isPrivate);
-    }, [registry]);
+            .filter((item: SharedWishlistItem) => !item.isPrivate);
+    }, [wishlist]);
 
 
     const handleBuyAsGift = (product: any) => {
@@ -124,12 +124,12 @@ export default function SharedWishlistScreen() {
         return (
             <View style={[styles.container, { alignItems: 'center', justifyContent: 'center' }]}>
                 <ActivityIndicator size="large" color={COLORS.primary} />
-                <Text style={{ marginTop: 12, color: '#6B7280' }}>Loading shared registry...</Text>
+                <Text style={{ marginTop: 12, color: '#6B7280' }}>Loading shared wishlist...</Text>
             </View>
         );
     }
 
-    if (!registry || !wishlistOwner) {
+    if (!wishlist || !wishlistOwner) {
         return (
             <View style={styles.container}>
                 <StatusBar barStyle="light-content" />
@@ -139,14 +139,14 @@ export default function SharedWishlistScreen() {
                             <ArrowLeft size={24} color="#FFF" strokeWidth={2.5} />
                         </Pressable>
                         <View style={styles.titleContainer}>
-                            <Text style={styles.headerTitle}>Shared Registry</Text>
+                            <Text style={styles.headerTitle}>Shared Wishlist</Text>
                         </View>
                         <View style={{ width: 40 }} />
                     </View>
                 </View>
                 <View style={[styles.scrollContent, { alignItems: 'center', justifyContent: 'center', flex: 1 }]}>
-                    <Text style={styles.emptyTitle}>Registry not found</Text>
-                    <Text style={styles.emptyText}>This shared registry link may be invalid or private.</Text>
+                    <Text style={styles.emptyTitle}>Wishlist not found</Text>
+                    <Text style={styles.emptyText}>This shared wishlist link may be invalid or private.</Text>
                 </View>
             </View>
         );
@@ -164,7 +164,7 @@ export default function SharedWishlistScreen() {
                     </Pressable>
                     
                     <View style={styles.titleContainer}>
-                        <Text style={styles.headerTitle}>Shared Registry</Text>
+                        <Text style={styles.headerTitle}>Shared Wishlist</Text>
                     </View>
                     
                     <View style={{ width: 40 }} /> 
@@ -177,8 +177,8 @@ export default function SharedWishlistScreen() {
                     <Image source={{ uri: safeImageUri(wishlistOwner.avatar, PLACEHOLDER_AVATAR) }} style={styles.avatar} />
                     <View style={{ flex: 1 }}>
                         <Text style={styles.ownerName}>{wishlistOwner.name}</Text>
-                        <View style={styles.registryMeta}>
-                            <Text style={styles.itemCount}>{registryItems.length} Items</Text>
+                        <View style={styles.wishlistMeta}>
+                            <Text style={styles.itemCount}>{wishlistItems.length} Items</Text>
                             {wishlistOwner.registryAddress && (
                                 <View style={styles.dotSeparator} />
                             )}
@@ -192,7 +192,7 @@ export default function SharedWishlistScreen() {
                     </View>
                 </View>
                 <View style={styles.grid}>
-                    {registryItems.map((item) => {
+                    {wishlistItems.map((item) => {
                         const isFullyPurchased = item.purchasedQty >= item.desiredQty;
                         
                         return (
@@ -260,10 +260,10 @@ export default function SharedWishlistScreen() {
                             </View>
                         );
                     })}
-                    {registryItems.length === 0 && (
+                    {wishlistItems.length === 0 && (
                         <View style={{ width: '100%', paddingVertical: 32, alignItems: 'center' }}>
                             <Text style={styles.emptyTitle}>No items yet</Text>
-                            <Text style={styles.emptyText}>This shared registry is currently empty.</Text>
+                            <Text style={styles.emptyText}>This shared wishlist is currently empty.</Text>
                         </View>
                     )}
                 </View>
@@ -290,7 +290,7 @@ const styles = StyleSheet.create({
     profileSection: { flexDirection: 'row', alignItems: 'center', gap: 16, marginBottom: 24, paddingHorizontal: 4 },
     avatar: { width: 64, height: 64, borderRadius: 32 },
     ownerName: { fontSize: 22, fontWeight: '800', color: '#111827', marginBottom: 4 }, // Dark text
-    registryMeta: { flexDirection: 'row', alignItems: 'center' },
+    wishlistMeta: { flexDirection: 'row', alignItems: 'center' },
     itemCount: { fontSize: 13, color: '#6B7280', fontWeight: '500' },
     dotSeparator: { width: 4, height: 4, borderRadius: 2, backgroundColor: '#D1D5DB', marginHorizontal: 8 },
     locationBadge: { flexDirection: 'row', alignItems: 'center', gap: 4, backgroundColor: '#EFF6FF', paddingHorizontal: 8, paddingVertical: 2, borderRadius: 12 },

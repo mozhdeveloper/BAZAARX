@@ -11,10 +11,15 @@ import {
     Animated,
     Keyboard,
     Platform,
+    Alert,
 } from 'react-native';
-import { X, Gift, PlusCircle } from 'lucide-react-native';
+import { useNavigation } from '@react-navigation/native';
+import { X, Gift, PlusCircle, Heart } from 'lucide-react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { COLORS } from '../constants/theme';
+import { LABELS } from '../constants/labels';
+import { useAddressStore } from '../stores/addressStore';
+import { useAuthStore } from '../stores/authStore';
 import { useWishlistStore } from '../stores/wishlistStore';
 
 const { height } = Dimensions.get('window');
@@ -31,10 +36,10 @@ const OCCASIONS = [
 
 const getOccasionLabel = (id: string | undefined | null) => {
     if (!id) return '';
-    if (id === 'baby') return 'Baby Shower';
+    if (id === 'baby') return 'BABY SHOWER';
     const occ = OCCASIONS.find(o => o.id === id);
-    if (occ) return occ.label;
-    return id.replace('_', ' ').replace(/\b\w/g, l => l.toUpperCase());
+    if (occ) return occ.label.toUpperCase();
+    return id.replace('_', ' ').toUpperCase();
 };
 
 interface AddToWishlistModalProps {
@@ -44,13 +49,19 @@ interface AddToWishlistModalProps {
 }
 
 export const AddToWishlistModal = ({ visible, onClose, product }: AddToWishlistModalProps) => {
+    const navigation = useNavigation<any>();
     const insets = useSafeAreaInsets();
-    const { categories, addItem, createCategory } = useWishlistStore();
+    const { categories, items, addItem, createCategory } = useWishlistStore();
+    const { user } = useAuthStore();
+    const { savedAddresses, defaultAddress, loadSavedAddresses } = useAddressStore();
 
     const [isCreatingList, setIsCreatingList] = useState(false);
     const [newListName, setNewListName] = useState('');
     const [selectedOccasion, setSelectedOccasion] = useState(OCCASIONS[2].id);
     const [customOccasion, setCustomOccasion] = useState('');
+    const [showAddress, setShowAddress] = useState(false);
+    const [selectedAddressId, setSelectedAddressId] = useState('');
+    const [deliveryInstructions, setDeliveryInstructions] = useState('');
 
     const slideAnim = useRef(new Animated.Value(height)).current;
     const keyboardOffset = useRef(new Animated.Value(0)).current;
@@ -58,11 +69,20 @@ export const AddToWishlistModal = ({ visible, onClose, product }: AddToWishlistM
     // Slide animation
     useEffect(() => {
         if (visible) {
+            if (user?.id) {
+                loadSavedAddresses(user.id);
+            }
+
             if (categories.length === 0) {
                 setIsCreatingList(true);
             } else {
                 setIsCreatingList(false);
             }
+
+            setShowAddress(false);
+            setSelectedAddressId(defaultAddress?.id || '');
+            setDeliveryInstructions('');
+
             Animated.spring(slideAnim, {
                 toValue: 0,
                 tension: 50,
@@ -72,9 +92,15 @@ export const AddToWishlistModal = ({ visible, onClose, product }: AddToWishlistM
         } else {
             slideAnim.setValue(height);
         }
-    }, [visible, categories.length]);
+    }, [visible, categories.length, user?.id, loadSavedAddresses, defaultAddress?.id]);
 
-    // Keyboard listener — the reliable cross-platform way inside a Modal
+    useEffect(() => {
+        if (visible && savedAddresses.length > 0 && !selectedAddressId) {
+            setSelectedAddressId(defaultAddress?.id || savedAddresses[0].id);
+        }
+    }, [visible, selectedAddressId, savedAddresses, defaultAddress?.id]);
+
+    // Keyboard listener
     useEffect(() => {
         const showSub = Keyboard.addListener(
             Platform.OS === 'ios' ? 'keyboardWillShow' : 'keyboardDidShow',
@@ -114,18 +140,38 @@ export const AddToWishlistModal = ({ visible, onClose, product }: AddToWishlistM
     };
 
     const handleAddToCategory = (categoryId: string) => {
+        const normalizedProductId = String(product.id);
+        const alreadyInFolder = items.some(
+            (item) => String(item.id) === normalizedProductId && item.categoryId === categoryId,
+        );
+        if (alreadyInFolder) {
+            Alert.alert(LABELS.ALREADY_ADDED_TO_WISHLIST, 'This product is already in that wishlist folder.');
+            return;
+        }
+
+        const folderName = categories.find((cat) => cat.id === categoryId)?.name || LABELS.WISHLIST;
         addItem(product, 'medium', 1, categoryId);
+        Alert.alert(LABELS.ADDED_TO_WISHLIST, `Successfully added to "${folderName}".`);
         handleCloseInternal();
     };
 
     const handleCreateAndAdd = async () => {
         if (!newListName.trim()) return;
         const occasionValue = selectedOccasion === 'other' ? (customOccasion.trim() || 'other') : selectedOccasion;
-        const newId = await createCategory(newListName, 'private', occasionValue);
+        const createdName = newListName.trim();
+        const newId = await createCategory(newListName, 'private', occasionValue, undefined, {
+            showAddress,
+            addressId: showAddress ? selectedAddressId || undefined : undefined,
+            instructions: showAddress ? deliveryInstructions.trim() || undefined : undefined,
+        });
         await addItem(product, 'medium', 1, newId);
+        Alert.alert(LABELS.ADDED_TO_WISHLIST, `Successfully added to "${createdName}".`);
         setNewListName('');
         setCustomOccasion('');
         setSelectedOccasion(OCCASIONS[2].id);
+        setShowAddress(false);
+        setSelectedAddressId('');
+        setDeliveryInstructions('');
         handleCloseInternal();
     };
 
@@ -147,7 +193,6 @@ export const AddToWishlistModal = ({ visible, onClose, product }: AddToWishlistM
                         marginBottom: keyboardOffset,
                     }
                 ]}>
-                    {/* Bottom Background Filler */}
                     <View style={{
                         position: 'absolute',
                         bottom: -100,
@@ -159,7 +204,7 @@ export const AddToWishlistModal = ({ visible, onClose, product }: AddToWishlistM
 
                     <View style={styles.header}>
                         <Text style={styles.title}>
-                            {isCreatingList ? 'Create New Wishlist' : 'Save to Wishlist'}
+                            {isCreatingList ? LABELS.CREATE_NEW_WISHLIST : LABELS.SAVE_TO_WISHLIST}
                         </Text>
                         <Pressable onPress={handleCloseInternal} style={styles.closeBtn}>
                             <X size={24} color="#374151" />
@@ -174,7 +219,7 @@ export const AddToWishlistModal = ({ visible, onClose, product }: AddToWishlistM
                             keyboardShouldPersistTaps="handled"
                         >
                             <View style={styles.creationForm}>
-                                <Text style={styles.inputLabel}>Wishlist Name</Text>
+                                <Text style={styles.inputLabel}>{LABELS.WISHLIST_NAME}</Text>
                                 <TextInput
                                     style={styles.input}
                                     placeholder="e.g., Sarah's Wedding, New Home 2026"
@@ -185,7 +230,7 @@ export const AddToWishlistModal = ({ visible, onClose, product }: AddToWishlistM
                                     autoFocus
                                 />
 
-                                <Text style={styles.inputLabel}>Gift Category</Text>
+                                <Text style={styles.inputLabel}>{LABELS.GIFT_CATEGORY}</Text>
                                 <ScrollView
                                     horizontal
                                     showsHorizontalScrollIndicator={false}
@@ -211,7 +256,7 @@ export const AddToWishlistModal = ({ visible, onClose, product }: AddToWishlistM
 
                                 {selectedOccasion === 'other' && (
                                     <View style={{ marginTop: 12 }}>
-                                        <Text style={styles.inputLabel}>Specify Occasion</Text>
+                                        <Text style={styles.inputLabel}>{LABELS.SPECIFY_OCCASION}</Text>
                                         <TextInput
                                             style={styles.input}
                                             placeholder="e.g. Anniversary, Graduation"
@@ -221,6 +266,74 @@ export const AddToWishlistModal = ({ visible, onClose, product }: AddToWishlistM
                                         />
                                     </View>
                                 )}
+
+                                <View style={styles.deliverySection}>
+                                    <Text style={styles.inputLabel}>{LABELS.DELIVERY_PREFERENCE}</Text>
+                                    <Pressable
+                                        style={styles.deliveryToggleRow}
+                                        onPress={() => {
+                                            if (!savedAddresses.length) return;
+                                            setShowAddress((value) => {
+                                                const next = !value;
+                                                if (next && !selectedAddressId) {
+                                                    setSelectedAddressId(defaultAddress?.id || savedAddresses[0].id);
+                                                }
+                                                return next;
+                                            });
+                                        }}
+                                        disabled={savedAddresses.length === 0}
+                                    >
+                                        <View style={{ flex: 1, flexDirection: 'row', alignItems: 'center' }}>
+                                            <View style={[styles.checkbox, showAddress && styles.checkboxActive, !savedAddresses.length && styles.checkboxDisabled]}>
+                                                {showAddress && <View style={styles.checkboxDot} />}
+                                            </View>
+                                            <Text style={styles.deliveryToggleText}>{LABELS.SHARE_ADDRESS_WITH_GIFTERS}</Text>
+                                        </View>
+                                        <Pressable 
+                                            onPress={() => {
+                                                onClose();
+                                                navigation.navigate('Addresses');
+                                            }}
+                                        >
+                                            <Text style={{ color: COLORS.primary, fontSize: 13, fontWeight: '600' }}>{LABELS.MANAGE}</Text>
+                                        </Pressable>
+                                    </Pressable>
+                                    <Text style={styles.deliveryHint}>
+                                        {savedAddresses.length
+                                            ? LABELS.ADDRESS_HINT
+                                            : LABELS.ADDRESS_EMPTY_HINT}
+                                    </Text>
+
+                                    {showAddress && savedAddresses.length > 0 && (
+                                        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.addressChipRow}>
+                                            {savedAddresses.map((address) => {
+                                                const isSelected = selectedAddressId === address.id;
+                                                return (
+                                                    <Pressable
+                                                        key={address.id}
+                                                        style={[styles.addressChip, isSelected && styles.addressChipActive]}
+                                                        onPress={() => setSelectedAddressId(address.id)}
+                                                    >
+                                                        <Text style={[styles.addressChipText, isSelected && styles.addressChipTextActive]}>
+                                                            {address.label || `${address.firstName} ${address.lastName}`}
+                                                        </Text>
+                                                    </Pressable>
+                                                );
+                                            })}
+                                        </ScrollView>
+                                    )}
+
+                                    {showAddress && (
+                                        <TextInput
+                                            style={[styles.input, styles.deliveryInstructionsInput]}
+                                            placeholder={LABELS.DELIVERY_INSTRUCTIONS}
+                                            placeholderTextColor="#9CA3AF"
+                                            value={deliveryInstructions}
+                                            onChangeText={setDeliveryInstructions}
+                                            editable={savedAddresses.length > 0}
+                                        />
+                                    )}
+                                </View>
 
                                 <View style={styles.formFooter}>
                                     <Pressable
@@ -255,7 +368,7 @@ export const AddToWishlistModal = ({ visible, onClose, product }: AddToWishlistM
                                         onPress={() => handleAddToCategory(cat.id)}
                                     >
                                         <View style={styles.listIconContainer}>
-                                            <Gift size={20} color={COLORS.primary} />
+                                            <Heart size={20} color={COLORS.primary} fill={COLORS.primary} />
                                         </View>
                                         <View style={styles.listInfo}>
                                             <Text style={styles.listName}>{cat.name}</Text>
@@ -272,7 +385,7 @@ export const AddToWishlistModal = ({ visible, onClose, product }: AddToWishlistM
                                 onPress={() => setIsCreatingList(true)}
                             >
                                 <PlusCircle size={20} color={COLORS.primary} />
-                                <Text style={styles.createNewText}>Create New Wishlist</Text>
+                                <Text style={styles.createNewText}>{LABELS.CREATE_NEW_WISHLIST}</Text>
                             </Pressable>
                         </View>
                     )}
@@ -450,5 +563,78 @@ const styles = StyleSheet.create({
         fontSize: 15,
         fontWeight: '700',
         color: COLORS.primary,
+    },
+    deliverySection: {
+        marginTop: 2,
+        marginBottom: 8,
+    },
+    deliveryToggleRow: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 10,
+        marginTop: 2,
+    },
+    deliveryToggleText: {
+        fontSize: 14,
+        fontWeight: '700',
+        color: '#1F2937',
+    },
+    deliveryHint: {
+        fontSize: 12,
+        color: '#6B7280',
+        marginTop: 8,
+        lineHeight: 18,
+    },
+    checkbox: {
+        width: 22,
+        height: 22,
+        borderRadius: 6,
+        borderWidth: 1.5,
+        borderColor: '#D1D5DB',
+        alignItems: 'center',
+        justifyContent: 'center',
+        backgroundColor: '#FFF',
+    },
+    checkboxActive: {
+        borderColor: COLORS.primary,
+        backgroundColor: '#FFF7ED',
+    },
+    checkboxDisabled: {
+        opacity: 0.5,
+    },
+    checkboxDot: {
+        width: 10,
+        height: 10,
+        borderRadius: 5,
+        backgroundColor: COLORS.primary,
+    },
+    addressChipRow: {
+        gap: 8,
+        paddingVertical: 12,
+    },
+    addressChip: {
+        paddingHorizontal: 12,
+        paddingVertical: 8,
+        borderRadius: 999,
+        backgroundColor: '#F3F4F6',
+        borderWidth: 1,
+        borderColor: '#E5E7EB',
+        marginRight: 8,
+    },
+    addressChipActive: {
+        backgroundColor: '#FFF7ED',
+        borderColor: '#FDBA74',
+    },
+    addressChipText: {
+        fontSize: 12,
+        fontWeight: '700',
+        color: '#4B5563',
+    },
+    addressChipTextActive: {
+        color: COLORS.primary,
+    },
+    deliveryInstructionsInput: {
+        marginTop: 0,
+        marginBottom: 0,
     },
 });
