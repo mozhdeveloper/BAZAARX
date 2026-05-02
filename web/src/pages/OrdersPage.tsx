@@ -34,6 +34,7 @@ import ReturnRefundModal from "../components/ReturnRefundModal";
 import { ReviewModal } from "../components/ReviewModal";
 import { WarrantyStatusModal } from "../components/WarrantyStatusModal";
 import { WarrantyClaimModal } from "../components/WarrantyClaimModal";
+import { OrderCardSkeleton } from "../components/skeletons/OrderCardSkeleton";
 import { cn } from "../lib/utils";
 import { useToast } from "../hooks/use-toast";
 import { orderReadService } from "../services/orders/orderReadService";
@@ -183,7 +184,7 @@ export default function OrdersPage() {
     }
   }, [updateOrderWithReturnRequest, toast]);
 
-  const loadBuyerOrders = useCallback(async () => {
+  const loadBuyerOrders = useCallback(async (activeStatusFilter: string = statusFilter) => {
     if (!profile?.id) return;
 
     setIsLoading(true);
@@ -248,10 +249,15 @@ export default function OrdersPage() {
       hydrateBuyerOrders(mergedOrders as any);
     } catch (err) {
       console.error("Error fetching orders:", err);
+      toast({
+        title: "Failed to load orders",
+        description: "Please try again.",
+        variant: "destructive",
+      });
     } finally {
       setIsLoading(false);
     }
-  }, [hydrateBuyerOrders, profile?.id]);
+  }, [hydrateBuyerOrders, profile?.id, statusFilter, toast]);
 
   const handleCancelOrder = useCallback(async () => {
     if (!orderToCancel?.dbId || !cancelReason) return;
@@ -283,11 +289,11 @@ export default function OrdersPage() {
       });
 
       // Sync with server state to get accurate cancelledAt timestamp etc.
-      await loadBuyerOrders();
+      await loadBuyerOrders(statusFilter);
     } catch (e) {
       console.error("Error canceling order:", e);
       // Roll back the optimistic update by re-fetching
-      await loadBuyerOrders();
+      await loadBuyerOrders(statusFilter);
       toast({
         title: "Error",
         description: "Failed to cancel order. Please try again.",
@@ -310,9 +316,9 @@ export default function OrdersPage() {
         return order;
       });
       hydrateBuyerOrders(updatedOrders as any);
-      void loadBuyerOrders();
+      void loadBuyerOrders(statusFilter);
     }
-  }, [orderToConfirmReceived, orders, hydrateBuyerOrders, loadBuyerOrders]);
+  }, [orderToConfirmReceived, orders, hydrateBuyerOrders, loadBuyerOrders, statusFilter]);
 
   // Show success message for newly created orders
   const newOrderId = (
@@ -324,8 +330,8 @@ export default function OrdersPage() {
 
   // Fetch orders from shared service mapper
   useEffect(() => {
-    void loadBuyerOrders();
-  }, [loadBuyerOrders, newOrderId]); // Refetch if new order comes in
+    void loadBuyerOrders(statusFilter);
+  }, [loadBuyerOrders, newOrderId, statusFilter]); // Refetch if new order comes in or tab changes
 
   // Auto-hide success banner after 8 seconds
   useEffect(() => {
@@ -397,6 +403,18 @@ export default function OrdersPage() {
     return `${orderId}-${itemId}-${variantId}-${index}`;
   };
 
+  const matchesStatusTab = (orderStatus: string, tabStatus: string): boolean => {
+    if (tabStatus === "delivered") {
+      return orderStatus === "delivered" || orderStatus === "received" || orderStatus === "completed";
+    }
+
+    if (tabStatus === "shipped") {
+      return orderStatus === "shipped" || orderStatus === "out_for_delivery";
+    }
+
+    return orderStatus === tabStatus;
+  };
+
   const filteredOrders = useMemo(() => {
     let filtered = orders.filter((order) => {
       const matchesSearch =
@@ -408,7 +426,7 @@ export default function OrdersPage() {
         );
 
       const matchesStatus =
-        statusFilter === "all" || order.status === statusFilter;
+        statusFilter === "all" || matchesStatusTab(order.status as string, statusFilter);
 
       return matchesSearch && matchesStatus;
     });
@@ -569,7 +587,13 @@ export default function OrdersPage() {
           </div>
         </motion.div>
 
-        {filteredOrders.length === 0 ? (
+        {isLoading ? (
+          <div className="space-y-4" aria-busy="true" aria-live="polite">
+            {Array.from({ length: 3 }).map((_, index) => (
+              <OrderCardSkeleton key={index} />
+            ))}
+          </div>
+        ) : filteredOrders.length === 0 ? (
           <motion.div
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
@@ -578,12 +602,20 @@ export default function OrdersPage() {
             <Package className="w-16 h-16 text-gray-400 mx-auto mb-4" />
             <h3 className="text-lg font-semibold text-gray-900 mb-2">
               {searchQuery || statusFilter !== "all"
-                ? "No orders found"
+                ? statusFilter === "shipped"
+                  ? "No shipped orders found"
+                  : statusFilter === "delivered"
+                    ? "No delivered orders found"
+                    : "No orders found"
                 : "No orders yet"}
             </h3>
             <p className="text-gray-600">
               {searchQuery || statusFilter !== "all"
-                ? "Try adjusting your search or filter criteria."
+                ? statusFilter === "shipped"
+                  ? "No shipped orders are available right now."
+                  : statusFilter === "delivered"
+                    ? "No delivered orders are available right now."
+                    : "Try adjusting your search or filter criteria."
                 : "Your orders will appear here once you make a purchase."}
             </p>
             {(searchQuery || statusFilter !== "all") && (
@@ -1510,7 +1542,7 @@ export default function OrdersPage() {
             setOrderToReview(null);
           }}
           onSubmitted={() => {
-            void loadBuyerOrders();
+            void loadBuyerOrders(statusFilter);
 
             toast({
               title: "Review Submitted",
@@ -1877,7 +1909,7 @@ export default function OrdersPage() {
           itemName={selectedWarrantyItem.itemName}
           onSuccess={() => {
             // Reload orders to get updated warranty status
-            void loadBuyerOrders();
+            void loadBuyerOrders(statusFilter);
           }}
         />
       )}

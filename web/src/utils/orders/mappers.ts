@@ -179,7 +179,20 @@ export const mapOrderRowToBuyerSnapshot = (order: any): BuyerOrderSnapshot => {
   const deliveredAt = order.delivered_at ? new Date(order.delivered_at) : undefined;
   const cancelledAt = order.cancelled_at ? new Date(order.cancelled_at) : undefined;
   const updatedAt = order.updated_at ? new Date(order.updated_at) : undefined;
-  const receivedAt = order.shipment_status === 'received' ? updatedAt : undefined;
+  const latestShipment = getLatestShipment(order.shipments || []);
+  const legacyStatus = typeof order.status === 'string' ? order.status.toLowerCase() : null;
+  const normalizedLegacyShipmentStatus =
+    legacyStatus === 'completed' ? 'received' :
+    legacyStatus === 'delivered' ? 'delivered' :
+    legacyStatus === 'shipped' ? 'shipped' :
+    legacyStatus === 'out_for_delivery' ? 'out_for_delivery' :
+    legacyStatus === 'processing' ? 'processing' :
+    legacyStatus === 'ready_to_ship' ? 'ready_to_ship' :
+    legacyStatus === 'returned' ? 'returned' :
+    legacyStatus === 'cancelled' ? 'failed_to_deliver' :
+    null;
+  const effectiveShipmentStatus = order.shipment_status || normalizedLegacyShipmentStatus || latestShipment?.status || null;
+  const receivedAt = effectiveShipmentStatus === 'received' ? updatedAt : undefined;
 
   const rawItems = Array.isArray(order.order_items) ? order.order_items : [];
   const fallbackStoreName =
@@ -265,13 +278,13 @@ export const mapOrderRowToBuyerSnapshot = (order: any): BuyerOrderSnapshot => {
     }),
     status: mapNormalizedToBuyerUiStatus(
       order.payment_status,
-      order.shipment_status,
+      effectiveShipmentStatus,
       Boolean(order.cancellation_reason || order.cancelled_at),
       reviews.length > 0,
     ),
     isPaid: order.payment_status === "paid",
     paymentStatus: order.payment_status,
-    shipmentStatus: order.shipment_status,
+    shipmentStatus: effectiveShipmentStatus,
     total: Math.max(0, resolvedTotal),
     estimatedDelivery:
       deliveredAt ||

@@ -125,7 +125,7 @@ const mapNormalizedToLegacyStatus = (
     paymentStatus?: PaymentStatus | null,
     shipmentStatus?: ShipmentStatus | null,
 ): string => {
-    if (shipmentStatus === "delivered" || shipmentStatus === "received") {
+    if (shipmentStatus === "delivered" || shipmentStatus === "received" || shipmentStatus === "completed") {
         return "delivered";
     }
     if (shipmentStatus === "shipped" || shipmentStatus === "out_for_delivery") {
@@ -305,7 +305,7 @@ const mapNormalizedToBuyerUiStatus = (
         return "reviewed";
     }
 
-    if (shipmentStatus === "delivered" || shipmentStatus === "received") {
+    if (shipmentStatus === "delivered" || shipmentStatus === "received" || shipmentStatus === "completed") {
         return "delivered";
     }
 
@@ -852,7 +852,8 @@ export class OrderService {
     async getBuyerOrders(
         buyerId: string,
         startDate?: Date | null,
-        endDate?: Date | null
+        endDate?: Date | null,
+        shipmentStatuses?: string[]
     ): Promise<Order[]> {
         if (!isSupabaseConfigured()) {
             // Updated mock logic to handle date filters
@@ -875,7 +876,8 @@ export class OrderService {
         }
 
         // Cache check (skip when date range is specified to ensure fresh data)
-        const cacheKey = `buyer_orders:${buyerId}:${startDate?.toISOString() ?? ''}:${endDate?.toISOString() ?? ''}`;
+        const shipmentStatusKey = shipmentStatuses?.length ? shipmentStatuses.join(',') : '';
+        const cacheKey = `buyer_orders:${buyerId}:${startDate?.toISOString() ?? ''}:${endDate?.toISOString() ?? ''}:${shipmentStatusKey}`;
         const cached = _getOrderCache<Order[]>(cacheKey);
         if (cached) return cached;
 
@@ -971,6 +973,12 @@ export class OrderService {
                 `,
                 )
                 .eq("buyer_id", buyerId);
+
+            if (shipmentStatuses && shipmentStatuses.length > 0) {
+                query = shipmentStatuses.length === 1
+                    ? query.eq("shipment_status", shipmentStatuses[0])
+                    : query.in("shipment_status", shipmentStatuses);
+            }
 
             // Step 2: Apply dynamic date filters
             if (startDate) {

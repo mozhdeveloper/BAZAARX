@@ -271,9 +271,24 @@ export const useAuthStore = create<AuthState>()(
         try {
           const sessionResult = await authService.getSession();
           if (sessionResult?.user) {
+            const fallbackEmail = sessionResult.user.email || '';
+            const fallbackName =
+              sessionResult.user.user_metadata?.full_name ||
+              sessionResult.user.user_metadata?.name ||
+              fallbackEmail.split('@')[0] ||
+              'User';
+
             // OPTIMISTIC UPDATE: Set basic auth state immediately using session + hydrated data
             // This prevents the Splash screen from timing out while waiting for profile DB calls.
             set({ 
+              user: {
+                id: sessionResult.user.id,
+                email: fallbackEmail,
+                name: fallbackName,
+                phone: '',
+                roles: ['buyer'],
+                hasAcceptedTerms: sessionResult.user.user_metadata?.has_accepted_terms !== false,
+              },
               isAuthenticated: true, 
               isGuest: false,
               sessionVerified: true 

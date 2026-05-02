@@ -1,8 +1,9 @@
-import React, { useState, useMemo, useCallback } from 'react';
+import React, { useState, useMemo, useCallback, useEffect } from 'react';
 import {
   View,
   Text,
   ScrollView,
+  FlatList,
   StyleSheet,
   Pressable,
   Alert,
@@ -12,7 +13,9 @@ import {
   Platform,
   StatusBar,
   Dimensions,
-  RefreshControl
+  RefreshControl,
+  Animated,
+  Easing,
 } from 'react-native';
 import { Image } from 'expo-image';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -31,7 +34,6 @@ import CancelOrderModal from '../src/components/seller/CancelOrderModal';
 import { orderService } from '../src/services/orderService';
 import { orderMutationService } from '../src/services/orders/orderMutationService';
 import type { CompositeScreenProps } from '@react-navigation/native';
-import { useFocusEffect } from '@react-navigation/native';
 import type { BottomTabScreenProps } from '@react-navigation/bottom-tabs';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import type { RootStackParamList, TabParamList } from '../App';
@@ -45,6 +47,22 @@ type Props = NativeStackScreenProps<RootStackParamList, 'Orders'>;
 const { width } = Dimensions.get('window');
 
 type OrdersTab = 'all' | 'pending' | 'processing' | 'shipped' | 'delivered' | 'received' | 'reviewed' | 'returned' | 'cancelled';
+
+const ORDER_TABS: OrdersTab[] = ['all', 'pending', 'processing', 'shipped', 'delivered', 'received', 'returned', 'cancelled', 'reviewed'];
+
+const ORDER_TAB_CONFIG: Record<OrdersTab, { label: string; emptyMessage: string; shipmentStatus?: string }> = {
+  all: { label: 'All Orders', emptyMessage: 'Items you purchase will appear here.' },
+  pending: { label: 'Pending', emptyMessage: 'Items you purchase will appear here.' },
+  processing: { label: 'Processing', emptyMessage: 'Items you purchase will appear here.' },
+  shipped: { label: 'Shipped', emptyMessage: 'Items you purchase will appear here.' },
+  delivered: { label: 'Delivered', emptyMessage: 'Items you purchase will appear here.' },
+  received: { label: 'Received', emptyMessage: 'Orders you have already received will appear here.', shipmentStatus: 'received' },
+  reviewed: { label: 'Reviewed', emptyMessage: 'Orders you have reviewed will appear here.' },
+  returned: { label: 'Return/Refund', emptyMessage: 'Return and refund requests will appear here.' },
+  cancelled: { label: 'Cancelled', emptyMessage: 'Cancelled orders will appear here.' },
+};
+
+const MAX_ORDERS_PER_TAB = 80;
 
 const normalizeInitialTab = (tab?: string): OrdersTab => {
   const normalized = (tab || 'pending').toLowerCase();
@@ -134,10 +152,52 @@ export default function OrdersScreen({ navigation, route }: Props) {
   const BRAND_COLOR = COLORS.primary;
 
   const [refreshing, setRefreshing] = useState(false);
+  const [isLoading, setIsLoading] = useState(true);
+  const shimmerValue = React.useRef(new Animated.Value(0)).current;
 
-  const loadOrders = async () => {
+  useEffect(() => {
+    const animation = Animated.loop(
+      Animated.timing(shimmerValue, {
+        toValue: 1,
+        duration: 1100,
+        easing: Easing.inOut(Easing.ease),
+        useNativeDriver: true,
+      }),
+    );
+
+    animation.start();
+
+    return () => {
+      animation.stop();
+      shimmerValue.stopAnimation();
+    };
+  }, [shimmerValue]);
+
+  const loadOrders = useCallback(async (tabToLoad: OrdersTab = activeTab) => {
     if (!user?.id) return;
+    setIsLoading(true);
     try {
+      const applyTabFilter = (query: any, tab: OrdersTab) => {
+        switch (tab) {
+          case 'received':
+            return query.eq('shipment_status', 'received');
+          case 'delivered':
+            return query.in('shipment_status', ['delivered', 'received']);
+          case 'shipped':
+            return query.in('shipment_status', ['shipped', 'out_for_delivery']);
+          case 'processing':
+            return query.in('shipment_status', ['processing', 'ready_to_ship']);
+          case 'pending':
+            return query.eq('payment_status', 'pending_payment');
+          case 'cancelled':
+            return query.in('shipment_status', ['failed_to_deliver', 'returned']);
+          case 'returned':
+            return query.eq('shipment_status', 'returned');
+          default:
+            return query;
+        }
+      };
+
       const orderSelectWithShipments = `
           *,
           recipient:order_recipients (
@@ -247,12 +307,16 @@ export default function OrdersScreen({ navigation, route }: Props) {
         `;
 
       const runQuery = (selectClause: string) => {
-        return supabase
+        let query = supabase
           .from('orders')
           .select(selectClause)
           .eq('buyer_id', user.id)
           .order('created_at', { ascending: false })
-          .limit(30);
+          .limit(MAX_ORDERS_PER_TAB);
+
+        query = applyTabFilter(query, tabToLoad);
+
+        return query;
       };
 
       let { data, error } = await runQuery(orderSelectWithShipments);
@@ -530,20 +594,19 @@ export default function OrdersScreen({ navigation, route }: Props) {
       setDbOrders([]);
       setIsError(true);
     } finally {
+      setIsLoading(false);
       setRefreshing(false);
     }
-  };
+  }, [activeTab, user?.id]);
 
-  useFocusEffect(
-    React.useCallback(() => {
-      loadOrders();
-    }, [user?.id])
-  );
+  useEffect(() => {
+    loadOrders(activeTab);
+  }, [activeTab, loadOrders]);
 
   const onRefresh = React.useCallback(() => {
     setRefreshing(true);
-    loadOrders();
-  }, [user?.id]);
+    loadOrders(activeTab);
+  }, [activeTab, loadOrders]);
 
   // Pre-index orders by buyerUiStatus for O(1) tab lookups  
   const ordersByUiStatus = useMemo(() => {
@@ -671,7 +734,7 @@ export default function OrdersScreen({ navigation, route }: Props) {
 
               Alert.alert('Success', 'Order marked as received! You can now leave a review or request a return within 7 days.');
               // Reload to get fresh data
-              await loadOrders();
+              await loadOrders(activeTab);
             } catch (e) {
               console.error('Error updating order:', e);
               Alert.alert('Error', 'Failed to update order status');
@@ -724,7 +787,7 @@ export default function OrdersScreen({ navigation, route }: Props) {
         throw new Error('This item has already been reviewed');
       }
 
-      await loadOrders();
+      await loadOrders('all');
       setActiveTab('all');
       Alert.alert('Success', 'Your review has been submitted.');
     } catch (error: any) {
@@ -981,6 +1044,50 @@ export default function OrdersScreen({ navigation, route }: Props) {
     );
   };
 
+  const renderLoadingSkeletons = () => {
+    const translateX = shimmerValue.interpolate({
+      inputRange: [0, 1],
+      outputRange: [-220, 220],
+    });
+
+    const renderShimmerBlock = (style: any) => (
+      <View style={[style, styles.skeletonBase]}>
+        <Animated.View
+          pointerEvents="none"
+          style={[
+            styles.skeletonShimmer,
+            {
+              transform: [{ translateX }],
+            },
+          ]}
+        />
+      </View>
+    );
+
+    return Array.from({ length: 4 }).map((_, index) => (
+      <View key={`orders-skeleton-${index}`} style={styles.skeletonCard}>
+        <View style={styles.skeletonHeaderRow}>
+          {renderShimmerBlock(styles.skeletonStatusPill)}
+          {renderShimmerBlock(styles.skeletonOrderId)}
+        </View>
+
+        <View style={styles.skeletonBodyRow}>
+          {renderShimmerBlock(styles.skeletonThumb)}
+          <View style={styles.skeletonInfoCol}>
+            {renderShimmerBlock(styles.skeletonLineLong)}
+            {renderShimmerBlock(styles.skeletonLineMedium)}
+            {renderShimmerBlock(styles.skeletonLineShort)}
+          </View>
+        </View>
+
+        <View style={styles.skeletonFooterRow}>
+          {renderShimmerBlock(styles.skeletonLineMedium)}
+          {renderShimmerBlock(styles.skeletonButton)}
+        </View>
+      </View>
+    ));
+  };
+
   if (isGuest) {
     return (
     <View style={styles.container}>
@@ -1046,18 +1153,7 @@ export default function OrdersScreen({ navigation, route }: Props) {
           showsHorizontalScrollIndicator={false}
           contentContainerStyle={styles.tabsContentContainer}
         >
-          {(['all', 'pending', 'processing', 'shipped', 'delivered', 'received', 'returned', 'cancelled', 'reviewed'] as const).map((tab) => {
-            const labelMap: Record<string, string> = {
-              all: 'All',
-              pending: 'Pending',
-              processing: 'Processing',
-              shipped: 'Shipped',
-              delivered: 'Delivered',
-              received: 'To Review',
-              reviewed: 'Reviewed',
-              returned: 'Return/Refund',
-              cancelled: 'Cancelled'
-            };
+          {ORDER_TABS.map((tab) => {
             return (
               <Pressable
                 key={tab}
@@ -1065,7 +1161,7 @@ export default function OrdersScreen({ navigation, route }: Props) {
                 style={[styles.newTab, activeTab === tab && styles.newTabActive, { borderColor: BRAND_COLOR }]}
               >
                 <Text style={[styles.newTabText, activeTab === tab ? { color: BRAND_COLOR, fontWeight: '600' } : { color: COLORS.textMuted }]}>
-                  {labelMap[tab]}
+                  {ORDER_TAB_CONFIG[tab].label}
                 </Text>
               </Pressable>
             );
@@ -1073,50 +1169,81 @@ export default function OrdersScreen({ navigation, route }: Props) {
         </ScrollView>
       </View>
 
-      <ScrollView
-        style={{ flex: 1 }}
-        refreshControl={
-          <RefreshControl refreshing={refreshing} onRefresh={onRefresh} colors={[BRAND_COLOR]} />
-        }
-        showsVerticalScrollIndicator={false}
-        contentContainerStyle={{ padding: 16, paddingBottom: 100 }}
-      >
-        {isError ? (
+      {isLoading ? (
+        <ScrollView
+          style={{ flex: 1 }}
+          refreshControl={
+            <RefreshControl refreshing={refreshing} onRefresh={onRefresh} colors={[BRAND_COLOR]} />
+          }
+          showsVerticalScrollIndicator={false}
+          contentContainerStyle={{ padding: 16, paddingBottom: 100 }}
+        >
+          {renderLoadingSkeletons()}
+        </ScrollView>
+      ) : isError ? (
+        <ScrollView
+          style={{ flex: 1 }}
+          refreshControl={
+            <RefreshControl refreshing={refreshing} onRefresh={onRefresh} colors={[BRAND_COLOR]} />
+          }
+          showsVerticalScrollIndicator={false}
+          contentContainerStyle={{ padding: 16, paddingBottom: 100 }}
+        >
           <View style={styles.emptyContainer}>
             <Package size={64} color="#EF4444" />
             <Text style={[styles.emptyTitle, { color: '#DC2626' }]}>Failed to Load Orders</Text>
             <Text style={styles.emptyText}>Something went wrong while loading your orders.</Text>
             <Pressable 
               style={[styles.primaryButton, { marginTop: 24, backgroundColor: '#EF4444', paddingVertical: 12, paddingHorizontal: 32 }]} 
-              onPress={loadOrders}
+              onPress={() => loadOrders(activeTab)}
             >
               <Text style={styles.primaryButtonText}>Tap to Retry</Text>
             </Pressable>
           </View>
-        ) : filteredOrders.length === 0 ? (
-          <View style={styles.emptyContainer}>
-            <Package size={64} color="#D1D5DB" />
-            <Text style={styles.emptyTitle}>
-              {activeTab === 'reviewed' ? 'No Reviews Yet' : 'No Orders Found'}
-            </Text>
-            <Text style={styles.emptyText}>
-              {activeTab === 'reviewed' 
-                ? 'Orders you have reviewed will appear here.'
-                : 'Items you purchase will appear here'}
-            </Text>
-            {activeTab !== 'reviewed' && (
-              <Pressable 
-                style={[styles.primaryButton, { marginTop: 24, backgroundColor: BRAND_COLOR, paddingVertical: 12, paddingHorizontal: 32 }]} 
-                onPress={() => navigation.navigate('MainTabs', { screen: 'Home' })}
-              >
-                <Text style={styles.primaryButtonText}>Shop Now</Text>
-              </Pressable>
-            )}
-          </View>
-        ) : (
-          filteredOrders.map(renderOrderCard)
-        )}
-      </ScrollView>
+        </ScrollView>
+      ) : (
+        <FlatList
+          data={filteredOrders}
+          keyExtractor={(item, index) => String((item as any).orderId || item.id || index)}
+          renderItem={({ item }) => renderOrderCard(item)}
+          style={{ flex: 1 }}
+          refreshControl={
+            <RefreshControl refreshing={refreshing} onRefresh={onRefresh} colors={[BRAND_COLOR]} />
+          }
+          showsVerticalScrollIndicator={false}
+          contentContainerStyle={{ padding: 16, paddingBottom: 100 }}
+          removeClippedSubviews={true}
+          initialNumToRender={6}
+          maxToRenderPerBatch={6}
+          updateCellsBatchingPeriod={50}
+          windowSize={7}
+          ListEmptyComponent={
+            <View style={styles.emptyContainer}>
+              <Package size={64} color="#D1D5DB" />
+              <Text style={styles.emptyTitle}>
+                {activeTab === 'reviewed'
+                  ? 'No Reviews Yet'
+                  : activeTab === 'received'
+                    ? 'No Received Orders Yet'
+                    : 'No Orders Found'}
+              </Text>
+              <Text style={styles.emptyText}>
+                {activeTab === 'reviewed'
+                  ? 'Orders you have reviewed will appear here.'
+                  : ORDER_TAB_CONFIG[activeTab].emptyMessage}
+              </Text>
+              {activeTab !== 'reviewed' && (
+                <Pressable
+                  style={[styles.primaryButton, { marginTop: 24, backgroundColor: BRAND_COLOR, paddingVertical: 12, paddingHorizontal: 32 }]}
+                  onPress={() => navigation.navigate('MainTabs', { screen: 'Home' })}
+                >
+                  <Text style={styles.primaryButtonText}>Shop Now</Text>
+                </Pressable>
+              )}
+            </View>
+          }
+        />
+      )}
 
       {/* SEARCH MODAL */}
       <Modal visible={showSearchModal} animationType="fade" transparent={true}>
@@ -1257,6 +1384,81 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: COLORS.textMuted,
     textAlign: 'center',
+  },
+  skeletonCard: {
+    backgroundColor: '#FFF',
+    borderRadius: 12,
+    marginBottom: 16,
+    padding: 16,
+  },
+  skeletonBase: {
+    overflow: 'hidden',
+    backgroundColor: '#E5E7EB',
+  },
+  skeletonShimmer: {
+    position: 'absolute',
+    top: 0,
+    bottom: 0,
+    width: 90,
+    backgroundColor: 'rgba(255,255,255,0.45)',
+  },
+  skeletonHeaderRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 12,
+  },
+  skeletonStatusPill: {
+    width: 72,
+    height: 20,
+    borderRadius: 10,
+  },
+  skeletonOrderId: {
+    width: 92,
+    height: 14,
+    borderRadius: 7,
+  },
+  skeletonBodyRow: {
+    flexDirection: 'row',
+    marginBottom: 12,
+  },
+  skeletonThumb: {
+    width: 70,
+    height: 70,
+    borderRadius: 8,
+  },
+  skeletonInfoCol: {
+    flex: 1,
+    marginLeft: 12,
+    justifyContent: 'space-between',
+  },
+  skeletonLineLong: {
+    width: '90%',
+    height: 14,
+    borderRadius: 7,
+  },
+  skeletonLineMedium: {
+    width: '62%',
+    height: 12,
+    borderRadius: 6,
+  },
+  skeletonLineShort: {
+    width: '45%',
+    height: 12,
+    borderRadius: 6,
+  },
+  skeletonFooterRow: {
+    borderTopWidth: 1,
+    borderTopColor: '#F3F4F6',
+    paddingTop: 12,
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  skeletonButton: {
+    width: 84,
+    height: 30,
+    borderRadius: 8,
   },
   orderCard: {
     backgroundColor: '#FFF',

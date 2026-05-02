@@ -17,6 +17,7 @@ interface GetBuyerOrdersInput {
   buyerId: string;
   startDate?: Date | null;
   endDate?: Date | null;
+  shipmentStatuses?: string[];
 }
 
 // 1. Updated interface to include optional date filters
@@ -37,8 +38,8 @@ interface GetOrderDetailInput {
 }
 
 export class OrderReadService {
-  async getBuyerOrders({ buyerId, startDate, endDate }: GetBuyerOrdersInput): Promise<BuyerOrderSnapshot[]> {
-    const rows = await orderService.getBuyerOrders(buyerId, startDate, endDate); // Pass parameters
+  async getBuyerOrders({ buyerId, startDate, endDate, shipmentStatuses }: GetBuyerOrdersInput): Promise<BuyerOrderSnapshot[]> {
+    const rows = await orderService.getBuyerOrders(buyerId, startDate, endDate, shipmentStatuses); // Pass parameters
     return rows.map((row: any) => mapOrderRowToBuyerSnapshot(row));
   }
 
