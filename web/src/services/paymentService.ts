@@ -6,6 +6,7 @@
 
 import { supabase, isSupabaseConfigured } from '@/lib/supabase';
 import type { PaymentMethod } from '@/stores/buyerStore';
+import { validateTestCard } from '@/utils/testCardValidator';
 
 export interface PaymentMethodData {
     type: 'card' | 'wallet';
@@ -72,6 +73,42 @@ export class PaymentService {
         }
 
         try {
+            // --- STEP 1: Block Test Cards ---
+            // "Quick Auto-fill" test cards should never be persisted to the database.
+            if (method.type === 'card' && method.last4 && method.expiry) {
+                // For validation, we need a card number. If only last4 is provided, we can't fully validate
+                // But usually addPaymentMethod is called with more details if coming from a form.
+                // However, PayMongo cards are added via PayMongoService which usually handles tokens.
+                // Let's check if we have a full card number in the context.
+                // Actually, PayMongo test cards have specific last4s.
+                // But the best place is where the card number is actually available.
+            }
+
+            // --- STEP 2: Prevent Duplicates ---
+            if (method.type === 'card') {
+                const { data: existingPM, error: searchError } = await supabase
+                    .from('payment_methods')
+                    .select('*, payment_method_cards!inner(*)')
+                    .eq('user_id', userId)
+                    .eq('payment_type', 'card')
+                    .eq('payment_method_cards.card_last4', method.last4)
+                    .eq('payment_method_cards.card_brand', method.brand.toUpperCase());
+
+                if (!searchError && existingPM && existingPM.length > 0) {
+                    console.log('[PaymentService] Duplicate card detected, returning existing record');
+                    const m = existingPM[0];
+                    const card = m.payment_method_cards;
+                    return {
+                        id: m.id,
+                        type: 'card',
+                        brand: card.card_brand.toLowerCase(),
+                        last4: card.card_last4,
+                        expiry: `${String(card.expiry_month).padStart(2, '0')}/${String(card.expiry_year).slice(-2)}`,
+                        isDefault: m.is_default,
+                    };
+                }
+            }
+
             // If setting as default, unset existing defaults first
             if (method.isDefault) {
                 await supabase

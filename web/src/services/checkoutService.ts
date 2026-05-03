@@ -363,7 +363,7 @@ export class CheckoutService {
             const addressJson = isRegistryOrder
                 ? JSON.stringify({
                     fullName: shippingAddress.fullName,
-                    street: "SECURE REGISTRY Gifting (Hidden)",
+                    street: "SECURE WISHLIST Gifting (Hidden)",
                     city: shippingAddress.city || '***',
                     province: shippingAddress.province || '***',
                     postalCode: '****',

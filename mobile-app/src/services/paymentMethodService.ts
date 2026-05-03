@@ -7,6 +7,7 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { supabase, isSupabaseConfigured } from '../lib/supabase';
 import type { Database } from '../types/database.types';
+import { validateTestCard } from '../utils/testCardValidator';
 
 export interface SavedPaymentMethod {
   id: string;
@@ -60,13 +61,13 @@ export class PaymentMethodService {
         if (!error && data) {
           // Map database format to app format
           const methods = data.map((m: any) => {
-            const card = m.payment_method_cards?.[0];
+            const card = Array.isArray(m.payment_method_cards) ? m.payment_method_cards[0] : m.payment_method_cards;
             return {
               id: m.id,
               userId: m.user_id,
               cardBrand: (card?.card_brand || 'visa').toLowerCase() as 'visa' | 'mastercard',
               lastFour: card?.card_last4 || '',
-              expiryDate: card ? `${String(card.expiry_month).padStart(2, '0')}/${card.expiry_year}` : '',
+              expiryDate: card ? `${String(card.expiry_month).padStart(2, '0')}/${String(card.expiry_year).slice(-2)}` : '',
               cardholderName: m.label || '',
               isDefault: m.is_default,
               createdAt: m.created_at,
@@ -139,8 +140,52 @@ export class PaymentMethodService {
         return null;
       }
 
+      // --- STEP 1: Block Test Cards ---
+      // Per requirements, "Quick Auto-fill" test cards should never be persisted
+      const testValidation = validateTestCard(cardDetails.cardNumber, cardDetails.expiryDate, cardDetails.cvv);
+      if (testValidation.isTestCard) {
+        console.log('[PaymentMethod] Test card detected, skipping database persistence');
+        return null;
+      }
+
       // Save to Supabase if configured
       if (isSupabaseConfigured()) {
+        // --- STEP 2: Prevent Duplicates ---
+        // Check if card with same last4 and brand already exists for this user
+        const { data: existingCards, error: searchError } = await supabase
+          .from('payment_methods')
+          .select('*, payment_method_cards!inner(*)')
+          .eq('user_id', userId)
+          .eq('payment_type', 'card')
+          .eq('payment_method_cards.card_last4', lastFour)
+          .eq('payment_method_cards.card_brand', cardBrand.toUpperCase());
+
+        if (!searchError && existingCards && existingCards.length > 0) {
+          console.log('[PaymentMethod] Duplicate card detected, returning existing record');
+          const m = existingCards[0];
+          const card = Array.isArray(m.payment_method_cards) ? m.payment_method_cards[0] : m.payment_method_cards;
+          
+          const existingMethod: SavedPaymentMethod = {
+            id: m.id,
+            userId: m.user_id,
+            cardBrand: (card?.card_brand || 'visa').toLowerCase() as 'visa' | 'mastercard',
+            lastFour: card?.card_last4 || '',
+            expiryDate: card ? `${String(card.expiry_month).padStart(2, '0')}/${String(card.expiry_year).slice(-2)}` : '',
+            cardholderName: m.label || '',
+            isDefault: m.is_default,
+            createdAt: m.created_at,
+            updatedAt: m.updated_at,
+          };
+
+          // If we want to ensure it's set as default if requested
+          if (isDefault && !m.is_default) {
+            await this.setDefaultPaymentMethod(userId, m.id);
+            existingMethod.isDefault = true;
+          }
+
+          return existingMethod;
+        }
+
         // If setting as default, unset other defaults
         if (isDefault) {
           await supabase

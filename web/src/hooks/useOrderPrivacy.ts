@@ -19,7 +19,7 @@
  * Usage:
  *   const privacy = useOrderPrivacy({ order, viewerRole });
  *   privacy.recipientName     → "Bea Alexa"
- *   privacy.street            → "123 Rizal St." | "Registry Gift — Address Protected"
+ *   privacy.street            → "123 Rizal St." | "Wishlist Gift — Address Protected"
  *   privacy.maskedPhone       → "***7215"
  *   privacy.isRegistryOrder   → true
  *   privacy.showAddressAlert  → true (show shield banner)
@@ -114,7 +114,7 @@ export function useOrderPrivacy({
   // Admin: full access
   if (viewerRole === "admin") {
     return {
-      recipientName: recipientName || addr.fullName || "Registry Recipient",
+      recipientName: recipientName || addr.fullName || "Wishlist Recipient",
       displayNameSource: "recipient",
       street: addr.street ?? "",
       city: addr.city ?? "",
@@ -131,9 +131,9 @@ export function useOrderPrivacy({
   // Seller: sees full address, phone masked to last 4
   if (viewerRole === "seller") {
     return {
-      recipientName: recipientName || addr.fullName || "Registry Recipient",
+      recipientName: recipientName || addr.fullName || "Wishlist Recipient",
       displayNameSource: "recipient",
-      street: addr.street || "Registry Gift — Address Protected",
+      street: addr.street || "Wishlist Gift — Address Protected",
       city: addr.city ?? "",
       province: addr.province ?? "",
       postalCode: addr.postalCode ?? "",
@@ -147,9 +147,9 @@ export function useOrderPrivacy({
 
   // Gifter/Buyer: fully masked
   return {
-    recipientName: recipientName || addr.fullName || "Registry Recipient",
+    recipientName: recipientName || addr.fullName || "Wishlist Recipient",
     displayNameSource: "recipient",
-    street: "Registry Gift — Address Protected",
+    street: "Wishlist Gift — Address Protected",
     city: "***",
     province: "***",
     postalCode: "****",
