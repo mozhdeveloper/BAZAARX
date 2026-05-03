@@ -351,7 +351,7 @@ export class DiscountService {
         .eq('campaign_type', 'flash_sale')
         .eq('status', 'active')
         .lte('starts_at', new Date().toISOString())
-        .gte('ends_at', new Date().toISOString())
+        .gt('ends_at', new Date().toISOString())
         .order('priority', { ascending: false });
 
       if (campaignsError) throw campaignsError;
@@ -485,7 +485,7 @@ export class DiscountService {
         .select('*')
         .eq('status', 'active')
         .lte('start_time', now)
-        .gte('end_time', now);
+        .gt('end_time', now);
 
       if (slotsError) throw slotsError;
       if (!slots || slots.length === 0) return [];

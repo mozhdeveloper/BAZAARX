@@ -195,6 +195,7 @@ export default function ReturnRequestScreen({ route, navigation }: Props) {
   const [returnDeadline, setReturnDeadline] = useState<Date | null>(null);
   const [previewItem, setPreviewItem] = useState<MediaItem | null>(null);
   const [showMediaPicker, setShowMediaPicker] = useState(false);
+  const [formErrors, setFormErrors] = useState<{ description?: boolean; evidence?: boolean }>({});
 
   // ── Seller business address (fetched from DB) ──
   const [sellerDbName, setSellerDbName] = useState('');
@@ -279,6 +280,9 @@ export default function ReturnRequestScreen({ route, navigation }: Props) {
     if (isVideo && a.fileSize && a.fileSize > VIDEO_MAX_BYTES) { Alert.alert('File Too Large', 'Video exceeds 20 MB. Try a shorter recording.'); return; }
     if (mediaItems.length >= MAX_MEDIA_FILES) { Alert.alert('Limit Reached', `Max ${MAX_MEDIA_FILES} files.`); return; }
     setMediaItems((p) => [...p, { uri: a.uri, type: isVideo ? 'video' : 'image' }]);
+    if (formErrors.evidence) {
+      setFormErrors(prev => ({ ...prev, evidence: false }));
+    }
   };
 
   const pickFromLibrary = async () => {
@@ -307,7 +311,12 @@ export default function ReturnRequestScreen({ route, navigation }: Props) {
       }
       newItems.push({ uri: asset.uri, type: isVideo ? 'video' : 'image' });
     }
-    if (newItems.length > 0) setMediaItems((p) => [...p, ...newItems]);
+    if (newItems.length > 0) {
+      setMediaItems((p) => [...p, ...newItems]);
+      if (formErrors.evidence) {
+        setFormErrors(prev => ({ ...prev, evidence: false }));
+      }
+    }
     if (skippedImages.length > 0 || skippedVideos.length > 0) {
       const lines: string[] = [];
       if (skippedImages.length > 0) lines.push(`• ${skippedImages.length} photo${skippedImages.length > 1 ? 's' : ''} exceeded 5 MB`);
@@ -339,7 +348,10 @@ export default function ReturnRequestScreen({ route, navigation }: Props) {
 
   const removeMediaItem = (uri: string) => setMediaItems((p) => p.filter((m) => m.uri !== uri));
   const toggleMissingItem = (itemId: string) =>
-    setSelectedMissingItems((p) => p.includes(itemId) ? p.filter((id) => id !== itemId) : [...p, itemId]);
+    setSelectedMissingItems((p) => {
+       const next = p.includes(itemId) ? p.filter((id) => id !== itemId) : [...p, itemId];
+       return next;
+    });
 
   // ── Fetch seller business profile for self-ship address ──
   useEffect(() => {
@@ -372,9 +384,27 @@ export default function ReturnRequestScreen({ route, navigation }: Props) {
     if (!topReason) { Alert.alert('Required', 'Please select a reason.'); return; }
     if (topReason === 'item_not_received' && !subReason) { Alert.alert('Required', 'Select the specific issue.'); return; }
     if (!effectiveReason) return;
+    
+    // Reset errors
+    setFormErrors({});
+    
     const reqs = getEvidenceRequirements(effectiveReason as ReturnReason);
-    if (reqs.description && !description.trim()) { Alert.alert('Required', 'Describe the issue.'); return; }
-    if ((reqs.photo || reqs.video) && mediaItems.length === 0) { Alert.alert('Evidence Required', 'Upload at least one photo or video.'); return; }
+    const newErrors: { description?: boolean; evidence?: boolean } = {};
+    
+    if (!description.trim()) newErrors.description = true;
+    if (mediaItems.length === 0) newErrors.evidence = true;
+    
+    if (Object.keys(newErrors).length > 0) {
+      setFormErrors(newErrors);
+      const errorMsg = newErrors.description && newErrors.evidence 
+        ? 'Please provide a description and upload evidence.'
+        : newErrors.description 
+          ? 'Please provide a description of the issue.' 
+          : 'At least one photo or video is required as evidence.';
+      Alert.alert('Required Fields', errorMsg);
+      return;
+    }
+
     if (reqs.itemSelection && selectedMissingItems.length === 0) { Alert.alert('Required', 'Select missing items.'); return; }
     if (showReturnMethodSection && !returnMethod) { Alert.alert('Required', 'Choose a return method.'); return; }
     if (returnMethod === 'pickup' && !pickupAddress) { Alert.alert('Required', 'Set a pickup address.'); return; }
@@ -569,11 +599,28 @@ export default function ReturnRequestScreen({ route, navigation }: Props) {
               {/* Description */}
               {requirements.description && (
                 <>
-                  <Text style={styles.fieldLabel}>Description</Text>
+                  <Text style={styles.fieldLabel}>
+                    Description <Text style={{ color: '#EF4444' }}>*</Text>
+                  </Text>
                   <Text style={styles.fieldHint}>Describe the issue in as much detail as possible</Text>
                   <View ref={descriptionRef}>
-                    <TextInput style={styles.textArea} placeholder="Describe the problem..." placeholderTextColor={MUTED}
-                      value={description} onChangeText={setDescription} multiline numberOfLines={4} textAlignVertical="top"
+                    <TextInput 
+                      style={[
+                        styles.textArea, 
+                        formErrors.description && { borderColor: '#EF4444', borderWidth: 1.5, backgroundColor: '#FEF2F2' }
+                      ]} 
+                      placeholder="Describe the problem..." 
+                      placeholderTextColor={MUTED}
+                      value={description} 
+                      onChangeText={(val) => {
+                        setDescription(val);
+                        if (formErrors.description && val.trim().length > 0) {
+                          setFormErrors(prev => ({ ...prev, description: false }));
+                        }
+                      }} 
+                      multiline 
+                      numberOfLines={4} 
+                      textAlignVertical="top"
                       onFocus={() => {
                         setTimeout(() => {
                           descriptionRef.current?.measure((_x, _y, _w, _h, _px, pageY) => {
@@ -615,11 +662,13 @@ export default function ReturnRequestScreen({ route, navigation }: Props) {
               {needsEvidence && (
                 <>
                   {(requirements.description || requirements.itemSelection) && <View style={styles.dividerLine} />}
-                  <Text style={styles.fieldLabel}>Upload Evidence</Text>
+                  <Text style={styles.fieldLabel}>
+                    Upload Evidence <Text style={{ color: '#EF4444' }}>*</Text>
+                  </Text>
                   <Text style={styles.fieldHint}>
                     {EVIDENCE_DESCRIPTIONS[effectiveReason as ReturnReason] || 'Upload photos or video as evidence'}
                   </Text>
-
+ 
                   {mediaItems.length > 0 && (
                     <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginBottom: 12 }} contentContainerStyle={{ gap: 10, paddingRight: 4 }}>
                       {mediaItems.map((m) => (
@@ -635,11 +684,17 @@ export default function ReturnRequestScreen({ route, navigation }: Props) {
                       ))}
                     </ScrollView>
                   )}
-
+ 
                   {mediaItems.length < MAX_MEDIA_FILES && (
-                    <Pressable style={styles.addEvidenceBtn} onPress={showMediaSourcePicker}>
-                      <Camera size={18} color={MUTED} strokeWidth={1.5} />
-                      <Text style={styles.addEvidenceText}>Add Photo / Video</Text>
+                    <Pressable 
+                      style={[
+                        styles.addEvidenceBtn,
+                        formErrors.evidence && { borderColor: '#EF4444', borderWidth: 1.5, backgroundColor: '#FEF2F2' }
+                      ]} 
+                      onPress={showMediaSourcePicker}
+                    >
+                      <Camera size={18} color={formErrors.evidence ? '#EF4444' : MUTED} strokeWidth={1.5} />
+                      <Text style={[styles.addEvidenceText, formErrors.evidence && { color: '#EF4444' }]}>Add Photo / Video</Text>
                     </Pressable>
                   )}
                 </>
