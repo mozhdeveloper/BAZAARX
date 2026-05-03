@@ -1,39 +1,39 @@
-# Mobile UX Refinement: Checkout Payment Reordering and Wishlist Constraints
+# Mobile UX Enhancements: Flash Sale Visibility and Return Request Validation
 
-This PR introduces several UI/UX improvements to the mobile application, focusing on the checkout flow, payment method prioritization, and input constraints for wishlist management.
+This PR introduces critical bug fixes and UX improvements to the mobile application, focusing on real-time Flash Sale visibility and mandatory validation for Return / Refund requests.
 
 ---
 
 ## What Changed
 
-### 1. Checkout & Payment Optimization
-- **Payment Method Prioritization**: Reordered payment options in `CheckoutScreen.tsx`. **Cash on Delivery (COD)** is now the first and default option, followed by PayMongo.
-- **Improved Success Navigation**: Fixed the post-purchase flow to direct users to the correct order tab.
-  - PayMongo orders now navigate directly to the **Processing** tab (since they are already paid).
-  - COD orders correctly navigate to the **Pending** tab.
-- **Type Safety**: Updated `RootStackParamList` in `App.tsx` to include `processing` and `received` tabs, resolving TypeScript compilation errors during navigation.
+### 1. Flash Sale Real-Time Visibility
+- **`useFlashSaleVisibility` Hook**: Developed a new custom hook to centralize visibility logic based on status and time remaining.
+- **Conditional "Gate"**: Implemented a gate in `HomeScreen.tsx` that removes the Flash Sale section when inactive, allowing other content to shift up smoothly.
+- **Supabase Realtime**: Added subscriptions to `global_flash_sale_slots` and `discount_campaigns` for instant UI updates when an admin pauses or resumes a sale.
+- **Automated Expiry**: The section now hides automatically the moment the countdown hits `00:00:00`.
 
-### 2. Wishlist & Gifting Enhancements
-- **Input Character Limits**: Applied a strict **20-character limit** to all "Wishlist Name" fields across the app (`WishlistScreen.tsx` and `WishlistSelectionModal.tsx`) to prevent layout breaks and ensure consistency with the web platform.
-- **Visual Indicators**: Replaced the generic heart icon with a **Gift Icon** for empty wishlist states to better align with the gifting feature's branding.
-- **Navigation Logic**: Refined `BackHandler` behavior within wishlist folders to ensure the back button returns the user to the "My Wishlist" list instead of the Profile screen.
+### 2. Return / Refund Request Refinement
+- **Mandatory Fields**: "Description" and "Upload Evidence" are now strictly required for all return reasons to improve the seller review process.
+- **Visual Indicators**: Added red asterisks (`*`) to the Description and Evidence labels.
+- **Error Highlighting**: Implemented dynamic error states where missing fields are highlighted with red borders and backgrounds if a user attempts to submit an incomplete form.
+- **Submission Validation**: Updated the `handleSubmit` logic to block requests and show specific error messages if required fields are empty.
 
-### 3. Bug Fixes & Stability
-- **TypeScript Health**: Resolved several property errors and missing type definitions (`safeImageUri`, `LABELS`, and navigation hooks).
-- **Navigation Flow**: Fixed a bug where "See My Purchases" would default to the "Pending" tab even for successful online payments by normalizing the `initialTab` parameter.
+### 3. Backend & Service Layer
+- **Strict Filtering**: Updated `DiscountService` to only fetch active and non-expired flash sales.
+- **Service Validation**: Modified `ReturnService` to enforce evidence requirements at the logic layer for all return types.
 
 ---
 
 ## Verification Results
 
 ### Manual Testing
-- [x] **Checkout Reordering**: COD appears first and is selected by default on the checkout screen.
-- [x] **PayMongo Redirect**: Successful PayMongo test payments correctly land the user on the "Processing" tab of the Orders screen.
-- [x] **Character Limits**: Wishlist name inputs prevent entering more than 20 characters.
-- [x] **Wishlist Icons**: Empty folders correctly display the new Gift icon.
-- [x] **TypeScript**: `npx tsc --noEmit` passes with 0 errors.
+- [x] **Flash Sale Expiry**: Verified the section disappears exactly at 00:00:00.
+- [x] **Admin Pause**: Confirmed instant hiding when a sale is paused in the Supabase dashboard.
+- [x] **Return Validation**: Submission is blocked if description or evidence is missing.
+- [x] **Error States**: Verified that red highlights appear on empty fields and clear as the user fills them out.
+- [x] **File Limits**: Confirmed image (5MB) and video (20MB) size limits are enforced during selection.
 
 ### Screenshots
-- [Insert screenshot of reordered Payment Methods]
-- [Insert screenshot of 20-char limit in action]
-- [Insert screenshot of Processing tab landing]
+- [Insert screenshot of Active Flash Sale with Counter]
+- [Insert screenshot of Return Form with validation errors]
+- [Insert screenshot of Required field indicators (*)]

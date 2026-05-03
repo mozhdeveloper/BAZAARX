@@ -65,6 +65,7 @@ import { useSellerStore } from '../src/stores/sellerStore';
 import type { Product } from '../src/types';
 import type { Category } from '../src/types/database.types';
 import { PLACEHOLDER_AVATAR, PLACEHOLDER_BANNER, PLACEHOLDER_PRODUCT, safeImageUri } from '../src/utils/imageUtils';
+import { useFlashSaleVisibility } from '../src/hooks/useFlashSaleVisibility';
 
 type Props = CompositeScreenProps<
   BottomTabScreenProps<TabParamList, 'Home'>,
@@ -233,8 +234,6 @@ export default function HomeScreen({ navigation }: Props) {
   const [fetchError, setFetchError] = useState<string | null>(null);
   const [activeSlide, setActiveSlide] = useState(0);
   const [flashSaleProducts, setFlashSaleProducts] = useState<any[]>([]);
-  const [flashTimer, setFlashTimer] = useState('00:00:00');
-  const [flashCountdown, setFlashCountdown] = useState('00:00:00');
   const [featuredProducts, setFeaturedProducts] = useState<FeaturedProductMobile[]>([]);
   const [boostedProducts, setBoostedProducts] = useState<AdBoostMobile[]>([]);
 
@@ -515,6 +514,14 @@ export default function HomeScreen({ navigation }: Props) {
     setIsLoadingProducts(false);
   }, []);
 
+  // Use the new custom hook for visibility and countdown logic
+  const { isVisible: isFlashSaleVisible, formattedTime: flashSaleTime } = useFlashSaleVisibility(
+    flashSaleProducts,
+    useCallback(() => {
+      loadAllData();
+    }, [loadAllData])
+  );
+
   useEffect(() => { loadAllData(); }, []);
 
   const [isRefreshing, setIsRefreshing] = useState(false);
@@ -524,57 +531,8 @@ export default function HomeScreen({ navigation }: Props) {
     setIsRefreshing(false);
   }, [loadAllData]);
 
-  // Consolidated flash sale countdown timer — single interval handles both campaign timer and block countdown
-  useEffect(() => {
-    // Pre-compute the rolling 3-hour block end time (static for lifecycle of this effect)
-    const getBlockEnd = () => {
-      const now = new Date();
-      const hours = now.getHours();
-      const nextBlock = Math.ceil((hours + 1) / 3) * 3;
-      const end = new Date(now);
-      end.setHours(nextBlock, 0, 0, 0);
-      if (end.getTime() <= now.getTime()) end.setHours(end.getHours() + 3);
-      return end.getTime();
-    };
-    const blockEndTime = getBlockEnd();
-
-    const tick = () => {
-      const now = Date.now();
-
-      // 1. Flash sale campaign timer
-      if (flashSaleProducts.length > 0) {
-        const endTimes = flashSaleProducts
-          .map(p => new Date(p.campaignEndsAt).getTime())
-          .filter(t => t > now)
-          .sort((a, b) => a - b);
-
-        if (endTimes.length === 0) {
-          setFlashTimer('00:00:00');
-        } else {
-          const diff = endTimes[0] - now;
-          const h = Math.floor(diff / (1000 * 60 * 60));
-          const m = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
-          const s = Math.floor((diff % (1000 * 60)) / 1000);
-          setFlashTimer(`${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`);
-        }
-      }
-
-      // 2. Rolling 3-hour block countdown
-      const blockDiff = blockEndTime - now;
-      if (blockDiff <= 0) {
-        setFlashCountdown('00:00:00');
-      } else {
-        const h = Math.floor(blockDiff / (1000 * 60 * 60));
-        const m = Math.floor((blockDiff % (1000 * 60 * 60)) / (1000 * 60));
-        const s = Math.floor((blockDiff % (1000 * 60)) / 1000);
-        setFlashCountdown(`${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`);
-      }
-    };
-
-    tick();
-    const id = setInterval(tick, 1000);
-    return () => clearInterval(id);
-  }, [flashSaleProducts]);
+  // Consolidated flash sale countdown timer removed in favor of useFlashSaleVisibility hook
+  // which handles both campaign timer, real-time sync, and auto-hide logic.
 
   // --- FETCH NOTIFICATIONS ---
   const loadNotifications = useCallback(async () => {
@@ -1311,41 +1269,37 @@ export default function HomeScreen({ navigation }: Props) {
             </View>
 
             {/* FLASH SALE SECTION (No Container) */}
-            <View
-              style={[styles.flashSaleContainer, { backgroundColor: '#FFFBF0' }]}
-            >
-              <View style={styles.flashSaleHeader}>
-                <View style={styles.flashSaleTitleRow}>
-                  <Text style={styles.flashSaleTitle}>Flash Sale</Text>
-                  <View style={styles.timerBadge}>
-                    <Timer size={14} color="#FFF" />
-                    <Text style={styles.timerText}>{flashTimer}</Text>
-                  </View>
-                </View>
-                <Pressable onPress={() => navigation.navigate('FlashSale')}>
-                  <Text style={[styles.gridSeeAll, { color: COLORS.primary }]}>See More</Text>
-                </Pressable>
-              </View>
-              <ScrollView
-                horizontal
-                showsHorizontalScrollIndicator={false}
-                contentContainerStyle={{ paddingHorizontal: 20, paddingBottom: 10, gap: 12 }}
+            {isFlashSaleVisible && (
+              <View
+                style={[styles.flashSaleContainer, { backgroundColor: '#FFFBF0' }]}
               >
-                {flashSaleProducts.filter(p => p && p.name).length > 0 ? (
-                  Array.from(new Map(flashSaleProducts.slice(0, 10).map(p => [p.id, p])).values()).map((product) => (
-                    <View key={product.id} style={{ width: 150 }}>
-                      <ProductCard product={product} onPress={() => handleProductPress(product)} variant="flash" />
+                <View style={styles.flashSaleHeader}>
+                  <View style={styles.flashSaleTitleRow}>
+                    <Text style={styles.flashSaleTitle}>Flash Sale</Text>
+                    <View style={styles.timerBadge}>
+                      <Timer size={14} color="#FFF" />
+                      <Text style={styles.timerText}>{flashSaleTime}</Text>
                     </View>
-                  ))
-                ) : (
-                  popularProducts.slice(0, 5).map((product, i) => (
-                    <View key={`popular-fallback-${product.id}-${i}`} style={{ width: 150 }}>
-                      <ProductCard product={product} onPress={() => handleProductPress(product)} variant="flash" />
-                    </View>
-                  ))
-                )}
-              </ScrollView>
-            </View>
+                  </View>
+                  <Pressable onPress={() => navigation.navigate('FlashSale')}>
+                    <Text style={[styles.gridSeeAll, { color: COLORS.primary }]}>See More</Text>
+                  </Pressable>
+                </View>
+                <ScrollView
+                  horizontal
+                  showsHorizontalScrollIndicator={false}
+                  contentContainerStyle={{ paddingHorizontal: 20, paddingBottom: 10, gap: 12 }}
+                >
+                  {flashSaleProducts.filter(p => p && p.name).length > 0 && (
+                    Array.from(new Map(flashSaleProducts.slice(0, 10).map(p => [p.id, p])).values()).map((product) => (
+                      <View key={product.id} style={{ width: 150 }}>
+                        <ProductCard product={product} onPress={() => handleProductPress(product)} variant="flash" />
+                      </View>
+                    ))
+                  )}
+                </ScrollView>
+              </View>
+            )}
 
             {/* FEATURED STORES SECTION */}
             {verifiedStores.length > 0 && (

@@ -70,17 +70,14 @@ export interface EvidenceRequirements {
 export function getEvidenceRequirements(reason: ReturnReason): EvidenceRequirements {
   switch (reason) {
     case 'damaged':
-      return { description: true, photo: true, video: true, itemSelection: false };
     case 'wrong_item':
-      return { description: true, photo: true, video: true, itemSelection: false };
     case 'did_not_receive_empty':
-      return { description: true, photo: true, video: true, itemSelection: false };
-    case 'did_not_receive_not_delivered':
-      return { description: true, photo: false, video: false, itemSelection: false };
     case 'did_not_receive_missing_items':
-      return { description: true, photo: true, video: true, itemSelection: true };
+      return { description: true, photo: true, video: true, itemSelection: reason === 'did_not_receive_missing_items' };
+    case 'did_not_receive_not_delivered':
     default:
-      return { description: true, photo: false, video: false, itemSelection: false };
+      // Even for non-delivery, we now require description and evidence (e.g. proof of non-delivery or chat history)
+      return { description: true, photo: true, video: true, itemSelection: false };
   }
 }
 
