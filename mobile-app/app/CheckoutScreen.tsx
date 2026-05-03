@@ -1900,6 +1900,14 @@ export default function CheckoutScreen({ navigation, route }: Props) {
                             )}
                           </View>
                           <View style={styles.savedCardInfo}>
+                            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                              <Text style={styles.savedCardBrandText}>
+                                {(method.cardBrand || 'Card').toUpperCase()}
+                              </Text>
+                              <Text style={styles.savedCardNumberMasked}>
+                                **** {method.lastFour}
+                              </Text>
+                            </View>
                             <Text style={styles.savedCardName}>{method.cardholderName}</Text>
                             {method.isDefault && (
                               <View style={styles.defaultBadgeSmall}>
@@ -2355,8 +2363,15 @@ export default function CheckoutScreen({ navigation, route }: Props) {
                             {selectedCardId === card.id && <View style={styles.radioInnerSmall} />}
                           </View>
                           <View style={styles.savedCardInfo}>
-                            <Text style={styles.savedCardBrand}>{card.brand} •••• {card.last4}</Text>
-                            <Text style={styles.savedCardExpiry}>Expires {card.expiry}</Text>
+                            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                              <Text style={styles.savedCardBrandText}>
+                                {(card.cardBrand || card.brand || 'Card').toUpperCase()}
+                              </Text>
+                              <Text style={styles.savedCardNumberMasked}>
+                                **** {card.lastFour || card.last4}
+                              </Text>
+                            </View>
+                            <Text style={styles.savedCardExpiry}>Expires {card.expiryDate || card.expiry}</Text>
                           </View>
                         </View>
                       </Pressable>
@@ -3543,6 +3558,22 @@ const styles = StyleSheet.create({
     fontWeight: '500',
     color: '#111827',
     marginLeft: 6,
+  },
+  savedCardBrandText: {
+    fontSize: 12,
+    fontWeight: '800',
+    color: COLORS.primary,
+    backgroundColor: 'rgba(217, 119, 6, 0.1)',
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 4,
+    textTransform: 'uppercase',
+  },
+  savedCardNumberMasked: {
+    fontSize: 15,
+    fontWeight: '700',
+    color: COLORS.textHeadline,
+    letterSpacing: 1,
   },
 });
 

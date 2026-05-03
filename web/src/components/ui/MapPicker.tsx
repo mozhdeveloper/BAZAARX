@@ -18,6 +18,7 @@ import { Button } from "@/components/ui/button";
 import { Navigation, Search, Check, Loader2, X } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { useAddressSearch, type AddressSearchResult } from "@/hooks/useAddressSearch";
+import { reverseGeocode as fetchReverseGeocode } from "@/utils/geocoding";
 
 // ── Leaflet icon fix ──────────────────────────────────────────────────────────
 const markerIcon = L.icon({
@@ -65,6 +66,9 @@ export const MapPicker = ({ onConfirm, onCancel, initialCoords }: MapPickerProps
     hasValidCoords ? [initialCoords.lat, initialCoords.lng] : null
   );
 
+  // Ref to track if position update came from a search result to avoid redundant geocoding
+  const skipGeocodeRef = useRef(false);
+
   /**
    * resolvedAddress: set only after a successful reverse-geocode.
    * This is the validation gate — "Confirm Location" stays disabled until set.
@@ -101,12 +105,15 @@ export const MapPicker = ({ onConfirm, onCancel, initialCoords }: MapPickerProps
     setReverseError(null);
     setResolvedAddress(null);
     try {
-      const res = await fetch(
-        `https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lng}&zoom=18&addressdetails=1`
-      );
-      if (!res.ok) throw new Error("Reverse geocode failed");
-      const data = await res.json();
-      setResolvedAddress(data.address ?? {});
+      const data = await fetchReverseGeocode(lat, lng);
+      
+      const addr = data.address ?? {};
+      setResolvedAddress(addr);
+      
+      // Real-time Sync: Update Search Input's value state instantly
+      if (data.display_name) {
+        setSearchQuery(data.display_name);
+      }
     } catch {
       setReverseError("Could not resolve this location. Try a different spot.");
     } finally {
@@ -114,19 +121,44 @@ export const MapPicker = ({ onConfirm, onCancel, initialCoords }: MapPickerProps
     }
   }, []);
 
+  /** 
+   * Dynamic Address Resolution:
+   * Triggers reverse geocoding when the pin position changes.
+   * Includes a 500ms debounce to prevent excessive API calls while dragging.
+   */
+  useEffect(() => {
+    if (!position) return;
+    
+    // Skip geocoding if position was set via search result (which already has an address)
+    if (skipGeocodeRef.current) {
+      skipGeocodeRef.current = false;
+      return;
+    }
+
+    // Reset resolved state while waiting for geocode
+    setResolvedAddress(null);
+    setReverseError(null);
+
+    const timer = setTimeout(() => {
+      reverseGeocode(position[0], position[1]);
+    }, 500);
+
+    return () => clearTimeout(timer);
+  }, [position, reverseGeocode]);
+
   /** Called when user clicks on the map */
   const handleMapClick = useCallback(
     (lat: number, lng: number) => {
       setPosition([lat, lng]);
-      reverseGeocode(lat, lng);
       setIsDropdownOpen(false);
     },
-    [reverseGeocode]
+    []
   );
 
   /** Called when user picks a result from the dropdown */
   const handleSelectResult = useCallback(
     (result: AddressSearchResult) => {
+      skipGeocodeRef.current = true; // Signal to skip the reverse-geocode effect
       const newPos: [number, number] = [result.lat, result.lon];
       setPosition(newPos);
       setResolvedAddress(result.address);      // search result already has address details
@@ -226,6 +258,8 @@ export const MapPicker = ({ onConfirm, onCancel, initialCoords }: MapPickerProps
             aria-expanded={isDropdownOpen}
             role="combobox"
             autoComplete="off"
+            name="address-search-input"
+            id="address-search-input"
           />
 
           {/* Clear button */}
@@ -251,7 +285,7 @@ export const MapPicker = ({ onConfirm, onCancel, initialCoords }: MapPickerProps
               id="address-search-results"
               ref={dropdownRef}
               role="listbox"
-              className="absolute left-0 right-0 top-full mt-1 bg-white border border-gray-200 rounded-xl shadow-xl z-[200] max-h-60 overflow-y-auto divide-y divide-gray-50"
+              className="absolute left-0 right-0 top-full mt-1 bg-white border border-gray-200 rounded-xl shadow-xl z-[9999] max-h-60 overflow-y-auto divide-y divide-gray-50"
             >
               {/* Loading skeleton rows */}
               {isSearchLoading && (
@@ -316,7 +350,20 @@ export const MapPicker = ({ onConfirm, onCancel, initialCoords }: MapPickerProps
       <div className="flex-1 relative">
         <MapContainer center={mapCenter} zoom={mapZoom} className="h-full w-full">
           <TileLayer url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" />
-          {position && <Marker position={position} icon={markerIcon} />}
+          {position && (
+            <Marker 
+              position={position} 
+              icon={markerIcon} 
+              draggable={true}
+              eventHandlers={{
+                dragend: (e) => {
+                  const marker = e.target;
+                  const pos = marker.getLatLng();
+                  setPosition([pos.lat, pos.lng]);
+                },
+              }}
+            />
+          )}
           {position && <ChangeView center={position} />}
           <MapClickHandler onClick={handleMapClick} />
         </MapContainer>

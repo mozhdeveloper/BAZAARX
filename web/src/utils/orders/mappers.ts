@@ -308,7 +308,7 @@ export const mapOrderRowToBuyerSnapshot = (order: any): BuyerOrderSnapshot => {
         "Customer",
       // Gifter sees masked address — street/city/province/postalCode are all privacy-protected
       street: order.is_registry_order
-        ? "Registry Gift — Address Protected"
+        ? "Wishlist Gift — Address Protected"
         : (order.shipping_street || shippingAddressJoin.address_line_1 || notesAddress?.street || ""),
       city: order.is_registry_order
         ? "***"
@@ -409,7 +409,7 @@ export const mapOrderRowToSellerSnapshot = (order: any): SellerOrderSnapshot => 
   // For sellers: real address from DB join takes priority over notes
   // (notes contain masked values; join contains real values)
   const resolvedStreet = isRegistryOrder
-    ? (shippingAddr?.address_line_1 || notesAddress?.street || "Registry Gift — Address Protected")
+    ? (shippingAddr?.address_line_1 || notesAddress?.street || "Wishlist Gift — Address Protected")
     : (order.shipping_street || notesAddress?.street || shippingAddr?.address_line_1 || "");
 
   const resolvedCity = isRegistryOrder

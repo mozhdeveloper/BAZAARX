@@ -42,7 +42,7 @@ export function useRegistryCheckout(checkoutItems: any[]) {
       // Masking logic: Show City/Province but hide street
       city: '***', // Registry data should ideally have these masked if privacy is on
       province: '***',
-      maskedStreet: 'Hidden Address (Secure Registry Gifting)',
+      maskedStreet: 'Hidden Address (Secure Wishlist Gifting)',
     };
   }, [registryData]);
 

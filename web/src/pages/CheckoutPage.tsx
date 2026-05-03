@@ -304,7 +304,7 @@ export default function CheckoutPage() {
       setFormData(prev => ({ ...prev, paymentMethod: 'card' as const }));
       toast({
         title: "Payment Method Changed",
-        description: "Cash on Delivery is not available for registry gifts.",
+        description: "Cash on Delivery is not available for wishlist gifts.",
         variant: "default", // or "warning" if available, defaults to neutral/blue
       });
     }
@@ -476,7 +476,7 @@ export default function CheckoutPage() {
       setFormData(prev => ({
         ...prev,
         fullName: fullName || prev.fullName,
-        street: isRegistryOrder ? "SECURE REGISTRY Gifting (Hidden)" : (street || prev.street),
+          street: isRegistryOrder ? "SECURE WISHLIST Gifting (Hidden)" : (street || prev.street),
         city: confirmedAddress.city || prev.city,
         province: confirmedAddress.province || prev.province,
         postalCode: isRegistryOrder ? "****" : (confirmedAddress.postalCode || prev.postalCode),
@@ -981,11 +981,11 @@ export default function CheckoutPage() {
             if (name) return name;
             // If formData name is just the generic label, use registry title or 'Registry Recipient'
             if (!formData.fullName || formData.fullName === 'Checkout Address') {
-              return registryData?.title || 'Registry Recipient';
+              return registryData?.title || 'Wishlist Recipient';
             }
             return formData.fullName;
           })(),
-          street: isRegistryOrder ? "SECURE REGISTRY Gifting (Hidden)" : formData.street,
+          street: isRegistryOrder ? "SECURE WISHLIST Gifting (Hidden)" : formData.street,
           city: isRegistryOrder ? (registryData?.delivery?.city || formData.city) : formData.city,
           province: isRegistryOrder ? (registryData?.delivery?.province || formData.province) : formData.province,
           postalCode: isRegistryOrder ? '****' : formData.postalCode,
@@ -1227,7 +1227,7 @@ export default function CheckoutPage() {
                   <div className="h-32 flex items-center justify-center bg-gray-50 rounded-xl border-2 border-dashed border-gray-200">
                     <div className="flex flex-col items-center gap-2">
                       <div className="w-6 h-6 border-2 border-[var(--brand-primary)] border-t-transparent rounded-full animate-spin"></div>
-                      <p className="text-sm text-gray-500">Loading registry details...</p>
+                      <p className="text-sm text-gray-500">Loading wishlist details...</p>
                     </div>
                   </div>
                 ) : isRegistryOrder && registryData ? (
@@ -1238,7 +1238,7 @@ export default function CheckoutPage() {
                       </div>
                       <div className="space-y-1">
                         <div className="flex items-center gap-2">
-                          <h3 className="font-bold text-gray-900 text-lg">Registry Gifting: Secure Delivery</h3>
+                          <h3 className="font-bold text-gray-900 text-lg">Wishlist Gifting: Secure Delivery</h3>
                           <Badge className="bg-[var(--brand-primary)] text-white border-none text-[10px] uppercase font-bold px-2">Privacy Active</Badge>
                         </div>
                         <p className="text-sm text-gray-700">

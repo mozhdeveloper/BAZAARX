@@ -589,7 +589,7 @@ export function OrderDetailsModal({
                                             </span>
                                             {privacy.isRegistryOrder && (
                                                 <span className="text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full bg-pink-50 text-pink-600 border border-pink-100">
-                                                    Registry Gift
+                                                    Wishlist Gift
                                                 </span>
                                             )}
                                         </div>
@@ -868,7 +868,7 @@ export function OrderDetailsModal({
                                                         <div className="flex items-center gap-1.5 mb-2 p-2 bg-pink-50 border border-pink-100 rounded-lg">
                                                             <ShieldCheck className="w-3.5 h-3.5 text-pink-500 shrink-0" />
                                                             <span className="text-[11px] text-pink-700 font-medium leading-snug">
-                                                                Registry Gift — delivering to recipient. Phone masked for privacy.
+                                                                Wishlist Gift — delivering to recipient. Phone masked for privacy.
                                                             </span>
                                                         </div>
                                                     )}

@@ -52,7 +52,7 @@ const SharedRegistryPage = () => {
         // Fallback mock for demo
         setRegistry({
           id: "demo-1",
-          title: id?.replace(/-/g, " ")?.replace(/\b\w/g, (l) => l.toUpperCase()) || "Registry",
+          title: id?.replace(/-/g, " ")?.replace(/\b\w/g, (l) => l.toUpperCase()) || "Wishlist",
           sharedDate: "Feb 4, 2026",
           category: "Celebration",
           products: [],
@@ -71,7 +71,7 @@ const SharedRegistryPage = () => {
       <div className="min-h-screen bg-[var(--brand-wash)]">
         <Header />
         <div className="max-w-7xl mx-auto px-4 py-12 text-center">
-          <p>Loading registry...</p>
+          <p>Loading wishlist...</p>
         </div>
       </div>
     );
@@ -122,7 +122,7 @@ const SharedRegistryPage = () => {
                 </div>
                 <p className="text-gray-900 font-medium">No items yet</p>
                 <p className="text-gray-500 text-sm mt-1">
-                  This registry is currently empty.
+                  This wishlist is currently empty.
                 </p>
                 <Button
                   onClick={() => navigate("/shop")}

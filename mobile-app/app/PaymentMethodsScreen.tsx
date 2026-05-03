@@ -1,4 +1,4 @@
-﻿import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback } from 'react';
 import {
   View,
   Text,
@@ -23,6 +23,54 @@ import { BuyerBottomNav } from '../src/components/BuyerBottomNav';
 import { paymentMethodService, type SavedPaymentMethod } from '../src/services/paymentMethodService';
 import { useAuthStore } from '../src/stores/authStore';
 import { getTestCardByNumber } from '../src/constants/testCards';
+
+// --- NEW: StyleSheet-styled SavedCard Component ---
+const SavedCard = ({ 
+  method, 
+  onDelete, 
+  onSetDefault 
+}: { 
+  method: SavedPaymentMethod; 
+  onDelete: () => void; 
+  onSetDefault: () => void;
+}) => {
+  return (
+    <View style={styles.cardContainer}>
+      <View style={styles.cardContent}>
+        <View style={styles.cardLeft}>
+          <View style={styles.cardIconContainer}>
+            <CreditCard size={24} color={COLORS.primary} strokeWidth={2} />
+          </View>
+          <View style={styles.cardInfo}>
+            <View style={styles.cardBrandRow}>
+              <Text style={styles.cardBrandName}>{method.cardBrand}</Text>
+              {method.isDefault && (
+                <View style={styles.defaultBadgePill}>
+                  <Text style={styles.defaultBadgeText}>DEFAULT</Text>
+                </View>
+              )}
+            </View>
+            <Text style={styles.cardNumberMasked}>
+              **** **** **** {method.lastFour || '----'}
+            </Text>
+            <Text style={styles.cardExpiryText}>Expires {method.expiryDate}</Text>
+          </View>
+        </View>
+
+        <View style={styles.cardRightActions}>
+          {!method.isDefault && (
+            <Pressable onPress={onSetDefault} style={styles.setDefaultLink}>
+              <Text style={styles.setDefaultLinkText}>SET DEFAULT</Text>
+            </Pressable>
+          )}
+          <Pressable onPress={onDelete} style={styles.deleteCardIcon}>
+            <Trash2 size={18} color="#EF4444" strokeWidth={2} />
+          </Pressable>
+        </View>
+      </View>
+    </View>
+  );
+};
 
 type Props = NativeStackScreenProps<RootStackParamList, 'PaymentMethods'>;
 
@@ -172,7 +220,17 @@ export default function PaymentMethodsScreen({ navigation }: Props) {
     }
   };
 
-  const handleDeleteCard = (cardId: string, lastFour: string) => {
+  const handleDeleteCard = (cardId: string, lastFour: string, isDefault: boolean) => {
+    // Validation: Cannot delete the only default card
+    if (isDefault && paymentMethods.length === 1) {
+      Alert.alert(
+        'Cannot Delete', 
+        'You must have at least one payment method saved. Please add another card before removing your default one.',
+        [{ text: 'OK' }]
+      );
+      return;
+    }
+
     Alert.alert('Delete Card', `Remove card ending in ${lastFour}?`, [
       { text: 'Cancel', onPress: () => {} },
       {
@@ -357,44 +415,12 @@ export default function PaymentMethodsScreen({ navigation }: Props) {
                 <Text style={styles.savedCardsLabel}>Your Saved Cards</Text>
                 <View style={styles.cardsList}>
                   {paymentMethods.map((method) => (
-                    <Pressable
+                    <SavedCard
                       key={method.id}
-                      style={styles.cardContainer}
-                      onPress={() => handleSetDefault(method.id)}
-                      disabled={method.isDefault}
-                    >
-                      <View style={styles.cardContent}>
-                        <View style={styles.cardLeft}>
-                          <CreditCard size={32} color={COLORS.primary} strokeWidth={1.5} />
-                          <View style={styles.cardInfo}>
-                            <Text style={styles.cardName}>{method.cardholderName}</Text>
-                          </View>
-                        </View>
-
-                        <View style={styles.cardRight}>
-                          <Pressable
-                            onPress={() => handleDeleteCard(method.id, method.lastFour)}
-                            hitSlop={10}
-                          >
-                            <Trash2 size={18} color="#EF4444" strokeWidth={2} />
-                          </Pressable>
-                          {method.isDefault ? (
-                            <View style={styles.defaultBadge}>
-                              <CheckCircle2 size={18} color="#10B981" strokeWidth={2} />
-                              <Text style={styles.defaultText}>Default</Text>
-                            </View>
-                          ) : (
-                            <Pressable
-                              onPress={() => handleSetDefault(method.id)}
-                              style={styles.setDefaultButton}
-                              hitSlop={10}
-                            >
-                              <Text style={styles.setDefaultText}>Set Default</Text>
-                            </Pressable>
-                          )}
-                        </View>
-                      </View>
-                    </Pressable>
+                      method={method}
+                      onDelete={() => handleDeleteCard(method.id, method.lastFour, method.isDefault)}
+                      onSetDefault={() => handleSetDefault(method.id)}
+                    />
                   ))}
                 </View>
 
@@ -762,6 +788,70 @@ const styles = StyleSheet.create({
   setDefaultButton: { paddingHorizontal: 12, paddingVertical: 6 },
   setDefaultText: { fontSize: 12, fontWeight: '600', color: COLORS.primary },
   deleteButton: { padding: 8 },
+  // New Styles
+  cardIconContainer: {
+    width: 48,
+    height: 48,
+    borderRadius: 12,
+    backgroundColor: '#FFF7ED',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: 12,
+  },
+  cardBrandRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 2,
+  },
+  cardBrandName: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: COLORS.textHeadline,
+    textTransform: 'capitalize',
+    marginRight: 8,
+  },
+  defaultBadgePill: {
+    backgroundColor: '#FFEDE0',
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    borderRadius: 6,
+  },
+  defaultBadgeText: {
+    fontSize: 10,
+    fontWeight: '800',
+    color: COLORS.primary,
+  },
+  cardNumberMasked: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: COLORS.textHeadline,
+    letterSpacing: 2,
+    marginTop: 4,
+  },
+  cardExpiryText: {
+    fontSize: 11,
+    color: '#9CA3AF',
+    marginTop: 2,
+  },
+  cardRightActions: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  setDefaultLink: {
+    marginRight: 12,
+    paddingVertical: 6,
+    paddingHorizontal: 8,
+  },
+  setDefaultLinkText: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: COLORS.primary,
+  },
+  deleteCardIcon: {
+    padding: 8,
+    backgroundColor: '#FEF2F2',
+    borderRadius: 8,
+  },
   emptyIconWrapper: {
     width: 100,
     height: 100,
