@@ -163,6 +163,10 @@ const SearchPage: React.FC = () => {
   const [showCartModal, setShowCartModal] = useState(false);
   const [matchedStores, setMatchedStores] = useState<any[]>([]);
   const [isRelatedFallback, setIsRelatedFallback] = useState(false);
+  // Ref: seller UUIDs that match the search query (populated by the seller-search effect).
+  // Used inside handleSearch to include products from API-matched sellers even when the
+  // product name/category doesn't contain the exact search term.
+  const apiMatchedSellerIdsRef = useRef<Set<string>>(new Set());
   const [addedProduct, setAddedProduct] = useState<{ name: string; image: string } | null>(null);
   const [showBuyNowModal, setShowBuyNowModal] = useState(false);
   const [buyNowProduct, setBuyNowProduct] = useState<any>(null);
@@ -236,84 +240,123 @@ const SearchPage: React.FC = () => {
 
   const brands = useMemo(() => Object.keys(brandCounts).slice(0, 8), [brandCounts]);
 
-  // Search Logic
-  const handleSearch = useCallback(async (query: string) => {
+  // ── Dedicated seller / store search ───────────────────────────────────────────
+  // Runs independently from product filtering so that store cards always appear
+  // even when products are still loading or have stale cached seller data.
+  useEffect(() => {
+    const lowerQ = searchQuery.trim().toLowerCase();
+
+    if (!lowerQ) {
+      setMatchedStores([]);
+      apiMatchedSellerIdsRef.current = new Set();
+      return;
+    }
+
+    let cancelled = false;
+
+    // Helper: build a store-card object from products already in the store
+    const deriveFromProducts = (products: typeof sellerProducts) => {
+      const map = new Map<string, any>();
+      products.forEach(p => {
+        if (!p.sellerName) return;
+        if (!p.sellerName.toLowerCase().includes(lowerQ)) return;
+        const key = p.sellerId || `__name__:${p.sellerName.toLowerCase()}`;
+        if (map.has(key)) return;
+        const count = products.filter(pp => pp.sellerId && pp.sellerId === p.sellerId).length;
+        map.set(key, {
+          id: key,
+          store_name: p.sellerName,
+          avatar_url: null,
+          is_verified: true,
+          rating: null,
+          products_count: count > 0 ? count : null,
+        });
+      });
+      return map;
+    };
+
+    // Fast path: derive from currently-loaded products (zero network latency)
+    if (sellerProducts.length > 0) {
+      const derived = deriveFromProducts(sellerProducts);
+      if (!cancelled && derived.size > 0) {
+        setMatchedStores(Array.from(derived.values()));
+      }
+    }
+
+    // Async: query the sellers table for richer data (avatar, rating, verified badge)
+    (async () => {
+      try {
+        const apiStores = await sellerService.getPublicStores({
+          searchQuery: searchQuery.trim(),
+          includeUnverified: true,
+        });
+        if (cancelled) return;
+
+        // Persist matched seller UUIDs so handleSearch can use them for product filtering
+        const ids = new Set<string>(apiStores.map((s: any) => String(s.id)));
+        apiMatchedSellerIdsRef.current = ids;
+
+        if (apiStores.length > 0) {
+          // Enrich API stores with local product counts
+          const merged = new Map<string, any>(
+            apiStores.map((s: any) => [
+              String(s.id),
+              {
+                ...s,
+                products_count:
+                  sellerProducts.filter(p => p.sellerId === String(s.id)).length ||
+                  s.products_count ||
+                  null,
+              },
+            ])
+          );
+          // Also add product-derived stores the API didn't return (e.g. unverified sellers
+          // whose RLS prevents them from appearing in the sellers table for public reads)
+          const productDerived = deriveFromProducts(sellerProducts);
+          productDerived.forEach((store, key) => {
+            if (!merged.has(key)) merged.set(key, store);
+          });
+          if (!cancelled) setMatchedStores(Array.from(merged.values()));
+        } else {
+          // API returned nothing — re-derive from products in case products loaded late
+          if (sellerProducts.length > 0) {
+            const derived = deriveFromProducts(sellerProducts);
+            if (!cancelled && derived.size > 0) setMatchedStores(Array.from(derived.values()));
+          }
+        }
+      } catch {
+        // Fast-path product-derived stores remain visible — no action needed
+      }
+    })();
+
+    return () => { cancelled = true; };
+  }, [searchQuery, sellerProducts]);
+
+  // Search Logic — now purely synchronous (no async/await inside)
+  const handleSearch = useCallback((query: string) => {
     setSearchQuery(query);
     setIsSearching(true);
 
     const lowerQ = query.trim().toLowerCase();
 
-    // ── Step 1: Derive matched stores SYNCHRONOUSLY from products (guaranteed render) ──
-    // This runs before any async call so the store card appears instantly whenever
-    // the products are available, regardless of API speed or RLS restrictions.
-    if (lowerQ) {
-      const productSellerMap = new Map<string, any>();
-      sellerProducts
-        .filter(p => p.approvalStatus === 'approved' && p.isActive && p.sellerName)
-        .forEach(product => {
-          const name = product.sellerName!;
-          if (!name.toLowerCase().includes(lowerQ)) return;
-          // Use the real seller UUID when available; fall back to a name-based key.
-          const key = product.sellerId || `__name__:${name.toLowerCase()}`;
-          if (productSellerMap.has(key)) return;
-          productSellerMap.set(key, {
-            id: product.sellerId || `__name__:${name.toLowerCase()}`,
-            store_name: name,
-            avatar_url: null,
-            is_verified: true,
-            rating: null,
-            products_count: null,
-          });
-        });
-      setMatchedStores(Array.from(productSellerMap.values()));
-    } else {
-      setMatchedStores([]);
-    }
-
-    // ── Step 2: Enrich store data from API in the background (non-blocking) ─────
-    // The API may return richer data (avatar, rating, products_count).
-    // We merge it on top of the product-derived stores already visible.
-    let apiMatchedSellerIds = new Set<string>();
-    if (lowerQ) {
-      try {
-        const apiStores = await sellerService.getPublicStores({ searchQuery: query, includeUnverified: true });
-        if (apiStores.length > 0) {
-          apiStores.forEach((s: any) => apiMatchedSellerIds.add(s.id));
-          // Merge: API stores first (richer data), product-derived stores fill the gaps.
-          const apiNameSet = new Set(apiStores.map((s: any) => (s.store_name || '').toLowerCase()));
-          const merged = new Map<string, any>(apiStores.map((s: any) => [s.id, s]));
-          sellerProducts
-            .filter(p => p.approvalStatus === 'approved' && p.isActive && p.sellerName)
-            .forEach(product => {
-              const name = product.sellerName!;
-              if (!name.toLowerCase().includes(lowerQ)) return;
-              if (merged.has(product.sellerId)) return;
-              if (apiNameSet.has(name.toLowerCase())) return;
-              const key = product.sellerId || `__name__:${name.toLowerCase()}`;
-              if (merged.has(key)) return;
-              merged.set(key, { id: key, store_name: name, avatar_url: null, is_verified: true, rating: null, products_count: null });
-            });
-          setMatchedStores(Array.from(merged.values()));
-        }
-      } catch {
-        // Product-derived stores already set in Step 1 — no action needed.
-      }
-    }
-
-    // ── Step 3: Filter products ─────────────────────────────────────────────────
+    // ── Filter products ─────────────────────────────────────────────────────────
+    // Runs in a short timeout so the loading state renders before heavy computation
     setTimeout(() => {
       let results = sellerProducts.filter(p => p.approvalStatus === 'approved' && p.isActive);
       let relatedFallback = false;
 
       if (lowerQ) {
+        // Snapshot matched seller IDs from the concurrent seller-search effect
+        const matchedSellerIds = apiMatchedSellerIdsRef.current;
+
         results = results.filter(product =>
           product.name.toLowerCase().includes(lowerQ) ||
           product.category.toLowerCase().includes(lowerQ) ||
           (product.sellerName && product.sellerName.toLowerCase().includes(lowerQ)) ||
-          (product.sellerId && apiMatchedSellerIds.has(product.sellerId))
+          (product.sellerId && matchedSellerIds.has(product.sellerId))
         );
 
-        // Fallback 1: try matching individual words (length > 2)
+        // Fallback 1: word-by-word matching for multi-word queries
         if (results.length === 0) {
           const words = lowerQ.split(/\s+/).filter((w: string) => w.length > 2);
           if (words.length > 0) {
@@ -328,7 +371,7 @@ const SearchPage: React.FC = () => {
           }
         }
 
-        // Fallback 2: show popular products to avoid empty results
+        // Fallback 2: show popular products when no keyword match at all
         if (results.length === 0) {
           const allActive = sellerProducts.filter(p => p.approvalStatus === 'approved' && p.isActive);
           results = [...allActive]
@@ -519,10 +562,10 @@ const SearchPage: React.FC = () => {
                   animate={{ opacity: 1, y: 0 }}
                   transition={{ delay: idx * 0.04 }}
                   onClick={handleStoreClick}
-                  className="bg-white border border-gray-100 rounded-xl px-5 py-4 flex items-center gap-5 cursor-pointer hover:shadow-md hover:border-[var(--brand-primary)]/25 transition-all group w-full"
+                  className="bg-white border border-gray-100 rounded-xl px-6 py-5 flex items-center gap-6 cursor-pointer hover:shadow-md hover:border-[var(--brand-primary)]/30 transition-all group w-full"
                 >
                   {/* Avatar */}
-                  <div className="w-[60px] h-[60px] rounded-full overflow-hidden bg-orange-50 flex-shrink-0 border-2 border-gray-100 shadow-sm flex items-center justify-center">
+                  <div className="w-[72px] h-[72px] rounded-full overflow-hidden bg-orange-50 flex-shrink-0 border-2 border-orange-100 shadow-sm flex items-center justify-center">
                     {store.avatar_url ? (
                       <img
                         loading="lazy"
@@ -532,7 +575,7 @@ const SearchPage: React.FC = () => {
                         onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }}
                       />
                     ) : (
-                      <span className="text-2xl font-black text-[var(--brand-primary)]">
+                      <span className="text-3xl font-black text-[var(--brand-primary)]">
                         {(store.store_name || '?')[0].toUpperCase()}
                       </span>
                     )}
@@ -540,8 +583,9 @@ const SearchPage: React.FC = () => {
 
                   {/* Store Info */}
                   <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-2 mb-1.5">
-                      <h3 className="font-bold text-gray-900 text-[15px] group-hover:text-[var(--brand-primary)] transition-colors truncate leading-tight">
+                    {/* Store Name + Verified */}
+                    <div className="flex items-center gap-2 mb-0.5">
+                      <h3 className="font-bold text-gray-900 text-base group-hover:text-[var(--brand-primary)] transition-colors truncate leading-tight">
                         {store.store_name}
                       </h3>
                       {store.is_verified && (
@@ -550,30 +594,45 @@ const SearchPage: React.FC = () => {
                         </span>
                       )}
                     </div>
-                    <div className="flex items-center gap-5 text-xs text-gray-500 flex-wrap">
-                      {store.products_count != null && (
-                        <span><strong className="text-gray-700 font-bold">{store.products_count}</strong> &nbsp;Products</span>
-                      )}
-                      {store.products_count == null && (
-                        <span className="flex items-center gap-1"><Package className="w-3 h-3" /> Products available</span>
-                      )}
+                    {/* Slug line (mirrors Shopee's username row) */}
+                    <p className="text-xs text-gray-400 mb-2 truncate">
+                      {(store.store_name || '').toLowerCase().replace(/\s+/g, '')}
+                    </p>
+                    {/* Stats row */}
+                    <div className="flex items-center gap-6 text-xs text-gray-500 flex-wrap">
+                      <span>
+                        <strong className="text-gray-800 font-bold">
+                          {store.products_count != null ? store.products_count : '—'}
+                        </strong>
+                        <span className="text-gray-400 ml-1">Products</span>
+                      </span>
                       {(store.rating != null && Number(store.rating) > 0) ? (
                         <span className="flex items-center gap-1">
                           <Star className="w-3 h-3 text-yellow-400 fill-current" />
-                          <strong className="text-gray-700 font-bold">{Number(store.rating).toFixed(1)}</strong> &nbsp;Ratings
+                          <strong className="text-gray-800 font-bold">{Number(store.rating).toFixed(1)}</strong>
+                          <span className="text-gray-400">Ratings</span>
                         </span>
                       ) : (
-                        <span className="text-gray-400">No ratings yet</span>
+                        <span>
+                          <strong className="text-gray-800 font-bold">N/A</strong>
+                          <span className="text-gray-400 ml-1">Ratings</span>
+                        </span>
+                      )}
+                      {store.total_reviews != null && Number(store.total_reviews) > 0 && (
+                        <span>
+                          <strong className="text-gray-800 font-bold">{Number(store.total_reviews).toLocaleString()}</strong>
+                          <span className="text-gray-400 ml-1">Reviews</span>
+                        </span>
                       )}
                     </div>
                   </div>
 
-                  {/* Visit Store CTA */}
+                  {/* Visit Store CTA — matches Shopee's button style */}
                   <div className="flex items-center gap-2 flex-shrink-0">
                     <Button
                       variant="outline"
                       size="sm"
-                      className="text-xs font-semibold border-[var(--brand-primary)] text-[var(--brand-primary)] hover:bg-[var(--brand-primary)] hover:text-white rounded-lg px-4 h-8 transition-all"
+                      className="text-xs font-semibold border-[var(--brand-primary)] text-[var(--brand-primary)] hover:bg-[var(--brand-primary)] hover:text-white rounded-lg px-5 h-9 transition-all"
                       onClick={(e) => { e.stopPropagation(); handleStoreClick(); }}
                     >
                       View Store
