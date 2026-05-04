@@ -238,76 +238,86 @@ const SearchPage: React.FC = () => {
 
   // Search Logic
   const handleSearch = useCallback(async (query: string) => {
-    // If empty query, show all (or filtered)
     setSearchQuery(query);
     setIsSearching(true);
 
-    // ── Step 1: fetch store profiles from API (best effort) ──────────────────
-    let apiStores: any[] = [];
-    if (query.trim()) {
-      try {
-        apiStores = await sellerService.getPublicStores({ searchQuery: query, includeUnverified: true });
-      } catch (error) {
-        console.error("Failed to fetch matching stores:", error);
-      }
-    }
+    const lowerQ = query.trim().toLowerCase();
 
-    // ── Step 2: build seller map – API results take priority, products fill gaps ─
-    // (We do this BEFORE the setTimeout so the store cards appear instantly)
-    if (query.trim()) {
-      const lowerQ = query.toLowerCase();
-      // Seed map with API results keyed by store id
-      const sellerMap = new Map<string, any>(apiStores.map((s: any) => [s.id, s]));
-      // Also index by store_name (lowercased) so we can check duplicates
-      const apiNameSet = new Set(apiStores.map((s: any) => (s.store_name || '').toLowerCase()));
-
-      // Walk every active approved product; if its sellerName matches the query and
-      // the seller isn't already represented in the map, add a synthesised entry.
-      // NOTE: sellerId may be "" (empty string — mapped from null) so we always use
-      //       sellerName as the canonical check when sellerId is empty.
+    // ── Step 1: Derive matched stores SYNCHRONOUSLY from products (guaranteed render) ──
+    // This runs before any async call so the store card appears instantly whenever
+    // the products are available, regardless of API speed or RLS restrictions.
+    if (lowerQ) {
+      const productSellerMap = new Map<string, any>();
       sellerProducts
-        .filter((p) => p.approvalStatus === "approved" && p.isActive && p.sellerName)
+        .filter(p => p.approvalStatus === 'approved' && p.isActive && p.sellerName)
         .forEach(product => {
           const name = product.sellerName!;
           if (!name.toLowerCase().includes(lowerQ)) return;
-          const idKey = product.sellerId || `name:${name}`;
-          if (sellerMap.has(idKey)) return;
-          if (apiNameSet.has(name.toLowerCase())) return;
-          apiNameSet.add(name.toLowerCase());
-          sellerMap.set(idKey, {
-            id: idKey,
+          // Use the real seller UUID when available; fall back to a name-based key.
+          const key = product.sellerId || `__name__:${name.toLowerCase()}`;
+          if (productSellerMap.has(key)) return;
+          productSellerMap.set(key, {
+            id: product.sellerId || `__name__:${name.toLowerCase()}`,
             store_name: name,
-            avatar_url: (product as any).sellerAvatar || null,
-            is_verified: product.approvalStatus === 'approved',
-            rating: (product as any).sellerRating || null,
+            avatar_url: null,
+            is_verified: true,
+            rating: null,
             products_count: null,
           });
         });
-
-      setMatchedStores(Array.from(sellerMap.values()));
+      setMatchedStores(Array.from(productSellerMap.values()));
     } else {
       setMatchedStores([]);
     }
 
+    // ── Step 2: Enrich store data from API in the background (non-blocking) ─────
+    // The API may return richer data (avatar, rating, products_count).
+    // We merge it on top of the product-derived stores already visible.
+    let apiMatchedSellerIds = new Set<string>();
+    if (lowerQ) {
+      try {
+        const apiStores = await sellerService.getPublicStores({ searchQuery: query, includeUnverified: true });
+        if (apiStores.length > 0) {
+          apiStores.forEach((s: any) => apiMatchedSellerIds.add(s.id));
+          // Merge: API stores first (richer data), product-derived stores fill the gaps.
+          const apiNameSet = new Set(apiStores.map((s: any) => (s.store_name || '').toLowerCase()));
+          const merged = new Map<string, any>(apiStores.map((s: any) => [s.id, s]));
+          sellerProducts
+            .filter(p => p.approvalStatus === 'approved' && p.isActive && p.sellerName)
+            .forEach(product => {
+              const name = product.sellerName!;
+              if (!name.toLowerCase().includes(lowerQ)) return;
+              if (merged.has(product.sellerId)) return;
+              if (apiNameSet.has(name.toLowerCase())) return;
+              const key = product.sellerId || `__name__:${name.toLowerCase()}`;
+              if (merged.has(key)) return;
+              merged.set(key, { id: key, store_name: name, avatar_url: null, is_verified: true, rating: null, products_count: null });
+            });
+          setMatchedStores(Array.from(merged.values()));
+        }
+      } catch {
+        // Product-derived stores already set in Step 1 — no action needed.
+      }
+    }
+
+    // ── Step 3: Filter products ─────────────────────────────────────────────────
     setTimeout(() => {
-      let results = sellerProducts.filter((p) => p.approvalStatus === "approved" && p.isActive);
+      let results = sellerProducts.filter(p => p.approvalStatus === 'approved' && p.isActive);
       let relatedFallback = false;
 
-      if (query.trim()) {
-        const lowerQuery = query.toLowerCase();
-        const apiStoreIds = new Set(apiStores.map((s: any) => s.id));
+      if (lowerQ) {
         results = results.filter(product =>
-          product.name.toLowerCase().includes(lowerQuery) ||
-          product.category.toLowerCase().includes(lowerQuery) ||
-          (product.sellerName && product.sellerName.toLowerCase().includes(lowerQuery)) ||
-          (product.sellerId && apiStoreIds.has(product.sellerId))
+          product.name.toLowerCase().includes(lowerQ) ||
+          product.category.toLowerCase().includes(lowerQ) ||
+          (product.sellerName && product.sellerName.toLowerCase().includes(lowerQ)) ||
+          (product.sellerId && apiMatchedSellerIds.has(product.sellerId))
         );
 
         // Fallback 1: try matching individual words (length > 2)
         if (results.length === 0) {
-          const words = lowerQuery.split(/\s+/).filter((w: string) => w.length > 2);
+          const words = lowerQ.split(/\s+/).filter((w: string) => w.length > 2);
           if (words.length > 0) {
-            const allActive = sellerProducts.filter((p) => p.approvalStatus === "approved" && p.isActive);
+            const allActive = sellerProducts.filter(p => p.approvalStatus === 'approved' && p.isActive);
             results = allActive.filter(product =>
               words.some((word: string) =>
                 product.name.toLowerCase().includes(word) ||
@@ -320,7 +330,7 @@ const SearchPage: React.FC = () => {
 
         // Fallback 2: show popular products to avoid empty results
         if (results.length === 0) {
-          const allActive = sellerProducts.filter((p) => p.approvalStatus === "approved" && p.isActive);
+          const allActive = sellerProducts.filter(p => p.approvalStatus === 'approved' && p.isActive);
           results = [...allActive]
             .sort((a, b) => ((b as any).sales || 0) - ((a as any).sales || 0))
             .slice(0, 12);
@@ -344,7 +354,7 @@ const SearchPage: React.FC = () => {
           reviewsCount: p.reviews || 0,
           seller: p.sellerName || 'BazaarX Seller',
           isFreeShipping: product.isFreeShipping || product.is_free_shipping || false,
-          isVerified: product.isVerified || p.approvalStatus === "approved",
+          isVerified: product.isVerified || p.approvalStatus === 'approved',
           location: p.sellerLocation || 'Metro Manila',
           category: p.category || 'General',
           sellerId: p.sellerId,
@@ -492,13 +502,23 @@ const SearchPage: React.FC = () => {
 
             {/* Store Cards — one full-width card per store */}
             <div className="space-y-2">
-              {matchedStores.map((store, idx) => (
+              {matchedStores.map((store, idx) => {
+                // Resolve navigation: real UUID → seller page; name-derived key → stores search
+                const isNameKey = typeof store.id === 'string' && store.id.startsWith('__name__:');
+                const handleStoreClick = () => {
+                  if (isNameKey) {
+                    navigate(`/stores?q=${encodeURIComponent(store.store_name)}`);
+                  } else {
+                    navigate(`/seller/${store.id}`);
+                  }
+                };
+                return (
                 <motion.div
                   key={store.id}
                   initial={{ opacity: 0, y: 6 }}
                   animate={{ opacity: 1, y: 0 }}
                   transition={{ delay: idx * 0.04 }}
-                  onClick={() => navigate(`/seller/${store.id}`)}
+                  onClick={handleStoreClick}
                   className="bg-white border border-gray-100 rounded-xl px-5 py-4 flex items-center gap-5 cursor-pointer hover:shadow-md hover:border-[var(--brand-primary)]/25 transition-all group w-full"
                 >
                   {/* Avatar */}
@@ -554,21 +574,22 @@ const SearchPage: React.FC = () => {
                       variant="outline"
                       size="sm"
                       className="text-xs font-semibold border-[var(--brand-primary)] text-[var(--brand-primary)] hover:bg-[var(--brand-primary)] hover:text-white rounded-lg px-4 h-8 transition-all"
-                      onClick={(e) => { e.stopPropagation(); navigate(`/seller/${store.id}`); }}
+                      onClick={(e) => { e.stopPropagation(); handleStoreClick(); }}
                     >
                       View Store
                     </Button>
                     <ChevronRight className="w-4 h-4 text-gray-300 group-hover:text-[var(--brand-primary)] transition-colors" />
                   </div>
                 </motion.div>
-              ))}
+                );
+              })}
             </div>
           </motion.div>
         )}
 
         <div className="flex flex-col lg:flex-row gap-8">
 
-          {/* Sidebar */}}}
+          {/* Sidebar */}
           <aside className="w-full lg:w-72 flex-shrink-0">
             <div className="lg:sticky lg:top-28 lg:h-[calc(100vh-120px)] lg:overflow-y-auto pr-6 scrollbar-hide space-y-10 pb-10">
 
