@@ -348,6 +348,11 @@ const Header: React.FC<HeaderProps> = ({ transparentOnTop = false, hideSearch = 
                         {cartItems.slice(0, 5).map((item) => {
                           const img = item.image || (item as any).selectedVariant?.image || '';
                           const price = (item as any).selectedVariant?.price ?? item.price;
+                          const effectivePrice = getDropdownPrice(item);
+                          // Strikethrough: use campaign-discount base price, or seller's "compare-at" originalPrice
+                          const strikethroughPrice: number | null = effectivePrice < price
+                            ? price                                                      // campaign discount active
+                            : ((item.originalPrice ?? 0) > price ? (item.originalPrice ?? null) : null); // seller "was" price
                           const variantLabel = (item as any).selectedVariant?.name ||
                             [(item as any).selectedVariant?.size, (item as any).selectedVariant?.color].filter(Boolean).join(' / ');
                           return (
@@ -370,9 +375,9 @@ const Header: React.FC<HeaderProps> = ({ transparentOnTop = false, hideSearch = 
                                   <p className="text-[10px] text-gray-400">{variantLabel}</p>
                                 )}
                                 <div className="flex items-center gap-2 mt-0.5">
-                                  <span className="text-xs font-bold text-[var(--brand-primary)]">₱{getDropdownPrice(item).toLocaleString()}</span>
-                                  {getDropdownPrice(item) < price && (
-                                    <span className="text-[10px] text-gray-400 line-through">₱{price.toLocaleString()}</span>
+                                  <span className="text-xs font-bold text-[var(--brand-primary)]">₱{effectivePrice.toLocaleString()}</span>
+                                  {strikethroughPrice !== null && (
+                                    <span className="text-[10px] text-gray-400 line-through">₱{strikethroughPrice.toLocaleString()}</span>
                                   )}
                                   <span className="text-[10px] text-gray-400">× {item.quantity}</span>
                                 </div>

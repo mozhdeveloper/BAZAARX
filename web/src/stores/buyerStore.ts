@@ -979,11 +979,11 @@ export const useBuyerStore = create<BuyerStore>()(persist(
     },
 
     getCartItemCount: () => {
-      return get().cartItems.reduce((total, item) => total + item.quantity, 0);
+      return get().cartItems.length;
     },
 
     getTotalCartItems: () => {
-      return get().cartItems.reduce((total, item) => total + item.quantity, 0);
+      return get().cartItems.length;
     },
 
     groupCartBySeller: () => {
@@ -1500,6 +1500,14 @@ export const useBuyerStore = create<BuyerStore>()(persist(
 
           set({ cartItems: itemsWithSelection });
           get().groupCartBySeller();
+
+          // Pre-warm discount cache so the Header dropdown always shows discounts immediately
+          const productIds = itemsWithSelection.map(item => item.id).filter(Boolean);
+          if (productIds.length > 0) {
+            discountService.getActiveDiscountsForProducts(productIds)
+              .then(discounts => { get().updateCampaignDiscountCache(discounts); })
+              .catch(() => {});
+          }
         }
       } catch (error) {
         console.error('Error initializing cart from DB:', error);
