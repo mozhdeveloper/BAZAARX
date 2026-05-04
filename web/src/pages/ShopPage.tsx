@@ -136,8 +136,38 @@ export default function ShopPage() {
 
   const [remindLater, setRemindLater] = useState(false);
   const [showBannerDelayed, setShowBannerDelayed] = useState(false);
-  const hasCompletedOnboarding = profile && profile.preferences?.interestedCategories && profile.preferences.interestedCategories.length > 0;
+
+  // Check if user has completed onboarding (has interests or interestedCategories)
+  // Always returns a boolean (true/false), never undefined
+  const hasCompletedOnboarding = !!(profile && profile.preferences && (
+    ((profile.preferences as any).interests && Array.isArray((profile.preferences as any).interests) && (profile.preferences as any).interests.length > 0) ||
+    (profile.preferences.interestedCategories && Array.isArray(profile.preferences.interestedCategories) && profile.preferences.interestedCategories.length > 0)
+  ));
+
+  // Show banner only if: profile exists AND onboarding not complete AND user hasn't dismissed it
   const showOnboardingBanner = profile && !hasCompletedOnboarding && !remindLater;
+
+  console.log("banner data", {
+    "profile": profile,
+    "!hasCompletedOnboarding": !hasCompletedOnboarding,
+    "!remindLater": !remindLater
+  });
+
+  // Debug logging
+  useEffect(() => {
+    if (profile) {
+      console.log("Profile loaded:", {
+        id: profile.id,
+        email: profile.email,
+        hasPreferences: !!profile.preferences,
+        preferences: profile.preferences,
+        interests: (profile.preferences as any)?.interests,
+        interestedCategories: (profile.preferences as any)?.interestedCategories,
+        hasCompletedOnboarding,
+        showOnboardingBanner
+      });
+    }
+  }, [profile, hasCompletedOnboarding, showOnboardingBanner]);
 
   // Add delay to prevent banner flickering on initial load while profile/preferences hydrate
   useEffect(() => {
@@ -812,7 +842,7 @@ export default function ShopPage() {
 
           {/* Onboarding Banner - Premium Rebranded Style */}
           {showBannerDelayed && (
-            <motion.div 
+            <motion.div
               initial={{ opacity: 0, y: -20 }}
               animate={{ opacity: 1, y: 0 }}
               className="mb-6 relative overflow-hidden rounded-[20px] py-3 px-6 shadow-[0_15px_40px_rgba(245,158,11,0.15)]"
@@ -829,14 +859,14 @@ export default function ShopPage() {
                   {/* Decorative Icon - Scaled Down Further */}
                   <div className="relative shrink-0 flex items-center justify-center w-14 h-14">
                     <motion.div
-                      animate={{ 
+                      animate={{
                         y: [0, -3, 0],
                         rotate: [0, 3, 0]
                       }}
-                      transition={{ 
-                        duration: 4, 
-                        repeat: Infinity, 
-                        ease: "easeInOut" 
+                      transition={{
+                        duration: 4,
+                        repeat: Infinity,
+                        ease: "easeInOut"
                       }}
                       className="relative z-20 w-10 h-10 bg-white/20 backdrop-blur-xl rounded-xl border border-white/30 flex items-center justify-center shadow-lg"
                     >
@@ -847,7 +877,7 @@ export default function ShopPage() {
 
                   <div className="text-center md:text-left">
                     <h2 className="text-lg md:text-xl font-black text-white leading-tight font-heading">
-                      Unlock Your 
+                      Unlock Your
                       <span className="text-transparent bg-clip-text bg-gradient-to-r from-white to-orange-100 ml-2">
                         BazaarX Experience
                       </span>
@@ -859,14 +889,14 @@ export default function ShopPage() {
                 </div>
 
                 <div className="flex flex-wrap items-center gap-3 shrink-0">
-                  <Link 
-                    to="/buyer-onboarding" 
+                  <Link
+                    to="/buyer-onboarding"
                     className="inline-flex items-center justify-center px-5 py-2 bg-[#7C2D12] text-white rounded-full text-xs md:text-sm font-bold shadow-lg hover:scale-105 transition-all duration-300 group"
                   >
                     Complete Profile
                     <ChevronRight size={14} className="ml-1.5 group-hover:translate-x-1 transition-transform" />
                   </Link>
-                  
+
                   <button
                     onClick={() => setRemindLater(true)}
                     className="px-5 py-2 bg-white/20 backdrop-blur-md text-white border border-white/30 rounded-full text-xs md:text-sm font-bold hover:bg-white/30 transition-all duration-300"
@@ -1040,10 +1070,10 @@ export default function ShopPage() {
 
               {/* Sponsored Products Grid */}
               {!featuredLoading && (featuredProducts.length > 0 || boostedProducts.length > 0) && (
-              <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-3">
-                {(() => {
-                  const seenIds = new Set<string>();
-                  const allItems: { key: string; product: any; isBoosted: boolean }[] = [];
+                <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-3">
+                  {(() => {
+                    const seenIds = new Set<string>();
+                    const allItems: { key: string; product: any; isBoosted: boolean }[] = [];
 
                     for (const bp of boostedProducts) {
                       const product = bp.product;
@@ -1411,11 +1441,10 @@ export default function ShopPage() {
                                 manualScrollRef.current = true;
                                 setShippedFrom(shippedFrom === option.id ? null : option.id);
                               }}
-                              className={`w-full flex justify-between items-center px-3 py-2 rounded-lg text-sm transition-all ${
-                                shippedFrom === option.id
-                                  ? "bg-[var(--brand-primary)]/10 text-[var(--brand-primary)] font-bold border border-[var(--brand-primary)]/20"
-                                  : "text-[var(--text-primary)] font-medium hover:bg-gray-50"
-                              }`}
+                              className={`w-full flex justify-between items-center px-3 py-2 rounded-lg text-sm transition-all ${shippedFrom === option.id
+                                ? "bg-[var(--brand-primary)]/10 text-[var(--brand-primary)] font-bold border border-[var(--brand-primary)]/20"
+                                : "text-[var(--text-primary)] font-medium hover:bg-gray-50"
+                                }`}
                             >
                               <span>{option.label}</span>
                               {shippedFrom === option.id && (
@@ -1445,11 +1474,10 @@ export default function ShopPage() {
                                 manualScrollRef.current = true;
                                 setMinRating(minRating === option.value ? 0 : option.value);
                               }}
-                              className={`w-full flex items-center gap-2 px-3 py-2 rounded-lg text-sm transition-all ${
-                                minRating === option.value
-                                  ? "bg-[var(--brand-primary)]/10 text-[var(--brand-primary)] font-bold border border-[var(--brand-primary)]/20"
-                                  : "text-[var(--text-primary)] font-medium hover:bg-gray-50"
-                              }`}
+                              className={`w-full flex items-center gap-2 px-3 py-2 rounded-lg text-sm transition-all ${minRating === option.value
+                                ? "bg-[var(--brand-primary)]/10 text-[var(--brand-primary)] font-bold border border-[var(--brand-primary)]/20"
+                                : "text-[var(--text-primary)] font-medium hover:bg-gray-50"
+                                }`}
                             >
                               <div className="flex items-center gap-0.5">
                                 {[...Array(5)].map((_, i) => (
@@ -1487,18 +1515,16 @@ export default function ShopPage() {
                                 manualScrollRef.current = true;
                                 option.setter(!option.state);
                               }}
-                              className={`w-full flex justify-between items-center px-3 py-2 rounded-lg text-sm transition-all ${
-                                option.state
-                                  ? "bg-[var(--brand-primary)]/10 text-[var(--brand-primary)] font-bold border border-[var(--brand-primary)]/20"
-                                  : "text-[var(--text-primary)] font-medium hover:bg-gray-50"
-                              }`}
+                              className={`w-full flex justify-between items-center px-3 py-2 rounded-lg text-sm transition-all ${option.state
+                                ? "bg-[var(--brand-primary)]/10 text-[var(--brand-primary)] font-bold border border-[var(--brand-primary)]/20"
+                                : "text-[var(--text-primary)] font-medium hover:bg-gray-50"
+                                }`}
                             >
                               <span>{option.label}</span>
-                              <div className={`w-5 h-5 rounded flex items-center justify-center border-2 transition-all ${
-                                option.state
-                                  ? "bg-[var(--brand-primary)] border-[var(--brand-primary)]"
-                                  : "border-gray-300"
-                              }`}>
+                              <div className={`w-5 h-5 rounded flex items-center justify-center border-2 transition-all ${option.state
+                                ? "bg-[var(--brand-primary)] border-[var(--brand-primary)]"
+                                : "border-gray-300"
+                                }`}>
                                 {option.state && (
                                   <svg className="w-3 h-3 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
@@ -1526,18 +1552,16 @@ export default function ShopPage() {
                                 manualScrollRef.current = true;
                                 option.setter(!option.state);
                               }}
-                              className={`w-full flex justify-between items-center px-3 py-2 rounded-lg text-sm transition-all ${
-                                option.state
-                                  ? "bg-[var(--brand-primary)]/10 text-[var(--brand-primary)] font-bold border border-[var(--brand-primary)]/20"
-                                  : "text-[var(--text-primary)] font-medium hover:bg-gray-50"
-                              }`}
+                              className={`w-full flex justify-between items-center px-3 py-2 rounded-lg text-sm transition-all ${option.state
+                                ? "bg-[var(--brand-primary)]/10 text-[var(--brand-primary)] font-bold border border-[var(--brand-primary)]/20"
+                                : "text-[var(--text-primary)] font-medium hover:bg-gray-50"
+                                }`}
                             >
                               <span>{option.label}</span>
-                              <div className={`w-5 h-5 rounded flex items-center justify-center border-2 transition-all ${
-                                option.state
-                                  ? "bg-[var(--brand-primary)] border-[var(--brand-primary)]"
-                                  : "border-gray-300"
-                              }`}>
+                              <div className={`w-5 h-5 rounded flex items-center justify-center border-2 transition-all ${option.state
+                                ? "bg-[var(--brand-primary)] border-[var(--brand-primary)]"
+                                : "border-gray-300"
+                                }`}>
                                 {option.state && (
                                   <svg className="w-3 h-3 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
@@ -1567,18 +1591,16 @@ export default function ShopPage() {
                                         : [...prev, brand.name]
                                     );
                                   }}
-                                  className={`w-full flex justify-between items-center px-3 py-2 rounded-lg text-sm transition-all ${
-                                    isSelected
-                                      ? "bg-[var(--brand-primary)]/10 text-[var(--brand-primary)] font-bold border border-[var(--brand-primary)]/20"
-                                      : "text-[var(--text-primary)] font-medium hover:bg-gray-50"
-                                  }`}
+                                  className={`w-full flex justify-between items-center px-3 py-2 rounded-lg text-sm transition-all ${isSelected
+                                    ? "bg-[var(--brand-primary)]/10 text-[var(--brand-primary)] font-bold border border-[var(--brand-primary)]/20"
+                                    : "text-[var(--text-primary)] font-medium hover:bg-gray-50"
+                                    }`}
                                 >
                                   <div className="flex items-center gap-2">
-                                    <div className={`w-4 h-4 rounded flex items-center justify-center border-2 transition-all flex-shrink-0 ${
-                                      isSelected
-                                        ? "bg-[var(--brand-primary)] border-[var(--brand-primary)]"
-                                        : "border-gray-300"
-                                    }`}>
+                                    <div className={`w-4 h-4 rounded flex items-center justify-center border-2 transition-all flex-shrink-0 ${isSelected
+                                      ? "bg-[var(--brand-primary)] border-[var(--brand-primary)]"
+                                      : "border-gray-300"
+                                      }`}>
                                       {isSelected && (
                                         <svg className="w-2.5 h-2.5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
@@ -1743,7 +1765,7 @@ export default function ShopPage() {
                         onClick={() => { manualScrollRef.current = true; setShippedFrom(null); }}
                         className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-blue-50 border border-blue-200 text-xs font-semibold text-blue-700 hover:bg-blue-500 hover:text-white transition-all"
                       >
-                         {shippedFrom === "metro_manila" ? "Metro Manila" : "Philippines"}
+                        {shippedFrom === "metro_manila" ? "Metro Manila" : "Philippines"}
                         <X className="h-3 w-3" />
                       </button>
                     )}
@@ -1752,7 +1774,7 @@ export default function ShopPage() {
                         onClick={() => { manualScrollRef.current = true; setOnSale(false); }}
                         className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-red-50 border border-red-200 text-xs font-semibold text-red-700 hover:bg-red-500 hover:text-white transition-all"
                       >
-                         On Sale
+                        On Sale
                         <X className="h-3 w-3" />
                       </button>
                     )}
@@ -1891,7 +1913,7 @@ export default function ShopPage() {
                       }}
                     >
                       <div className="relative aspect-square overflow-hidden bg-white/50">
-                        <img loading="lazy" 
+                        <img loading="lazy"
                           src={product.image}
                           alt={product.name}
                           className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
