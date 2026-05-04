@@ -2,6 +2,7 @@
 import { categoryService } from "@/services/categoryService";
 import { discountService } from "@/services/discountService";
 import { productService } from "@/services/productService";
+import { sellerService } from "@/services/sellerService";
 import type { Category } from "@/types";
 import type { ProductFilters, SortOption } from "@/types/filter.types";
 import { DEFAULT_FILTERS, SORT_OPTIONS } from "@/types/filter.types";
@@ -144,6 +145,9 @@ export default function ProductListingPage() {
   const rawRef = useRef<ListingProduct[]>([]);
   rawRef.current = rawProducts;
   const prevSearchKeyRef = useRef<string | null>(null);  // tracks previous search to detect changes
+
+  // Matched stores (Shopee-style store profile card above results)
+  const [matchedStores, setMatchedStores] = useState<any[]>([]);
 
   // Fetch active campaign discounts for all loaded products (covers global flash sales + seller campaigns)
   const [activeCampaignDiscounts, setActiveCampaignDiscounts] = useState<Record<string, any>>({});
@@ -319,6 +323,76 @@ export default function ProductListingPage() {
   const handleFilterApply = (newFilters: ProductFilters) => { setFilters(newFilters); };
   const handleSortChange = (val: string) => { setSortOption(val as SortOption); };
 
+  // ── Dedicated store search ─────────────────────────────────────────────────
+  // Looks up sellers whose store_name matches the query and renders their
+  // profile card above the product grid (Shopee-style). Runs independently
+  // from product fetching so the card appears as soon as it is found.
+  useEffect(() => {
+    const q = searchQuery.trim();
+    if (!q) { setMatchedStores([]); return; }
+    let cancelled = false;
+    const lowerQ = q.toLowerCase();
+
+    // Fast path: derive from currently-loaded products to render instantly
+    const derivedNow = (() => {
+      const map = new Map<string, any>();
+      rawProducts.forEach((p) => {
+        const name = p.seller;
+        if (!name || !name.toLowerCase().includes(lowerQ)) return;
+        const key = p.sellerId || `__name__:${name.toLowerCase()}`;
+        if (map.has(key)) return;
+        const count = p.sellerId
+          ? rawProducts.filter((pp) => pp.sellerId === p.sellerId).length
+          : 0;
+        map.set(key, {
+          id: key,
+          store_name: name,
+          avatar_url: null,
+          is_verified: p.isVerified,
+          rating: null,
+          products_count: count > 0 ? count : null,
+        });
+      });
+      return Array.from(map.values());
+    })();
+    if (derivedNow.length > 0) setMatchedStores(derivedNow);
+
+    // Async: query sellers table for richer data (avatar, verified, rating)
+    (async () => {
+      try {
+        const apiStores = await sellerService.getPublicStores({
+          searchQuery: q,
+          includeUnverified: true,
+          limit: 5,
+        });
+        if (cancelled) return;
+        const merged = new Map<string, any>(
+          (apiStores || []).map((s: any) => [
+            String(s.id),
+            {
+              ...s,
+              products_count:
+                rawProducts.filter((p) => p.sellerId && p.sellerId === String(s.id)).length ||
+                s.products_count ||
+                null,
+            },
+          ])
+        );
+        // Add product-derived stores not returned by the API (RLS / unverified)
+        derivedNow.forEach((store) => {
+          if (!merged.has(String(store.id))) merged.set(String(store.id), store);
+        });
+        if (!cancelled && merged.size > 0) {
+          setMatchedStores(Array.from(merged.values()));
+        }
+      } catch {
+        // Fast-path derived list remains visible — no action needed
+      }
+    })();
+
+    return () => { cancelled = true; };
+  }, [searchQuery, rawProducts]);
+
   // Active filter count for badge
   const activeFilterCount = (() => {
     let c = 0;
@@ -422,6 +496,98 @@ export default function ProductListingPage() {
               <ChevronRight className="w-4 h-4 text-gray-300" />
               <span className="text-sm font-bold text-[var(--text-headline)]">{activeCategoryName}</span>
             </div>
+          )}
+
+          {/* ── Shopee-style Store Profile Card(s) — appears above products ── */}
+          {searchQuery && matchedStores.length > 0 && (
+            <motion.div
+              initial={{ opacity: 0, y: -6 }}
+              animate={{ opacity: 1, y: 0 }}
+              className="mb-5"
+            >
+              <div className="flex items-center gap-1.5 mb-2">
+                <span className="text-[11px] font-bold text-gray-400 uppercase tracking-widest">SHOPS RELATED TO</span>
+                <span className="text-[11px] font-bold text-[var(--brand-primary)] uppercase tracking-widest">&ldquo;{searchQuery}&rdquo;</span>
+              </div>
+              <div className="space-y-2">
+                {matchedStores.map((store, idx) => {
+                  const isNameKey = typeof store.id === 'string' && store.id.startsWith('__name__:');
+                  const handleStoreClick = () => {
+                    if (isNameKey) navigate(`/stores?q=${encodeURIComponent(store.store_name)}`);
+                    else navigate(`/seller/${store.id}`);
+                  };
+                  return (
+                    <motion.div
+                      key={store.id}
+                      initial={{ opacity: 0, y: 6 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      transition={{ delay: idx * 0.04 }}
+                      onClick={handleStoreClick}
+                      role="link"
+                      tabIndex={0}
+                      onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') handleStoreClick(); }}
+                      className="bg-white border border-gray-100 rounded-xl px-5 py-4 flex items-center gap-5 cursor-pointer hover:shadow-md hover:border-[var(--brand-primary)]/30 transition-all group w-full"
+                    >
+                      {/* Avatar */}
+                      <div className="w-[64px] h-[64px] rounded-full overflow-hidden bg-orange-50 flex-shrink-0 border-2 border-orange-100 shadow-sm flex items-center justify-center">
+                        {store.avatar_url ? (
+                          <img loading="lazy" src={store.avatar_url} alt={store.store_name}
+                            className="w-full h-full object-cover"
+                            onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }} />
+                        ) : (
+                          <span className="text-2xl font-black text-[var(--brand-primary)]">
+                            {(store.store_name || '?')[0].toUpperCase()}
+                          </span>
+                        )}
+                      </div>
+                      {/* Info */}
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-2 mb-0.5">
+                          <h3 className="font-bold text-gray-900 text-base group-hover:text-[var(--brand-primary)] transition-colors truncate leading-tight">
+                            {store.store_name}
+                          </h3>
+                          {store.is_verified && (
+                            <span className="inline-flex items-center gap-0.5 text-[10px] font-bold text-green-700 bg-green-50 border border-green-100 px-1.5 py-0.5 rounded-full flex-shrink-0">
+                              <BadgeCheck className="w-2.5 h-2.5" /> Verified
+                            </span>
+                          )}
+                        </div>
+                        <p className="text-xs text-gray-400 mb-2 truncate">
+                          {(store.store_name || '').toLowerCase().replace(/\s+/g, '')}
+                        </p>
+                        <div className="flex items-center gap-5 text-xs text-gray-500 flex-wrap">
+                          <span>
+                            <strong className="text-gray-800 font-bold">
+                              {store.products_count != null ? store.products_count : '—'}
+                            </strong>
+                            <span className="text-gray-400 ml-1">Products</span>
+                          </span>
+                          {(store.rating != null && Number(store.rating) > 0) ? (
+                            <span className="flex items-center gap-1">
+                              <Star className="w-3 h-3 text-yellow-400 fill-current" />
+                              <strong className="text-gray-800 font-bold">{Number(store.rating).toFixed(1)}</strong>
+                              <span className="text-gray-400">Ratings</span>
+                            </span>
+                          ) : (
+                            <span>
+                              <strong className="text-gray-800 font-bold">N/A</strong>
+                              <span className="text-gray-400 ml-1">Ratings</span>
+                            </span>
+                          )}
+                        </div>
+                      </div>
+                      {/* CTA */}
+                      <Button
+                        onClick={(e) => { e.stopPropagation(); handleStoreClick(); }}
+                        className="flex-shrink-0 bg-[var(--brand-primary)] hover:bg-[var(--brand-primary-dark)] text-white rounded-lg h-9 px-4 text-xs font-bold"
+                      >
+                        View Store
+                      </Button>
+                    </motion.div>
+                  );
+                })}
+              </div>
+            </motion.div>
           )}
 
           {/* Results toolbar: count + sort + filter */}

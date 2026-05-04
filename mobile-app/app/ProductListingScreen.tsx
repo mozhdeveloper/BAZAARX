@@ -1,10 +1,11 @@
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { FlashList } from '@shopify/flash-list';
-import { ArrowLeft, ChevronDown, FunnelIcon, Search, SlidersHorizontal, X } from 'lucide-react-native';
+import { ArrowLeft, BadgeCheck, ChevronDown, FunnelIcon, Search, SlidersHorizontal, Star, X } from 'lucide-react-native';
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import {
     ActivityIndicator,
     Dimensions,
+    Image,
     Pressable,
     RefreshControl,
     ScrollView,
@@ -22,6 +23,7 @@ import SortModal from '../src/components/SortModal';
 import { COLORS } from '../src/constants/theme';
 import { discountService } from '../src/services/discountService';
 import { productService } from '../src/services/productService';
+import { sellerService } from '../src/services/sellerService';
 import type { Product } from '../src/types';
 import type { ActiveFilterChip, ProductFilters, SortOption } from '../src/types/filter.types';
 import { DEFAULT_FILTERS } from '../src/types/filter.types';
@@ -66,6 +68,11 @@ export default function ProductListingScreen({ navigation, route }: Props) {
   const discountMapRef = useRef<Map<string, { price: number; originalPrice: number; discountPercent: number; campaignName?: string }>>(new Map());
 
   const flashListRef = useRef<ScrollView>(null);
+
+  // Matched stores — shown above products (Shopee-style store card)
+  const [matchedStores, setMatchedStores] = useState<any[]>([]);
+  const productsRef = useRef<Product[]>([]);
+  productsRef.current = products;
 
   // Helper: build discount map from flash sale data
   const buildDiscountMap = async (): Promise<Map<string, { price: number; originalPrice: number; discountPercent: number; campaignName?: string }>> => {
@@ -531,6 +538,59 @@ export default function ProductListingScreen({ navigation, route }: Props) {
     }
   }, []);
 
+  // Store search — runs independently so the store card appears immediately
+  useEffect(() => {
+    const q = searchQuery.trim();
+    if (!q) { setMatchedStores([]); return; }
+    let cancelled = false;
+    const lowerQ = q.toLowerCase();
+
+    // Fast path: derive from already-loaded products
+    const derivedNow = (() => {
+      const map = new Map<string, any>();
+      productsRef.current.forEach((p: any) => {
+        const name = p.seller?.store_name || p.sellerName || p.seller;
+        if (!name || !(name as string).toLowerCase().includes(lowerQ)) return;
+        const key = p.seller_id || p.sellerId || `__name__:${(name as string).toLowerCase()}`;
+        if (map.has(key)) return;
+        map.set(key, {
+          id: key, store_name: name,
+          avatar_url: p.seller?.avatar_url || null,
+          is_verified: p.seller?.approval_status === 'verified',
+          rating: null, products_count: null,
+        });
+      });
+      return Array.from(map.values());
+    })();
+    if (derivedNow.length > 0) setMatchedStores(derivedNow);
+
+    (async () => {
+      try {
+        const apiStores = await sellerService.getPublicStores({ searchQuery: q, includeUnverified: true, limit: 5 } as any);
+        if (cancelled) return;
+        const merged = new Map<string, any>(
+          (apiStores || []).map((s: any) => [
+            String(s.id),
+            {
+              ...s,
+              products_count:
+                productsRef.current.filter((p: any) => {
+                  const pid = p.seller_id || p.sellerId;
+                  return pid && pid === String(s.id);
+                }).length || s.products_count || null,
+            },
+          ])
+        );
+        derivedNow.forEach((store) => {
+          if (!merged.has(String(store.id))) merged.set(String(store.id), store);
+        });
+        if (!cancelled && merged.size > 0) setMatchedStores(Array.from(merged.values()));
+      } catch { /* derived list remains visible */ }
+    })();
+
+    return () => { cancelled = true; };
+  }, [searchQuery, searchPerformed]);
+
   // Handle search submission
   const handleSearch = () => {
     const trimmedQuery = searchQuery.trim();
@@ -824,6 +884,81 @@ export default function ProductListingScreen({ navigation, route }: Props) {
         {/* Loading / empty state — only show when no products */}
         {(isLoading || products.length === 0) && renderEmptyComponent()}
 
+        {/* Shopee-style store card(s) — shown above products when a store name matches */}
+        {searchPerformed && !isLoading && matchedStores.length > 0 && (
+          <View style={styles.storeSection}>
+            <Text style={styles.storeSectionLabel}>
+              SHOPS RELATED TO{' '}
+              <Text style={styles.storeSectionQuery}>"{searchQuery}"</Text>
+            </Text>
+            {matchedStores.map((store) => {
+              const isNameKey = typeof store.id === 'string' && store.id.startsWith('__name__:');
+              const handleStorePress = () => {
+                navigation.navigate('StoreDetail', {
+                  store: {
+                    ...store,
+                    id: isNameKey ? undefined : store.id,
+                    name: store.store_name,
+                    verified: !!store.is_verified,
+                  },
+                } as any);
+              };
+              return (
+                <Pressable
+                  key={store.id}
+                  onPress={handleStorePress}
+                  style={({ pressed }) => [styles.storeCard, pressed && { opacity: 0.85 }]}
+                >
+                  {/* Avatar */}
+                  <View style={styles.storeAvatar}>
+                    {store.avatar_url ? (
+                      <Image source={{ uri: store.avatar_url }} style={styles.storeAvatarImage} />
+                    ) : (
+                      <Text style={styles.storeAvatarLetter}>
+                        {(store.store_name || '?')[0].toUpperCase()}
+                      </Text>
+                    )}
+                  </View>
+                  {/* Info */}
+                  <View style={styles.storeInfo}>
+                    <View style={styles.storeNameRow}>
+                      <Text style={styles.storeName} numberOfLines={1}>{store.store_name}</Text>
+                      {store.is_verified && (
+                        <View style={styles.verifiedBadge}>
+                          <BadgeCheck size={10} color="#15803d" />
+                          <Text style={styles.verifiedText}>Verified</Text>
+                        </View>
+                      )}
+                    </View>
+                    <Text style={styles.storeSlug} numberOfLines={1}>
+                      {(store.store_name || '').toLowerCase().replace(/\s+/g, '')}
+                    </Text>
+                    <View style={styles.storeStats}>
+                      <Text style={styles.statValue}>
+                        {store.products_count != null ? store.products_count : '—'}
+                        <Text style={styles.statLabel}> Products</Text>
+                      </Text>
+                      {store.rating != null && Number(store.rating) > 0 && (
+                        <View style={styles.statRating}>
+                          <Star size={11} color="#FBBF24" fill="#FBBF24" />
+                          <Text style={styles.statValue}>
+                            {Number(store.rating).toFixed(1)}
+                            <Text style={styles.statLabel}> Ratings</Text>
+                          </Text>
+                        </View>
+                      )}
+                    </View>
+                  </View>
+                  {/* CTA */}
+                  <Pressable onPress={handleStorePress} style={styles.viewStoreBtn} hitSlop={8}>
+                    <Text style={styles.viewStoreBtnText}>View Store</Text>
+                  </Pressable>
+                </Pressable>
+              );
+            })}
+          </View>
+        )}
+
         {/* Category-matched products section */}
         {!isLoading && matchedCategory && categoryProducts.length > 0 && (
           <>
@@ -1112,5 +1247,129 @@ const styles = StyleSheet.create({
     fontSize: 12,
     color: COLORS.gray500,
     fontWeight: '500',
+  },
+  // Store card styles
+  storeSection: {
+    paddingHorizontal: 12,
+    paddingBottom: 16,
+    paddingTop: 4,
+  },
+  storeSectionLabel: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: '#9CA3AF',
+    letterSpacing: 1.2,
+    textTransform: 'uppercase',
+    marginBottom: 10,
+  },
+  storeSectionQuery: {
+    color: COLORS.primary,
+  },
+  storeCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#FFFFFF',
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: '#F3F4F6',
+    padding: 14,
+    marginBottom: 10,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.06,
+    shadowRadius: 4,
+    elevation: 2,
+    gap: 12,
+  },
+  storeAvatar: {
+    width: 56,
+    height: 56,
+    borderRadius: 28,
+    backgroundColor: '#FFF5F0',
+    borderWidth: 2,
+    borderColor: '#FED7AA',
+    alignItems: 'center',
+    justifyContent: 'center',
+    flexShrink: 0,
+    overflow: 'hidden',
+  },
+  storeAvatarImage: {
+    width: 56,
+    height: 56,
+    borderRadius: 28,
+  },
+  storeAvatarLetter: {
+    fontSize: 22,
+    fontWeight: '900',
+    color: COLORS.primary,
+  },
+  storeInfo: {
+    flex: 1,
+    minWidth: 0,
+  },
+  storeNameRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    marginBottom: 2,
+  },
+  storeName: {
+    fontSize: 15,
+    fontWeight: '700',
+    color: '#111827',
+    flexShrink: 1,
+  },
+  verifiedBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 2,
+    backgroundColor: '#F0FDF4',
+    borderWidth: 1,
+    borderColor: '#BBF7D0',
+    borderRadius: 20,
+    paddingHorizontal: 5,
+    paddingVertical: 2,
+  },
+  verifiedText: {
+    fontSize: 9,
+    fontWeight: '700',
+    color: '#15803d',
+  },
+  storeSlug: {
+    fontSize: 11,
+    color: '#9CA3AF',
+    marginBottom: 6,
+  },
+  storeStats: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    flexWrap: 'wrap',
+  },
+  statValue: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: '#1F2937',
+  },
+  statLabel: {
+    fontWeight: '400',
+    color: '#9CA3AF',
+  },
+  statRating: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 3,
+  },
+  viewStoreBtn: {
+    backgroundColor: COLORS.primary,
+    borderRadius: 10,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    flexShrink: 0,
+  },
+  viewStoreBtnText: {
+    color: '#FFFFFF',
+    fontSize: 12,
+    fontWeight: '700',
   },
 });
