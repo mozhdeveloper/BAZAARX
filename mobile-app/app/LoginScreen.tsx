@@ -132,14 +132,14 @@ export default function LoginScreen({ navigation, route }: Props) {
         // Record failure for lockout
         lockoutStore.recordFailure(trimmedEmail);
         const newRemaining = lockoutStore.getRemainingLockoutTime(trimmedEmail);
-        
+
         if (newRemaining > 0) {
           setLockoutTimer(newRemaining);
           Alert.alert('Login Error', `${error.message}\n\nYou are locked out for ${newRemaining} seconds.`);
         } else {
           Alert.alert('Login Error', error.message);
         }
-        
+
         setIsLoading(false);
         return;
       }
@@ -147,7 +147,7 @@ export default function LoginScreen({ navigation, route }: Props) {
       if (data.user) {
         // Record success to reset attempts
         lockoutStore.recordSuccess(trimmedEmail);
-        
+
         const { data: buyerData, error: buyerError } = await supabase
           .from('buyers')
           .select('id, bazcoins, avatar_url')
@@ -218,6 +218,7 @@ export default function LoginScreen({ navigation, route }: Props) {
 
       // Use custom redirect URI for better integration with AuthSession
       const redirectUrl = getRedirectUri();
+      console.log('[LoginScreen] Generated Redirect URI (Ensure this is whitelisted in Supabase):', redirectUrl);
       const { data, error } = await supabase.auth.signInWithOAuth({
         provider: 'google',
         options: {
@@ -290,6 +291,10 @@ export default function LoginScreen({ navigation, route }: Props) {
         if (session) {
           console.log('[LoginScreen] ✅ Session confirmed. Processing success logic...');
           const userId = session.user.id;
+
+          // ENSURE PARITY WITH EMAIL SIGNUP: Create buyer record and user_roles entry if missing
+          console.log('[LoginScreen] Ensuring buyer profile and roles exist...');
+          await authService.createBuyerAccount(userId);
 
           // POLICY ENFORCEMENT: Check for unauthorized Google linking
           const { data: identityData } = await supabase.auth.getUserIdentities();
@@ -476,7 +481,7 @@ export default function LoginScreen({ navigation, route }: Props) {
             onPress={handleGoogleSignIn}
             disabled={isGoogleLoading}
             accessibilityRole="button"
-            accessibilityLabel="Sign in with Google"
+            accessibilityLabel="Continue with Google"
           >
             {isGoogleLoading ? (
               <ActivityIndicator color={COLORS.gray500} />
@@ -486,7 +491,7 @@ export default function LoginScreen({ navigation, route }: Props) {
                   source={{ uri: 'https://www.gstatic.com/images/branding/product/2x/googleg_48dp.png' }}
                   style={styles.googleIcon}
                 />
-                <Text style={styles.googleButtonText}>Sign in with Google</Text>
+                <Text style={styles.googleButtonText}>Continue with Google</Text>
               </>
             )}
           </Pressable>

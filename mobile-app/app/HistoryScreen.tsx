@@ -97,6 +97,9 @@ export default function HistoryScreen({ navigation }: Props) {
             id: order.id,
             orderId: order.id,
             transactionId: order.order_number || order.id,
+            // Preserve shipment_status/buyer UI status for History -> OrderDetail
+            status: (order.shipment_status || order.status || 'delivered') as Order['status'],
+            buyerUiStatus: (order.shipment_status || order.status || 'delivered') as Order['buyerUiStatus'],
             items: items.map((it: any) => {
               // Get primary image or first image
               const primaryImage = it.product?.images?.find((img: any) => img.is_primary)?.image_url
@@ -120,7 +123,6 @@ export default function HistoryScreen({ navigation }: Props) {
             }),
             total: calculatedTotal,
             shippingFee: items.reduce((sum: number, it: any) => sum + (it.shipping_price || 0), 0),
-            status: 'delivered' as const,
             isPaid: order.payment_status === 'paid',
             scheduledDate: new Date(order.created_at).toLocaleDateString(),
             createdAt: order.created_at,

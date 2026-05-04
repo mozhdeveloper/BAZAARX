@@ -157,8 +157,9 @@ function App() {
       };
 
       // Track if this is an OAuth redirect callback (Supabase appends access_token in hash)
-      const isOAuthProvider = session?.user?.app_metadata?.provider && session.user.app_metadata.provider !== 'email';
       const oauthIntent = sessionStorage.getItem('oauth_intent');
+      // Treat as OAuth if metadata says so, OR if we have an explicit oauth_intent (fixes PKCE delay where provider is initially 'email')
+      const isOAuthProvider = (session?.user?.app_metadata?.provider && session.user.app_metadata.provider !== 'email') || !!oauthIntent;
       const oauthRedirectDone = sessionStorage.getItem('oauth_redirect_done');
       const isOAuthRedirect = isOAuthProvider && (oauthIntent === 'buyer' || oauthIntent === 'seller' || oauthIntent === 'link_google' || !oauthIntent);
       debug('onAuthStateChange', {
@@ -201,15 +202,7 @@ function App() {
           const emailIdentity = identities.find((id: any) => id.provider === 'email');
           const googleIdentity = identities.find((id: any) => id.provider === 'google');
 
-          // 1. PREVENT NEW GOOGLE-ONLY ACCOUNTS (Email-First Policy)
-          // If the user has Google but NO email identity, and isn't currently linking,
-          // it means they tried to sign up via Google directly without a pre-existing email account.
-          if (googleIdentity && !emailIdentity && !isLinking) {
-            console.log('[Auth] 🛡️ Google-only account detected. Rejecting login.');
-            await supabase.auth.signOut();
-            window.location.href = '/login?error=google_not_registered';
-            return;
-          }
+          // Removed PREVENT NEW GOOGLE-ONLY ACCOUNTS logic as per user request to allow Google-only accounts.
 
           if (emailIdentity && googleIdentity) {
             const isExplicitlyLinked = !!user.user_metadata?.google_explicitly_linked;
@@ -291,7 +284,7 @@ function App() {
           // Redirect immediately once we know first-time vs returning OAuth user.
           // Use BrowserRouter-compatible history navigation (no full reload).
           if (isOAuthRedirect && oauthRedirectDone !== '1') {
-            let targetPath = isFirstOAuthLogin ? '/buyer-onboarding' : '/shop';
+            let targetPath = isFirstOAuthLogin ? '/buyer-onboarding' : '/';
             
             // If returning user, check for redirect_to path
             const redirectTo = sessionStorage.getItem('redirect_to');

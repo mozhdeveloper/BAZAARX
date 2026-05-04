@@ -30,16 +30,13 @@ export default function BuyerLoginPage() {
   const queryParams = new URLSearchParams(location.search);
   const authError = queryParams.get("error");
   const isLinkError = authError === "link_required" || authError === "google_unlinked";
-  const isNoAccountError = authError === "google_not_registered";
-  
+
   const [showLinkNotice, setShowLinkNotice] = useState(isLinkError);
-  const [showNoAccountNotice, setShowNoAccountNotice] = useState(isNoAccountError);
 
   // Sync state with URL params (handles redirects while component is mounted)
   useEffect(() => {
     if (isLinkError) setShowLinkNotice(true);
-    if (isNoAccountError) setShowNoAccountNotice(true);
-  }, [isLinkError, isNoAccountError]);
+  }, [isLinkError]);
 
   const isVerified = (location.state as any)?.verified;
   const verifiedEmail = (location.state as any)?.email;
@@ -100,7 +97,7 @@ export default function BuyerLoginPage() {
   const onLoginSubmit = async (data: LoginFormData) => {
     const { email, password } = data;
     const trimmedEmail = email.trim();
-    
+
     const remaining = lockoutStore.getRemainingLockoutTime(trimmedEmail);
     if (remaining > 0) {
       setLockoutTimer(remaining);
@@ -126,7 +123,7 @@ export default function BuyerLoginPage() {
       const { user } = result;
 
       lockoutStore.recordSuccess(trimmedEmail);
-      
+
       // Use initializeBuyerProfile from store to correctly hydrate all fields including preferences
       await useBuyerStore.getState().initializeBuyerProfile(user.id, {});
       await useBuyerStore.getState().initializeCart();
@@ -216,7 +213,7 @@ export default function BuyerLoginPage() {
                 <p className="text-[13px] leading-relaxed opacity-90">
                   This Google account is not yet linked to your BazaarX profile. For your security, please <b>sign in with your password</b> first, then link Google in your account settings.
                 </p>
-                <button 
+                <button
                   type="button"
                   onClick={() => setShowLinkNotice(false)}
                   className="w-full py-2 bg-white border border-orange-200 rounded-xl text-orange-600 font-bold text-xs hover:bg-orange-100 transition-colors"
@@ -226,34 +223,6 @@ export default function BuyerLoginPage() {
               </motion.div>
             )}
 
-            {showNoAccountNotice && (
-              <motion.div
-                initial={{ opacity: 0, height: 0 }}
-                animate={{ opacity: 1, height: "auto" }}
-                exit={{ opacity: 0, height: 0 }}
-                className="mb-6 p-4 bg-red-50 border border-red-100 rounded-2xl flex flex-col gap-3 text-[var(--text-primary)] text-sm shadow-sm overflow-hidden"
-              >
-                <div className="flex items-center gap-3">
-                  <div className="bg-red-500 rounded-full p-2 text-white">
-                    <AlertCircle size={20} />
-                  </div>
-                  <div>
-                    <p className="font-black text-red-600 uppercase tracking-wider text-[10px]">Access Denied</p>
-                    <p className="font-bold text-sm">Account Not Found</p>
-                  </div>
-                </div>
-                <p className="text-[13px] leading-relaxed opacity-90">
-                  We couldn't find a BazaarX account associated with this Google email. Please <b>sign up with your email</b> first to create a profile.
-                </p>
-                <button 
-                  type="button"
-                  onClick={() => setShowNoAccountNotice(false)}
-                  className="w-full py-2 bg-white border border-red-200 rounded-xl text-red-600 font-bold text-xs hover:bg-red-100 transition-colors"
-                >
-                  Dismiss
-                </button>
-              </motion.div>
-            )}
           </AnimatePresence>
 
           {lockoutTimer > 0 && (
@@ -317,8 +286,8 @@ export default function BuyerLoginPage() {
               </div>
               {errors.password && <p className="text-xs text-red-600 ml-1">{errors.password.message}</p>}
               <div className="flex justify-end px-1 mt-1">
-                <Link 
-                  to={`/forgot-password${watchedEmail ? `?email=${encodeURIComponent(watchedEmail)}` : ''}`} 
+                <Link
+                  to={`/forgot-password${watchedEmail ? `?email=${encodeURIComponent(watchedEmail)}` : ''}`}
                   className="text-xs font-bold text-[var(--brand-primary)] hover:underline transition-all"
                 >
                   Forgot Password?
@@ -345,12 +314,12 @@ export default function BuyerLoginPage() {
               className="w-full h-14 text-sm flex items-center border border-[var(--border)] hover:border-[var(--brand-primary)] hover:bg-[var(--secondary)]/5 rounded-[var(--radius-md)] justify-center gap-3 transition-all duration-200 shadow-sm"
               disabled={isLoading}
             >
-              <img loading="lazy" 
+              <img loading="lazy"
                 src="https://www.svgrepo.com/show/475656/google-color.svg"
                 className="w-5 h-5"
                 alt="Google"
               />
-              <span className="font-semibold text-[var(--text-primary)]">Sign in with Google</span>
+              <span className="font-semibold text-[var(--text-primary)]">Continue with Google</span>
             </button>
           </form>
 

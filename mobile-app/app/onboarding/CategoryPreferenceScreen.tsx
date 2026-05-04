@@ -76,7 +76,10 @@ export default function CategoryPreferenceScreen({ navigation, route }: Props) {
       return;
     }
 
-    if (!signupData) {
+    let { data: { user: currentUser } } = await supabase.auth.getUser();
+    let userId = currentUser?.id || useAuthStore.getState().user?.id;
+
+    if (!userId && !signupData) {
       Alert.alert("Error", "Missing signup information.");
       return;
     }
@@ -84,12 +87,9 @@ export default function CategoryPreferenceScreen({ navigation, route }: Props) {
     setIsSaving(true);
 
     try {
-      // 1. Get current user ID or perform signup
-      let { data: { user: currentUser } } = await supabase.auth.getUser();
-      let userId = currentUser?.id || useAuthStore.getState().user?.id;
       let needsEmailVerification = false;
 
-      if (!userId) {
+      if (!userId && signupData) {
         console.log('[CategoryPreference] No active user found, performing signUp...');
         
         // PERFORM THE ACTUAL SIGNUP NOW
@@ -120,15 +120,16 @@ export default function CategoryPreferenceScreen({ navigation, route }: Props) {
       console.log('--- SAVING PREFERENCES ---');
       await authService.updateBuyerPreferences(userId, selectedCategories);
 
-      // Update local store with profile data
+      // Update local store with profile data if available
       const { updateProfile, checkSession } = useAuthStore.getState();
-      updateProfile({
-        name: `${signupData.firstName} ${signupData.lastName}`,
-        phone: signupData.phone
-      });
-
-      // Clear temporary signup data
-      clearPendingSignup();
+      if (signupData) {
+        updateProfile({
+          name: `${signupData.firstName} ${signupData.lastName}`,
+          phone: signupData.phone
+        });
+        // Clear temporary signup data
+        clearPendingSignup();
+      }
 
       if (needsEmailVerification) {
         console.log('[CategoryPreference] Account created, navigating to EmailVerification');
@@ -138,6 +139,9 @@ export default function CategoryPreferenceScreen({ navigation, route }: Props) {
         });
       } else {
         console.log('[CategoryPreference] Session exists, navigating to Home');
+        // Mark onboarding as complete locally immediately to prevent modal flash on Home screen
+        useAuthStore.getState().completeOnboarding();
+        
         // Full sync to get bazaars/bazcoins/etc
         await checkSession();
         

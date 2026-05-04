@@ -104,7 +104,7 @@ export type RootStackParamList = {
     errorCode?: string;
     errorMessage?: string;
   };
-  Orders: { initialTab?: 'all' | 'pending' | 'confirmed' | 'processing' | 'shipped' | 'delivered' | 'received' | 'reviewed' | 'returned' | 'cancelled' };
+  Orders: { initialTab?: 'all' | 'pending' | 'processing' | 'confirmed' | 'shipped' | 'delivered' | 'received' | 'reviewed' | 'returned' | 'cancelled' };
   OrderDetail: { order: Order };
   SellerOrderDetail: { orderId: string };
   DeliveryTracking: { order: Order };
@@ -325,6 +325,7 @@ export default function App() {
   const sessionVerified = useAuthStore((s) => s.sessionVerified);
   const appState = useRef(AppState.currentState);
   const hasOnboarding = useAuthStore((s) => s.hasCompletedOnboarding);
+  const hasSeenWelcome = useAuthStore((s) => s.hasSeenWelcome);
 
   // Handle logout and T&C enforcement navigation
   React.useEffect(() => {
@@ -333,11 +334,11 @@ export default function App() {
       return;
     }
 
-    console.log(`[App] 🧭 Routing check: user=${!!user}, onboarding=${hasOnboarding}`);
+    console.log(`[App] 🧭 Routing check: user=${!!user}, onboarding=${hasOnboarding}, welcome=${hasSeenWelcome}`);
 
     if (!user) {
       // User has logged out or session check confirmed no user
-      if (hasOnboarding) {
+      if (hasSeenWelcome) {
         console.log('[App] 🚪 Redirecting to Login...');
         navigationRef.current.reset({
           index: 0,
@@ -356,7 +357,7 @@ export default function App() {
       // while the user is mid-session, unless there's a specific reason.
       console.log('[App] ✅ User authenticated, staying on current screen.');
     }
-  }, [user, sessionVerified, hasOnboarding]);
+  }, [user, sessionVerified, hasOnboarding, hasSeenWelcome]);
 
   React.useEffect(() => {
     // Suppress noisy warnings that are already handled in supabase.ts
@@ -381,7 +382,7 @@ export default function App() {
       for (let attempt = 1; attempt <= maxAttempts; attempt++) {
         try {
           console.log(`[App] 🔐 Deep link auth attempt ${attempt}/${maxAttempts}...`);
-          
+
           if (/[?&#]code=([^&#]+)/.test(deepLinkUrl)) {
             // PKCE Flow
             const { error } = await supabase.auth.exchangeCodeForSession(deepLinkUrl);
@@ -398,7 +399,7 @@ export default function App() {
               const [key, val] = part.split('=');
               if (key && val) params[key] = decodeURIComponent(val.replace(/\+/g, ' '));
             });
-            
+
             return { success: false, error: params.error_description || 'Authentication failed (link may be expired)' };
           } else if (deepLinkUrl.includes('access_token=') || deepLinkUrl.includes('refresh_token=')) {
             // Fragment Flow
@@ -423,7 +424,7 @@ export default function App() {
               throw new Error('No tokens found in fragment');
             }
           }
-          
+
           return { success: false, error: 'Unrecognized auth deep link format' };
         } catch (err: any) {
           logDetailedError(`AuthDeepLink (Attempt ${attempt}/${maxAttempts})`, err, deepLinkUrl);
@@ -599,7 +600,7 @@ export default function App() {
       if (event === 'SIGNED_OUT') {
         const previousUserId = useAuthStore.getState().user?.id;
         if (previousUserId) {
-          await pushNotificationService.unregister(previousUserId).catch(() => {});
+          await pushNotificationService.unregister(previousUserId).catch(() => { });
         }
       }
     });

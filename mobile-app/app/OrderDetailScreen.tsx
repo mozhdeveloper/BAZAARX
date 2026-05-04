@@ -29,9 +29,9 @@ const formatDatePH = (dateString: string | Date | null | undefined): string | nu
   try {
     const date = typeof dateString === 'string' ? new Date(dateString) : dateString;
     if (isNaN(date.getTime())) return null;
-    
+
     const months = ['January', 'February', 'March', 'April', 'May', 'June',
-                    'July', 'August', 'September', 'October', 'November', 'December'];
+      'July', 'August', 'September', 'October', 'November', 'December'];
     const month = months[date.getMonth()];
     const day = date.getDate();
     const year = date.getFullYear();
@@ -43,6 +43,7 @@ const formatDatePH = (dateString: string | Date | null | undefined): string | nu
 };
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import type { RootStackParamList } from '../App';
+import type { Order } from '../src/types';
 import { useOrderStore } from '../src/stores/orderStore';
 import { useCartStore } from '../src/stores/cartStore';
 import { supabase } from '../src/lib/supabase';
@@ -68,13 +69,13 @@ type Props = NativeStackScreenProps<RootStackParamList, 'OrderDetail'>;
 export default function OrderDetailScreen({ route, navigation }: Props) {
   const { order } = route.params;
   const { autoOpenAddressModal } = (route.params as any) || {};
-  
+
   // Comprehensive logging of order object
   console.log('[OrderDetail] Full order object keys:', Object.keys(order || {}).join(', '));
   console.log('[OrderDetail] order.paymentMethod:', order?.paymentMethod);
   console.log('[OrderDetail] order.payments:', order?.payments);
   console.log('[OrderDetail] Full order:', JSON.stringify(order, null, 2));
-  
+
   // Guard clause for invalid order
   if (!order) {
     return (
@@ -114,6 +115,13 @@ export default function OrderDetailScreen({ route, navigation }: Props) {
   const [showConfirmReceivedModal, setShowConfirmReceivedModal] = useState(false);
   const [isAddressModalVisible, setIsAddressModalVisible] = useState(false);
   const [dbPaymentMethod, setDbPaymentMethod] = useState<any>(null); // BX-PAYMENT-FIX: Fetch from order_payments
+
+  // Receipt photo state (for confirm received flow)
+  const [receiptPhotos, setReceiptPhotos] = useState<string[]>([]);
+  const [showReceiptModal, setShowReceiptModal] = useState(false);
+  const [isSubmittingReceipt, setIsSubmittingReceipt] = useState(false);
+  const [currentBuyerUiStatus, setCurrentBuyerUiStatus] = useState(order?.buyerUiStatus || order?.status);
+
   const getTransactionByOrderId = usePaymentStore((s) => s.getTransactionByOrderId);
   const fetchTrackingByOrderId = useDeliveryStore((s) => s.fetchTrackingByOrderId);
   const deliveryStoreTracking = useDeliveryStore((s) => s.tracking);
@@ -126,18 +134,18 @@ export default function OrderDetailScreen({ route, navigation }: Props) {
   const rawDate = order?.createdAt || (order as any).created_at;
   let parsedDate = new Date().getTime();
   if (rawDate) {
-     const d = new Date(rawDate);
-     if (!isNaN(d.getTime())) {
-         parsedDate = d.getTime();
-     } else {
-         const safeStr = String(rawDate).replace(' ', 'T'); 
-         const d2 = new Date(safeStr);
-         if (!isNaN(d2.getTime())) parsedDate = d2.getTime();
-     }
+    const d = new Date(rawDate);
+    if (!isNaN(d.getTime())) {
+      parsedDate = d.getTime();
+    } else {
+      const safeStr = String(rawDate).replace(' ', 'T');
+      const d2 = new Date(safeStr);
+      if (!isNaN(d2.getTime())) parsedDate = d2.getTime();
+    }
   }
 
   const timeDiff = new Date().getTime() - parsedDate;
-  
+
   // Eligibility: 1-Hour Window + Pending/Processing Status + Not Already Edited
   const isEligibleForEdit = ['pending', 'processing'].includes(resolvedUiStatus) && timeDiff < 3600000 && !hasEditedAddress;
 
@@ -158,9 +166,9 @@ export default function OrderDetailScreen({ route, navigation }: Props) {
   // Fetch payment transaction and delivery tracking for this order
   useEffect(() => {
     const realOrderId = (order as any).orderId || order.id;
-    
+
     if (__DEV__) console.log('[OrderDetail] useEffect triggered, orderId:', realOrderId);
-    
+
     setIsPaymentError(false);
     getTransactionByOrderId(realOrderId)
       .then((tx) => {
@@ -170,7 +178,7 @@ export default function OrderDetailScreen({ route, navigation }: Props) {
       .catch(() => {
         setIsPaymentError(true);
       });
-    
+
     setIsTrackingError(false);
     fetchTrackingByOrderId(realOrderId)
       .then(() => {
@@ -184,18 +192,18 @@ export default function OrderDetailScreen({ route, navigation }: Props) {
     const fetchPaymentMethod = async () => {
       try {
         if (__DEV__) console.log('[OrderDetail] Fetching payment_method for order:', realOrderId);
-        
+
         const { data, error } = await supabase
           .from('order_payments')
           .select('payment_method')
           .eq('order_id', realOrderId)
           .maybeSingle();
-        
+
         if (error) {
           console.error('[OrderDetail] Error fetching payment_method:', error);
           return;
         }
-        
+
         if (data?.payment_method) {
           if (__DEV__) console.log('[OrderDetail] ✅ Fetched payment_method from order_payments:', JSON.stringify(data.payment_method));
           setDbPaymentMethod(data.payment_method);
@@ -391,27 +399,157 @@ export default function OrderDetailScreen({ route, navigation }: Props) {
     }
   };
 
-  const handleConfirmReceivedSuccess = (photoUrls: string[]) => {
-    const realOrderId = (order as any).orderId || order.id;
-    
-    useOrderStore.setState((state: any) => ({
-      orders: state.orders.map((existingOrder: any) =>
-        existingOrder.orderId === realOrderId || existingOrder.id === realOrderId
-          ? {
+  const handlePickPhoto = async (source: 'camera' | 'gallery') => {
+    try {
+      if (source === 'camera') {
+        const { status } = await ImagePicker.requestCameraPermissionsAsync();
+        if (status !== 'granted') {
+          Alert.alert('Permission Required', 'Camera access is needed to take a proof-of-receipt photo.');
+          return;
+        }
+        const result = await ImagePicker.launchCameraAsync({
+          mediaTypes: 'images',
+          quality: 0.8,
+          allowsEditing: true,
+        });
+        if (!result.canceled) {
+          setReceiptPhotos(prev => [...prev, ...result.assets.map(a => a.uri)].slice(0, 5));
+        }
+      } else {
+        const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+        if (status !== 'granted') {
+          Alert.alert('Permission Required', 'Photo library access is needed to upload a receipt photo.');
+          return;
+        }
+        const result = await ImagePicker.launchImageLibraryAsync({
+          mediaTypes: 'images',
+          quality: 0.8,
+          allowsMultipleSelection: true,
+          selectionLimit: 5,
+        });
+        if (!result.canceled) {
+          setReceiptPhotos(prev => [...prev, ...result.assets.map(a => a.uri)].slice(0, 5));
+        }
+      }
+    } catch (err) {
+      console.error('[OrderDetail] Photo picker error:', err);
+      Alert.alert('Error', 'Failed to open photo picker. Please try again.');
+    }
+  };
+
+  const handleConfirmReceipt = async () => {
+    if (receiptPhotos.length === 0) {
+      Alert.alert('Photo Required', 'Please take or upload at least one photo as proof of receipt.');
+      return;
+    }
+    setIsSubmittingReceipt(true);
+    try {
+      const realOrderId = (order as any).orderId || order.id;
+      const { user } = useAuthStore.getState();
+
+      // Upload photos to storage
+      const timestamp = Date.now();
+      const buyerId = user?.id || '';
+      const uploadTasks = receiptPhotos.map(async (uri, index) => {
+        try {
+          let fileData: ArrayBuffer;
+          try {
+            const base64 = await FileSystem.readAsStringAsync(uri, {
+              encoding: FileSystem.EncodingType.Base64,
+            });
+            fileData = decode(base64);
+          } catch {
+            const res = await fetch(uri);
+            fileData = await res.arrayBuffer();
+          }
+          const extMatch = uri.match(/\.([a-zA-Z0-9]+)(?:\?|$)/);
+          const fileExt = (extMatch?.[1] || 'jpg').toLowerCase();
+          const contentType =
+            fileExt === 'png' ? 'image/png' :
+              fileExt === 'webp' ? 'image/webp' :
+                (fileExt === 'heic' || fileExt === 'heif') ? 'image/heic' : 'image/jpeg';
+          const suffix = Math.random().toString(36).slice(2, 8);
+          const fileName = `${buyerId}/${realOrderId}/receipt-${timestamp}-${index}-${suffix}.${fileExt}`;
+          const { error } = await supabase.storage
+            .from('review-images')
+            .upload(fileName, fileData, { contentType, upsert: false });
+          if (error) throw error;
+          const { data } = supabase.storage.from('review-images').getPublicUrl(fileName);
+          return data.publicUrl;
+        } catch (err) {
+          console.warn('[OrderDetail] Failed to upload receipt photo:', err);
+          return null;
+        }
+      });
+      const uploaded = (await Promise.all(uploadTasks)).filter((u): u is string => Boolean(u));
+
+      await orderMutationService.confirmOrderReceived(realOrderId, buyerId, uploaded.length > 0 ? uploaded : undefined);
+
+      // Update local order object immediately
+      const updatedOrder = {
+        ...order,
+        status: 'delivered' as const,
+        buyerUiStatus: 'received' as const,
+        isPaid: true,
+      } as Order;
+      setCurrentBuyerUiStatus('received');
+      navigation.setParams({ order: updatedOrder });
+
+      useOrderStore.setState((state: any) => ({
+        orders: state.orders.map((existingOrder: any) =>
+          existingOrder.orderId === realOrderId || existingOrder.id === realOrderId
+            ? {
               ...existingOrder,
               status: 'delivered',
               buyerUiStatus: 'received',
               isPaid: true,
             }
-          : existingOrder,
-      ),
-    }));
-    
-    setShowReviewModal(true);
+            : existingOrder,
+        ),
+      }));
+      setShowReceiptModal(false);
+      setReceiptPhotos([]);
+      setShowReviewModal(true);
+    } catch (e) {
+      console.error('[OrderDetail] Error confirming receipt:', e);
+      Alert.alert('Error', 'Failed to confirm receipt. Please try again.');
+    } finally {
+      setIsSubmittingReceipt(false);
+    }
   };
 
   const handleMarkAsReceived = () => {
     setShowConfirmReceivedModal(true);
+  };
+
+  const handleConfirmReceivedSuccess = (photoUrls: string[]) => {
+    const realOrderId = (order as any).orderId || order.id;
+
+    // Update local order state
+    const updatedOrder = {
+      ...order,
+      status: 'delivered' as const,
+      buyerUiStatus: 'received' as const,
+      isPaid: true,
+    } as Order;
+
+    navigation.setParams({ order: updatedOrder });
+
+    useOrderStore.setState((state: any) => ({
+      orders: state.orders.map((existingOrder: any) =>
+        existingOrder.orderId === realOrderId || existingOrder.id === realOrderId
+          ? {
+            ...existingOrder,
+            status: 'delivered',
+            buyerUiStatus: 'received',
+            isPaid: true,
+          }
+          : existingOrder,
+      ),
+    }));
+
+    setShowConfirmReceivedModal(false);
+    setShowReviewModal(true);
   };
 
   const handleSubmitReview = async (
@@ -486,7 +624,7 @@ export default function OrderDetailScreen({ route, navigation }: Props) {
   const handleSaveNewAddress = async (modalData: any) => {
     // Properly combine the First and Last name from the modal
     const newName = [modalData.firstName, modalData.lastName].filter(Boolean).join(' ').trim();
-    
+
     const formattedAddress = {
       name: newName || modalData.name || modalData.contactPerson || (order.shippingAddress as any)?.name || 'Buyer',
       fullName: newName || modalData.name || modalData.contactPerson || (order.shippingAddress as any)?.name || 'Buyer', // Passes to orderMutationService!
@@ -571,13 +709,13 @@ export default function OrderDetailScreen({ route, navigation }: Props) {
   const StatusIcon = getStatusIcon();
 
   // Safely extract default user address whether it's an array or a single object
-  const defaultUserAddress = Array.isArray(user?.addresses) 
-    ? user?.addresses.find((a: any) => a.is_default) || user?.addresses[0] 
+  const defaultUserAddress = Array.isArray(user?.addresses)
+    ? user?.addresses.find((a: any) => a.is_default) || user?.addresses[0]
     : user?.address;
 
   // Extract the order's CURRENT shipping address safely
   const orderAddr = order.shippingAddress as any || {};
-  
+
   // Smart Name Splitter: Separates the full name so the modal can read it perfectly
   const fullNameStr = orderAddr?.name || orderAddr?.fullName || orderAddr?.contactPerson || defaultUserAddress?.contactPerson || user?.full_name || '';
   const nameParts = fullNameStr.trim().split(/\s+/);
@@ -632,46 +770,46 @@ export default function OrderDetailScreen({ route, navigation }: Props) {
           const isReceived = uiStatus === 'received' || uiStatus === 'reviewed';
 
           if (isCancelled) {
-             return (
-               <View style={styles.trackingCard}>
-                  <View style={[styles.trackingBadge, { backgroundColor: '#FEE2E2' }]}>
-                    <Text style={[styles.trackingBadgeText, { color: '#DC2626' }]}>CANCELLED</Text>
-                  </View>
-                  <Text style={styles.trackingLocationText}>Order ID #{order.id?.slice(0, 8).toUpperCase()}</Text>
-                  {(order as any).cancellationReason && (
-                    <Text style={[styles.trackingStatusDetail, { color: '#DC2626', marginTop: 8 }]}>
-                      {(order as any).cancellationReason}
-                    </Text>
-                  )}
-               </View>
-             );
+            return (
+              <View style={styles.trackingCard}>
+                <View style={[styles.trackingBadge, { backgroundColor: '#FEE2E2' }]}>
+                  <Text style={[styles.trackingBadgeText, { color: '#DC2626' }]}>CANCELLED</Text>
+                </View>
+                <Text style={styles.trackingLocationText}>Order ID #{order.id?.slice(0, 8).toUpperCase()}</Text>
+                {(order as any).cancellationReason && (
+                  <Text style={[styles.trackingStatusDetail, { color: '#DC2626', marginTop: 8 }]}>
+                    {(order as any).cancellationReason}
+                  </Text>
+                )}
+              </View>
+            );
           }
 
           if (isTrackingError) {
-             return (
-               <View style={styles.trackingCard}>
-                  <Text style={styles.trackingLocationText}>Tracking information is currently unavailable. Please check back later.</Text>
-                  <Pressable 
-                    style={[styles.solidButton, { marginTop: 16, backgroundColor: COLORS.primary }]}
-                    onPress={() => {
-                      const realOrderId = (order as any).orderId || order.id;
-                      setIsTrackingError(false);
-                      fetchTrackingByOrderId(realOrderId)
-                        .then(() => setIsTrackingError(false))
-                        .catch(() => setIsTrackingError(true));
-                    }}
-                  >
-                    <Text style={styles.solidButtonText}>Tap to Retry</Text>
-                  </Pressable>
-               </View>
-             );
+            return (
+              <View style={styles.trackingCard}>
+                <Text style={styles.trackingLocationText}>Tracking information is currently unavailable. Please check back later.</Text>
+                <Pressable
+                  style={[styles.solidButton, { marginTop: 16, backgroundColor: COLORS.primary }]}
+                  onPress={() => {
+                    const realOrderId = (order as any).orderId || order.id;
+                    setIsTrackingError(false);
+                    fetchTrackingByOrderId(realOrderId)
+                      .then(() => setIsTrackingError(false))
+                      .catch(() => setIsTrackingError(true));
+                  }}
+                >
+                  <Text style={styles.solidButtonText}>Tap to Retry</Text>
+                </Pressable>
+              </View>
+            );
           }
 
           const latestEvent = deliveryTracking?.events?.[0];
           const originCity = deliveryTracking?.booking?.pickupAddress?.city || 'Origin';
           const destCity = deliveryTracking?.booking?.deliveryAddress?.city || order.shippingAddress?.city || 'Destination';
           const orderIdStr = (order as any).transactionId || (order as any).orderId || order.id?.slice(0, 8).toUpperCase();
-          
+
           let progress = 0;
           if (uiStatus === 'pending') progress = 0.1;
           else if (uiStatus === 'processing') progress = 0.3;
@@ -691,10 +829,10 @@ export default function OrderDetailScreen({ route, navigation }: Props) {
           };
 
           const steps = [
-              { label: 'Order Placed', ts: formatTs(order.createdAt), done: true, icon: CheckCircle2 },
-              { label: 'Confirmed', ts: formatTs(order.confirmedAt), done: uiStatus !== 'pending', icon: CheckCircle2 },
-              { label: 'Shipped', ts: formatTs(order.shippedAt), done: isShipped, icon: Truck },
-              { label: 'Delivered', ts: formatTs(order.deliveredAt), done: isDelivered, icon: CheckCircle2 },
+            { label: 'Order Placed', ts: formatTs(order.createdAt), done: true, icon: CheckCircle2 },
+            { label: 'Confirmed', ts: formatTs(order.confirmedAt), done: uiStatus !== 'pending', icon: CheckCircle2 },
+            { label: 'Shipped', ts: formatTs(order.shippedAt), done: isShipped, icon: Truck },
+            { label: 'Delivered', ts: formatTs(order.deliveredAt), done: isDelivered, icon: CheckCircle2 },
           ];
 
           return (
@@ -735,8 +873,8 @@ export default function OrderDetailScreen({ route, navigation }: Props) {
                   <View key={idx} style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
                     <step.icon size={14} color={COLORS.primary} />
                     <View style={{ flex: 1 }}>
-                       <Text style={{ fontSize: 13, color: '#78350F', fontWeight: '500' }}>{step.label}</Text>
-                       {step.ts && <Text style={{ fontSize: 11, color: '#A8A29E' }}>{step.ts}</Text>}
+                      <Text style={{ fontSize: 13, color: '#78350F', fontWeight: '500' }}>{step.label}</Text>
+                      {step.ts && <Text style={{ fontSize: 11, color: '#A8A29E' }}>{step.ts}</Text>}
                     </View>
                   </View>
                 ))}
@@ -748,8 +886,8 @@ export default function OrderDetailScreen({ route, navigation }: Props) {
         {/* SECTION 2: LOGISTICS & FULFILLMENT (Consolidated) */}
         <View style={styles.consolidatedCard}>
           <Text style={styles.cardSectionHeader}>Shipping & Delivery</Text>
-          
-         {/* Shipping Address Sub-section */}
+
+          {/* Shipping Address Sub-section */}
           {(() => {
             // Smart Fallback: If coming from checkout, order.shippingAddress might be null, so we pull from the raw DB or user profile.
             const displayAddr = {
@@ -762,10 +900,10 @@ export default function OrderDetailScreen({ route, navigation }: Props) {
 
             return (
               <View style={{ marginBottom: 16 }}>
-                 <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
+                <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
                   <Text style={styles.metaLabel}>Recipient</Text>
                   {isEligibleForEdit ? (
-                     <Pressable onPress={() => setIsAddressModalVisible(true)}>
+                    <Pressable onPress={() => setIsAddressModalVisible(true)}>
                       <Text style={{ fontSize: 13, color: COLORS.primary, fontWeight: '600' }}>Edit</Text>
                     </Pressable>
                   ) : (
@@ -815,23 +953,23 @@ export default function OrderDetailScreen({ route, navigation }: Props) {
           {/* Delivery Details Sub-section */}
           {deliveryTracking?.booking && deliveryTracking.booking.trackingNumber && (
             <View style={{ borderTopWidth: 1, borderTopColor: '#E5E7EB', paddingTop: 16 }}>
-               <Text style={styles.metaLabel}>Courier Information</Text>
-               <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
-                  <View>
-                    <Text style={styles.primaryInfo}>{deliveryTracking.booking.courierName}</Text>
-                    <Text style={[styles.secondaryInfo, { color: COLORS.primary, fontWeight: '700' }]}>
-                      {deliveryTracking.booking.trackingNumber}
+              <Text style={styles.metaLabel}>Courier Information</Text>
+              <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
+                <View>
+                  <Text style={styles.primaryInfo}>{deliveryTracking.booking.courierName}</Text>
+                  <Text style={[styles.secondaryInfo, { color: COLORS.primary, fontWeight: '700' }]}>
+                    {deliveryTracking.booking.trackingNumber}
+                  </Text>
+                </View>
+                {deliveryTracking.booking.estimatedDelivery && (
+                  <View style={{ alignItems: 'flex-end' }}>
+                    <Text style={styles.metaLabel}>Estimated Delivery</Text>
+                    <Text style={styles.primaryInfo}>
+                      {new Date(deliveryTracking.booking.estimatedDelivery).toLocaleDateString()}
                     </Text>
                   </View>
-                  {deliveryTracking.booking.estimatedDelivery && (
-                    <View style={{ alignItems: 'flex-end' }}>
-                      <Text style={styles.metaLabel}>Estimated Delivery</Text>
-                      <Text style={styles.primaryInfo}>
-                        {new Date(deliveryTracking.booking.estimatedDelivery).toLocaleDateString()}
-                      </Text>
-                    </View>
-                  )}
-               </View>
+                )}
+              </View>
             </View>
           )}
         </View>
@@ -839,21 +977,21 @@ export default function OrderDetailScreen({ route, navigation }: Props) {
         {/* SECTION 3: ITEMS & PRICING (Consolidated) */}
         <View style={styles.consolidatedCard}>
           <Text style={styles.cardSectionHeader}>Items & Payment</Text>
-          
-          <Pressable 
+
+          <Pressable
             style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 16, gap: 8 }}
             onPress={() => navigation.navigate('StoreDetail', { store: { id: (order as any).sellerInfo?.id || order.items[0]?.sellerId, name: (order as any).sellerInfo?.store_name || order.items[0]?.seller, rating: 4.8, verified: false, image: 'https://via.placeholder.com/150' } })}
           >
             <Store size={20} color={COLORS.primary} />
             <Text style={[styles.primaryInfo, { fontSize: 14 }]}>{(order as any).sellerInfo?.store_name || order.items[0]?.seller || 'Shop'}</Text>
           </Pressable>
-          
+
           {isPaymentError ? (
             <View style={{ marginVertical: 16 }}>
               <Text style={[styles.secondaryInfo, { color: '#DC2626', marginBottom: 12 }]}>
                 Payment information is currently unavailable. Please check back later.
               </Text>
-              <Pressable 
+              <Pressable
                 style={[styles.solidButton, { marginTop: 8, backgroundColor: COLORS.primary }]}
                 onPress={() => {
                   const realOrderId = (order as any).orderId || order.id;
@@ -876,7 +1014,7 @@ export default function OrderDetailScreen({ route, navigation }: Props) {
               <View style={{ gap: 16, marginBottom: 20 }}>
                 {order.items.filter(item => item && item.name).map((item, index) => (
                   <View key={item.id || index}>
-                    <Pressable 
+                    <Pressable
                       style={styles.compactItemRow}
                       onPress={() => navigation.navigate('ProductDetail', { product: item as any })}
                     >
@@ -906,108 +1044,108 @@ export default function OrderDetailScreen({ route, navigation }: Props) {
               </View>
 
               <View style={{ borderTopWidth: 1, borderTopColor: '#E5E7EB', paddingTop: 16, gap: 12 }}>
-                 {/* Payment Method - with proper extraction and label mapping */}
-                 {(() => {
-                   // BX-PAYMENT-FIX: Prefer dbPaymentMethod (from order_payments table) since that's the canonical source
-                   // Only fall back to order.paymentMethod if database fetch hasn't completed yet
-                   const rawPaymentMethod = dbPaymentMethod || order.paymentMethod;
-                   const normalized = normalizePaymentMethod(rawPaymentMethod);
-                   const displayLabel = getPaymentMethodLabel(rawPaymentMethod);
-                   const isCODPayment = isCOD(rawPaymentMethod);
-                   
-                   if (__DEV__) {
-                     console.log('[OrderDetail] Payment Info render:', {
-                       dbPaymentMethod: JSON.stringify(dbPaymentMethod),
-                       orderPaymentMethod: JSON.stringify(order.paymentMethod),
-                       rawPaymentMethod: JSON.stringify(rawPaymentMethod),
-                       normalized,
-                       displayLabel,
-                       isCOD: isCODPayment,
-                       source: dbPaymentMethod ? 'database (order_payments)' : 'navigation/order'
-                     });
-                   }
-                   
-                   return (
-                     <>
-                       <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
-                         <Text style={styles.metaLabel}>Payment Method</Text>
-                         <Text style={styles.primaryInfo}>{displayLabel}</Text>
-                       </View>
-                       
-                       {/* 🔧 BX-PAYMENT-FIX: COD Payment Instruction Message - Only show when COD AND not in terminal statuses */}
-                       {isCODPayment && !['received', 'returned', 'reviewed', 'cancelled'].includes(order.buyerUiStatus ?? '') && !['received', 'returned', 'reviewed', 'cancelled'].includes(order.status ?? '') && (() => {
-                         const estimatedDelivery = deliveryTracking?.booking?.estimatedDelivery || order.estimatedDelivery;
-                         let formattedDeadline: string | null = null;
-                         
-                         if (estimatedDelivery) {
-                           // If we have estimated delivery date, use that
-                           formattedDeadline = formatDatePH(estimatedDelivery);
-                         } else if (order.createdAt) {
-                           // Calculate estimated due date based on order creation date + typical delivery window
-                           // Typical COD delivery: 3-5 business days, use 5 days as estimate
-                           const createdDate = new Date(order.createdAt);
-                           const estimatedDueDate = new Date(createdDate.getTime() + 5 * 24 * 60 * 60 * 1000);
-                           formattedDeadline = formatDatePH(estimatedDueDate);
-                         }
-                         
-                         return (
-                           <View style={{ backgroundColor: '#FFFBF0', borderLeftWidth: 4, borderLeftColor: '#F59E0B', paddingHorizontal: 12, paddingVertical: 10, borderRadius: 8, gap: 6, marginTop: 8 }}>
-                             <Text style={{ fontSize: 12, fontWeight: '700', color: '#92400E' }}>💳 Payment on Delivery</Text>
-                             <Text style={{ fontSize: 12, color: '#7C2D12', lineHeight: 16 }}>
-                               You'll pay the full amount to the delivery driver when they arrive. Please have the exact amount ready.
-                             </Text>
-                             {formattedDeadline && (
-                               <Text style={{ fontSize: 12, color: '#92400E', fontWeight: '600' }}>
-                                 Estimated Payment Due: {formattedDeadline}
-                               </Text>
-                             )}
-                           </View>
-                         );
-                       })()}
-                     </>
-                   );
-                 })()}
-                 
-                 <View style={styles.summaryRow}>
-                    <Text style={styles.summaryLabel}>Subtotal</Text>
-                    <Text style={styles.summaryValue}>₱{(order as any).subtotal?.toLocaleString()}</Text>
-                 </View>
-                 
-                 {/* Per-seller Shipping Breakdown */}
-                 {shipmentInfos.length > 0 ? (
-                   <View style={{ gap: 12 }}>
-                     {shipmentInfos.map((shipment, idx) => (
-                       <View key={idx} style={{ gap: 8 }}>
-                         {/* Seller shipping method and fee */}
-                         <View style={styles.summaryRow}>
-                           <View style={{ flex: 1 }}>
-                             <Text style={styles.summaryLabel}>{shipment.shipping_method_label}</Text>
-                             <Text style={[styles.metaLabel, { marginTop: 2, fontSize: 12 }]}>
-                               Est: {shipment.estimated_days_text}
-                             </Text>
-                           </View>
-                           <Text style={styles.summaryValue}>₱{shipment.calculated_fee.toLocaleString()}</Text>
-                         </View>
-                       </View>
-                     ))}
-                   </View>
-                 ) : (
-                   <View style={styles.summaryRow}>
-                     <Text style={styles.summaryLabel}>Shipping</Text>
-                     <Text style={styles.summaryValue}>{order.shippingFee === 0 ? 'FREE' : `₱${order.shippingFee.toLocaleString()}`}</Text>
-                   </View>
-                 )}
-                 {order.voucherInfo && (
-                    <View style={styles.summaryRow}>
-                       <Text style={[styles.summaryLabel, { color: '#10B981' }]}>Voucher ({order.voucherInfo.code})</Text>
-                       <Text style={[styles.summaryValue, { color: '#10B981' }]}>-₱{order.voucherInfo.discountAmount?.toLocaleString()}</Text>
-                    </View>
-                 )}
+                {/* Payment Method - with proper extraction and label mapping */}
+                {(() => {
+                  // BX-PAYMENT-FIX: Prefer dbPaymentMethod (from order_payments table) since that's the canonical source
+                  // Only fall back to order.paymentMethod if database fetch hasn't completed yet
+                  const rawPaymentMethod = dbPaymentMethod || order.paymentMethod;
+                  const normalized = normalizePaymentMethod(rawPaymentMethod);
+                  const displayLabel = getPaymentMethodLabel(rawPaymentMethod);
+                  const isCODPayment = isCOD(rawPaymentMethod);
 
-                 <View style={[styles.totalRow, { marginTop: 4, paddingTop: 12, borderTopWidth: 1, borderTopColor: '#E5E7EB' }]}>
-                    <Text style={styles.totalLabel}>Total Amount</Text>
-                    <Text style={styles.totalValue}>₱{order.total.toLocaleString()}</Text>
-                 </View>
+                  if (__DEV__) {
+                    console.log('[OrderDetail] Payment Info render:', {
+                      dbPaymentMethod: JSON.stringify(dbPaymentMethod),
+                      orderPaymentMethod: JSON.stringify(order.paymentMethod),
+                      rawPaymentMethod: JSON.stringify(rawPaymentMethod),
+                      normalized,
+                      displayLabel,
+                      isCOD: isCODPayment,
+                      source: dbPaymentMethod ? 'database (order_payments)' : 'navigation/order'
+                    });
+                  }
+
+                  return (
+                    <>
+                      <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
+                        <Text style={styles.metaLabel}>Payment Method</Text>
+                        <Text style={styles.primaryInfo}>{displayLabel}</Text>
+                      </View>
+
+                      {/* 🔧 BX-PAYMENT-FIX: COD Payment Instruction Message - Only show when COD AND not in terminal statuses */}
+                      {isCODPayment && !['received', 'returned', 'reviewed', 'cancelled'].includes(order.buyerUiStatus ?? '') && !['received', 'returned', 'reviewed', 'cancelled'].includes(order.status ?? '') && (() => {
+                        const estimatedDelivery = deliveryTracking?.booking?.estimatedDelivery || order.estimatedDelivery;
+                        let formattedDeadline: string | null = null;
+
+                        if (estimatedDelivery) {
+                          // If we have estimated delivery date, use that
+                          formattedDeadline = formatDatePH(estimatedDelivery);
+                        } else if (order.createdAt) {
+                          // Calculate estimated due date based on order creation date + typical delivery window
+                          // Typical COD delivery: 3-5 business days, use 5 days as estimate
+                          const createdDate = new Date(order.createdAt);
+                          const estimatedDueDate = new Date(createdDate.getTime() + 5 * 24 * 60 * 60 * 1000);
+                          formattedDeadline = formatDatePH(estimatedDueDate);
+                        }
+
+                        return (
+                          <View style={{ backgroundColor: '#FFFBF0', borderLeftWidth: 4, borderLeftColor: '#F59E0B', paddingHorizontal: 12, paddingVertical: 10, borderRadius: 8, gap: 6, marginTop: 8 }}>
+                            <Text style={{ fontSize: 12, fontWeight: '700', color: '#92400E' }}>💳 Payment on Delivery</Text>
+                            <Text style={{ fontSize: 12, color: '#7C2D12', lineHeight: 16 }}>
+                              You'll pay the full amount to the delivery driver when they arrive. Please have the exact amount ready.
+                            </Text>
+                            {formattedDeadline && (
+                              <Text style={{ fontSize: 12, color: '#92400E', fontWeight: '600' }}>
+                                Estimated Payment Due: {formattedDeadline}
+                              </Text>
+                            )}
+                          </View>
+                        );
+                      })()}
+                    </>
+                  );
+                })()}
+
+                <View style={styles.summaryRow}>
+                  <Text style={styles.summaryLabel}>Subtotal</Text>
+                  <Text style={styles.summaryValue}>₱{(order as any).subtotal?.toLocaleString()}</Text>
+                </View>
+
+                {/* Per-seller Shipping Breakdown */}
+                {shipmentInfos.length > 0 ? (
+                  <View style={{ gap: 12 }}>
+                    {shipmentInfos.map((shipment, idx) => (
+                      <View key={idx} style={{ gap: 8 }}>
+                        {/* Seller shipping method and fee */}
+                        <View style={styles.summaryRow}>
+                          <View style={{ flex: 1 }}>
+                            <Text style={styles.summaryLabel}>{shipment.shipping_method_label}</Text>
+                            <Text style={[styles.metaLabel, { marginTop: 2, fontSize: 12 }]}>
+                              Est: {shipment.estimated_days_text}
+                            </Text>
+                          </View>
+                          <Text style={styles.summaryValue}>₱{shipment.calculated_fee.toLocaleString()}</Text>
+                        </View>
+                      </View>
+                    ))}
+                  </View>
+                ) : (
+                  <View style={styles.summaryRow}>
+                    <Text style={styles.summaryLabel}>Shipping</Text>
+                    <Text style={styles.summaryValue}>{order.shippingFee === 0 ? 'FREE' : `₱${order.shippingFee.toLocaleString()}`}</Text>
+                  </View>
+                )}
+                {order.voucherInfo && (
+                  <View style={styles.summaryRow}>
+                    <Text style={[styles.summaryLabel, { color: '#10B981' }]}>Voucher ({order.voucherInfo.code})</Text>
+                    <Text style={[styles.summaryValue, { color: '#10B981' }]}>-₱{order.voucherInfo.discountAmount?.toLocaleString()}</Text>
+                  </View>
+                )}
+
+                <View style={[styles.totalRow, { marginTop: 4, paddingTop: 12, borderTopWidth: 1, borderTopColor: '#E5E7EB' }]}>
+                  <Text style={styles.totalLabel}>Total Amount</Text>
+                  <Text style={styles.totalValue}>₱{order.total.toLocaleString()}</Text>
+                </View>
               </View>
             </>
           )}
@@ -1016,7 +1154,7 @@ export default function OrderDetailScreen({ route, navigation }: Props) {
 
       {/* Bottom Action Bar - Follows PH e-commerce standards (Shopee/Lazada) */}
       <View style={styles.bottomBar}>
-        
+
         {/* PENDING: Cancel + Chat */}
         {resolvedUiStatus === 'pending' && (
           <>
@@ -1274,10 +1412,10 @@ export default function OrderDetailScreen({ route, navigation }: Props) {
         </SafeAreaView>
       </Modal>
 
-      <AddressFormModal 
-        visible={isAddressModalVisible} 
-        onClose={() => setIsAddressModalVisible(false)} 
-        onSaved={handleSaveNewAddress} 
+      <AddressFormModal
+        visible={isAddressModalVisible}
+        onClose={() => setIsAddressModalVisible(false)}
+        onSaved={handleSaveNewAddress}
         initialData={modalInitialData}
         userId={user?.id}
         context="buyer"
