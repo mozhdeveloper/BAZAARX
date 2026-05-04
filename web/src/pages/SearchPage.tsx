@@ -258,15 +258,23 @@ const SearchPage: React.FC = () => {
     const deriveFromProducts = (products: typeof sellerProducts) => {
       const map = new Map<string, any>();
       products.forEach(p => {
-        if (!p.sellerName) return;
-        if (!p.sellerName.toLowerCase().includes(lowerQ)) return;
-        const key = p.sellerId || `__name__:${p.sellerName.toLowerCase()}`;
+        // Accept either camelCase sellerId or snake_case seller_id (Supabase spread)
+        const rawSellerId = p.sellerId || (p as any).seller_id || null;
+        const name = p.sellerName || (p as any).seller?.store_name;
+        if (!name) return;
+        if (!name.toLowerCase().includes(lowerQ)) return;
+        const key = rawSellerId || `__name__:${name.toLowerCase()}`;
         if (map.has(key)) return;
-        const count = products.filter(pp => pp.sellerId && pp.sellerId === p.sellerId).length;
+        const count = rawSellerId
+          ? products.filter(pp => {
+              const ppId = pp.sellerId || (pp as any).seller_id;
+              return ppId && ppId === rawSellerId;
+            }).length
+          : 0;
         map.set(key, {
           id: key,
-          store_name: p.sellerName,
-          avatar_url: null,
+          store_name: name,
+          avatar_url: (p as any).seller?.avatar_url || null,
           is_verified: true,
           rating: null,
           products_count: count > 0 ? count : null,
@@ -304,7 +312,10 @@ const SearchPage: React.FC = () => {
               {
                 ...s,
                 products_count:
-                  sellerProducts.filter(p => p.sellerId === String(s.id)).length ||
+                  sellerProducts.filter(p => {
+                    const pid = p.sellerId || (p as any).seller_id;
+                    return pid && pid === String(s.id);
+                  }).length ||
                   s.products_count ||
                   null,
               },

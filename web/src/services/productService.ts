@@ -407,7 +407,8 @@ export class ProductService {
             sold: campaignSoldCount !== undefined ? campaignSoldCount : soldCount,
             sales: campaignSoldCount !== undefined ? campaignSoldCount : soldCount,
             sold_count: campaignSoldCount !== undefined ? campaignSoldCount : soldCount,
-            // Seller info
+            // Seller info — map to camelCase so stores/search can use p.sellerId
+            sellerId: product.seller_id || product.seller?.id || null,
             sellerName: product.seller?.store_name,
             sellerLocation: product.seller?.business_profile?.city,
             // Seller vacation mode status
