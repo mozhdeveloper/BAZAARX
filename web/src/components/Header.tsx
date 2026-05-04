@@ -65,10 +65,17 @@ const Header: React.FC<HeaderProps> = ({ transparentOnTop = false, hideSearch = 
     return discountedUnitPrice;
   };
 
-  // Check if a cart item is in stock using stored cart state (no live fetch in header)
+  // Check if a cart item is in stock using stored cart state (no live fetch in header).
+  // NOTE: products table has no stock column — item.stock is always 0 unless explicitly set.
+  // We therefore prefer selectedVariant.stock when available, and default to in-stock when
+  // no reliable stock information exists (avoids incorrectly excluding items from the total).
   const isDropdownItemInStock = (item: (typeof cartItems)[0]): boolean => {
-    const stock = (item as any).selectedVariant?.stock ?? item.stock ?? 0;
-    return Number(stock) > 0;
+    const variantStock = (item as any).selectedVariant?.stock;
+    if (typeof variantStock === 'number') {
+      return variantStock > 0; // explicit variant stock → trust it
+    }
+    // No selected variant → item.stock is always 0 (not fetched); assume in-stock
+    return true;
   };
   const [showProfileMenu, setShowProfileMenu] = useState(false);
   const [showCartDropdown, setShowCartDropdown] = useState(false);
