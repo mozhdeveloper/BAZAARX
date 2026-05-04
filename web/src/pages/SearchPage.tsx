@@ -9,6 +9,7 @@ import {
   Star,
   Filter,
   ChevronDown,
+  ChevronRight,
   Sparkles,
   Flame,
   ArrowRight,
@@ -16,7 +17,8 @@ import {
   Truck,
   MapPin,
   ShoppingCart,
-  BadgeCheck
+  BadgeCheck,
+  Package
 } from 'lucide-react';
 import Header from '../components/Header';
 import { BazaarFooter } from '../components/ui/bazaar-footer';
@@ -160,6 +162,7 @@ const SearchPage: React.FC = () => {
   // Modals state
   const [showCartModal, setShowCartModal] = useState(false);
   const [matchedStores, setMatchedStores] = useState<any[]>([]);
+  const [isRelatedFallback, setIsRelatedFallback] = useState(false);
   const [addedProduct, setAddedProduct] = useState<{ name: string; image: string } | null>(null);
   const [showBuyNowModal, setShowBuyNowModal] = useState(false);
   const [buyNowProduct, setBuyNowProduct] = useState<any>(null);
@@ -235,43 +238,86 @@ const SearchPage: React.FC = () => {
 
   // Search Logic
   const handleSearch = useCallback(async (query: string) => {
-    // If empty query, show all (or filtered)
     setSearchQuery(query);
     setIsSearching(true);
 
-    // Fetch matching stores (include all sellers that have active products, not just fully-verified)
-    let matchedStoresList: any[] = [];
-    if (query.trim()) {
-      try {
-        const stores = await sellerService.getPublicStores({ searchQuery: query, includeUnverified: true });
-        matchedStoresList = stores;
-        setMatchedStores(stores);
-      } catch (error) {
-        console.error("Failed to fetch matching stores:", error);
-        setMatchedStores([]);
-      }
+    const lowerQ = query.trim().toLowerCase();
+
+    // ── Step 1: Derive matched stores SYNCHRONOUSLY from products (guaranteed render) ──
+    // This runs before any async call so the store card appears instantly whenever
+    // the products are available, regardless of API speed or RLS restrictions.
+    if (lowerQ) {
+      const productSellerMap = new Map<string, any>();
+      sellerProducts
+        .filter(p => p.approvalStatus === 'approved' && p.isActive && p.sellerName)
+        .forEach(product => {
+          const name = product.sellerName!;
+          if (!name.toLowerCase().includes(lowerQ)) return;
+          // Use the real seller UUID when available; fall back to a name-based key.
+          const key = product.sellerId || `__name__:${name.toLowerCase()}`;
+          if (productSellerMap.has(key)) return;
+          productSellerMap.set(key, {
+            id: product.sellerId || `__name__:${name.toLowerCase()}`,
+            store_name: name,
+            avatar_url: null,
+            is_verified: true,
+            rating: null,
+            products_count: null,
+          });
+        });
+      setMatchedStores(Array.from(productSellerMap.values()));
     } else {
       setMatchedStores([]);
     }
 
-    setTimeout(() => {
-      let results = sellerProducts.filter((p) => p.approvalStatus === "approved" && p.isActive);
+    // ── Step 2: Enrich store data from API in the background (non-blocking) ─────
+    // The API may return richer data (avatar, rating, products_count).
+    // We merge it on top of the product-derived stores already visible.
+    let apiMatchedSellerIds = new Set<string>();
+    if (lowerQ) {
+      try {
+        const apiStores = await sellerService.getPublicStores({ searchQuery: query, includeUnverified: true });
+        if (apiStores.length > 0) {
+          apiStores.forEach((s: any) => apiMatchedSellerIds.add(s.id));
+          // Merge: API stores first (richer data), product-derived stores fill the gaps.
+          const apiNameSet = new Set(apiStores.map((s: any) => (s.store_name || '').toLowerCase()));
+          const merged = new Map<string, any>(apiStores.map((s: any) => [s.id, s]));
+          sellerProducts
+            .filter(p => p.approvalStatus === 'approved' && p.isActive && p.sellerName)
+            .forEach(product => {
+              const name = product.sellerName!;
+              if (!name.toLowerCase().includes(lowerQ)) return;
+              if (merged.has(product.sellerId)) return;
+              if (apiNameSet.has(name.toLowerCase())) return;
+              const key = product.sellerId || `__name__:${name.toLowerCase()}`;
+              if (merged.has(key)) return;
+              merged.set(key, { id: key, store_name: name, avatar_url: null, is_verified: true, rating: null, products_count: null });
+            });
+          setMatchedStores(Array.from(merged.values()));
+        }
+      } catch {
+        // Product-derived stores already set in Step 1 — no action needed.
+      }
+    }
 
-      if (query.trim()) {
-        const lowerQuery = query.toLowerCase();
-        const matchedStoreIds = new Set(matchedStoresList.map((s: any) => s.id));
+    // ── Step 3: Filter products ─────────────────────────────────────────────────
+    setTimeout(() => {
+      let results = sellerProducts.filter(p => p.approvalStatus === 'approved' && p.isActive);
+      let relatedFallback = false;
+
+      if (lowerQ) {
         results = results.filter(product =>
-          product.name.toLowerCase().includes(lowerQuery) ||
-          product.category.toLowerCase().includes(lowerQuery) ||
-          (product.sellerName && product.sellerName.toLowerCase().includes(lowerQuery)) ||
-          (product.sellerId && matchedStoreIds.has(product.sellerId))
+          product.name.toLowerCase().includes(lowerQ) ||
+          product.category.toLowerCase().includes(lowerQ) ||
+          (product.sellerName && product.sellerName.toLowerCase().includes(lowerQ)) ||
+          (product.sellerId && apiMatchedSellerIds.has(product.sellerId))
         );
 
-        // Fallback: if still no results, try matching individual words (length > 2)
+        // Fallback 1: try matching individual words (length > 2)
         if (results.length === 0) {
-          const words = lowerQuery.split(/\s+/).filter((w: string) => w.length > 2);
+          const words = lowerQ.split(/\s+/).filter((w: string) => w.length > 2);
           if (words.length > 0) {
-            const allActive = sellerProducts.filter((p) => p.approvalStatus === "approved" && p.isActive);
+            const allActive = sellerProducts.filter(p => p.approvalStatus === 'approved' && p.isActive);
             results = allActive.filter(product =>
               words.some((word: string) =>
                 product.name.toLowerCase().includes(word) ||
@@ -281,7 +327,18 @@ const SearchPage: React.FC = () => {
             );
           }
         }
+
+        // Fallback 2: show popular products to avoid empty results
+        if (results.length === 0) {
+          const allActive = sellerProducts.filter(p => p.approvalStatus === 'approved' && p.isActive);
+          results = [...allActive]
+            .sort((a, b) => ((b as any).sales || 0) - ((a as any).sales || 0))
+            .slice(0, 12);
+          relatedFallback = results.length > 0;
+        }
       }
+
+      setIsRelatedFallback(relatedFallback);
 
       const mappedResults = results.map(p => {
         const product = p as any;
@@ -297,7 +354,7 @@ const SearchPage: React.FC = () => {
           reviewsCount: p.reviews || 0,
           seller: p.sellerName || 'BazaarX Seller',
           isFreeShipping: product.isFreeShipping || product.is_free_shipping || false,
-          isVerified: product.isVerified || p.approvalStatus === "approved",
+          isVerified: product.isVerified || p.approvalStatus === 'approved',
           location: p.sellerLocation || 'Metro Manila',
           category: p.category || 'General',
           sellerId: p.sellerId,
@@ -429,6 +486,106 @@ const SearchPage: React.FC = () => {
             <Link to="/registry" className="text-sm text-[var(--text-muted)] hover:text-[var(--brand-primary)] transition-all duration-300">Wishlist & Gifting</Link>
           </div>
         </motion.div>
+
+        {/* ── Shopee-style Store Profile Section ── full-width above products ── */}
+        {matchedStores.length > 0 && (
+          <motion.div
+            initial={{ opacity: 0, y: -6 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="mb-6"
+          >
+            {/* Section Header */}
+            <div className="flex items-center gap-1.5 mb-3">
+              <span className="text-[11px] font-bold text-gray-400 uppercase tracking-widest">SHOPS RELATED TO</span>
+              <span className="text-[11px] font-bold text-[var(--brand-primary)] uppercase tracking-widest">&ldquo;{searchQuery}&rdquo;</span>
+            </div>
+
+            {/* Store Cards — one full-width card per store */}
+            <div className="space-y-2">
+              {matchedStores.map((store, idx) => {
+                // Resolve navigation: real UUID → seller page; name-derived key → stores search
+                const isNameKey = typeof store.id === 'string' && store.id.startsWith('__name__:');
+                const handleStoreClick = () => {
+                  if (isNameKey) {
+                    navigate(`/stores?q=${encodeURIComponent(store.store_name)}`);
+                  } else {
+                    navigate(`/seller/${store.id}`);
+                  }
+                };
+                return (
+                <motion.div
+                  key={store.id}
+                  initial={{ opacity: 0, y: 6 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ delay: idx * 0.04 }}
+                  onClick={handleStoreClick}
+                  className="bg-white border border-gray-100 rounded-xl px-5 py-4 flex items-center gap-5 cursor-pointer hover:shadow-md hover:border-[var(--brand-primary)]/25 transition-all group w-full"
+                >
+                  {/* Avatar */}
+                  <div className="w-[60px] h-[60px] rounded-full overflow-hidden bg-orange-50 flex-shrink-0 border-2 border-gray-100 shadow-sm flex items-center justify-center">
+                    {store.avatar_url ? (
+                      <img
+                        loading="lazy"
+                        src={store.avatar_url}
+                        alt={store.store_name}
+                        className="w-full h-full object-cover"
+                        onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }}
+                      />
+                    ) : (
+                      <span className="text-2xl font-black text-[var(--brand-primary)]">
+                        {(store.store_name || '?')[0].toUpperCase()}
+                      </span>
+                    )}
+                  </div>
+
+                  {/* Store Info */}
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2 mb-1.5">
+                      <h3 className="font-bold text-gray-900 text-[15px] group-hover:text-[var(--brand-primary)] transition-colors truncate leading-tight">
+                        {store.store_name}
+                      </h3>
+                      {store.is_verified && (
+                        <span className="inline-flex items-center gap-0.5 text-[10px] font-bold text-green-700 bg-green-50 border border-green-100 px-1.5 py-0.5 rounded-full flex-shrink-0">
+                          <BadgeCheck className="w-2.5 h-2.5" /> Verified
+                        </span>
+                      )}
+                    </div>
+                    <div className="flex items-center gap-5 text-xs text-gray-500 flex-wrap">
+                      {store.products_count != null && (
+                        <span><strong className="text-gray-700 font-bold">{store.products_count}</strong> &nbsp;Products</span>
+                      )}
+                      {store.products_count == null && (
+                        <span className="flex items-center gap-1"><Package className="w-3 h-3" /> Products available</span>
+                      )}
+                      {(store.rating != null && Number(store.rating) > 0) ? (
+                        <span className="flex items-center gap-1">
+                          <Star className="w-3 h-3 text-yellow-400 fill-current" />
+                          <strong className="text-gray-700 font-bold">{Number(store.rating).toFixed(1)}</strong> &nbsp;Ratings
+                        </span>
+                      ) : (
+                        <span className="text-gray-400">No ratings yet</span>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Visit Store CTA */}
+                  <div className="flex items-center gap-2 flex-shrink-0">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="text-xs font-semibold border-[var(--brand-primary)] text-[var(--brand-primary)] hover:bg-[var(--brand-primary)] hover:text-white rounded-lg px-4 h-8 transition-all"
+                      onClick={(e) => { e.stopPropagation(); handleStoreClick(); }}
+                    >
+                      View Store
+                    </Button>
+                    <ChevronRight className="w-4 h-4 text-gray-300 group-hover:text-[var(--brand-primary)] transition-colors" />
+                  </div>
+                </motion.div>
+                );
+              })}
+            </div>
+          </motion.div>
+        )}
 
         <div className="flex flex-col lg:flex-row gap-8">
 
@@ -612,53 +769,6 @@ const SearchPage: React.FC = () => {
 
           {/* Main Content */}
           <main className="flex-1 min-h-[calc(100vh-200px)] flex flex-col">
-            {/* NEW: Store Matches Section */}
-            {matchedStores.length > 0 && (
-              <div className="mb-8">
-                <h2 className="text-lg font-bold text-gray-900 mb-4 font-primary">Stores matching "{searchQuery}"</h2>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  {matchedStores.map((store) => (
-                    <motion.div
-                      key={store.id}
-                      initial={{ opacity: 0, y: 10 }}
-                      animate={{ opacity: 1, y: 0 }}
-                      onClick={() => navigate(`/seller/${store.id}`)}
-                      className="bg-white border border-gray-100 rounded-xl p-4 flex items-center gap-4 cursor-pointer hover:shadow-md hover:border-[var(--brand-primary)]/30 transition-all group"
-                    >
-                      <div className="w-16 h-16 rounded-full overflow-hidden bg-gray-50 flex-shrink-0 border border-gray-100">
-                        <img loading="lazy" 
-                          src={store.avatar_url || 'https://via.placeholder.com/150'}
-                          alt={store.store_name}
-                          className="w-full h-full object-cover"
-                        />
-                      </div>
-                      <div className="flex-1 min-w-0">
-                        <div className="flex items-center gap-1.5">
-                          <h3 className="font-bold text-[var(--text-headline)] truncate group-hover:text-[var(--brand-primary)] transition-colors">
-                            {store.store_name}
-                          </h3>
-                          {store.is_verified && <BadgeCheck className="w-4 h-4 text-green-500 flex-shrink-0" />}
-                        </div>
-                        <div className="flex items-center text-xs text-gray-500 mt-1 space-x-3">
-                          <span className="flex items-center">
-                            <Star className="w-3 h-3 text-yellow-400 fill-current mr-1" />
-                            {store.rating || 'New'}
-                          </span>
-                          <span>•</span>
-                          <span>{store.products_count || 0} Products</span>
-                        </div>
-                      </div>
-                      <div className="flex-shrink-0">
-                        <Button variant="outline" size="sm" className="text-xs rounded-lg group-hover:bg-[var(--brand-primary)] group-hover:text-white group-hover:border-[var(--brand-primary)]">
-                          Visit Store
-                        </Button>
-                      </div>
-                    </motion.div>
-                  ))}
-                </div>
-              </div>
-            )}
-
             {/* Results Header */}
             <div id="search-results-header" className="flex flex-col sm:flex-row justify-between items-center mb-2 pb-2 scroll-mt-24 gap-4 h-12">
               <div className="flex items-center h-10">
@@ -682,6 +792,14 @@ const SearchPage: React.FC = () => {
                 </Select>
               </div>
             </div>
+
+            {/* Related fallback notice */}
+            {isRelatedFallback && sortedResults.length > 0 && (
+              <div className="flex items-center gap-2 mb-4 px-3 py-2 bg-[var(--brand-wash)] border border-[var(--brand-primary)]/20 rounded-xl text-xs text-[var(--text-muted)]">
+                <Sparkles className="w-3.5 h-3.5 text-[var(--brand-primary)] flex-shrink-0" />
+                <span>No exact matches for <strong className="text-[var(--text-headline)]">&ldquo;{searchQuery}&rdquo;</strong> — showing popular products you might like</span>
+              </div>
+            )}
 
             {/* Product Grid */}
             {sortedResults.length > 0 ? (() => {
@@ -911,17 +1029,23 @@ const SearchPage: React.FC = () => {
               : (
                 <div className="flex-1 flex flex-col py-10">
                   <div className="flex flex-col items-center mb-10">
-                    <h3 className="text-xl font-bold text-[var(--text-headline)]">No exact matches found</h3>
+                    <h3 className="text-xl font-bold text-[var(--text-headline)]">No products found</h3>
                     <p className="text-[var(--text-muted)] mt-2 text-center">
-                      {searchQuery ? `We couldn't find products for "${searchQuery}". Try a different term or browse the suggestions below.` : 'Try adjusting your filters or search query'}
+                      {isRelatedFallback
+                        ? 'Your filters are hiding all results. Try adjusting the price range or category.'
+                        : searchQuery
+                          ? `We couldn't find products for "${searchQuery}". Try a different term or browse the suggestions below.`
+                          : 'Try adjusting your filters or search query'}
                     </p>
-                    <button
-                      onClick={() => setShowRequestModal(true)}
-                      className="mt-6 inline-flex items-center gap-2 px-6 py-3 rounded-xl bg-[var(--brand-primary)] text-white font-bold text-sm hover:bg-[var(--brand-primary-dark)] transition-all active:scale-95 shadow-lg shadow-[var(--brand-primary)]/20"
-                    >
-                      <Sparkles className="w-4 h-4" />
-                      Request This Product
-                    </button>
+                    {!isRelatedFallback && (
+                      <button
+                        onClick={() => setShowRequestModal(true)}
+                        className="mt-6 inline-flex items-center gap-2 px-6 py-3 rounded-xl bg-[var(--brand-primary)] text-white font-bold text-sm hover:bg-[var(--brand-primary-dark)] transition-all active:scale-95 shadow-lg shadow-[var(--brand-primary)]/20"
+                      >
+                        <Sparkles className="w-4 h-4" />
+                        Request This Product
+                      </button>
+                    )}
                   </div>
                   {recommendedProducts.length > 0 && (
                     <div>
