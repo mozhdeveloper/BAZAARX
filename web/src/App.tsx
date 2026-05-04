@@ -198,7 +198,7 @@ function App() {
           // fetch identities to be sure we have the latest ones
           const { data: identityData } = await (supabase.auth as any).getUserIdentities();
           const identities = identityData?.identities || user.identities || [];
-          
+
           const emailIdentity = identities.find((id: any) => id.provider === 'email');
           const googleIdentity = identities.find((id: any) => id.provider === 'google');
 
@@ -221,11 +221,11 @@ function App() {
               // BLOCK: They just signed in via Google, but they have an email account
               // and they never explicitly linked it. This is a silent link (old or new).
               console.log('[Auth] 🛡️ Google Link Policy Blocked (Silent Link Detected)');
-              
+
               // Unlink Google and Sign Out to be safe
               await (supabase.auth as any).unlinkIdentity(googleIdentity);
               await supabase.auth.signOut();
-              
+
               // Redirect to login with error
               window.location.href = '/login?error=google_unlinked';
               return;
@@ -264,7 +264,22 @@ function App() {
             memberSince: new Date(),
             totalOrders: 0,
             totalSpent: 0,
-            preferences: {},
+            preferences: {
+              language: 'en',
+              currency: 'PHP',
+              notifications: {
+                email: true,
+                sms: false,
+                push: true,
+              },
+              privacy: {
+                showProfile: true,
+                showPurchases: false,
+                showFollowing: true,
+              },
+              interestedCategories: [],
+              interests: [],
+            },
           } as any);
 
           // Determine first OAuth login using buyer-account existence BEFORE we create it.
@@ -285,19 +300,19 @@ function App() {
           // Use BrowserRouter-compatible history navigation (no full reload).
           if (isOAuthRedirect && oauthRedirectDone !== '1') {
             let targetPath = isFirstOAuthLogin ? '/buyer-onboarding' : '/';
-            
+
             // If returning user, check for redirect_to path
             const redirectTo = sessionStorage.getItem('redirect_to');
             if (redirectTo && !isFirstOAuthLogin) {
               targetPath = redirectTo;
               sessionStorage.removeItem('redirect_to');
             }
-            
+
             // If they were linking, send them back to settings (security tab)
             if (oauthIntent === 'link_google') {
               targetPath = '/settings?tab=security';
             }
-            
+
             sessionStorage.setItem('oauth_redirect_done', '1');
             window.location.href = targetPath;
             return;
@@ -313,53 +328,26 @@ function App() {
           } as any, { onConflict: 'id' });
 
           if (profileUpsertError) {
-             console.error("Failed to save profile to DB:", profileUpsertError);
+            console.error("Failed to save profile to DB:", profileUpsertError);
           }
 
           // 3. CREATE BUYER & ROLE: This handles the 'buyers' and 'user_roles' tables
-          await authService.createBuyerAccount(user.id);
+          // Use ensureBuyerProfileConsistency to guarantee buyer record exists
+          // regardless of whether this is a first-time OAuth login or a linked identity
+          await authService.ensureBuyerProfileConsistency(user.id);
           await authService.ensureUserRolesFromRecords(user.id);
 
-          // 4. Fetch the latest profile to sync with the store
-          const { data: profileData } = await supabase
-            .from("profiles")
-            .select("id, first_name, last_name, email, phone, created_at")
-            .eq("id", user.id)
-            .maybeSingle();
-
-          const { data: buyerData } = await supabase
-            .from("buyers")
-            .select("bazcoins, avatar_url")
-            .eq("id", user.id)
-            .maybeSingle();
-
-          const profile = (profileData as any) || {};
-          const buyer = (buyerData as any) || {};
-
-          // 5. Derive names safely
-          const { firstName, lastName, displayFullName } = deriveBuyerName({
-            first_name: profile.first_name || googleFirstName,
-            last_name: profile.last_name || googleLastName,
-            full_name: user.user_metadata?.full_name || null, 
+          // 4. Hydrate the global store using the centralized initialization method
+          // This ensures preferences, names, and roles are synced correctly and consistently
+          // across all login methods (Google OAuth vs Email/Password).
+          await useBuyerStore.getState().initializeBuyerProfile(user.id, {
+            first_name: googleFirstName,
+            last_name: googleLastName,
+            full_name: user.user_metadata?.full_name,
             email: email,
+            avatar_url: user.user_metadata?.avatar_url
           });
 
-          // 6. Update the global store so the UI changes from "Sign In" to the Profile Avatar
-          useBuyerStore.getState().setProfile({
-            id: user.id,
-            email: email,
-            firstName,
-            lastName,
-            phone: profile.phone || "",
-            avatar: buyer.avatar_url || 
-                    user.user_metadata?.avatar_url || 
-                    `https://ui-avatars.com/api/?name=${encodeURIComponent(displayFullName)}&background=FF6B35&color=fff`,
-            bazcoins: buyer.bazcoins || 0,
-            memberSince: profile.created_at ? new Date(profile.created_at) : new Date(),
-            totalOrders: 0,
-            totalSpent: 0,
-            preferences: {}, 
-          } as any);
 
           // 7. Initialize the cart (non-blocking)
           void useBuyerStore.getState().initializeCart();
@@ -380,7 +368,7 @@ function App() {
         debug('signed out event cleanup', { userId: session?.user?.id || null });
         const previousUserId = session?.user?.id;
         if (previousUserId) {
-          void webPushService.unregister(previousUserId).catch(() => {});
+          void webPushService.unregister(previousUserId).catch(() => { });
         }
         localStorage.removeItem('seller-auth-storage');
         localStorage.removeItem('admin-auth');
@@ -394,7 +382,7 @@ function App() {
     const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
       void handleAuthChange(event, session);
     });
-    
+
     return () => subscription.unsubscribe();
   }, []);
 
