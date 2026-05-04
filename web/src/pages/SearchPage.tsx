@@ -160,6 +160,7 @@ const SearchPage: React.FC = () => {
   // Modals state
   const [showCartModal, setShowCartModal] = useState(false);
   const [matchedStores, setMatchedStores] = useState<any[]>([]);
+  const [isRelatedFallback, setIsRelatedFallback] = useState(false);
   const [addedProduct, setAddedProduct] = useState<{ name: string; image: string } | null>(null);
   const [showBuyNowModal, setShowBuyNowModal] = useState(false);
   const [buyNowProduct, setBuyNowProduct] = useState<any>(null);
@@ -256,6 +257,7 @@ const SearchPage: React.FC = () => {
 
     setTimeout(() => {
       let results = sellerProducts.filter((p) => p.approvalStatus === "approved" && p.isActive);
+      let relatedFallback = false;
 
       if (query.trim()) {
         const lowerQuery = query.toLowerCase();
@@ -267,7 +269,37 @@ const SearchPage: React.FC = () => {
           (product.sellerId && matchedStoreIds.has(product.sellerId))
         );
 
-        // Fallback: if still no results, try matching individual words (length > 2)
+        // Collect sellers from matched products (by sellerName) that the API didn't return
+        // — this ensures seller cards always show when products from that seller appear
+        if (results.length > 0) {
+          const existingIds = new Set(matchedStoresList.map((s: any) => s.id));
+          const extraSellers: any[] = [];
+          const seenExtras = new Set<string>();
+          results.forEach(product => {
+            if (
+              product.sellerId &&
+              !existingIds.has(product.sellerId) &&
+              !seenExtras.has(product.sellerId) &&
+              product.sellerName &&
+              product.sellerName.toLowerCase().includes(lowerQuery)
+            ) {
+              seenExtras.add(product.sellerId);
+              extraSellers.push({
+                id: product.sellerId,
+                store_name: product.sellerName,
+                avatar_url: (product as any).sellerAvatar || null,
+                is_verified: product.approvalStatus === 'approved',
+                rating: (product as any).sellerRating || null,
+                products_count: null,
+              });
+            }
+          });
+          if (extraSellers.length > 0) {
+            setMatchedStores([...matchedStoresList, ...extraSellers]);
+          }
+        }
+
+        // Fallback 1: try matching individual words (length > 2)
         if (results.length === 0) {
           const words = lowerQuery.split(/\s+/).filter((w: string) => w.length > 2);
           if (words.length > 0) {
@@ -281,7 +313,18 @@ const SearchPage: React.FC = () => {
             );
           }
         }
+
+        // Fallback 2: show popular products to avoid empty results
+        if (results.length === 0) {
+          const allActive = sellerProducts.filter((p) => p.approvalStatus === "approved" && p.isActive);
+          results = [...allActive]
+            .sort((a, b) => ((b as any).sales || 0) - ((a as any).sales || 0))
+            .slice(0, 12);
+          relatedFallback = results.length > 0;
+        }
       }
+
+      setIsRelatedFallback(relatedFallback);
 
       const mappedResults = results.map(p => {
         const product = p as any;
@@ -430,9 +473,73 @@ const SearchPage: React.FC = () => {
           </div>
         </motion.div>
 
+        {/* Seller / Store Profile Section — full width, above sidebar and product results */}
+        {matchedStores.length > 0 && (
+          <motion.div
+            initial={{ opacity: 0, y: -8 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="mb-6"
+          >
+            <h2 className="text-base font-bold text-[var(--text-headline)] mb-3">
+              Stores matching &ldquo;{searchQuery}&rdquo;
+            </h2>
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+              {matchedStores.map((store) => (
+                <motion.div
+                  key={store.id}
+                  initial={{ opacity: 0, y: 8 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  onClick={() => navigate(`/seller/${store.id}`)}
+                  className="bg-white border border-gray-100 rounded-2xl p-4 flex items-center gap-4 cursor-pointer hover:shadow-md hover:border-[var(--brand-primary)]/40 transition-all group"
+                >
+                  <div className="w-14 h-14 rounded-full overflow-hidden bg-[var(--brand-wash)] flex-shrink-0 border-2 border-white shadow-sm flex items-center justify-center">
+                    {store.avatar_url ? (
+                      <img
+                        loading="lazy"
+                        src={store.avatar_url}
+                        alt={store.store_name}
+                        className="w-full h-full object-cover"
+                        onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }}
+                      />
+                    ) : (
+                      <span className="text-xl font-black text-[var(--brand-primary)]">
+                        {(store.store_name || '?')[0].toUpperCase()}
+                      </span>
+                    )}
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-1.5 mb-0.5">
+                      <h3 className="font-bold text-[var(--text-headline)] truncate group-hover:text-[var(--brand-primary)] transition-colors text-sm">
+                        {store.store_name}
+                      </h3>
+                      {store.is_verified && <BadgeCheck className="w-3.5 h-3.5 text-green-500 flex-shrink-0" />}
+                    </div>
+                    <div className="flex items-center text-[11px] text-gray-500 gap-2">
+                      <span className="flex items-center gap-0.5">
+                        <Star className="w-3 h-3 text-yellow-400 fill-current" />
+                        {store.rating ? Number(store.rating).toFixed(1) : 'New'}
+                      </span>
+                      {store.products_count != null && (
+                        <><span className="text-gray-300">•</span><span>{store.products_count} Products</span></>
+                      )}
+                    </div>
+                  </div>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="text-xs rounded-xl flex-shrink-0 group-hover:bg-[var(--brand-primary)] group-hover:text-white group-hover:border-[var(--brand-primary)] transition-all"
+                  >
+                    Visit Store
+                  </Button>
+                </motion.div>
+              ))}
+            </div>
+          </motion.div>
+        )}
+
         <div className="flex flex-col lg:flex-row gap-8">
 
-          {/* Sidebar */}
+          {/* Sidebar */}}}
           <aside className="w-full lg:w-72 flex-shrink-0">
             <div className="lg:sticky lg:top-28 lg:h-[calc(100vh-120px)] lg:overflow-y-auto pr-6 scrollbar-hide space-y-10 pb-10">
 
@@ -612,53 +719,6 @@ const SearchPage: React.FC = () => {
 
           {/* Main Content */}
           <main className="flex-1 min-h-[calc(100vh-200px)] flex flex-col">
-            {/* NEW: Store Matches Section */}
-            {matchedStores.length > 0 && (
-              <div className="mb-8">
-                <h2 className="text-lg font-bold text-gray-900 mb-4 font-primary">Stores matching "{searchQuery}"</h2>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  {matchedStores.map((store) => (
-                    <motion.div
-                      key={store.id}
-                      initial={{ opacity: 0, y: 10 }}
-                      animate={{ opacity: 1, y: 0 }}
-                      onClick={() => navigate(`/seller/${store.id}`)}
-                      className="bg-white border border-gray-100 rounded-xl p-4 flex items-center gap-4 cursor-pointer hover:shadow-md hover:border-[var(--brand-primary)]/30 transition-all group"
-                    >
-                      <div className="w-16 h-16 rounded-full overflow-hidden bg-gray-50 flex-shrink-0 border border-gray-100">
-                        <img loading="lazy" 
-                          src={store.avatar_url || 'https://via.placeholder.com/150'}
-                          alt={store.store_name}
-                          className="w-full h-full object-cover"
-                        />
-                      </div>
-                      <div className="flex-1 min-w-0">
-                        <div className="flex items-center gap-1.5">
-                          <h3 className="font-bold text-[var(--text-headline)] truncate group-hover:text-[var(--brand-primary)] transition-colors">
-                            {store.store_name}
-                          </h3>
-                          {store.is_verified && <BadgeCheck className="w-4 h-4 text-green-500 flex-shrink-0" />}
-                        </div>
-                        <div className="flex items-center text-xs text-gray-500 mt-1 space-x-3">
-                          <span className="flex items-center">
-                            <Star className="w-3 h-3 text-yellow-400 fill-current mr-1" />
-                            {store.rating || 'New'}
-                          </span>
-                          <span>•</span>
-                          <span>{store.products_count || 0} Products</span>
-                        </div>
-                      </div>
-                      <div className="flex-shrink-0">
-                        <Button variant="outline" size="sm" className="text-xs rounded-lg group-hover:bg-[var(--brand-primary)] group-hover:text-white group-hover:border-[var(--brand-primary)]">
-                          Visit Store
-                        </Button>
-                      </div>
-                    </motion.div>
-                  ))}
-                </div>
-              </div>
-            )}
-
             {/* Results Header */}
             <div id="search-results-header" className="flex flex-col sm:flex-row justify-between items-center mb-2 pb-2 scroll-mt-24 gap-4 h-12">
               <div className="flex items-center h-10">
@@ -682,6 +742,14 @@ const SearchPage: React.FC = () => {
                 </Select>
               </div>
             </div>
+
+            {/* Related fallback notice */}
+            {isRelatedFallback && sortedResults.length > 0 && (
+              <div className="flex items-center gap-2 mb-4 px-3 py-2 bg-[var(--brand-wash)] border border-[var(--brand-primary)]/20 rounded-xl text-xs text-[var(--text-muted)]">
+                <Sparkles className="w-3.5 h-3.5 text-[var(--brand-primary)] flex-shrink-0" />
+                <span>No exact matches for <strong className="text-[var(--text-headline)]">&ldquo;{searchQuery}&rdquo;</strong> — showing popular products you might like</span>
+              </div>
+            )}
 
             {/* Product Grid */}
             {sortedResults.length > 0 ? (() => {
@@ -911,17 +979,23 @@ const SearchPage: React.FC = () => {
               : (
                 <div className="flex-1 flex flex-col py-10">
                   <div className="flex flex-col items-center mb-10">
-                    <h3 className="text-xl font-bold text-[var(--text-headline)]">No exact matches found</h3>
+                    <h3 className="text-xl font-bold text-[var(--text-headline)]">No products found</h3>
                     <p className="text-[var(--text-muted)] mt-2 text-center">
-                      {searchQuery ? `We couldn't find products for "${searchQuery}". Try a different term or browse the suggestions below.` : 'Try adjusting your filters or search query'}
+                      {isRelatedFallback
+                        ? 'Your filters are hiding all results. Try adjusting the price range or category.'
+                        : searchQuery
+                          ? `We couldn't find products for "${searchQuery}". Try a different term or browse the suggestions below.`
+                          : 'Try adjusting your filters or search query'}
                     </p>
-                    <button
-                      onClick={() => setShowRequestModal(true)}
-                      className="mt-6 inline-flex items-center gap-2 px-6 py-3 rounded-xl bg-[var(--brand-primary)] text-white font-bold text-sm hover:bg-[var(--brand-primary-dark)] transition-all active:scale-95 shadow-lg shadow-[var(--brand-primary)]/20"
-                    >
-                      <Sparkles className="w-4 h-4" />
-                      Request This Product
-                    </button>
+                    {!isRelatedFallback && (
+                      <button
+                        onClick={() => setShowRequestModal(true)}
+                        className="mt-6 inline-flex items-center gap-2 px-6 py-3 rounded-xl bg-[var(--brand-primary)] text-white font-bold text-sm hover:bg-[var(--brand-primary-dark)] transition-all active:scale-95 shadow-lg shadow-[var(--brand-primary)]/20"
+                      >
+                        <Sparkles className="w-4 h-4" />
+                        Request This Product
+                      </button>
+                    )}
                   </div>
                   {recommendedProducts.length > 0 && (
                     <div>
