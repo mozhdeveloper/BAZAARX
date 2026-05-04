@@ -17,6 +17,7 @@ import React, { useEffect, useRef, useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { authService } from "../services/authService";
 import { chatService } from "../services/chatService";
+import { discountService } from "../services/discountService";
 import { useBuyerStore } from "../stores/buyerStore";
 import { NotificationsDropdown } from "./NotificationsDropdown";
 import ProductRequestModal from "./ProductRequestModal";
@@ -31,7 +32,15 @@ interface HeaderProps {
 const Header: React.FC<HeaderProps> = ({ transparentOnTop = false, hideSearch = false }) => {
   const navigate = useNavigate();
   const location = useLocation();
-  const { profile, logout, getTotalCartItems, cartItems, initializeCart, subscribeToProfile, unsubscribeFromProfile } = useBuyerStore();
+  const { profile, logout, getTotalCartItems, cartItems, campaignDiscountCache, initializeCart, subscribeToProfile, unsubscribeFromProfile } = useBuyerStore();
+
+  // Resolve effective (post-discount) unit price for a cart item
+  const getDropdownPrice = (item: (typeof cartItems)[0]): number => {
+    const basePrice = (item as any).selectedVariant?.price ?? item.price;
+    const discount = campaignDiscountCache[item.id] ?? null;
+    const { discountedUnitPrice } = discountService.calculateLineDiscount(basePrice, 1, discount);
+    return discountedUnitPrice;
+  };
   const [showProfileMenu, setShowProfileMenu] = useState(false);
   const [showCartDropdown, setShowCartDropdown] = useState(false);
   const cartDropdownRef = useRef<HTMLDivElement>(null);
@@ -337,7 +346,10 @@ const Header: React.FC<HeaderProps> = ({ transparentOnTop = false, hideSearch = 
                                   <p className="text-[10px] text-gray-400">{variantLabel}</p>
                                 )}
                                 <div className="flex items-center gap-2 mt-0.5">
-                                  <span className="text-xs font-bold text-[var(--brand-primary)]">₱{price.toLocaleString()}</span>
+                                  <span className="text-xs font-bold text-[var(--brand-primary)]">₱{getDropdownPrice(item).toLocaleString()}</span>
+                                  {getDropdownPrice(item) < price && (
+                                    <span className="text-[10px] text-gray-400 line-through">₱{price.toLocaleString()}</span>
+                                  )}
                                   <span className="text-[10px] text-gray-400">× {item.quantity}</span>
                                 </div>
                               </div>
@@ -355,10 +367,7 @@ const Header: React.FC<HeaderProps> = ({ transparentOnTop = false, hideSearch = 
                         <div className="flex items-center justify-between mb-3">
                           <span className="text-xs text-gray-500">{getTotalCartItems()} item{getTotalCartItems() !== 1 ? 's' : ''}</span>
                           <span className="text-sm font-bold text-[var(--text-headline)]">
-                            ₱{cartItems.reduce((sum, item) => {
-                              const p = (item as any).selectedVariant?.price ?? item.price;
-                              return sum + p * item.quantity;
-                            }, 0).toLocaleString()}
+                            ₱{cartItems.reduce((sum, item) => sum + getDropdownPrice(item) * item.quantity, 0).toLocaleString()}
                           </span>
                         </div>
                         <button

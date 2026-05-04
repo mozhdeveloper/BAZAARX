@@ -1248,14 +1248,19 @@ export const useBuyerStore = create<BuyerStore>()(persist(
     },
 
     getSelectedTotal: () => {
-      const { groupedCart, appliedVouchers, platformVoucher } = get();
+      const { groupedCart, appliedVouchers, platformVoucher, campaignDiscountCache } = get();
       let total = 0;
 
       Object.entries(groupedCart).forEach(([sellerId, group]) => {
-        // Calculate subtotal for SELECTED items in this group
+        // Calculate subtotal for SELECTED items using discounted prices
         const selectedSubtotal = group.items
           .filter(item => item.selected)
-          .reduce((sum, item) => sum + (item.selectedVariant?.price || item.price) * item.quantity, 0);
+          .reduce((sum, item) => {
+            const basePrice = item.selectedVariant?.price || item.price;
+            const activeDiscount = campaignDiscountCache[item.id] ?? null;
+            const { discountedUnitPrice } = discountService.calculateLineDiscount(basePrice, 1, activeDiscount);
+            return sum + discountedUnitPrice * item.quantity;
+          }, 0);
 
         if (selectedSubtotal === 0) return;
 
