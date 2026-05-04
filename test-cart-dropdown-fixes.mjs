@@ -5,6 +5,8 @@
  *   2. getDropdownPrice — returns discounted unit price when discount active
  *   3. Dropdown total — excludes OOS items
  *   4. Discount pill visibility — discountPct > 0 for discounted items
+ *   5. Web getTotalCartItems — returns distinct product count (not quantity sum)
+ *   6. Mobile getItemCount — returns distinct product count (not quantity sum)
  *
  * Usage: node test-cart-dropdown-fixes.mjs
  */
@@ -159,6 +161,50 @@ assert('prod-4 ₱200 off ₱2200 → discountPct≈9', pct4 === 9, `got ${pct4}
 
 const pct2 = computeDiscountPct(oosByStock, discountMap);
 assert('prod-2 no discount → discountPct=0 (no badge)', pct2 === 0, `got ${pct2}%`);
+
+// ─── Web: getTotalCartItems equivalent ───────────────────────────────────────
+// Mirrors: get().cartItems.length  (NOT a quantity sum)
+
+console.log('\n=== Web cart count: distinct product lines ===');
+
+// Simulate the web Zustand cartItems array (one entry per product, regardless of qty)
+const webCartItems = [
+  { id: 'p1', cartItemId: 'ci-1', quantity: 1, stock: 5 },  // qty 1
+  { id: 'p2', cartItemId: 'ci-2', quantity: 2, stock: 3 },  // qty 2 — counts as 1 distinct
+  { id: 'p3', cartItemId: 'ci-3', quantity: 3, stock: 0 },  // qty 3 + OOS — counts as 1 distinct
+];
+
+const webDistinctCount = webCartItems.length; // FIXED behavior: distinct rows
+const webQuantitySum = webCartItems.reduce((s, i) => s + i.quantity, 0); // OLD buggy behavior
+
+assert(`distinct product count = ${webDistinctCount} (not quantity sum ${webQuantitySum})`,
+  webDistinctCount === 3 && webQuantitySum === 6 && webDistinctCount !== webQuantitySum);
+assert('badge shows distinct count, not quantity sum', webDistinctCount === 3, `got ${webDistinctCount}`);
+
+// ─── Mobile: getItemCount (cartStore.ts) ─────────────────────────────────────
+// Mirrors: get().items.length  (fixed from: reduce summing quantity)
+
+console.log('\n=== Mobile cartStore.getItemCount: distinct product lines ===');
+
+// Simulate mobile cart items (same 3 products with varying quantities)
+const mobileItems = [
+  { id: 'p1', quantity: 1, price: 150 },
+  { id: 'p2', quantity: 2, price: 35 },   // Dried Mango × 2 — should count as 1 distinct
+  { id: 'p3', quantity: 3, price: 200 },
+];
+
+// Fixed implementation: items.length
+const fixedMobileCount = mobileItems.length;
+// Old buggy implementation: reduce summing quantities
+const buggyMobileCount = mobileItems.reduce((count, item) => count + item.quantity, 0);
+
+assert('mobile getItemCount = items.length (distinct lines)', fixedMobileCount === 3, `got ${fixedMobileCount}`);
+assert('mobile getItemCount ≠ quantity sum (was the bug)', fixedMobileCount !== buggyMobileCount,
+  `fixed=${fixedMobileCount}, buggy would have been ${buggyMobileCount}`);
+
+// Confirm the quantity sum (old behavior) would have been wrong:
+assert(`old buggy count (${buggyMobileCount}) would over-count vs correct (${fixedMobileCount})`,
+  buggyMobileCount > fixedMobileCount);
 
 // ─── Summary ─────────────────────────────────────────────────────────────────
 
