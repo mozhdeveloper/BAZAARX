@@ -158,14 +158,14 @@ export default function ProductRequestModal({
           animate={{ opacity: 1, scale: 1, y: 0 }}
           exit={{ opacity: 0, scale: 0.96, y: 16 }}
           transition={{ type: 'spring', damping: 26, stiffness: 380 }}
-          className="bg-white rounded-2xl shadow-2xl w-full max-w-lg flex flex-col"
-          style={{ maxHeight: 'min(90vh, 720px)' }}
+          className="bg-white rounded-2xl shadow-2xl w-full max-w-md flex flex-col"
+          style={{ maxHeight: 'min(82vh, 560px)' }}
           onClick={(e) => e.stopPropagation()}
         >
           {!isSuccess ? (
             <>
               {/* ── Sticky Header ── */}
-              <div className="flex items-center gap-3 px-6 py-4 border-b border-gray-100 flex-shrink-0">
+              <div className="flex items-center gap-3 px-5 py-3 border-b border-gray-100 flex-shrink-0">
                 <div className="w-10 h-10 rounded-xl bg-orange-50 flex items-center justify-center flex-shrink-0">
                   <Package className="w-5 h-5 text-orange-500" />
                 </div>
@@ -183,12 +183,12 @@ export default function ProductRequestModal({
               </div>
 
               {/* ── Scrollable Body ── */}
-              <div className="flex-1 overflow-y-auto px-6 py-5 space-y-5 scrollbar-hide">
+              <div className="flex-1 overflow-y-auto px-5 py-4 space-y-4 scrollbar-hide">
                 {/* Info Banner */}
                 <div className="flex gap-3 p-3 bg-blue-50 border border-blue-100 rounded-xl">
                   <div className="w-1 rounded-full bg-blue-400 flex-shrink-0" />
                   <p className="text-xs text-blue-700 leading-relaxed">
-                    Tell us what you need and we'll notify you when it becomes available or find a seller who can provide it.
+                    Tell us what you need and we'll notify you when it becomes available or find a seller.
                   </p>
                 </div>
 
@@ -220,7 +220,7 @@ export default function ProductRequestModal({
                     onChange={handleChange}
                     placeholder="Brand, specifications, features, preferred price range…"
                     className="w-full px-3 py-2.5 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-orange-400/20 focus:border-orange-400 resize-none placeholder:text-gray-400 transition-colors"
-                    rows={3}
+                    rows={2}
                     required
                   />
                   <p className="text-[11px] text-gray-400">More details = faster match.</p>
@@ -248,7 +248,7 @@ export default function ProductRequestModal({
                       onDragLeave={handleDragLeave}
                       onDrop={handleDrop}
                       className={cn(
-                        "flex h-36 cursor-pointer flex-col items-center justify-center gap-2 rounded-xl border-2 border-dashed border-gray-200 bg-gray-50 transition-all hover:border-orange-300 hover:bg-orange-50/40",
+                        "flex h-24 cursor-pointer flex-col items-center justify-center gap-2 rounded-xl border-2 border-dashed border-gray-200 bg-gray-50 transition-all hover:border-orange-300 hover:bg-orange-50/40",
                         isDragging && "border-orange-400 bg-orange-50",
                       )}
                     >
@@ -261,7 +261,7 @@ export default function ProductRequestModal({
                       </div>
                     </div>
                   ) : (
-                    <div className="relative group rounded-xl overflow-hidden border border-gray-200 h-36">
+                    <div className="relative group rounded-xl overflow-hidden border border-gray-200 h-24">
                       <img
                         loading="lazy"
                         src={previewUrl}
@@ -337,7 +337,7 @@ export default function ProductRequestModal({
               </div>
 
               {/* ── Sticky Footer ── */}
-              <div className="flex gap-3 px-6 py-4 border-t border-gray-100 bg-white flex-shrink-0 rounded-b-2xl">
+              <div className="flex gap-3 px-5 py-3 border-t border-gray-100 bg-white flex-shrink-0 rounded-b-2xl">
                 <Button
                   type="button"
                   variant="outline"
