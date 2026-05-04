@@ -1,4 +1,4 @@
-﻿export type Json =
+export type Json =
   | string
   | number
   | boolean
@@ -6436,3 +6436,105 @@ export const Constants = {
     },
   },
 } as const
+
+// ---------------------------------------------------------------------------
+// Table Row Aliases
+// ---------------------------------------------------------------------------
+export type Product = Tables<"products">
+export type ProductImage = Tables<"product_images">
+export type ProductVariant = Tables<"product_variants">
+export type Category = Tables<"categories">
+export type Profile = Tables<"profiles">
+export type Buyer = Tables<"buyers">
+export type Seller = Tables<"sellers">
+export type Order = Tables<"orders">
+export type OrderItem = Tables<"order_items">
+export type Address = Tables<"shipping_addresses">
+export type Review = Tables<"reviews">
+export type Voucher = Tables<"vouchers">
+export type VoucherUsage = Tables<"buyer_vouchers">
+export type Notification = Tables<"buyer_notifications">
+export type ProductQA = Tables<"product_assessments">
+export type Cart = Tables<"carts">
+export type CartItem = Tables<"cart_items">
+
+// ---------------------------------------------------------------------------
+// Fallbacks for missing tables (to prevent build errors)
+// ---------------------------------------------------------------------------
+export type InventoryLedger = any
+export type LowStockAlert = any
+export type Admin = Tables<"admins">
+
+// ---------------------------------------------------------------------------
+// Enums & Status Types (Commonly used across components)
+// ---------------------------------------------------------------------------
+export type ApprovalStatus = "pending" | "verified" | "rejected" | "suspended" | "blacklisted"
+export type OrderStatus = "pending" | "processing" | "ready_to_ship" | "shipped" | "out_for_delivery" | "delivered" | "received" | "cancelled" | "returned"
+export type PaymentStatus = "pending" | "authorized" | "paid" | "failed" | "refunded"
+export type ShipmentStatus = OrderStatus
+export type OrderType = "regular" | "registry" | "pos"
+export type VacationReason = "vacation" | "personal" | "maintenance" | "other"
+export type UserType = "buyer" | "seller" | "admin"
+export type NotificationType = "order" | "system" | "promotion" | "security"
+export type NotificationPriority = "low" | "medium" | "high" | "urgent"
+export type VoucherType = "fixed_amount" | "percentage" | "free_shipping"
+export type ShippingAddress = Address
+export type ShippingMethod = any
+export type PaymentMethod = any
+
+// ---------------------------------------------------------------------------
+// Composite & Joined Types
+// ---------------------------------------------------------------------------
+export type ProductWithSeller = Product & {
+  category?: {
+    id: string
+    name: string
+    slug: string
+    parent_id: string | null
+  }
+  images?: ProductImage[]
+  variants?: ProductVariant[]
+  reviews?: { id: string; rating: number | null }[]
+  seller?: {
+    id: string
+    store_name: string
+    approval_status: string
+    is_vacation_mode: boolean
+    blacklisted_at: string | null
+    suspended_at: string | null
+    is_permanently_blacklisted: boolean
+    temp_blacklist_until: string | null
+    business_profile?: {
+      city: string | null
+    }
+  }
+  product_discounts?: any[]
+  // Legacy compatibility fields
+  is_active?: boolean
+  stock?: number
+  primary_image_url?: string
+  image?: string
+  rating?: number
+  reviewCount?: number
+  lifetimeSold?: number
+  sold?: number
+  sales?: number
+  sold_count?: number
+  sellerName?: string
+  sellerLocation?: string
+  isVacationMode?: boolean
+  campaignBadge?: string
+  campaignBadgeColor?: string
+  campaignEndsAt?: string
+  campaignSold?: number
+  campaignStock?: number
+  campaignDiscount?: {
+    discountType: string
+    discountValue: number
+    maxDiscountAmount?: number
+  } | null
+  originalPrice?: number
+  discountBadgePercent?: number
+  discountBadgeTooltip?: string
+}
+
