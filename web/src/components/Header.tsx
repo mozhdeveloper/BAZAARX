@@ -355,19 +355,28 @@ const Header: React.FC<HeaderProps> = ({ transparentOnTop = false, hideSearch = 
                             : ((item.originalPrice ?? 0) > price ? (item.originalPrice ?? null) : null); // seller "was" price
                           const variantLabel = (item as any).selectedVariant?.name ||
                             [(item as any).selectedVariant?.size, (item as any).selectedVariant?.color].filter(Boolean).join(' / ');
+                          const discountPct = strikethroughPrice !== null
+                            ? Math.round(((strikethroughPrice - effectivePrice) / strikethroughPrice) * 100)
+                            : 0;
                           return (
                             <div
                               key={item.cartItemId || item.id}
                               className="flex items-center gap-3 px-4 py-2.5 hover:bg-gray-50 transition-colors cursor-pointer"
                               onClick={() => { setShowCartDropdown(false); navigate(`/product/${item.id}`); }}
                             >
-                              <div className="w-11 h-11 rounded-lg overflow-hidden bg-gray-100 flex-shrink-0">
+                              {/* Thumbnail with discount badge overlay */}
+                              <div className="relative w-11 h-11 rounded-lg overflow-hidden bg-gray-100 flex-shrink-0">
                                 <img
                                   src={img || 'https://placehold.co/80x80?text=?'}
                                   alt={item.name}
                                   className="w-full h-full object-cover"
                                   onError={(e) => { (e.target as HTMLImageElement).src = 'https://placehold.co/80x80?text=?'; }}
                                 />
+                                {discountPct > 0 && (
+                                  <div className="absolute bottom-0 left-0 right-0 bg-[#DC2626] text-white text-[8px] font-black text-center leading-[13px] tracking-wide">
+                                    -{discountPct}%
+                                  </div>
+                                )}
                               </div>
                               <div className="flex-1 min-w-0">
                                 <p className="text-xs font-semibold text-[var(--text-headline)] line-clamp-1">{item.name}</p>
