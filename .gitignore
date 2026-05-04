@@ -43,4 +43,6 @@ web/build_error*.txt
 web/error.txt
 web/vite.config.ts.timestamp-*
 
+.agents
+
 

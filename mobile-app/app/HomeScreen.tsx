@@ -22,21 +22,6 @@ import {
 } from 'lucide-react-native';
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
-<<<<<<< HEAD
-    Dimensions,
-    Keyboard,
-    NativeScrollEvent,
-    NativeSyntheticEvent,
-    Pressable,
-    RefreshControl,
-    ScrollView,
-    StatusBar,
-    StyleSheet,
-    Text,
-    TextInput,
-    useWindowDimensions,
-    View
-=======
   Alert,
   Dimensions,
   Keyboard,
@@ -52,7 +37,6 @@ import {
   TextInput,
   useWindowDimensions,
   View
->>>>>>> 4bfdad01 (Add onboarding modal and Google linking rules)
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import AIChatModal from '../src/components/AIChatModal';

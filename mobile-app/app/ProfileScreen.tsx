@@ -50,7 +50,7 @@ export default function ProfileScreen({ navigation }: Props) {
   const [isSwitching, setIsSwitching] = React.useState(false);
   const avatarBase64Ref = React.useRef<{ base64: string; mimeType: string } | null>(null);
   const slideAnim = useRef(new Animated.Value(Dimensions.get('window').height)).current;
-  
+
   // Seller Switch State
   const [switchModalVisible, setSwitchModalVisible] = React.useState(false);
   const [switchPassword, setSwitchPassword] = React.useState('');
@@ -547,18 +547,14 @@ export default function ProfileScreen({ navigation }: Props) {
                 <View style={styles.iconContainer}>
                   <item.icon size={20} color={BRAND_COLOR} strokeWidth={2} />
                 </View>
-<<<<<<< HEAD
-                <Text style={styles.menuLabel}>{item.label}</Text>
-=======
                 <View style={{ flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingRight: 8 }}>
                   <Text style={styles.menuLabel}>{item.label}</Text>
-                  {item.comingSoon && (
+                  {(item as any).comingSoon && (
                     <View style={{ backgroundColor: '#FEF3C7', paddingHorizontal: 6, paddingVertical: 2, borderRadius: 4, borderColor: '#F59E0B', borderWidth: 1 }}>
                       <Text style={{ fontSize: 7, fontWeight: '900', color: '#B45309' }}>COMING SOON</Text>
                     </View>
                   )}
                 </View>
->>>>>>> 4bfdad01 (Add onboarding modal and Google linking rules)
                 <ChevronRight size={18} color={COLORS.textMuted} />
               </Pressable>
             ))}
@@ -707,7 +703,7 @@ export default function ProfileScreen({ navigation }: Props) {
         statusBarTranslucent={true}
         onRequestClose={() => setSwitchModalVisible(false)}
       >
-        <KeyboardAvoidingView 
+        <KeyboardAvoidingView
           behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
           style={styles.centeredModalOverlay}
         >
@@ -736,16 +732,16 @@ export default function ProfileScreen({ navigation }: Props) {
             </View>
 
             <View style={styles.passwordModalActions}>
-              <Pressable 
-                style={styles.passwordCancelBtn} 
+              <Pressable
+                style={styles.passwordCancelBtn}
                 onPress={() => setSwitchModalVisible(false)}
                 disabled={isVerifyingPassword}
               >
                 <Text style={styles.passwordCancelText}>Cancel</Text>
               </Pressable>
-              
-              <Pressable 
-                style={[styles.passwordConfirmBtn, isVerifyingPassword && styles.disabledBtn]} 
+
+              <Pressable
+                style={[styles.passwordConfirmBtn, isVerifyingPassword && styles.disabledBtn]}
                 onPress={confirmSellerSwitch}
                 disabled={isVerifyingPassword}
               >

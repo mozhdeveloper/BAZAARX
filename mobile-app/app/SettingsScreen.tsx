@@ -409,21 +409,6 @@ export default function SettingsScreen({ navigation }: Props) {
         {/* Developer Options */}
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>Developer Options</Text>
-<<<<<<< HEAD
-          
-          <View style={styles.settingCard}>
-            <Pressable 
-              style={styles.settingItem}
-              onPress={handleResetOnboarding}
-            >
-              <View style={styles.settingLeft}>
-                <View style={[styles.iconContainer, { backgroundColor: '#FEE2E2' }]}>
-                  <RefreshCw size={20} color="#EF4444" />
-                </View>
-                <View style={styles.settingTextContainer}>
-                  <Text style={styles.settingTitle}>Reset Onboarding</Text>
-                  <Text style={styles.settingSubtitle}>Show onboarding screen again</Text>
-=======
 
           <View style={styles.settingCard}>
             <Pressable
@@ -449,7 +434,6 @@ export default function SettingsScreen({ navigation }: Props) {
                   <Text style={[styles.settingSubtitle, { color: COLORS.textMuted }]}>
                     {hasCompletedOnboarding ? 'Show onboarding screen again' : 'Select your interests to personalize your experience'}
                   </Text>
->>>>>>> 4bfdad01 (Add onboarding modal and Google linking rules)
                 </View>
               </View>
             </Pressable>
@@ -463,13 +447,8 @@ export default function SettingsScreen({ navigation }: Props) {
           <View style={[styles.settingCard, styles.dangerCard]}>
             <Pressable
               style={styles.settingItem}
-<<<<<<< HEAD
               onPress={openDeleteModal}
               disabled={isDeleting}
-=======
-              onPress={() => { }} // Disabled
-              disabled={true}
->>>>>>> 4bfdad01 (Add onboarding modal and Google linking rules)
             >
               <View style={styles.settingLeft}>
                 <View style={[styles.iconContainer, { backgroundColor: '#FEE2E2' }]}>

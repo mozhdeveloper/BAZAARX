@@ -30,12 +30,12 @@ export default function AuthCallbackPage() {
   const finalizeSignup = async () => {
     try {
       // 0. Check if we actually have an auth token in the URL or pending data
-      const hasToken = window.location.hash.includes('access_token') || 
-                       window.location.search.includes('code=') ||
-                       window.location.search.includes('token_hash=');
-      
-      const hasPending = !!(sessionStorage.getItem("pendingSellerSignup") || 
-                           sessionStorage.getItem("pendingBuyerSignup"));
+      const hasToken = window.location.hash.includes('access_token') ||
+        window.location.search.includes('code=') ||
+        window.location.search.includes('token_hash=');
+
+      const hasPending = !!(sessionStorage.getItem("pendingSellerSignup") ||
+        sessionStorage.getItem("pendingBuyerSignup"));
 
       // 1. Get the verified session (Supabase has already processed the callback URL token)
       const {
@@ -53,7 +53,7 @@ export default function AuthCallbackPage() {
 
       // ─────────────────────────────────────────────────────────────────────
       // OAUTH EARLY EXIT — Google / any OAuth provider
-      // 
+      //
       // IMPORTANT: Supabase uses PKCE — when the browser lands on /auth/callback
       // with ?code=..., the code exchange may not be complete yet when getSession()
       // is first called. This means user.app_metadata.provider may still read as
@@ -77,7 +77,7 @@ export default function AuthCallbackPage() {
         return;
       }
 
-      // If we have a session but NO token and NO pending data, 
+      // If we have a session but NO token and NO pending data,
       // this is likely a manual visit or a stale redirect.
       // Redirect to home instead of "confirming" anything.
       if (!hasToken && !hasPending) {
@@ -105,12 +105,11 @@ export default function AuthCallbackPage() {
 
       // If no pending data for an email user, they landed here stale — go to login.
       if (!pending) {
-<<<<<<< HEAD
         console.log("[AuthCallback] No pending data found, checking metadata or database");
 
         // Check metadata first
         const metadataType = user.user_metadata?.user_type;
-        
+
         // Ensure records exist
         await authService.ensureUserRolesFromRecords(user.id);
 
@@ -168,10 +167,6 @@ export default function AuthCallbackPage() {
           navigate("/email-confirmed", { replace: true, state: { email: user.email, role: "buyer", redirectTo } });
         }
 
-=======
-        console.log("[AuthCallback] No pending signup data for email user — redirecting to login");
-        navigate("/login", { replace: true });
->>>>>>> cf2a6b0b (Improve OAuth handling and redirect logic)
         return;
       }
 
@@ -242,7 +237,7 @@ export default function AuthCallbackPage() {
       // 7. Success! Navigate to confirmation page
       sessionStorage.removeItem("pendingBuyerSignup");
       sessionStorage.removeItem("pendingSellerSignup");
-      
+
       navigate("/email-confirmed", { replace: true, state: { email: pending.email, role: pending.user_type } });
 
 

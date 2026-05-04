@@ -1,45 +1,30 @@
-<<<<<<< HEAD
-=======
 import { useEffect, useState } from 'react';
+import { useLocation, useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
-import { useNavigate, useLocation } from 'react-router-dom';
-import Header from '../components/Header';
-import { BazaarFooter } from '../components/ui/bazaar-footer';
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '../components/ui/card';
-import { Button } from '../components/ui/button';
-import { Input } from '../components/ui/input';
-import { Label } from '../components/ui/label';
-import { Switch } from '../components/ui/switch';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '../components/ui/tabs';
-import { Badge } from '../components/ui/badge';
 import {
-  MapPin,
-  CreditCard,
-  Wallet,
+  AlertTriangle,
+  Badge,
   Bell,
-  Shield,
-  Smartphone,
-  Mail,
-  Lock,
-  Trash2,
-  Plus,
-  Edit3,
-  Facebook,
-  Twitter,
-  Eye,
-  EyeOff,
-  Save,
-  Loader2,
-  Map,
-  LocateFixed,
   Check,
   ChevronLeft,
-  AlertTriangle,
+  CreditCard,
+  Edit3,
+  Eye,
+  EyeOff,
+  Loader2,
+  LocateFixed,
+  Lock,
+  Mail,
+  Map,
+  MapPin,
+  Plus,
+  Save,
+  Shield,
   ShieldCheck,
+  Smartphone,
+  Trash2,
+  Wallet
 } from 'lucide-react';
-import { ComingSoonWrapper } from '../components/ComingSoonWrapper';
-import { supabase } from '../lib/supabase';
->>>>>>> 4bfdad01 (Add onboarding modal and Google linking rules)
 import { AddressPicker } from '@/components/ui/address-picker';
 import {
   Dialog,
@@ -52,38 +37,8 @@ import {
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useToast } from '@/hooks/use-toast';
 import { cn } from '@/lib/utils';
-<<<<<<< HEAD
-import { motion } from 'framer-motion';
-import {
-  AlertTriangle,
-  Bell,
-  Check,
-  ChevronLeft,
-  CreditCard,
-  Edit3,
-  Eye,
-  EyeOff,
-  Loader2,
-  LocateFixed,
-  Lock,
-  Mail,
-  Map,
-  MapPin,
-  Plus,
-  Save,
-  Shield,
-  Smartphone,
-  Trash2,
-  Wallet
-} from 'lucide-react';
-import { useEffect, useState } from 'react';
-import { useLocation, useNavigate } from 'react-router-dom';
-=======
-
->>>>>>> 4bfdad01 (Add onboarding modal and Google linking rules)
 import { barangays, cities, provinces, regions } from "select-philippines-address";
 import Header from '../components/Header';
-import { Badge } from '../components/ui/badge';
 import { BazaarFooter } from '../components/ui/bazaar-footer';
 import { Button } from '../components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../components/ui/card';
