@@ -3345,6 +3345,7 @@ export type Database = {
           merged_into_id: string | null
           priority: string
           product_name: string
+          reference_links: string[]
           rejection_hold_reason: string | null
           requested_by_id: string | null
           requested_by_name: string | null
@@ -3371,6 +3372,7 @@ export type Database = {
           merged_into_id?: string | null
           priority?: string
           product_name: string
+          reference_links?: string[]
           rejection_hold_reason?: string | null
           requested_by_id?: string | null
           requested_by_name?: string | null
@@ -3397,6 +3399,7 @@ export type Database = {
           merged_into_id?: string | null
           priority?: string
           product_name?: string
+          reference_links?: string[]
           rejection_hold_reason?: string | null
           requested_by_id?: string | null
           requested_by_name?: string | null

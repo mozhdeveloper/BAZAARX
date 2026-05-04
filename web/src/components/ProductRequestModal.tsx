@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { X, Package, ImagePlus, Send, CheckCircle, Upload, Trash2 } from 'lucide-react';
+import { X, Package, ImagePlus, Send, CheckCircle, Upload, Trash2, Link, Plus } from 'lucide-react';
 import { Button } from './ui/button';
 import { Input } from './ui/input';
 import { Label } from './ui/label';
@@ -25,6 +25,7 @@ export default function ProductRequestModal({
     description: '',
     imageUrl: ''
   });
+  const [referenceLinks, setReferenceLinks] = useState<string[]>(['']);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isSuccess, setIsSuccess] = useState(false);
   const [isDragging, setIsDragging] = useState(false);
@@ -74,6 +75,7 @@ export default function ProductRequestModal({
         category: 'General',
         requestedByName,
         requestedById,
+        referenceLinks: referenceLinks.map(l => l.trim()).filter(Boolean),
       });
 
       setIsSubmitting(false);
@@ -87,6 +89,7 @@ export default function ProductRequestModal({
           description: '',
           imageUrl: ''
         });
+        setReferenceLinks(['']);
         handleRemove();
         onClose();
       }, 2000);
@@ -154,7 +157,7 @@ export default function ProductRequestModal({
           initial={{ opacity: 0, scale: 0.95, y: 20 }}
           animate={{ opacity: 1, scale: 1, y: 0 }}
           exit={{ opacity: 0, scale: 0.95, y: 20 }}
-          className="bg-white rounded-2xl shadow-2xl max-w-md w-full p-6"
+          className="bg-white rounded-2xl shadow-2xl max-w-md w-full p-6 max-h-[90vh] overflow-y-auto"
           onClick={(e) => e.stopPropagation()}
         >
           {!isSuccess ? (
@@ -304,6 +307,52 @@ export default function ProductRequestModal({
                       )}
                     </div>
                   )}
+                </div>
+
+                {/* Reference Links */}
+                <div>
+                  <Label className="text-sm font-medium text-gray-700">
+                    Reference Links (Optional)
+                  </Label>
+                  <p className="text-xs text-gray-500 mb-2">
+                    Add links to the product on Shopee, Lazada, Amazon, etc.
+                  </p>
+                  <div className="space-y-2">
+                    {referenceLinks.map((link, idx) => (
+                      <div key={idx} className="flex items-center gap-2">
+                        <Link className="w-4 h-4 text-gray-400 shrink-0" />
+                        <Input
+                          type="url"
+                          value={link}
+                          onChange={(e) => {
+                            const updated = [...referenceLinks];
+                            updated[idx] = e.target.value;
+                            setReferenceLinks(updated);
+                          }}
+                          placeholder="https://shopee.ph/..."
+                          className="flex-1 text-sm"
+                        />
+                        {referenceLinks.length > 1 && (
+                          <button
+                            type="button"
+                            onClick={() => setReferenceLinks(referenceLinks.filter((_, i) => i !== idx))}
+                            className="text-gray-400 hover:text-red-500 transition-colors"
+                          >
+                            <X className="w-4 h-4" />
+                          </button>
+                        )}
+                      </div>
+                    ))}
+                    {referenceLinks.length < 5 && (
+                      <button
+                        type="button"
+                        onClick={() => setReferenceLinks([...referenceLinks, ''])}
+                        className="flex items-center gap-1 text-xs text-orange-600 hover:text-orange-700 font-medium mt-1"
+                      >
+                        <Plus className="w-3 h-3" /> Add another link
+                      </button>
+                    )}
+                  </div>
                 </div>
 
                 {/* Submit Buttons */}
