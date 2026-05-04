@@ -1291,7 +1291,7 @@ export const useBuyerStore = create<BuyerStore>()(persist(
     },
 
     getSelectedCount: () => {
-      return get().cartItems.filter(item => item.selected).reduce((total, item) => total + item.quantity, 0);
+      return get().cartItems.filter(item => item.selected).length;
     },
 
     // Reviews & Ratings

@@ -34,27 +34,26 @@ const Header: React.FC<HeaderProps> = ({ transparentOnTop = false, hideSearch = 
   const location = useLocation();
   const { profile, logout, getTotalCartItems, cartItems, campaignDiscountCache, updateCampaignDiscountCache, initializeCart, subscribeToProfile, unsubscribeFromProfile } = useBuyerStore();
 
-  // Live discount map — seeded from persistent cache, refreshed whenever cart product IDs change.
-  // This is the permanent fix: the Header owns its own discount fetch so the dropdown is always
-  // accurate regardless of whether the user has visited the cart/checkout pages.
-  const [headerDiscountMap, setHeaderDiscountMap] = useState<Record<string, import('@/types/discount').ActiveDiscount>>(
-    () => campaignDiscountCache
-  );
+  // Live discount map — merges the reactive Zustand cache with freshly fetched data.
+  // campaignDiscountCache from Zustand IS reactive: any update from the cart page or
+  // initializeCart is immediately visible here. We supplement it with a per-session
+  // fetch so the header stays accurate even before the user visits the cart page.
+  const [fetchedDiscounts, setFetchedDiscounts] = useState<Record<string, import('@/types/discount').ActiveDiscount>>({});
+
+  // Derived: always includes the latest Zustand cache + any fresh header-fetch results
+  const headerDiscountMap: Record<string, import('@/types/discount').ActiveDiscount> = { ...campaignDiscountCache, ...fetchedDiscounts };
 
   const cartProductIdsKey = cartItems.map(i => i.id).filter(Boolean).sort().join('|');
 
   useEffect(() => {
     let cancelled = false;
     const productIds = cartProductIdsKey ? cartProductIdsKey.split('|') : [];
-    if (productIds.length === 0) { setHeaderDiscountMap({}); return; }
+    if (productIds.length === 0) return; // don't clear on initial empty-cart state
     discountService.getActiveDiscountsForProducts(productIds).then(discounts => {
       if (cancelled) return;
-      setHeaderDiscountMap(discounts);
+      setFetchedDiscounts(discounts);
       updateCampaignDiscountCache(discounts); // keep store cache in sync
-    }).catch(() => {
-      // fallback to whatever the store cache has
-      if (!cancelled) setHeaderDiscountMap(campaignDiscountCache);
-    });
+    }).catch(() => { /* campaignDiscountCache already serves as fallback */ });
     return () => { cancelled = true; };
   }, [cartProductIdsKey]); // eslint-disable-line react-hooks/exhaustive-deps
 
