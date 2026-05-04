@@ -32,12 +32,36 @@ interface HeaderProps {
 const Header: React.FC<HeaderProps> = ({ transparentOnTop = false, hideSearch = false }) => {
   const navigate = useNavigate();
   const location = useLocation();
-  const { profile, logout, getTotalCartItems, cartItems, campaignDiscountCache, initializeCart, subscribeToProfile, unsubscribeFromProfile } = useBuyerStore();
+  const { profile, logout, getTotalCartItems, cartItems, campaignDiscountCache, updateCampaignDiscountCache, initializeCart, subscribeToProfile, unsubscribeFromProfile } = useBuyerStore();
+
+  // Live discount map — seeded from persistent cache, refreshed whenever cart product IDs change.
+  // This is the permanent fix: the Header owns its own discount fetch so the dropdown is always
+  // accurate regardless of whether the user has visited the cart/checkout pages.
+  const [headerDiscountMap, setHeaderDiscountMap] = useState<Record<string, import('@/types/discount').ActiveDiscount>>(
+    () => campaignDiscountCache
+  );
+
+  const cartProductIdsKey = cartItems.map(i => i.id).filter(Boolean).sort().join('|');
+
+  useEffect(() => {
+    let cancelled = false;
+    const productIds = cartProductIdsKey ? cartProductIdsKey.split('|') : [];
+    if (productIds.length === 0) { setHeaderDiscountMap({}); return; }
+    discountService.getActiveDiscountsForProducts(productIds).then(discounts => {
+      if (cancelled) return;
+      setHeaderDiscountMap(discounts);
+      updateCampaignDiscountCache(discounts); // keep store cache in sync
+    }).catch(() => {
+      // fallback to whatever the store cache has
+      if (!cancelled) setHeaderDiscountMap(campaignDiscountCache);
+    });
+    return () => { cancelled = true; };
+  }, [cartProductIdsKey]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Resolve effective (post-discount) unit price for a cart item
   const getDropdownPrice = (item: (typeof cartItems)[0]): number => {
     const basePrice = (item as any).selectedVariant?.price ?? item.price;
-    const discount = campaignDiscountCache[item.id] ?? null;
+    const discount = headerDiscountMap[item.id] ?? null;
     const { discountedUnitPrice } = discountService.calculateLineDiscount(basePrice, 1, discount);
     return discountedUnitPrice;
   };
