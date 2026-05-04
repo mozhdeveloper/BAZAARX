@@ -16,6 +16,7 @@ interface AddedToCartModalProps {
     onClose: () => void;
     productName: string;
     productImage: string;
+    message?: string;
 }
 
 const { width } = Dimensions.get('window');
@@ -25,6 +26,7 @@ export const AddedToCartModal = ({
     onClose,
     productName,
     productImage,
+    message,
 }: AddedToCartModalProps) => {
     const fadeAnim = useRef(new Animated.Value(0)).current;
     const scaleAnim = useRef(new Animated.Value(0.9)).current;
@@ -102,7 +104,7 @@ export const AddedToCartModal = ({
             >
                 <BlurView intensity={Platform.OS === 'ios' ? 20 : 0} style={styles.blurContainer} tint="light">
                     <View style={styles.content}>
-                        <Text style={styles.title}>Item added to your cart!</Text>
+                        <Text style={styles.title}>{message || 'Item added to your cart!'}</Text>
 
                         <View style={styles.productPreview}>
                             <View style={styles.imageContainer}>

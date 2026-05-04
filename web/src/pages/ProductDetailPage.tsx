@@ -38,17 +38,7 @@ import { productService } from "../services/productService";
 import { discountService } from "@/services/discountService";
 import { warrantyService, type WarrantyInfo } from "@/services/warrantyService";
 import { supabase } from "@/lib/supabase";
-export interface ProductWithSeller {
-  id: string;
-  name: string;
-  description?: string;
-  price: number;
-  stock?: number;
-  is_active?: boolean;
-  seller_id?: string;
-  category_id?: string;
-  [key: string]: any; // Catch-all for joined seller/variant data
-}
+import { type ProductWithSeller } from "@/types/database.types";
 import type { ActiveDiscount } from "@/types/discount";
 // Lazily loaded — these are only needed on interaction or scroll, not initial render
 const ProductReviews = lazy(() =>
