@@ -27,8 +27,52 @@ import { useBuyerStore } from '../stores/buyerStore';
 import ProductRequestModal from '../components/ProductRequestModal';
 
 const STATUS_CONFIG: Record<string, { label: string; color: string; bg: string; icon: React.ReactNode }> = {
+  // Current DB statuses
+  new: {
+    label: 'Submitted',
+    color: 'text-amber-700',
+    bg: 'bg-amber-50 border-amber-200',
+    icon: <Clock className="h-4 w-4 text-amber-600" />,
+  },
+  under_review: {
+    label: 'Under Review',
+    color: 'text-blue-700',
+    bg: 'bg-blue-50 border-blue-200',
+    icon: <Search className="h-4 w-4 text-blue-600" />,
+  },
+  approved_for_sourcing: {
+    label: 'Being Sourced',
+    color: 'text-purple-700',
+    bg: 'bg-purple-50 border-purple-200',
+    icon: <Loader2 className="h-4 w-4 text-purple-600 animate-spin" />,
+  },
+  already_available: {
+    label: 'Already Available',
+    color: 'text-teal-700',
+    bg: 'bg-teal-50 border-teal-200',
+    icon: <CheckCircle2 className="h-4 w-4 text-teal-600" />,
+  },
+  on_hold: {
+    label: 'On Hold',
+    color: 'text-gray-600',
+    bg: 'bg-gray-50 border-gray-200',
+    icon: <Clock className="h-4 w-4 text-gray-500" />,
+  },
+  converted_to_listing: {
+    label: 'Now Live!',
+    color: 'text-green-700',
+    bg: 'bg-green-50 border-green-200',
+    icon: <CheckCircle2 className="h-4 w-4 text-green-600" />,
+  },
+  rejected: {
+    label: 'Not Available',
+    color: 'text-red-700',
+    bg: 'bg-red-50 border-red-200',
+    icon: <XCircle className="h-4 w-4 text-red-600" />,
+  },
+  // Legacy back-compat values
   pending: {
-    label: 'Pending Review',
+    label: 'Submitted',
     color: 'text-amber-700',
     bg: 'bg-amber-50 border-amber-200',
     icon: <Clock className="h-4 w-4 text-amber-600" />,
@@ -45,12 +89,14 @@ const STATUS_CONFIG: Record<string, { label: string; color: string; bg: string; 
     bg: 'bg-blue-50 border-blue-200',
     icon: <Loader2 className="h-4 w-4 text-blue-600 animate-spin" />,
   },
-  rejected: {
-    label: 'Not Available',
-    color: 'text-red-700',
-    bg: 'bg-red-50 border-red-200',
-    icon: <XCircle className="h-4 w-4 text-red-600" />,
-  },
+};
+
+// Groups legacy + current DB statuses into buyer-friendly filter buckets
+const STATUS_FILTER_GROUPS: Record<string, string[]> = {
+  pending: ['new', 'pending'],
+  in_progress: ['under_review', 'approved_for_sourcing', 'on_hold', 'in_progress'],
+  approved: ['converted_to_listing', 'already_available', 'approved'],
+  rejected: ['rejected'],
 };
 
 type Tab = 'mine' | 'supported';
@@ -113,15 +159,15 @@ export default function BuyerProductRequestsPage() {
 
   const sourceList = activeTab === 'mine' ? requests : supported;
   const filteredRequests = filterStatus
-    ? sourceList.filter((r) => r.status === filterStatus)
+    ? sourceList.filter((r) => (STATUS_FILTER_GROUPS[filterStatus] || [filterStatus]).includes(r.status))
     : sourceList;
 
   const statusCounts = {
     all: sourceList.length,
-    pending: sourceList.filter((r) => r.status === 'pending').length,
-    approved: sourceList.filter((r) => r.status === 'approved').length,
-    in_progress: sourceList.filter((r) => r.status === 'in_progress').length,
-    rejected: sourceList.filter((r) => r.status === 'rejected').length,
+    pending: sourceList.filter((r) => STATUS_FILTER_GROUPS.pending.includes(r.status)).length,
+    in_progress: sourceList.filter((r) => STATUS_FILTER_GROUPS.in_progress.includes(r.status)).length,
+    approved: sourceList.filter((r) => STATUS_FILTER_GROUPS.approved.includes(r.status)).length,
+    rejected: sourceList.filter((r) => STATUS_FILTER_GROUPS.rejected.includes(r.status)).length,
   };
 
   const formatDate = (date: Date) => {

@@ -179,6 +179,7 @@ class ProductRequestService {
       category: params.category,
       requested_by_name: params.requestedByName,
       requested_by_id: params.requestedById || null,
+      status: 'new',
       priority: params.priority || 'medium',
       estimated_demand: params.estimatedDemand || 0,
       reference_links: params.referenceLinks ?? [],
