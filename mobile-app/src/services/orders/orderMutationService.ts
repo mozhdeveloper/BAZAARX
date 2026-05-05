@@ -126,10 +126,9 @@ class OrderMutationService {
           throw new Error('Address change period has expired. Orders can only be updated within 1 hour of placement.');
         }
 
-        // 2. Shipment Arrangement Validation
-        const validStatuses = ['pending', 'processing', 'waiting_for_seller'];
-        if (orderData.shipment_status && !validStatuses.includes(orderData.shipment_status)) {
-          throw new Error('Shipment preparation already started. Order is no longer eligible for address change.');
+        // 2. Status Validation (Strictly Pending Only)
+        if (orderData.shipment_status && orderData.shipment_status !== 'pending') {
+          throw new Error('Address changes are only allowed while the order is strictly in the Pending state.');
         }
 
         // 3. One-Time Change Validation (Check History Audit)
