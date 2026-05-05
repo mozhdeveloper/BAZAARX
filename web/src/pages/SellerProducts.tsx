@@ -1121,13 +1121,16 @@ export function AddProduct() {
         }
 
         const baseStock = parseInt(formData.stock) || 0;
-        const totalStock = baseStock + getTotalVariantStock();
+        const hasRealVariantsCheck = variantConfigs.some(v => v.variantLabel1Value || v.variantLabel2Value);
+        const totalStock = hasRealVariantsCheck
+            ? baseStock + variantConfigs.filter(v => v.variantLabel1Value || v.variantLabel2Value).reduce((sum, v) => sum + (v.stock || 0), 0)
+            : baseStock;
 
         if (baseStock < 0) {
             newErrors.stock = "Stock cannot be negative";
         }
 
-        if (variantConfigs.length > 0) {
+        if (hasRealVariantsCheck) {
             if (totalStock <= 0) {
                 newErrors.variants =
                     "Total stock must be greater than 0. Add stock to base variant or custom variants.";
@@ -1210,7 +1213,10 @@ export function AddProduct() {
                 })
             );
 
-            const customVariantStock = updatedVariants.reduce((sum, v) => sum + (v.stock || 0), 0);
+            const hasRealVariants = variantConfigs.some(v => v.variantLabel1Value || v.variantLabel2Value);
+            const customVariantStock = hasRealVariants
+                ? updatedVariants.filter(v => v.variantLabel1Value || v.variantLabel2Value).reduce((sum, v) => sum + (v.stock || 0), 0)
+                : 0;
             const totalStock = baseStock + customVariantStock;
 
             // 2. Handle Base Variant logic

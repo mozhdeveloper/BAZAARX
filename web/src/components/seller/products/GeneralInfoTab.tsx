@@ -156,6 +156,7 @@ export function GeneralInfoTab({
     reorderImageFile,
 }: GeneralInfoTabProps) {
     const [imageUploadMode, setImageUploadMode] = useState<"url" | "upload">("url");
+    const hasRealVariants = variantConfigs.some(v => v.variantLabel1Value || v.variantLabel2Value);
 
     return (
         <div className="space-y-8">
@@ -306,13 +307,13 @@ export function GeneralInfoTab({
                         type="number"
                         id="stock"
                         name="stock"
-                        // Use the calculated total if variants exist, otherwise use raw formData
-                        value={variantConfigs.length > 0 ? getTotalVariantStock() : formData.stock}
+                        // Use the calculated total if real variants exist, otherwise use raw formData
+                        value={hasRealVariants ? getTotalVariantStock() : formData.stock}
                         onChange={handleChange}
-                        disabled={variantConfigs.length > 0}
+                        disabled={hasRealVariants}
                         className={cn(
                             "w-full rounded-xl border border-gray-200 px-3 py-3 text-sm shadow-sm focus:outline-none focus:ring-2 focus:ring-orange-500 focus:border-orange-500",
-                            variantConfigs.length > 0 && "bg-gray-50 cursor-not-allowed opacity-75",
+                            hasRealVariants && "bg-gray-50 cursor-not-allowed opacity-75",
                             errors.stock && "border-red-500",
                         )}
                         placeholder="0"
@@ -320,9 +321,9 @@ export function GeneralInfoTab({
                     {errors.stock && (
                         <p className="text-sm text-red-600">{errors.stock}</p>
                     )}
-                    {variantConfigs.length > 0 && (
+                    {hasRealVariants && (
                         <p className="text-[11px] text-green-700 mt-1 font-medium">
-                            Automatically calculated from {variantConfigs.length} variants.
+                            Automatically calculated from {variantConfigs.filter(v => v.variantLabel1Value || v.variantLabel2Value).length} variants.
                         </p>
                     )}
                 </div>
