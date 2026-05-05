@@ -1042,16 +1042,34 @@ export const useAdminFlashSales = create<FlashSalesState>((set) => ({
 export interface ProductRequest {
   id: string;
   productName: string;
+  title: string;
   description: string;
+  summary: string;
   category: string;
   requestedBy: string;
+  requestedById: string;
   requestDate: Date;
   votes: number;
+  demandCount: number;
+  stakedBazcoins: number;
   comments: number;
-  status: 'pending' | 'approved' | 'rejected' | 'in_progress';
+  status:
+    | 'new'
+    | 'under_review'
+    | 'approved_for_sourcing'
+    | 'already_available'
+    | 'on_hold'
+    | 'converted_to_listing'
+    | 'pending'
+    | 'approved'
+    | 'rejected'
+    | 'in_progress';
   priority: 'low' | 'medium' | 'high';
   estimatedDemand: number;
   adminNotes?: string;
+  rejectionHoldReason?: string;
+  linkedProductId?: string;
+  referenceLinks: string[];
 }
 
 interface ProductRequestsState {
@@ -1059,7 +1077,7 @@ interface ProductRequestsState {
   isLoading: boolean;
   error: string | null;
   loadRequests: () => Promise<void>;
-  updateStatus: (id: string, status: 'approved' | 'rejected' | 'in_progress', notes?: string) => Promise<void>;
+  updateStatus: (id: string, status: ProductRequest['status'], reason?: string) => Promise<void>;
   deleteRequest: (id: string) => Promise<void>;
 }
 
@@ -1069,117 +1087,78 @@ export const useAdminProductRequests = create<ProductRequestsState>((set) => ({
   error: null,
 
   loadRequests: async () => {
-    set({ isLoading: true });
-
-    const demoRequests: ProductRequest[] = [
-      {
-        id: 'req-1',
-        productName: 'Organic Rice from Ifugao',
-        description: 'Looking for authentic organic rice directly from Ifugao rice terraces. Willing to pay premium for quality.',
-        category: 'Food & Beverages',
-        requestedBy: 'Maria Santos',
-        requestDate: new Date('2024-03-10'),
-        votes: 245,
-        comments: 34,
-        status: 'pending',
-        priority: 'high',
-        estimatedDemand: 1000
-      },
-      {
-        id: 'req-2',
-        productName: 'Handmade Pottery from Vigan',
-        description: 'Traditional Vigan pottery items - jars, pots, and decorative pieces.',
-        category: 'Handicrafts',
-        requestedBy: 'Juan Dela Cruz',
-        requestDate: new Date('2024-03-08'),
-        votes: 189,
-        comments: 23,
-        status: 'approved',
-        priority: 'medium',
-        estimatedDemand: 500,
-        adminNotes: 'Connected with 3 verified Vigan pottery sellers. Expected listing in 2 weeks.'
-      },
-      {
-        id: 'req-3',
-        productName: 'Fresh Mangosteen',
-        description: 'Looking for fresh mangosteen during peak season. Bulk orders available.',
-        category: 'Fruits',
-        requestedBy: 'Carmen Reyes',
-        requestDate: new Date('2024-03-05'),
-        votes: 156,
-        comments: 18,
-        status: 'in_progress',
-        priority: 'high',
-        estimatedDemand: 2000,
-        adminNotes: 'Coordinating with Davao fruit sellers. ETA 1 week.'
-      },
-      {
-        id: 'req-4',
-        productName: 'Baguio Vegetables Bundle',
-        description: 'Mixed vegetables from Baguio - lettuce, carrots, tomatoes, etc.',
-        category: 'Vegetables',
-        requestedBy: 'Roberto Cruz',
-        requestDate: new Date('2024-03-01'),
-        votes: 312,
-        comments: 45,
-        status: 'approved',
-        priority: 'high',
-        estimatedDemand: 1500,
-        adminNotes: 'Multiple Baguio sellers onboarded. Product live on marketplace.'
-      },
-      {
-        id: 'req-5',
-        productName: 'Imported Luxury Watches',
-        description: 'Looking for authentic Rolex and Omega watches',
-        category: 'Accessories',
-        requestedBy: 'Suspicious User',
-        requestDate: new Date('2024-02-28'),
-        votes: 12,
-        comments: 3,
-        status: 'rejected',
-        priority: 'low',
-        estimatedDemand: 10,
-        adminNotes: 'Request rejected - high risk of counterfeit goods. Does not align with marketplace focus.'
-      },
-      {
-        id: 'req-6',
-        productName: 'Mindanao Coffee Beans',
-        description: 'Premium coffee beans from Mindanao. Looking for arabica and robusta varieties.',
-        category: 'Beverages',
-        requestedBy: 'Lisa Chen',
-        requestDate: new Date('2024-03-12'),
-        votes: 278,
-        comments: 56,
-        status: 'pending',
-        priority: 'high',
-        estimatedDemand: 800
-      }
-    ];
-
-    await new Promise(resolve => setTimeout(resolve, 800));
-    set({ requests: demoRequests, isLoading: false });
+    set({ isLoading: true, error: null });
+    try {
+      const { supabase } = await import('../lib/supabase');
+      const { data, error } = await supabase
+        .from('product_requests')
+        .select('*')
+        .order('created_at', { ascending: false })
+        .limit(200);
+      if (error) throw error;
+      const mapped: ProductRequest[] = (data || []).map((r: any) => ({
+        id: r.id,
+        productName: r.product_name || r.title || 'Untitled',
+        title: r.title || r.product_name || 'Untitled',
+        description: r.description || r.summary || '',
+        summary: r.summary || r.description || '',
+        category: r.category || '',
+        requestedBy: r.requested_by_name || 'Anonymous',
+        requestedById: r.requested_by_id || '',
+        requestDate: new Date(r.created_at),
+        votes: r.votes || 0,
+        demandCount: r.demand_count || r.estimated_demand || 0,
+        stakedBazcoins: r.staked_bazcoins || 0,
+        comments: r.comments_count || 0,
+        status: r.status || 'new',
+        priority: r.priority || 'medium',
+        estimatedDemand: r.estimated_demand || r.demand_count || 0,
+        adminNotes: r.admin_notes || undefined,
+        rejectionHoldReason: r.rejection_hold_reason || undefined,
+        linkedProductId: r.linked_product_id || undefined,
+        referenceLinks: r.reference_links || [],
+      }));
+      set({ requests: mapped, isLoading: false });
+    } catch (err: any) {
+      set({ error: err.message, isLoading: false });
+    }
   },
 
-  updateStatus: async (id, status, notes) => {
+  updateStatus: async (id, status, reason) => {
     set({ isLoading: true });
-    await new Promise(resolve => setTimeout(resolve, 1000));
-    set(state => ({
-      requests: state.requests.map(req => 
-        req.id === id 
-          ? { ...req, status, adminNotes: notes || req.adminNotes } 
-          : req
-      ),
-      isLoading: false
-    }));
+    try {
+      const { supabase } = await import('../lib/supabase');
+      const updateData: Record<string, any> = { status, updated_at: new Date().toISOString() };
+      if (reason) updateData.rejection_hold_reason = reason;
+      if (reason) updateData.admin_notes = reason;
+      const { error } = await supabase.from('product_requests').update(updateData).eq('id', id);
+      if (error) throw error;
+      set(state => ({
+        requests: state.requests.map(req =>
+          req.id === id
+            ? { ...req, status, adminNotes: reason || req.adminNotes, rejectionHoldReason: reason || req.rejectionHoldReason }
+            : req
+        ),
+        isLoading: false
+      }));
+    } catch (err: any) {
+      set({ error: err.message, isLoading: false });
+    }
   },
 
   deleteRequest: async (id) => {
     set({ isLoading: true });
-    await new Promise(resolve => setTimeout(resolve, 1000));
-    set(state => ({
-      requests: state.requests.filter(req => req.id !== id),
-      isLoading: false
-    }));
+    try {
+      const { supabase } = await import('../lib/supabase');
+      const { error } = await supabase.from('product_requests').delete().eq('id', id);
+      if (error) throw error;
+      set(state => ({
+        requests: state.requests.filter(req => req.id !== id),
+        isLoading: false
+      }));
+    } catch (err: any) {
+      set({ error: err.message, isLoading: false });
+    }
   }
 }));
 

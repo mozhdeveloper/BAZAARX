@@ -410,6 +410,26 @@ CREATE TABLE public.email_templates (
   CONSTRAINT email_templates_approved_by_fkey FOREIGN KEY (approved_by) REFERENCES public.admins(id),
   CONSTRAINT email_templates_created_by_fkey FOREIGN KEY (created_by) REFERENCES public.admins(id)
 );
+CREATE TABLE public.favorites_folders (
+  id uuid NOT NULL DEFAULT gen_random_uuid(),
+  user_id uuid NOT NULL,
+  name text NOT NULL,
+  is_default boolean DEFAULT false,
+  created_at timestamp with time zone DEFAULT now(),
+  CONSTRAINT favorites_folders_pkey PRIMARY KEY (id),
+  CONSTRAINT favorites_folders_user_id_fkey FOREIGN KEY (user_id) REFERENCES auth.users(id)
+);
+CREATE TABLE public.favorites_items (
+  id uuid NOT NULL DEFAULT gen_random_uuid(),
+  folder_id uuid NOT NULL,
+  product_id uuid NOT NULL,
+  user_id uuid NOT NULL,
+  created_at timestamp with time zone DEFAULT now(),
+  CONSTRAINT favorites_items_pkey PRIMARY KEY (id),
+  CONSTRAINT favorites_items_folder_id_fkey FOREIGN KEY (folder_id) REFERENCES public.favorites_folders(id),
+  CONSTRAINT favorites_items_product_id_fkey FOREIGN KEY (product_id) REFERENCES public.products(id),
+  CONSTRAINT favorites_items_user_id_fkey FOREIGN KEY (user_id) REFERENCES auth.users(id)
+);
 CREATE TABLE public.featured_products (
   id uuid NOT NULL DEFAULT gen_random_uuid(),
   product_id uuid NOT NULL UNIQUE,
@@ -964,6 +984,7 @@ CREATE TABLE public.product_requests (
   merged_into_id uuid,
   converted_at timestamp with time zone,
   reward_amount integer NOT NULL DEFAULT 50,
+  reference_links ARRAY NOT NULL DEFAULT '{}'::text[],
   CONSTRAINT product_requests_pkey PRIMARY KEY (id),
   CONSTRAINT product_requests_linked_product_id_fkey FOREIGN KEY (linked_product_id) REFERENCES public.products(id),
   CONSTRAINT product_requests_merged_into_id_fkey FOREIGN KEY (merged_into_id) REFERENCES public.product_requests(id)

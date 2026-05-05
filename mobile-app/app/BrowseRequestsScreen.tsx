@@ -1,14 +1,15 @@
 /**
  * Buyer-facing browse/community requests (mobile) — BX-07-005, BX-07-013, BX-07-021.
  * Lists open product requests sorted by demand for buyers to browse + back.
+ * Accepts optional initialSearch route param for pre-filled search from DiscoverScreen.
  */
-import React, { useEffect, useState, useCallback } from 'react';
+import React, { useEffect, useState, useCallback, useRef } from 'react';
 import {
   View, Text, ScrollView, Pressable, StyleSheet, ActivityIndicator,
-  RefreshControl, StatusBar, TextInput,
+  RefreshControl, StatusBar, TextInput, Platform,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { ChevronLeft, Search, Package, Coins, Users, Flame } from 'lucide-react-native';
+import { ChevronLeft, Search, Package, Coins, Users, Flame, Plus } from 'lucide-react-native';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import type { RootStackParamList } from '../App';
 import { productRequestService, type ProductRequestDTO } from '../src/services/productRequestService';
@@ -17,20 +18,22 @@ import { COLORS } from '../src/constants/theme';
 type Props = NativeStackScreenProps<RootStackParamList, 'BrowseRequests'>;
 
 const FILTERS = [
-  { key: '', label: 'All' },
-  { key: 'new', label: 'New' },
-  { key: 'under_review', label: 'Reviewing' },
+  { key: '',                    label: 'All' },
+  { key: 'new',                 label: 'New' },
+  { key: 'under_review',        label: 'Reviewing' },
   { key: 'approved_for_sourcing', label: 'Sourcing' },
-  { key: 'in_progress', label: 'In Progress' },
+  { key: 'in_progress',         label: 'In Progress' },
+  { key: 'approved',            label: 'Verified ✅' },
 ];
 
-export default function BrowseRequestsScreen({ navigation }: Props) {
+export default function BrowseRequestsScreen({ navigation, route }: Props) {
   const insets = useSafeAreaInsets();
   const [items, setItems] = useState<ProductRequestDTO[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
-  const [search, setSearch] = useState('');
+  const [search, setSearch] = useState(route.params?.initialSearch ?? '');
   const [status, setStatus] = useState('');
+  const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const load = useCallback(async () => {
     const rows = await productRequestService.listBrowse({
@@ -45,6 +48,13 @@ export default function BrowseRequestsScreen({ navigation }: Props) {
 
   useEffect(() => { load(); }, [load]);
 
+  // Debounce search input
+  const handleSearchChange = (text: string) => {
+    setSearch(text);
+    if (debounceRef.current) clearTimeout(debounceRef.current);
+    debounceRef.current = setTimeout(() => { setLoading(true); }, 400);
+  };
+
   const onRefresh = () => { setRefreshing(true); load(); };
 
   return (
@@ -55,7 +65,13 @@ export default function BrowseRequestsScreen({ navigation }: Props) {
           <ChevronLeft size={22} color={COLORS.textHeadline} />
         </Pressable>
         <Text style={styles.headerTitle}>Community Requests</Text>
-        <View style={styles.backBtn} />
+        <Pressable
+          style={[styles.backBtn, { backgroundColor: COLORS.primary }]}
+          onPress={() => (navigation as any).navigate('CreateProductRequest')}
+          accessibilityLabel="Submit new request"
+        >
+          <Plus size={18} color="#FFFFFF" />
+        </Pressable>
       </View>
 
       <View style={styles.searchRow}>
@@ -64,7 +80,7 @@ export default function BrowseRequestsScreen({ navigation }: Props) {
           style={styles.searchInput}
           placeholder="Search products…"
           value={search}
-          onChangeText={setSearch}
+          onChangeText={handleSearchChange}
           returnKeyType="search"
           onSubmitEditing={load}
         />
@@ -89,6 +105,13 @@ export default function BrowseRequestsScreen({ navigation }: Props) {
           <Package size={42} color="#D1D5DB" />
           <Text style={styles.emptyTitle}>No requests match</Text>
           <Text style={styles.emptySub}>Try a different filter or search term.</Text>
+          <Pressable
+            style={styles.emptyCreateBtn}
+            onPress={() => (navigation as any).navigate('CreateProductRequest')}
+          >
+            <Plus size={14} color="#FFFFFF" />
+            <Text style={styles.emptyCreateText}>Submit a Request</Text>
+          </Pressable>
         </View>
       ) : (
         <ScrollView
@@ -181,4 +204,15 @@ const styles = StyleSheet.create({
   center: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: 24 },
   emptyTitle: { fontSize: 16, fontWeight: '700', color: '#111827', marginTop: 12 },
   emptySub: { fontSize: 12, color: '#6B7280', marginTop: 6, textAlign: 'center' },
+  emptyCreateBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    backgroundColor: COLORS.primary,
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    borderRadius: 999,
+    marginTop: 14,
+  },
+  emptyCreateText: { fontSize: 13, fontWeight: '700', color: '#FFFFFF' },
 });

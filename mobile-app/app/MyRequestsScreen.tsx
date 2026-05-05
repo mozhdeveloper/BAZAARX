@@ -104,7 +104,7 @@ export default function MyRequestsScreen({ navigation }: Props) {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [filterStatus, setFilterStatus] = useState<string | null>(null);
-  const [showRequestModal, setShowRequestModal] = useState(false);
+  const [showRequestModal, setShowRequestModal] = useState(false); // kept for backward compat
 
   const loadRequests = useCallback(async () => {
     if (!user?.id) return;
@@ -211,7 +211,7 @@ export default function MyRequestsScreen({ navigation }: Props) {
               <Package size={22} color={COLORS.primary} strokeWidth={2.2} />
             </Pressable>
             <Pressable
-              onPress={() => setShowRequestModal(true)}
+              onPress={() => (navigation as any).navigate('CreateProductRequest')}
               style={styles.headerIconButton}
             >
               <Plus size={24} color={COLORS.primary} strokeWidth={2.5} />
@@ -283,7 +283,7 @@ export default function MyRequestsScreen({ navigation }: Props) {
                 : "Can't find what you're looking for?\nRequest a product and we'll notify you!"}
             </Text>
             <Pressable
-              onPress={() => setShowRequestModal(true)}
+              onPress={() => (navigation as any).navigate('CreateProductRequest')}
               style={({ pressed }) => [styles.emptyActionBtn, pressed && { opacity: 0.85 }]}
             >
               <Plus size={18} color="#FFF" />

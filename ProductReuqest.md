@@ -92,7 +92,7 @@ Based on the user stories, ensure the following core entities are implemented in
 2.  **API & Business Logic**: Implement the backend controllers and services. Pay special attention to:
     *   BazCoin deduction and reward transaction logic (Must be ACID compliant).
     *   State machine logic for Request Status transitions (e.g., A request cannot go from "New" directly to "Converted to Listing").
-    *   Role-based access control (RBAC): Ensure Buyers only edit their own drafts; Suppliers only see eligible requests; Admins see private supplier links.
+    *   Role-based access control cur(RBAC): Ensure Buyers only edit their own drafts; Suppliers only see eligible requests; Admins see private supplier links.
 3.  **Frontend Components**: 
     *   Create the Buyer forms (with file upload validation).
     *   Build the Request List and Detail views (including the visual timeline progress tracker).

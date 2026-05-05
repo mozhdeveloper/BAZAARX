@@ -2,7 +2,7 @@ import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { LinkingOptions, NavigationContainer, NavigatorScreenParams } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { StatusBar } from 'expo-status-bar';
-import { Home, MessageCircle, ShoppingCart, Store, User } from 'lucide-react-native';
+import { FlaskConical, Home, MessageCircle, ShoppingCart, Store, User } from 'lucide-react-native';
 import React, { useRef } from 'react';
 import { AppState, AppStateStatus, LogBox, Linking, Platform, Alert } from 'react-native';
 import 'react-native-gesture-handler';
@@ -49,6 +49,7 @@ export type TabParamList = {
   Cart: { selectedCartItemIds?: string[] } | undefined;
   Messages: undefined;
   Profile: undefined;
+  Discover: undefined;
 };
 
 export type RootStackParamList = {
@@ -133,7 +134,8 @@ export type RootStackParamList = {
   LabPipeline: undefined;
   ProductRequestDetail: { requestId: string };
   SellerDemand: undefined;
-  BrowseRequests: undefined;
+  BrowseRequests: { initialSearch?: string } | undefined;
+  CreateProductRequest: undefined;
   CreateTicket: undefined;
   TicketDetail: { ticketId: string };
   Messages: undefined;
@@ -314,6 +316,14 @@ function MainTabs() {
           component={ProfileScreen}
           options={{
             tabBarIcon: ({ color, size }) => <User size={size} color={color} />,
+          }}
+        />
+        <Tab.Screen
+          name="Discover"
+          getComponent={() => require('./app/DiscoverScreen').default}
+          options={{
+            tabBarLabel: 'Lab',
+            tabBarIcon: ({ color, size }) => <FlaskConical size={size} color={color} />,
           }}
         />
       </Tab.Navigator>
@@ -741,6 +751,7 @@ export default function App() {
               <Stack.Screen name="ProductRequestDetail" getComponent={() => require('./app/ProductRequestDetailScreen').default} options={{ headerShown: false }} />
               <Stack.Screen name="SellerDemand" getComponent={() => require('./app/SellerDemandScreen').default} options={{ headerShown: false }} />
               <Stack.Screen name="BrowseRequests" getComponent={() => require('./app/BrowseRequestsScreen').default} options={{ headerShown: false }} />
+              <Stack.Screen name="CreateProductRequest" getComponent={() => require('./app/CreateProductRequestScreen').default} options={{ headerShown: false }} />
               <Stack.Screen name="HelpSupport" getComponent={() => require('./app/HelpCenterScreen').default} />
               <Stack.Screen name="ChatSupport" getComponent={() => require('./app/ChatSupportScreen').default} options={{ headerShown: false }} />
               <Stack.Screen name="CreateTicket" getComponent={() => require('./app/tickets/CreateTicketScreen').default} />

@@ -657,8 +657,7 @@ export const useCartStore = create<CartStore>()(
       },
 
       getTotal: () => get().items.reduce((total, item) => total + (item.price ?? 0) * item.quantity, 0),
-      // Returns the number of distinct product lines (not sum of quantities)
-      getItemCount: () => get().items.length,
+      getItemCount: () => get().items.reduce((count, item) => count + item.quantity, 0),
 
       setQuickOrder: (product, quantity = 1) => {
         const selectedVariant = (product as any).selectedVariant || null;

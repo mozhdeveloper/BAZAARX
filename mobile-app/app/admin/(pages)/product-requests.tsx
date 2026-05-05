@@ -1,52 +1,117 @@
 import React, { useEffect, useState, useMemo } from 'react';
-import { View, Text, StyleSheet, ScrollView, Pressable, ActivityIndicator, TextInput } from 'react-native';
-import { ArrowLeft, MessageSquare, Search, ThumbsUp, MessageCircle, TrendingUp } from 'lucide-react-native';
+import { View, Text, StyleSheet, ScrollView, Pressable, ActivityIndicator, TextInput, Alert } from 'react-native';
+import { ArrowLeft, MessageSquare, Search, ThumbsUp, TrendingUp, CheckCircle, XCircle, Clock, Eye } from 'lucide-react-native';
 import { useNavigation } from '@react-navigation/native';
 import { useAdminProductRequests } from '../../../src/stores/adminStore';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { COLORS } from '../../../src/constants/theme';
 
+// All Epic 7 canonical + legacy statuses
+const STATUS_CONFIG: Record<string, { bg: string; color: string; text: string }> = {
+  new:                   { bg: '#F3F4F6', color: '#374151', text: 'New' },
+  under_review:          { bg: '#DBEAFE', color: '#1E40AF', text: 'Under Review' },
+  approved_for_sourcing: { bg: '#EDE9FE', color: '#6D28D9', text: 'Sourcing' },
+  already_available:     { bg: '#D1FAE5', color: '#065F46', text: 'Available' },
+  on_hold:               { bg: '#FEF3C7', color: '#92400E', text: 'On Hold' },
+  converted_to_listing:  { bg: '#D1FAE5', color: '#065F46', text: 'Listed 🎉' },
+  // legacy
+  pending:               { bg: '#FEF3C7', color: '#D97706', text: 'Gathering' },
+  approved:              { bg: '#D1FAE5', color: '#059669', text: 'Approved' },
+  rejected:              { bg: '#FEE2E2', color: '#DC2626', text: 'Rejected' },
+  in_progress:           { bg: '#DBEAFE', color: '#2563EB', text: 'Sourcing' },
+};
+
+const FILTER_OPTIONS = [
+  { key: 'all',                   label: 'All' },
+  { key: 'new',                   label: 'New' },
+  { key: 'under_review',          label: 'Under Review' },
+  { key: 'approved_for_sourcing', label: 'Sourcing' },
+  { key: 'already_available',     label: 'Available' },
+  { key: 'on_hold',               label: 'On Hold' },
+  { key: 'converted_to_listing',  label: 'Listed' },
+  { key: 'rejected',              label: 'Rejected' },
+];
+
 export default function AdminProductRequestsScreen() {
   const navigation = useNavigation();
   const insets = useSafeAreaInsets();
-  const { requests, isLoading, loadRequests } = useAdminProductRequests();
+  const { requests, isLoading, loadRequests, updateStatus, deleteRequest } = useAdminProductRequests();
   const [searchQuery, setSearchQuery] = useState('');
-  const [filterStatus, setFilterStatus] = useState<'all' | 'pending' | 'approved' | 'rejected' | 'in_progress'>('all');
+  const [filterStatus, setFilterStatus] = useState('all');
 
-  useEffect(() => {
-    loadRequests();
-  }, []);
+  useEffect(() => { loadRequests(); }, []);
 
   const filteredRequests = useMemo(() => requests.filter(request => {
-    const matchesSearch = request.productName.toLowerCase().includes(searchQuery.toLowerCase()) ||
-                         request.description.toLowerCase().includes(searchQuery.toLowerCase());
-    const matchesFilter = filterStatus === 'all' ? true : request.status === filterStatus;
+    const matchesSearch =
+      request.productName.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      request.description.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      request.category.toLowerCase().includes(searchQuery.toLowerCase());
+    const matchesFilter = filterStatus === 'all' || request.status === filterStatus;
     return matchesSearch && matchesFilter;
   }), [requests, searchQuery, filterStatus]);
 
+  const handleAction = (id: string, action: 'approve' | 'reject' | 'hold' | 'review') => {
+    const STATUS_MAP = {
+      approve: 'approved_for_sourcing' as const,
+      review:  'under_review' as const,
+      hold:    'on_hold' as const,
+      reject:  'rejected' as const,
+    };
+    const requiresReason = action === 'reject' || action === 'hold';
+    if (requiresReason) {
+      Alert.alert(
+        action === 'reject' ? 'Reject Request' : 'Hold Request',
+        'Enter a reason (required):',
+        [
+          { text: 'Cancel', style: 'cancel' },
+          {
+            text: 'Confirm',
+            style: action === 'reject' ? 'destructive' : 'default',
+            onPress: () => {
+              // Cross-platform: prompt not available on Android — use generic reason
+              Alert.prompt?.(
+                'Reason',
+                `Why are you ${action === 'reject' ? 'rejecting' : 'holding'} this request?`,
+                (reason: string) => {
+                  if (reason?.trim()) updateStatus(id, STATUS_MAP[action], reason.trim());
+                },
+                'plain-text'
+              ) ?? updateStatus(id, STATUS_MAP[action], `${action === 'reject' ? 'Rejected' : 'On hold'} by admin`);
+            },
+          },
+        ]
+      );
+    } else {
+      Alert.alert(
+        'Confirm Action',
+        `Move this request to "${STATUS_MAP[action].replace(/_/g, ' ')}"?`,
+        [
+          { text: 'Cancel', style: 'cancel' },
+          { text: 'Confirm', onPress: () => updateStatus(id, STATUS_MAP[action]) },
+        ]
+      );
+    }
+  };
+
   const getStatusBadge = (status: string) => {
-    const config = {
-      pending: { bg: '#FEF3C7', color: '#D97706', text: 'Pending' },
-      approved: { bg: '#D1FAE5', color: '#059669', text: 'Approved' },
-      rejected: { bg: '#FEE2E2', color: '#DC2626', text: 'Rejected' },
-      in_progress: { bg: '#DBEAFE', color: '#2563EB', text: 'In Progress' },
-    }[status];
+    const cfg = STATUS_CONFIG[status] ?? STATUS_CONFIG.new;
     return (
-      <View style={[styles.statusBadge, { backgroundColor: config?.bg }]}>
-        <Text style={[styles.statusText, { color: config?.color }]}>{config?.text}</Text>
+      <View style={[styles.statusBadge, { backgroundColor: cfg.bg }]}>
+        <Text style={[styles.statusText, { color: cfg.color }]}>{cfg.text}</Text>
       </View>
     );
   };
 
   const getPriorityBadge = (priority: string) => {
-    const config = {
-      high: { bg: '#FEE2E2', color: '#DC2626', text: 'High' },
+    const config: Record<string, any> = {
+      high:   { bg: '#FEE2E2', color: '#DC2626', text: 'High' },
       medium: { bg: '#FEF3C7', color: '#D97706', text: 'Medium' },
-      low: { bg: '#E5E7EB', color: '#6B7280', text: 'Low' },
-    }[priority];
+      low:    { bg: '#E5E7EB', color: '#6B7280', text: 'Low' },
+    };
+    const cfg = config[priority] ?? config.medium;
     return (
-      <View style={[styles.priorityBadge, { backgroundColor: config?.bg }]}>
-        <Text style={[styles.priorityText, { color: config?.color }]}>{config?.text}</Text>
+      <View style={[styles.priorityBadge, { backgroundColor: cfg.bg }]}>
+        <Text style={[styles.priorityText, { color: cfg.color }]}>{cfg.text}</Text>
       </View>
     );
   };
@@ -77,14 +142,14 @@ export default function AdminProductRequestsScreen() {
           />
         </View>
         <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.filterScrollView}>
-          {['all', 'pending', 'approved', 'in_progress', 'rejected'].map((filter) => (
+          {FILTER_OPTIONS.map((f) => (
             <Pressable
-              key={filter}
-              style={[styles.filterChip, filterStatus === filter && styles.filterChipActive]}
-              onPress={() => setFilterStatus(filter as any)}
+              key={f.key}
+              style={[styles.filterChip, filterStatus === f.key && styles.filterChipActive]}
+              onPress={() => setFilterStatus(f.key)}
             >
-              <Text style={[styles.filterChipText, filterStatus === filter && styles.filterChipTextActive]}>
-                {filter.charAt(0).toUpperCase() + filter.slice(1).replace('_', ' ')}
+              <Text style={[styles.filterChipText, filterStatus === f.key && styles.filterChipTextActive]}>
+                {f.label}
               </Text>
             </Pressable>
           ))}
@@ -108,7 +173,7 @@ export default function AdminProductRequestsScreen() {
               <View style={styles.cardHeader}>
                 <View style={styles.cardHeaderLeft}>
                   <Text style={styles.productName}>{request.productName}</Text>
-                  <Text style={styles.category}>{request.category}</Text>
+                  <Text style={styles.category}>{request.category} · {request.requestedBy}</Text>
                 </View>
                 <View style={styles.badges}>
                   {getPriorityBadge(request.priority)}
@@ -123,18 +188,46 @@ export default function AdminProductRequestsScreen() {
                     <Text style={styles.metaText}>{request.votes} votes</Text>
                   </View>
                   <View style={styles.metaItem}>
-                    <MessageCircle size={14} color="#6B7280" />
-                    <Text style={styles.metaText}>{request.comments} comments</Text>
+                    <TrendingUp size={14} color="#6B7280" />
+                    <Text style={styles.metaText}>{request.demandCount} demand</Text>
                   </View>
                   <View style={styles.metaItem}>
-                    <TrendingUp size={14} color="#6B7280" />
-                    <Text style={styles.metaText}>{request.estimatedDemand} demand</Text>
+                    <Text style={[styles.metaText, { color: '#F59E0B' }]}>⚡ {request.stakedBazcoins} BC</Text>
                   </View>
                 </View>
-                {request.adminNotes && (
+                {!!(request.adminNotes || request.rejectionHoldReason) && (
                   <View style={styles.notesBox}>
-                    <Text style={styles.notesLabel}>Admin Notes:</Text>
-                    <Text style={styles.notesText}>{request.adminNotes}</Text>
+                    <Text style={styles.notesLabel}>Admin Note:</Text>
+                    <Text style={styles.notesText}>{request.rejectionHoldReason || request.adminNotes}</Text>
+                  </View>
+                )}
+                {/* BX-07-029: Admin action buttons */}
+                {request.status !== 'converted_to_listing' && request.status !== 'already_available' && (
+                  <View style={styles.actionRow}>
+                    {request.status !== 'under_review' && (
+                      <Pressable style={[styles.actionBtn, { backgroundColor: '#DBEAFE' }]} onPress={() => handleAction(request.id, 'review')}>
+                        <Eye size={12} color="#1E40AF" />
+                        <Text style={[styles.actionBtnText, { color: '#1E40AF' }]}>Review</Text>
+                      </Pressable>
+                    )}
+                    {request.status !== 'approved_for_sourcing' && request.status !== 'rejected' && (
+                      <Pressable style={[styles.actionBtn, { backgroundColor: '#D1FAE5' }]} onPress={() => handleAction(request.id, 'approve')}>
+                        <CheckCircle size={12} color="#065F46" />
+                        <Text style={[styles.actionBtnText, { color: '#065F46' }]}>Approve</Text>
+                      </Pressable>
+                    )}
+                    {request.status !== 'on_hold' && request.status !== 'rejected' && (
+                      <Pressable style={[styles.actionBtn, { backgroundColor: '#FEF3C7' }]} onPress={() => handleAction(request.id, 'hold')}>
+                        <Clock size={12} color="#92400E" />
+                        <Text style={[styles.actionBtnText, { color: '#92400E' }]}>Hold</Text>
+                      </Pressable>
+                    )}
+                    {request.status !== 'rejected' && (
+                      <Pressable style={[styles.actionBtn, { backgroundColor: '#FEE2E2' }]} onPress={() => handleAction(request.id, 'reject')}>
+                        <XCircle size={12} color="#DC2626" />
+                        <Text style={[styles.actionBtnText, { color: '#DC2626' }]}>Reject</Text>
+                      </Pressable>
+                    )}
                   </View>
                 )}
               </View>
@@ -185,4 +278,7 @@ const styles = StyleSheet.create({
   notesBox: { backgroundColor: '#F9FAFB', padding: 10, borderRadius: 8, borderLeftWidth: 3, borderLeftColor: COLORS.primary },
   notesLabel: { fontSize: 12, fontWeight: '600', color: '#374151', marginBottom: 4 },
   notesText: { fontSize: 13, color: '#6B7280', lineHeight: 18 },
+  actionRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginTop: 10 },
+  actionBtn: { flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: 10, paddingVertical: 6, borderRadius: 8 },
+  actionBtnText: { fontSize: 11, fontWeight: '700' },
 });

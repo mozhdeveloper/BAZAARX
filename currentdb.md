@@ -534,6 +534,30 @@ BR-EMA-016: Every template modification creates a new version record.
 | `approved_at` | `timestamptz` |  Nullable |
 | `version` | `int4` |  Nullable |
 
+## Table `favorites_folders`
+
+### Columns
+
+| Name | Type | Constraints |
+|------|------|-------------|
+| `id` | `uuid` | Primary |
+| `user_id` | `uuid` |  |
+| `name` | `text` |  |
+| `is_default` | `bool` |  Nullable |
+| `created_at` | `timestamptz` |  Nullable |
+
+## Table `favorites_items`
+
+### Columns
+
+| Name | Type | Constraints |
+|------|------|-------------|
+| `id` | `uuid` | Primary |
+| `folder_id` | `uuid` |  |
+| `product_id` | `uuid` |  |
+| `user_id` | `uuid` |  |
+| `created_at` | `timestamptz` |  Nullable |
+
 ## Table `featured_products`
 
 ### Columns
@@ -1202,6 +1226,7 @@ Per-assessment rejection record. Currently 0 rows (no products rejected yet) but
 | `merged_into_id` | `uuid` |  Nullable |
 | `converted_at` | `timestamptz` |  Nullable |
 | `reward_amount` | `int4` |  |
+| `reference_links` | `_text` |  |
 
 ## Table `product_revisions`
 

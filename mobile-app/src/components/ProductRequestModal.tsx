@@ -66,11 +66,14 @@ export default function ProductRequestModal({ visible, onClose }: ProductRequest
 
       const insertData = {
         product_name: productName.trim(),
+        title: productName.trim(),           // Epic 7 field
         description: description.trim(),
+        summary: description.trim(),         // Epic 7 field
         category: finalCategory,
         requested_by_name: requestedByName,
         requested_by_id: user?.id || null,
         estimated_demand: quantity ? parseInt(quantity, 10) || 0 : 0,
+        reference_links: [],                 // Epic 7 field (empty for quick modal)
         status: 'new',
         priority: 'medium',
       };

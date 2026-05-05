@@ -29,6 +29,10 @@ export interface ProductRequestDTO {
   rejectionHoldReason: string | null;
   rewardAmount: number;
   requestedById: string | null;
+  referenceLinks: string[];
+  adminNotes: string | null;
+  estimatedDemand: number;
+  priority: string;
   createdAt: Date;
 }
 
@@ -63,6 +67,10 @@ function mapRequest(r: any): ProductRequestDTO {
     rejectionHoldReason: r.rejection_hold_reason ?? null,
     rewardAmount: r.reward_amount ?? 50,
     requestedById: r.requested_by_id ?? null,
+    referenceLinks: r.reference_links ?? [],
+    adminNotes: r.admin_notes ?? null,
+    estimatedDemand: r.estimated_demand || r.demand_count || 0,
+    priority: r.priority || 'medium',
     createdAt: new Date(r.created_at),
   };
 }

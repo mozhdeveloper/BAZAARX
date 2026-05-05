@@ -34,12 +34,27 @@ type Props = NativeStackScreenProps<RootStackParamList, 'LabPipeline'>;
 interface ProductRequest {
   id: string;
   product_name: string;
+  title?: string;
   description: string;
+  summary?: string;
   category: string;
-  status: 'pending' | 'approved' | 'rejected' | 'in_progress';
+  // All Epic 7 canonical statuses + legacy aliases
+  status:
+    | 'new'
+    | 'under_review'
+    | 'approved_for_sourcing'
+    | 'already_available'
+    | 'on_hold'
+    | 'converted_to_listing'
+    | 'pending'
+    | 'approved'
+    | 'rejected'
+    | 'in_progress';
   priority: string;
   votes: number;
+  demand_count: number;
   estimated_demand: number;
+  staked_bazcoins: number;
   comments_count: number;
   requested_by_name: string;
   admin_notes?: string;
@@ -47,17 +62,30 @@ interface ProductRequest {
 }
 
 const STATUS_CONFIG: Record<string, { label: string; emoji: string; color: string; bg: string; border: string }> = {
-  pending:     { label: 'Gathering',  emoji: '📍', color: '#92400E', bg: '#FFFBEB', border: '#FDE68A' },
-  in_progress: { label: 'Sourcing',   emoji: '🔍', color: '#1E40AF', bg: '#EFF6FF', border: '#BFDBFE' },
-  approved:    { label: 'Verified',   emoji: '✅', color: '#166534', bg: '#F0FDF4', border: '#BBF7D0' },
-  rejected:    { label: 'Rejected',   emoji: '❌', color: '#991B1B', bg: '#FEF2F2', border: '#FECACA' },
+  // Epic 7 canonical
+  new:                   { label: 'New',            emoji: '🆕', color: '#1F2937', bg: '#F9FAFB', border: '#E5E7EB' },
+  under_review:          { label: 'Under Review',   emoji: '👀', color: '#1E40AF', bg: '#EFF6FF', border: '#BFDBFE' },
+  approved_for_sourcing: { label: 'Sourcing',        emoji: '🔍', color: '#1E40AF', bg: '#EFF6FF', border: '#BFDBFE' },
+  already_available:     { label: 'Available',       emoji: '🛒', color: '#166534', bg: '#F0FDF4', border: '#BBF7D0' },
+  on_hold:               { label: 'On Hold',         emoji: '⏸️', color: '#92400E', bg: '#FFFBEB', border: '#FDE68A' },
+  converted_to_listing:  { label: 'Listed 🎉',       emoji: '🚀', color: '#166534', bg: '#F0FDF4', border: '#BBF7D0' },
+  // Legacy aliases
+  pending:               { label: 'Gathering',       emoji: '📍', color: '#92400E', bg: '#FFFBEB', border: '#FDE68A' },
+  in_progress:           { label: 'Sourcing',        emoji: '🔍', color: '#1E40AF', bg: '#EFF6FF', border: '#BFDBFE' },
+  approved:              { label: 'Verified',        emoji: '✅', color: '#166534', bg: '#F0FDF4', border: '#BBF7D0' },
+  rejected:              { label: 'Rejected',        emoji: '❌', color: '#991B1B', bg: '#FEF2F2', border: '#FECACA' },
 };
 
 const FILTER_TABS = [
-  { key: null,          label: 'All' },
-  { key: 'pending',     label: 'Gathering 📍' },
-  { key: 'in_progress', label: 'Sourcing 🔍' },
-  { key: 'approved',    label: 'Verified ✅' },
+  { key: null,                    label: 'All' },
+  { key: 'new',                   label: 'New 🆕' },
+  { key: 'under_review',          label: 'Under Review 👀' },
+  { key: 'approved_for_sourcing', label: 'Sourcing 🔍' },
+  { key: 'already_available',     label: 'Available 🛒' },
+  { key: 'converted_to_listing',  label: 'Listed 🚀' },
+  // Legacy
+  { key: 'pending',               label: 'Gathering 📍' },
+  { key: 'approved',              label: 'Verified ✅' },
 ] as const;
 
 export default function LabPipelineScreen({ navigation }: Props) {
@@ -71,10 +99,13 @@ export default function LabPipelineScreen({ navigation }: Props) {
   const [showRequestModal, setShowRequestModal] = useState(false);
 
   const fetchRequests = useCallback(async () => {
+    // Exclude rejected + on_hold so pipeline only shows active requests
     const { data, error } = await supabase
       .from('product_requests')
       .select('*')
-      .neq('status', 'rejected')
+      .not('status', 'in', '(rejected,on_hold)')
+      .order('staked_bazcoins', { ascending: false })
+      .order('demand_count', { ascending: false })
       .order('votes', { ascending: false });
 
     if (!error && data) setRequests(data as unknown as ProductRequest[]);
