@@ -14,7 +14,7 @@ interface GeneralInfoTabProps {
         images: string[];
     };
     errors: Record<string, string | undefined>;
-    variantConfigs: Array<{ stock: number; price: number }>;
+    variantConfigs: Array<{ stock: number; price: number; variantLabel1Value?: string; variantLabel2Value?: string }>;
     categories: Array<{ id: string; name: string }>;
     loadingCategories: boolean;
     handleChange: (
@@ -238,7 +238,7 @@ export function GeneralInfoTab({
                         className="block text-sm font-semibold text-gray-800 mb-1"
                     >
                         Display Price (₱) *
-                        {variantConfigs.length > 0 && (
+                        {variantConfigs.some(v => v.variantLabel1Value || v.variantLabel2Value) && (
                             <span className="text-[10px] bg-orange-100 text-orange-700 px-2 py-0.5 rounded ml-2 uppercase">
                                 Locked to Variants
                             </span>
@@ -250,17 +250,16 @@ export function GeneralInfoTab({
                         name="price"
                         value={formData.price}
                         onChange={handleChange}
-                        // Disable if variants exist; the Cartesian logic already sets a default, 
-                        // but specific prices should be edited per variant item.
-                        disabled={variantConfigs.length > 0}
+                        // Disable only if real named variants exist (not just a default base variant)
+                        disabled={variantConfigs.some(v => v.variantLabel1Value || v.variantLabel2Value)}
                         className={cn(
                             "w-full rounded-xl border border-gray-200 px-3 py-3 text-sm shadow-sm focus:outline-none focus:ring-2 focus:ring-orange-500 focus:border-orange-500",
-                            variantConfigs.length > 0 && "bg-gray-50 cursor-not-allowed opacity-75"
+                            variantConfigs.some(v => v.variantLabel1Value || v.variantLabel2Value) && "bg-gray-50 cursor-not-allowed opacity-75"
                         )}
                         placeholder="0"
                         required
                     />
-                    {variantConfigs.length > 0 && (
+                    {variantConfigs.some(v => v.variantLabel1Value || v.variantLabel2Value) && (
                         <p className="text-[11px] text-orange-600 mt-1 font-medium italic">
                             Edit individual prices in the "Attributes & Variants" tab to change the display range.
                         </p>

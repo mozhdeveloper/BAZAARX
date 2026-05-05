@@ -125,10 +125,18 @@ export const mapDbVariantToAppVariant = (v: any): AppVariant => {
  */
 export const mapDbProductToSellerProduct = (p: any): SellerProduct => {
     // Handle images from product_images relation
+    // Sort by is_primary DESC then sort_order ASC so the primary image is always first
     const images = Array.isArray(p.images)
-        ? p.images.map((img: any) =>
-            typeof img === "string" ? img : img.image_url,
-        )
+        ? [...p.images]
+            .sort((a: any, b: any) => {
+                if (typeof a === 'string' || typeof b === 'string') return 0;
+                if (a.is_primary && !b.is_primary) return -1;
+                if (!a.is_primary && b.is_primary) return 1;
+                return (a.sort_order ?? 0) - (b.sort_order ?? 0);
+            })
+            .map((img: any) =>
+                typeof img === "string" ? img : img.image_url,
+            )
         : [];
 
     // Handle variants
@@ -179,7 +187,7 @@ export const mapDbProductToSellerProduct = (p: any): SellerProduct => {
         name: p.name || "",
         description: p.description || "",
         price: Number(p.price ?? 0),
-        originalPrice: p.originalPrice || undefined,
+        originalPrice: p.original_price != null ? Number(p.original_price) : (p.originalPrice != null ? Number(p.originalPrice) : undefined),
         stock: totalStock || p.stock || 0,
         category: categoryName,
         images: images,
@@ -290,10 +298,18 @@ export interface NormalizedProductDetail {
 
 const PLACEHOLDER_IMG = PLACEHOLDER_IMAGE;
 
-/** Extract a flat string[] of image URLs from DB ProductImage[] or plain string[]. */
+/** Extract a flat string[] of image URLs from DB ProductImage[] or plain string[].
+ *  Sorts by is_primary DESC then sort_order ASC so the primary image is always first.
+ */
 const extractImages = (raw: any[] | undefined): string[] => {
     if (!Array.isArray(raw) || raw.length === 0) return [];
-    return raw
+    return [...raw]
+        .sort((a: any, b: any) => {
+            if (typeof a === 'string' || typeof b === 'string') return 0;
+            if (a.is_primary && !b.is_primary) return -1;
+            if (!a.is_primary && b.is_primary) return 1;
+            return (a.sort_order ?? 0) - (b.sort_order ?? 0);
+        })
         .map((img: any) => getSafeImageUrl(typeof img === "string" ? img : img?.image_url))
         .filter(Boolean) as string[];
 };

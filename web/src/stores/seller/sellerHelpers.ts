@@ -97,6 +97,7 @@ export const buildProductInsert = (
         name: product.name,
         description: product.description,
         price: product.price,
+        original_price: product.originalPrice ?? null,
         category_id: categoryId,
         brand: null,
         sku: null,

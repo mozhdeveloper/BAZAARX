@@ -792,7 +792,8 @@ export function AddProduct() {
     }, [formData.variantLabel1Values, formData.variantLabel2Values]);
 
     useEffect(() => {
-        if (variantConfigs.length > 0) {
+        const hasRealVariants = variantConfigs.some(v => v.variantLabel1Value || v.variantLabel2Value);
+        if (hasRealVariants) {
             const minPrice = Math.min(...variantConfigs.map(v => v.price));
             if (minPrice !== Infinity && minPrice.toString() !== formData.price) {
                 setFormData(prev => ({
@@ -1332,6 +1333,7 @@ export function AddProduct() {
                         name: productData.name,
                         description: productData.description,
                         price: productData.price,
+                        original_price: productData.originalPrice ?? null,
                         ...(categoryId ? { category_id: categoryId } : {}),
                         variant_label_1: productData.variantLabel1,
                         variant_label_2: productData.variantLabel2,

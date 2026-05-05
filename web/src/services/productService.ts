@@ -102,6 +102,7 @@ export class ProductService {
           name,
           description,
           price,
+          original_price,
           seller_id,
           category_id,
           approval_status,
