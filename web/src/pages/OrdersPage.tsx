@@ -763,7 +763,7 @@ export default function OrdersPage() {
                           </div>
                         )}
                         {/* Edit & Delete Review Buttons */}
-                        {(order.review as any).id && (
+                        {(order.review as any).id && !/^legacy-/.test((order.review as any).id) && (
                           <div className="mt-3 flex gap-2 justify-end">
                             <Button
                               size="sm"
@@ -1024,7 +1024,7 @@ export default function OrdersPage() {
                                 (!(order as any).reviews?.some((r: any) => r.productId) ? order.review : null);
                               return !itemReview;
                             }) && (() => {
-                              const sellerStatus = (order as any).seller_approval_status;
+                              const sellerStatus = (order as any).sellerApprovalStatus;
                               const isSellerBlocked = sellerStatus === 'blacklisted' || sellerStatus === 'suspended';
                               return isSellerBlocked ? (
                                 <Button

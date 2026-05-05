@@ -329,6 +329,7 @@ export const mapOrderRowToBuyerSnapshot = (order: any): BuyerOrderSnapshot => {
     trackingNumber: order.tracking_number || undefined,
     storeName: fallbackStoreName,
     sellerId: fallbackSellerId,
+    sellerApprovalStatus: order.seller_approval_status || null,
     order_type: order.order_type,
     review: latestReview,
     reviews: reviews.length > 0 ? reviews : undefined,
