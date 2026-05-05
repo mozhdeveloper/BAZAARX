@@ -1,11 +1,12 @@
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { FlashList } from '@shopify/flash-list';
-import { ArrowLeft, BadgeCheck, ChevronDown, FunnelIcon, Search, SlidersHorizontal, Star, X } from 'lucide-react-native';
+import { ArrowLeft, BadgeCheck, Camera, ChevronDown, FunnelIcon, Search, SlidersHorizontal, Star, X } from 'lucide-react-native';
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import {
     ActivityIndicator,
     Dimensions,
     Image,
+    Keyboard,
     Pressable,
     RefreshControl,
     ScrollView,
@@ -752,13 +753,14 @@ export default function ProductListingScreen({ navigation, route }: Props) {
     return null;
   };
 
+  const [isSearchFocused, setIsSearchFocused] = useState(false);
   const activeFilterCount = getActiveFilterCount();
 
   return (
     <View style={[styles.container, { paddingTop: insets.top }]}>
       <StatusBar barStyle="dark-content" />
 
-      {/* Header */}
+      {/* Header with unified search style */}
       <View style={styles.header}>
         <Pressable
           onPress={() => navigation.goBack()}
@@ -767,40 +769,47 @@ export default function ProductListingScreen({ navigation, route }: Props) {
           <ArrowLeft size={24} color={COLORS.textPrimary} />
         </Pressable>
 
-        <View style={styles.searchContainer}>
-          <Search size={20} color={COLORS.gray400} style={styles.searchIcon} />
-          <TextInput
-            style={styles.searchInput}
-            placeholder="Search for products, brands..."
-            placeholderTextColor={COLORS.gray400}
-            value={searchQuery}
-            onChangeText={handleTextChange}
-            onSubmitEditing={handleSearch}
-            returnKeyType="search"
-            autoFocus={!initialQuery}
-          />
-          {searchQuery.length > 0 && (
-            <Pressable onPress={handleClearSearch} style={styles.clearButton}>
-              <X size={20} color={COLORS.gray400} />
+        <View style={styles.searchBarWrapper}>
+          <View style={[styles.searchBarInner, { backgroundColor: '#FFFFFF', borderRadius: 24, shadowColor: COLORS.primary, shadowOpacity: 0.1, shadowRadius: 15, elevation: 4 }]}>
+            <TextInput
+              style={[styles.searchInput, { color: COLORS.textHeadline }]}
+              placeholder="Search products..."
+              placeholderTextColor={COLORS.textMuted}
+              value={searchQuery}
+              onChangeText={handleTextChange}
+              onFocus={() => setIsSearchFocused(true)}
+              onSubmitEditing={() => {
+                const trimmedQuery = searchQuery.trim();
+                if (trimmedQuery) {
+                  setIsSearchFocused(false);
+                  handleSearch();
+                }
+              }}
+              returnKeyType="search"
+              autoFocus={!initialQuery}
+            />
+
+          
+
+            <Pressable
+              onPress={() => {
+                const trimmedQuery = searchQuery.trim();
+                if (trimmedQuery) {
+                  setIsSearchFocused(false);
+                  handleSearch();
+                }
+              }}
+            >
+              <Search size={18} color={COLORS.primary} />
             </Pressable>
-          )}
+          </View>
         </View>
 
-        <Pressable
-          onPress={handleSearch}
-          style={[
-            styles.searchButton,
-            !searchQuery.trim() && styles.searchButtonDisabled
-          ]}
-          disabled={!searchQuery.trim()}
-        >
-          <Text style={[
-            styles.searchButtonText,
-            !searchQuery.trim() && styles.searchButtonTextDisabled
-          ]}>
-            Search
-          </Text>
-        </Pressable>
+        {isSearchFocused && (
+          <Pressable onPress={() => { Keyboard.dismiss(); setIsSearchFocused(false); setSearchQuery(''); }} style={{ paddingLeft: 10 }}>
+            <Text style={{ color: COLORS.primary, fontWeight: '600' }}>Cancel</Text>
+          </Pressable>
+        )}
       </View>
 
       {/* Results count + Sort & Filter icon buttons — single row */}
@@ -1027,60 +1036,38 @@ export default function ProductListingScreen({ navigation, route }: Props) {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#FFFFFF',
+    backgroundColor: '#FFFBF0',
   },
   header: {
     flexDirection: 'row',
     alignItems: 'center',
     paddingHorizontal: 16,
     paddingVertical: 12,
-    backgroundColor: '#FFFFFF',
+    backgroundColor: '#FFFBF0',
     borderBottomWidth: 1,
     borderBottomColor: '#F3F4F6',
+    gap: 10,
   },
   backButton: {
     padding: 8,
-    marginRight: 8,
   },
-  searchContainer: {
+  searchBarWrapper: {
     flex: 1,
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#F9FAFB',
-    borderRadius: 12,
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    marginHorizontal: 8,
   },
-  searchIcon: {
-    marginRight: 8,
+  searchBarInner: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 15,
+    height: 48,
+    gap: 10,
   },
   searchInput: {
     flex: 1,
-    fontSize: 15,
-    color: COLORS.textPrimary,
-    paddingVertical: 0,
-  },
-  clearButton: {
-    padding: 4,
-  },
-  searchButton: {
-    backgroundColor: COLORS.primary,
-    paddingHorizontal: 16,
-    paddingVertical: 10,
-    borderRadius: 10,
-    marginLeft: 8,
-  },
-  searchButtonDisabled: {
-    backgroundColor: '#E5E7EB',
-  },
-  searchButtonText: {
-    color: '#FFFFFF',
-    fontWeight: '600',
     fontSize: 14,
-  },
-  searchButtonTextDisabled: {
-    color: '#9CA3AF',
+    paddingVertical: 0,
   },
   filterRow: {
     flexDirection: 'row',
@@ -1089,7 +1076,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     borderBottomWidth: 1,
     borderBottomColor: '#F3F4F6',
-    backgroundColor: '#FFFFFF',
+    backgroundColor: '#FFFBF0',
   },
   filterSortButtons: {
     flexDirection: 'row',

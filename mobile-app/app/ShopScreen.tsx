@@ -28,9 +28,9 @@ import SortModal from '../src/components/SortModal';
 import { COLORS } from '../src/constants/theme';
 import { adBoostService, type AdBoostMobile } from '../src/services/adBoostService';
 import { addressService } from '../src/services/addressService';
+import { discountService } from '../src/services/discountService';
 import { featuredProductService, type FeaturedProductMobile } from '../src/services/featuredProductService';
 import { notificationService } from '../src/services/notificationService';
-import { discountService } from '../src/services/discountService';
 import { productService } from '../src/services/productService';
 import { useAuthStore } from '../src/stores/authStore';
 import type { Product } from '../src/types';
@@ -122,6 +122,13 @@ const normalizeProductForShop = (row: any, flashSaleMap?: Map<string, { price: n
     .map((img: any) => (typeof img === 'string' ? img : img?.image_url))
     .filter((url: unknown): url is string => typeof url === 'string' && url.length > 0);
 
+  // Priority order for primary image:
+  // 1. Explicitly marked as primary in images array
+  // 2. primary_image_url from products table (NEW - set by web editor)
+  // 3. primary_image field
+  // 4. image field
+  // 5. First image in array
+  // 6. Placeholder
   const primaryImage =
     rawImages.find((img: any) => typeof img === 'object' && img?.is_primary)?.image_url ||
     row.primary_image_url ||
@@ -162,9 +169,6 @@ const normalizeProductForShop = (row: any, flashSaleMap?: Map<string, { price: n
 
   const categoryName = typeof row.category === 'string' ? row.category : (row.category?.name || '');
   const categoryId = row.category_id || (row.category && typeof row.category === 'object' ? row.category.id : undefined);
-
-  // Note: if ProductService already transformed it, category is a string.
-  // We want to ensure category_id is always available from the source row.
 
   // Check if this product has a flash sale discount that isn't already reflected
   const flashSaleInfo = flashSaleMap?.get(row.id);
@@ -305,111 +309,14 @@ export default function ShopScreen({ navigation, route }: Props) {
     }
   }, [route.params?.category]);
 
-  useEffect(() => {
-    const loadData = async () => {
-      setIsLoading(true);
-      try {
-        const [productsResult, categoriesResult, flashSaleResult, globalFlashSaleResult] = await Promise.allSettled([
-          productService.getProducts({
-            isActive: true,
-            approvalStatus: 'approved',
-            limit: SHOP_SCREEN_FETCH_LIMIT,
-          }),
-          productService.getCategoriesWithProducts(),
-          discountService.getFlashSaleProducts(),
-          discountService.getGlobalFlashSaleProducts(),
-        ]);
-
-        // Build flash sale discount map from both sources
-        const fsMap = new Map<string, { price: number; originalPrice: number; discountPercent: number; campaignName?: string }>();
-        if (flashSaleResult.status === 'fulfilled') {
-          (flashSaleResult.value || []).forEach((fp: any) => {
-            if (fp.id && fp.originalPrice > 0 && fp.price < fp.originalPrice) {
-              fsMap.set(fp.id, {
-                price: fp.price,
-                originalPrice: fp.originalPrice,
-                discountPercent: fp.discountBadgePercent || Math.round(((fp.originalPrice - fp.price) / fp.originalPrice) * 100),
-                campaignName: fp.campaignName,
-              });
-            }
-          });
-        }
-        if (globalFlashSaleResult.status === 'fulfilled') {
-          (globalFlashSaleResult.value || []).forEach((fp: any) => {
-            if (fp.id && fp.originalPrice > 0 && fp.price < fp.originalPrice) {
-              fsMap.set(fp.id, {
-                price: fp.price,
-                originalPrice: fp.originalPrice,
-                discountPercent: fp.discountBadgePercent || Math.round(((fp.originalPrice - fp.price) / fp.originalPrice) * 100),
-                campaignName: fp.campaignName,
-              });
-            }
-          });
-        }
-        setFlashSaleMap(fsMap);
-
-        if (productsResult.status === 'fulfilled') {
-          const mapped: Product[] = (productsResult.value || []).map((row: any) => normalizeProductForShop(row, fsMap));
-          const uniqueMapped = Array.from(new Map(mapped.map((item) => [item.id, item])).values())
-            .filter(p => {
-              // Filter out products with no available stock
-              const variants = Array.isArray((p as any).variants) ? (p as any).variants : [];
-              if (variants.length > 0) return variants.some((v: any) => Number(v.stock || 0) > 0);
-              return Number(p.stock || 0) > 0;
-            });
-          setDbProducts(uniqueMapped);
-        } else {
-          console.error('[ShopScreen] Failed loading products:', productsResult.reason);
-          setDbProducts([]);
-        }
-
-        if (categoriesResult.status === 'fulfilled') {
-          const mappedChips = (categoriesResult.value || []).map((category: any) => ({
-            id: category.id,
-            name: category.name,
-          }));
-          setCategoryChips([DEFAULT_CATEGORY_CHIPS[0], ...mappedChips]);
-          // Also populate filter modal categories
-          setAvailableCategories((categoriesResult.value || []).map((cat: any) => ({
-            id: cat.id,
-            name: cat.name,
-            path: cat.path || [cat.name],
-            hasChildren: false,
-          })));
-        } else {
-          console.error('[ShopScreen] Failed loading categories:', categoriesResult.reason);
-          setCategoryChips(DEFAULT_CATEGORY_CHIPS);
-        }
-
-      } catch (err) {
-        console.error('[ShopScreen] Error loading data:', err);
-      } finally {
-        setIsLoading(false);
-      }
-    };
-    loadData();
-  }, []);
-
-  const [isRefreshing, setIsRefreshing] = useState(false);
-  const onRefresh = useCallback(async () => {
-    console.log('[ShopScreen] Pull-to-refresh started');
-    setIsRefreshing(true);
-
-    shuffledIdsRef.current = [];
-
+  // Helper to build flash sale map
+  const buildFlashSaleMap = useCallback(async () => {
     try {
-      const [productsResult, categoriesResult, flashSaleResult, globalFlashSaleResult] = await Promise.allSettled([
-        productService.getProducts({
-          isActive: true,
-          approvalStatus: 'approved',
-          limit: SHOP_SCREEN_FETCH_LIMIT,
-        }),
-        productService.getCategoriesWithProducts(),
+      const [flashSaleResult, globalFlashSaleResult] = await Promise.allSettled([
         discountService.getFlashSaleProducts(),
         discountService.getGlobalFlashSaleProducts(),
       ]);
 
-      // Rebuild flash sale discount map
       const fsMap = new Map<string, { price: number; originalPrice: number; discountPercent: number; campaignName?: string }>();
       if (flashSaleResult.status === 'fulfilled') {
         (flashSaleResult.value || []).forEach((fp: any) => {
@@ -435,10 +342,94 @@ export default function ShopScreen({ navigation, route }: Props) {
           }
         });
       }
+      return fsMap;
+    } catch (err) {
+      console.error('[ShopScreen] Error building flash sale map:', err);
+      return new Map();
+    }
+  }, []);
+
+  useEffect(() => {
+    const loadData = async () => {
+      setIsLoading(true);
+      try {
+        const [productsResult, categoriesResult, fsMap] = await Promise.all([
+          productService.getProducts({
+            isActive: true,
+            approvalStatus: 'approved',
+            limit: SHOP_SCREEN_FETCH_LIMIT,
+          }),
+          productService.getCategoriesWithProducts(),
+          buildFlashSaleMap(),
+        ]);
+
+        setFlashSaleMap(fsMap);
+
+        if (productsResult && Array.isArray(productsResult)) {
+          const mapped: Product[] = productsResult.map((row: any) => normalizeProductForShop(row, fsMap));
+          const uniqueMapped = Array.from(new Map(mapped.map((item) => [item.id, item])).values())
+            .filter(p => {
+              // Filter out products with no available stock
+              const variants = Array.isArray((p as any).variants) ? (p as any).variants : [];
+              if (variants.length > 0) return variants.some((v: any) => Number(v.stock || 0) > 0);
+              return Number(p.stock || 0) > 0;
+            });
+          setDbProducts(uniqueMapped);
+        } else {
+          console.error('[ShopScreen] Failed loading products');
+          setDbProducts([]);
+        }
+
+        if (categoriesResult && Array.isArray(categoriesResult)) {
+          const mappedChips = categoriesResult.map((category: any) => ({
+            id: category.id,
+            name: category.name,
+          }));
+          setCategoryChips([DEFAULT_CATEGORY_CHIPS[0], ...mappedChips]);
+          // Also populate filter modal categories
+          setAvailableCategories(categoriesResult.map((cat: any) => ({
+            id: cat.id,
+            name: cat.name,
+            path: cat.path || [cat.name],
+            hasChildren: false,
+          })));
+        } else {
+          console.error('[ShopScreen] Failed loading categories');
+          setCategoryChips(DEFAULT_CATEGORY_CHIPS);
+        }
+
+      } catch (err) {
+        console.error('[ShopScreen] Error loading data:', err);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+    loadData();
+  }, [buildFlashSaleMap]);
+
+  const [isRefreshing, setIsRefreshing] = useState(false);
+  const onRefresh = useCallback(async () => {
+    console.log('[ShopScreen] Pull-to-refresh started');
+    setIsRefreshing(true);
+
+    shuffledIdsRef.current = [];
+
+    try {
+      const [productsResult, categoriesResult, fsMap] = await Promise.all([
+        productService.getProducts({
+          isActive: true,
+          approvalStatus: 'approved',
+          limit: SHOP_SCREEN_FETCH_LIMIT,
+        }),
+        productService.getCategoriesWithProducts(),
+        buildFlashSaleMap(),
+      ]);
+
+      // Update flash sale map immediately
       setFlashSaleMap(fsMap);
 
-      if (productsResult.status === 'fulfilled') {
-        const mapped: Product[] = (productsResult.value || []).map((row: any) => normalizeProductForShop(row, fsMap));
+      if (productsResult && Array.isArray(productsResult)) {
+        const mapped: Product[] = productsResult.map((row: any) => normalizeProductForShop(row, fsMap));
         const uniqueMapped = Array.from(new Map(mapped.map((item) => [item.id, item])).values())
           .filter(p => {
             // Filter out products with no available stock
@@ -458,10 +449,10 @@ export default function ShopScreen({ navigation, route }: Props) {
         }
       }
 
-      if (categoriesResult.status === 'fulfilled') {
-        const mappedChips = (categoriesResult.value || []).map((category: any) => ({ id: category.id, name: category.name }));
+      if (categoriesResult && Array.isArray(categoriesResult)) {
+        const mappedChips = categoriesResult.map((category: any) => ({ id: category.id, name: category.name }));
         setCategoryChips([DEFAULT_CATEGORY_CHIPS[0], ...mappedChips]);
-        setAvailableCategories((categoriesResult.value || []).map((cat: any) => ({
+        setAvailableCategories(categoriesResult.map((cat: any) => ({
           id: cat.id,
           name: cat.name,
           path: cat.path || [cat.name],
@@ -481,7 +472,7 @@ export default function ShopScreen({ navigation, route }: Props) {
         }
       }, 50);
     }
-  }, [sortOption, isFeaturedView, selectedCategory, searchQuery, filters]);
+  }, [buildFlashSaleMap]);
 
   useEffect(() => {
     const resetAllFilters = async () => {
@@ -612,9 +603,43 @@ export default function ShopScreen({ navigation, route }: Props) {
     loadFeaturedProducts();
   }, [isFeaturedView]);
 
+  // Function to refresh a specific product's data (called after editing)
+  const refreshProductData = useCallback(async (productId: string) => {
+    try {
+      console.log('[ShopScreen] Refreshing product data for:', productId);
+      const product = await productService.getProductById(productId);
+      if (product) {
+        const fsMap = flashSaleMap;
+        const normalized = normalizeProductForShop(product, fsMap);
+        
+        setDbProducts(prev => {
+          const updated = prev.map(p => p.id === productId ? normalized : p);
+          return updated;
+        });
+
+        // Also update category products if viewing a specific category
+        if (selectedCategory !== 'all') {
+          setCategoryProducts(prev => {
+            const updated = prev.map(p => p.id === productId ? normalized : p);
+            return updated;
+          });
+        }
+      }
+    } catch (err) {
+      console.error('[ShopScreen] Error refreshing product data:', err);
+    }
+  }, [flashSaleMap, selectedCategory]);
+
+  // Listen for product updates from navigation params
   useEffect(() => {
     const unsubFocus = navigation.addListener('focus', async () => {
       try {
+        // Check if we're returning from product edit
+        if (route.params?.refreshProductId) {
+          await refreshProductData(route.params.refreshProductId);
+          // Clear the param
+          navigation.setParams({ refreshProductId: undefined });
+        }
         if (route.params?.view === 'featured') {
           setIsFeaturedView(true);
         }
@@ -627,11 +652,11 @@ export default function ShopScreen({ navigation, route }: Props) {
         }, 100);
         setSearchQuery('');
       } catch (error) {
-        console.error('[ShopScreen] Error loading sort state:', error);
+        console.error('[ShopScreen] Error on focus:', error);
       }
     });
     return unsubFocus;
-  }, [navigation, route.params?.view]);
+  }, [navigation, route.params?.view, route.params?.refreshProductId, refreshProductData]);
 
   useEffect(() => {
     if (dbProducts.length > 0 && shuffledIdsRef.current.length === 0) {
@@ -921,6 +946,18 @@ export default function ShopScreen({ navigation, route }: Props) {
 
   const { isAuthenticated, hasCompletedOnboarding } = useAuthStore();
 
+  // Helper function to get sort label
+  const getSortLabel = (sort: SortOption): string => {
+    switch (sort) {
+      case 'rating-high': return 'Highest Rating';
+      case 'best-selling': return 'Best Selling';
+      case 'newest': return 'Newest';
+      case 'price-low': return 'Price: Low to High';
+      case 'price-high': return 'Price: High to Low';
+      default: return 'Sorted';
+    }
+  };
+
   const listHeaderComponent = useMemo(() => (
     <View>
       {/* ONBOARDING BANNER */}
@@ -965,7 +1002,7 @@ export default function ShopScreen({ navigation, route }: Props) {
         </Pressable>
       )}
       {(sortOption !== 'relevance' || isFeaturedView || activeFilterCount > 0) && (
-        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ paddingHorizontal: 20, paddingBottom: 8, gap: 8 }}>
+        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ paddingHorizontal: 8, paddingBottom: 8, gap: 8 }}>
           {isFeaturedView && (
             <Pressable
               onPress={() => {
@@ -999,9 +1036,24 @@ export default function ShopScreen({ navigation, route }: Props) {
             >
               <Star size={12} color="#B45309" fill="#B45309" style={{ marginRight: 4 }} />
               <Text style={{ fontSize: 12, fontWeight: '600', color: '#B45309', marginRight: 4 }}>
-                Sorted
+                {getSortLabel(sortOption)}
               </Text>
               <X size={12} color="#B45309" />
+            </Pressable>
+          )}
+          {filters.categoryId && (
+            <Pressable
+              onPress={() => setFilters(prev => ({ ...prev, categoryId: null, categoryPath: [] }))}
+              style={{
+                flexDirection: 'row', alignItems: 'center', backgroundColor: '#E0E7FF',
+                borderWidth: 1, borderColor: '#6366F1', borderRadius: 20,
+                paddingHorizontal: 12, paddingVertical: 6,
+              }}
+            >
+              <Text style={{ fontSize: 12, fontWeight: '600', color: '#312E81', marginRight: 4 }}>
+                {availableCategories.find(cat => cat.id === filters.categoryId)?.name || 'Category'}
+              </Text>
+              <X size={12} color="#312E81" />
             </Pressable>
           )}
           {(filters.priceRange.min !== null || filters.priceRange.max !== null) && (
@@ -1032,6 +1084,66 @@ export default function ShopScreen({ navigation, route }: Props) {
                 {filters.minRating}★ & up
               </Text>
               <X size={12} color="#854D0E" />
+            </Pressable>
+          )}
+          {filters.shippedFrom && (
+            <Pressable
+              onPress={() => setFilters(prev => ({ ...prev, shippedFrom: null }))}
+              style={{
+                flexDirection: 'row', alignItems: 'center', backgroundColor: '#FCE7F3',
+                borderWidth: 1, borderColor: '#EC4899', borderRadius: 20,
+                paddingHorizontal: 12, paddingVertical: 6,
+              }}
+            >
+              <Text style={{ fontSize: 12, fontWeight: '600', color: '#831843', marginRight: 4 }}>
+                {filters.shippedFrom}
+              </Text>
+              <X size={12} color="#831843" />
+            </Pressable>
+          )}
+          {(filters.withVouchers || filters.onSale || filters.freeShipping) && (
+            <Pressable
+              onPress={() => setFilters(prev => ({ ...prev, withVouchers: false, onSale: false, freeShipping: false }))}
+              style={{
+                flexDirection: 'row', alignItems: 'center', backgroundColor: '#FEE2E2',
+                borderWidth: 1, borderColor: '#DC2626', borderRadius: 20,
+                paddingHorizontal: 12, paddingVertical: 6,
+              }}
+            >
+              <Text style={{ fontSize: 12, fontWeight: '600', color: '#7F1D1D', marginRight: 4 }}>
+                {[filters.withVouchers && 'Vouchers', filters.onSale && 'On Sale', filters.freeShipping && 'Free Shipping'].filter(Boolean).join(', ')}
+              </Text>
+              <X size={12} color="#7F1D1D" />
+            </Pressable>
+          )}
+          {(filters.standardDelivery || filters.sameDayDelivery || filters.cashOnDelivery || filters.pickupAvailable) && (
+            <Pressable
+              onPress={() => setFilters(prev => ({ ...prev, standardDelivery: false, sameDayDelivery: false, cashOnDelivery: false, pickupAvailable: false }))}
+              style={{
+                flexDirection: 'row', alignItems: 'center', backgroundColor: '#F3E8FF',
+                borderWidth: 1, borderColor: '#A855F7', borderRadius: 20,
+                paddingHorizontal: 12, paddingVertical: 6,
+              }}
+            >
+              <Text style={{ fontSize: 12, fontWeight: '600', color: '#581C87', marginRight: 4 }}>
+                Shipping
+              </Text>
+              <X size={12} color="#581C87" />
+            </Pressable>
+          )}
+          {filters.selectedBrands.length > 0 && (
+            <Pressable
+              onPress={() => setFilters(prev => ({ ...prev, selectedBrands: [] }))}
+              style={{
+                flexDirection: 'row', alignItems: 'center', backgroundColor: '#DBEAFE',
+                borderWidth: 1, borderColor: '#0284C7', borderRadius: 20,
+                paddingHorizontal: 12, paddingVertical: 6,
+              }}
+            >
+              <Text style={{ fontSize: 12, fontWeight: '600', color: '#0C2340', marginRight: 4 }}>
+                {filters.selectedBrands.length} Brand{filters.selectedBrands.length > 1 ? 's' : ''}
+              </Text>
+              <X size={12} color="#0C2340" />
             </Pressable>
           )}
           <Pressable
