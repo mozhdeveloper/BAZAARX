@@ -88,18 +88,35 @@ class ChatService {
         .maybeSingle();
 
       if (byOrder) return byOrder;
+    } else if (sellerId) {
+      // Deduplicate by seller: find existing conversation linked via target_seller_id in messages
+      const { data: buyerConvs } = await supabase
+        .from('conversations')
+        .select('id')
+        .eq('buyer_id', buyerId)
+        .is('order_id', null);
+
+      if (buyerConvs && buyerConvs.length > 0) {
+        const ids = buyerConvs.map((c: any) => c.id);
+        const { data: existingMsg } = await supabase
+          .from('messages')
+          .select('conversation_id')
+          .in('conversation_id', ids)
+          .eq('target_seller_id', sellerId)
+          .limit(1)
+          .maybeSingle();
+
+        if (existingMsg?.conversation_id) {
+          return { id: existingMsg.conversation_id };
+        }
+      }
     }
 
-    // Fallback: Check if there's already a conversation between these two
-    // Since seller_id is gone from conversations table, we'd have to check messages
-    // but for checkout, orderId is the primary key.
-    
     const { data: newConv, error } = await supabase
       .from('conversations')
       .insert({ 
         buyer_id: buyerId, 
         order_id: orderId || null,
-        // seller_id removed from schema cache
       })
       .select('id')
       .single();
@@ -107,6 +124,21 @@ class ChatService {
     if (error) {
       console.error('[ChatService] Error creating conversation:', error);
       return null;
+    }
+
+    // Insert an anchor message to permanently link seller to this conversation.
+    // This allows getBuyerConversations to resolve the seller via target_seller_id
+    // even before the buyer sends their first real message.
+    if (sellerId) {
+      await supabase.from('messages').insert({
+        conversation_id: newConv.id,
+        sender_id: buyerId,
+        sender_type: 'buyer',
+        content: '',
+        message_type: 'system',
+        target_seller_id: sellerId,
+        is_read: true,
+      });
     }
 
     return newConv;

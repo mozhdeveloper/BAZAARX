@@ -241,8 +241,26 @@ export default function MessagesPage() {
       try {
         const conv = await chatService.getOrCreateConversationLite(profile.id, initialSellerId);
         if (conv) {
+          const storeNameParam = queryParams.get('storeName');
           setSelectedConversation(conv.id);
-          loadConversations(); // Refresh list so new conv appears in sidebar
+          // Inject a synthetic entry immediately so the header shows the correct
+          // store name without waiting for loadConversations() to finish
+          setDbConversations(prev => {
+            if (prev.some(c => c.id === conv.id)) return prev;
+            return [{
+              id: conv.id,
+              buyer_id: profile.id,
+              seller_id: initialSellerId,
+              seller_store_name: storeNameParam ? decodeURIComponent(storeNameParam) : '',
+              seller_avatar: undefined,
+              last_message: '',
+              last_message_at: new Date().toISOString(),
+              buyer_unread_count: 0,
+              created_at: new Date().toISOString(),
+              updated_at: new Date().toISOString(),
+            } as DBConversation, ...prev];
+          });
+          loadConversations(); // Refresh list so seller info is resolved from DB
         }
       } catch (error) { console.error(error); }
     };
@@ -665,6 +683,7 @@ export default function MessagesPage() {
                         lastDateLabel = dateLabel;
                       }
                       if (msg.message_type === 'system') {
+                        if (!msg.content) return; // Skip empty anchor messages (init markers)
                         items.push(
                           <div key={msg.id} className="flex justify-center my-2">
                             <div className="bg-white border border-gray-100 text-[var(--brand-accent)] text-xs px-4 py-2 rounded-2xl shadow-sm max-w-[80%] text-center">

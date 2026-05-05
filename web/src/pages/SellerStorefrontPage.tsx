@@ -791,7 +791,7 @@ export default function SellerStorefrontPage() {
 
                   <Button
                     variant="outline"
-                    onClick={() => navigate(`/messages?sellerId=${seller.id}`)}
+                    onClick={() => navigate(`/messages?sellerId=${seller.id}&storeName=${encodeURIComponent(seller.name)}`)}
                     className="h-9 px-6 rounded-lg text-sm font-bold bg-transparent border border-white/20 text-white hover:bg-white/10 hover:text-white transition-all"
                   >
                     Chat
