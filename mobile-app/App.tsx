@@ -571,6 +571,7 @@ export default function App() {
                 break;
               case 'chat':
               case 'message':
+              case 'new_message':
                 nav.navigate('Messages');
                 break;
               case 'return':
