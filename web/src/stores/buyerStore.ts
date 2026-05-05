@@ -979,10 +979,14 @@ export const useBuyerStore = create<BuyerStore>()(persist(
     },
 
     getCartItemCount: () => {
+      // Returns count of distinct cart LINE ITEMS (one entry per product/variant row),
+      // NOT the sum of item quantities. Each DB cart_items row = 1, regardless of quantity.
       return get().cartItems.length;
     },
 
     getTotalCartItems: () => {
+      // Same as getCartItemCount: distinct line items, not quantity sum.
+      // e.g. Dried Mangoes ×2 counts as 1 item (not 2).
       return get().cartItems.length;
     },
 

@@ -64,6 +64,19 @@ const Header: React.FC<HeaderProps> = ({ transparentOnTop = false, hideSearch = 
     const { discountedUnitPrice } = discountService.calculateLineDiscount(basePrice, 1, discount);
     return discountedUnitPrice;
   };
+
+  // Check if a cart item is in stock using stored cart state (no live fetch in header).
+  // NOTE: products table has no stock column — item.stock is always 0 unless explicitly set.
+  // We therefore prefer selectedVariant.stock when available, and default to in-stock when
+  // no reliable stock information exists (avoids incorrectly excluding items from the total).
+  const isDropdownItemInStock = (item: (typeof cartItems)[0]): boolean => {
+    const variantStock = (item as any).selectedVariant?.stock;
+    if (typeof variantStock === 'number') {
+      return variantStock > 0; // explicit variant stock → trust it
+    }
+    // No selected variant → item.stock is always 0 (not fetched); assume in-stock
+    return true;
+  };
   const [showProfileMenu, setShowProfileMenu] = useState(false);
   const [showCartDropdown, setShowCartDropdown] = useState(false);
   const cartDropdownRef = useRef<HTMLDivElement>(null);
@@ -382,13 +395,22 @@ const Header: React.FC<HeaderProps> = ({ transparentOnTop = false, hideSearch = 
                                 {variantLabel && (
                                   <p className="text-[10px] text-gray-400">{variantLabel}</p>
                                 )}
-                                <div className="flex items-center gap-2 mt-0.5">
-                                  <span className="text-xs font-bold text-[var(--brand-primary)]">₱{effectivePrice.toLocaleString()}</span>
-                                  {strikethroughPrice !== null && (
-                                    <span className="text-[10px] text-gray-400 line-through">₱{strikethroughPrice.toLocaleString()}</span>
-                                  )}
-                                  <span className="text-[10px] text-gray-400">× {item.quantity}</span>
-                                </div>
+                                {!isDropdownItemInStock(item) ? (
+                                  <p className="text-[10px] font-semibold text-red-500 mt-0.5">Out of Stock</p>
+                                ) : (
+                                  <div className="flex items-center gap-1.5 mt-0.5 flex-wrap">
+                                    <span className="text-xs font-bold text-[var(--brand-primary)]">₱{effectivePrice.toLocaleString()}</span>
+                                    {strikethroughPrice !== null && (
+                                      <span className="text-[10px] text-gray-400 line-through">₱{strikethroughPrice.toLocaleString()}</span>
+                                    )}
+                                    {discountPct > 0 && (
+                                      <span className="inline-flex items-center px-1 py-0.5 rounded text-[9px] font-black bg-red-600 text-white leading-none">
+                                        -{discountPct}%
+                                      </span>
+                                    )}
+                                    <span className="text-[10px] text-gray-400">× {item.quantity}</span>
+                                  </div>
+                                )}
                               </div>
                             </div>
                           );
@@ -404,7 +426,7 @@ const Header: React.FC<HeaderProps> = ({ transparentOnTop = false, hideSearch = 
                         <div className="flex items-center justify-between mb-3">
                           <span className="text-xs text-gray-500">{getTotalCartItems()} item{getTotalCartItems() !== 1 ? 's' : ''}</span>
                           <span className="text-sm font-bold text-[var(--text-headline)]">
-                            ₱{cartItems.reduce((sum, item) => sum + getDropdownPrice(item) * item.quantity, 0).toLocaleString()}
+                            ₱{cartItems.filter(isDropdownItemInStock).reduce((sum, item) => sum + getDropdownPrice(item) * item.quantity, 0).toLocaleString()}
                           </span>
                         </div>
                         <button

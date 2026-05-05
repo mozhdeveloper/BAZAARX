@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { supabase } from '@/lib/supabase';
 
 /**
@@ -11,19 +11,41 @@ import { supabase } from '@/lib/supabase';
 export const useFlashSaleVisibility = (flashSaleProducts: any[], refreshData?: () => void) => {
   const [isVisible, setIsVisible] = useState(false);
   const [secondsRemaining, setSecondsRemaining] = useState(0);
+  // Track whether the section was visible on the previous tick so we can detect
+  // the visible→hidden transition and trigger a data refresh exactly once.
+  const wasVisibleRef = useRef(false);
+  // After expiry, suppress re-showing for a fixed window to handle clock skew
+  // between device and DB server (Supabase may still return "active" products
+  // for a few seconds after the device timer hits zero).
+  const suppressedUntilRef = useRef<number>(0);
 
   useEffect(() => {
     const calculateVisibility = () => {
       const now = Date.now();
+
+      // If we're in the suppression window, keep the section hidden and wait.
+      if (suppressedUntilRef.current > now) {
+        setIsVisible(false);
+        setSecondsRemaining(0);
+        return;
+      }
+      // Clear stale suppression once the window has elapsed.
+      if (suppressedUntilRef.current > 0) {
+        suppressedUntilRef.current = 0;
+      }
       
-      // 1. Filter for products that are truly active (not expired, not paused)
+      // 1. Filter for products that are truly active (not expired, not paused).
+      //    Use secondsLeft (floor division) as the expiry condition so visibility
+      //    flips to false at the same moment the displayed countdown reaches 00:00:00.
       const activeProducts = (flashSaleProducts || []).filter(p => {
         if (!p || !p.campaignEndsAt) return false;
         
         const endTime = new Date(p.campaignEndsAt).getTime();
         if (isNaN(endTime)) return false;
         
-        const isExpired = endTime <= now;
+        // Expired when the floor-rounded seconds left hits 0 — matches the timer display.
+        const secondsLeft = Math.floor((endTime - now) / 1000);
+        const isExpired = secondsLeft <= 0;
         
         // Handle various 'paused' indicators (is_paused boolean or status string)
         const isPaused = 
@@ -37,9 +59,23 @@ export const useFlashSaleVisibility = (flashSaleProducts: any[], refreshData?: (
 
       // 2. Component is visible ONLY if there are active products
       const shouldShow = activeProducts.length > 0;
+
+      // 3. Detect visible → hidden transition and trigger a single data refresh
+      //    so stale products are cleared from state immediately.
+      //    Also open a 10-second suppression window to prevent DB clock skew
+      //    from immediately re-showing just-expired products.
+      if (!shouldShow && wasVisibleRef.current) {
+        wasVisibleRef.current = false;
+        suppressedUntilRef.current = now + 10_000; // block re-show for 10 s
+        setIsVisible(false);
+        setSecondsRemaining(0);
+        refreshData?.();
+        return;
+      }
+      wasVisibleRef.current = shouldShow;
       setIsVisible(shouldShow);
 
-      // 3. Update countdown to the nearest end time
+      // 4. Update countdown to the nearest end time
       if (shouldShow) {
         const endTimes = activeProducts.map(p => new Date(p.campaignEndsAt).getTime());
         const nextEnd = Math.min(...endTimes);
