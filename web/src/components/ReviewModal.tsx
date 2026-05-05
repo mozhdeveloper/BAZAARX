@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { X, Star, Camera, Package, ThumbsUp, ChevronDown, CheckCircle2, EyeOff } from "lucide-react";
+import { X, Star, Camera, Package, ThumbsUp, ChevronDown, CheckCircle2, EyeOff, Edit2 } from "lucide-react";
 import { Button } from "./ui/button";
 import { useBuyerStore } from "../stores/buyerStore";
 import { orderMutationService } from "../services/orders/orderMutationService";
@@ -59,6 +59,7 @@ export function ReviewModal({
   const [submittedItems, setSubmittedItems] = useState<Record<string, boolean>>({});
   const [submitted, setSubmitted] = useState(false);
   const [isAnonymous, setIsAnonymous] = useState(false);
+  const [confirmingItemId, setConfirmingItemId] = useState<string | null>(null);
 
   const { addReview, profile } = useBuyerStore();
   const { toast } = useToast();
@@ -77,6 +78,7 @@ export function ReviewModal({
     setSubmittedItems({});
     setExpandedItemId(items[0]?.id || null);
     setSubmitted(false);
+    setConfirmingItemId(null);
   };
 
   const handleClose = () => {
@@ -473,23 +475,72 @@ export function ReviewModal({
                                     <p className="text-xs text-gray-400 mt-2">Max 5 photos per item.</p>
                                   </div>
 
-                                  {/* Submit Action */}
-                                  <div className="pt-2 flex justify-end">
-                                    <Button
-                                      onClick={() => handleSubmitItem(item.id)}
-                                      disabled={isItemSubmitting || currentRating === 0}
-                                      className="w-full sm:w-auto px-6 bg-[var(--brand-primary)] hover:bg-[var(--brand-primary-dark)] text-white font-semibold transition-colors"
-                                    >
-                                      {isItemSubmitting ? (
-                                        <div className="flex items-center gap-2">
-                                          <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
-                                          Submitting...
+                                  {/* Submit Action / Confirmation Step */}
+                                  {confirmingItemId === item.id ? (
+                                    /* Confirmation Preview */
+                                    <div className="pt-2 border-t border-gray-100 space-y-4">
+                                      <p className="text-sm font-semibold text-gray-800">Review your submission:</p>
+                                      <div className="bg-gray-50 rounded-xl p-4 space-y-2">
+                                        {/* Stars preview */}
+                                        <div className="flex gap-0.5">
+                                          {[1, 2, 3, 4, 5].map((val) => (
+                                            <Star key={val} className={cn("w-5 h-5", val <= currentRating ? "fill-[var(--brand-primary)] text-[var(--brand-primary)]" : "text-gray-200")} />
+                                          ))}
+                                          <span className="ml-2 text-sm text-gray-600 font-medium">{currentRating}/5</span>
                                         </div>
-                                      ) : (
-                                        "Submit This Review"
-                                      )}
-                                    </Button>
-                                  </div>
+                                        {/* Comment preview */}
+                                        {currentText ? (
+                                          <p className="text-sm text-gray-700 italic">"{currentText}"</p>
+                                        ) : (
+                                          <p className="text-sm text-gray-400 italic">No written review</p>
+                                        )}
+                                        {/* Images preview */}
+                                        {currentImages.length > 0 && (
+                                          <div className="flex gap-1.5 flex-wrap">
+                                            {currentImages.map((img, idx) => (
+                                              <img key={idx} src={img} alt="" className="w-12 h-12 object-cover rounded-lg border border-gray-200" />
+                                            ))}
+                                          </div>
+                                        )}
+                                        {isAnonymous && (
+                                          <p className="text-xs text-gray-500 flex items-center gap-1"><EyeOff className="w-3 h-3" /> Posted anonymously</p>
+                                        )}
+                                      </div>
+                                      <div className="flex gap-3 justify-end">
+                                        <Button
+                                          variant="outline"
+                                          size="sm"
+                                          onClick={() => setConfirmingItemId(null)}
+                                          className="flex items-center gap-1.5"
+                                        >
+                                          <Edit2 className="w-3.5 h-3.5" /> Edit
+                                        </Button>
+                                        <Button
+                                          onClick={() => { setConfirmingItemId(null); handleSubmitItem(item.id); }}
+                                          disabled={isItemSubmitting}
+                                          size="sm"
+                                          className="bg-[var(--brand-primary)] hover:bg-[var(--brand-primary-dark)] text-white font-semibold"
+                                        >
+                                          {isItemSubmitting ? (
+                                            <div className="flex items-center gap-2">
+                                              <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                                              Submitting...
+                                            </div>
+                                          ) : "Confirm & Submit"}
+                                        </Button>
+                                      </div>
+                                    </div>
+                                  ) : (
+                                    <div className="pt-2 flex justify-end">
+                                      <Button
+                                        onClick={() => setConfirmingItemId(item.id)}
+                                        disabled={isItemSubmitting || currentRating === 0}
+                                        className="w-full sm:w-auto px-6 bg-[var(--brand-primary)] hover:bg-[var(--brand-primary-dark)] text-white font-semibold transition-colors"
+                                      >
+                                        Submit This Review
+                                      </Button>
+                                    </div>
+                                  )}
                                 </div>
                               </motion.div>
                             )}

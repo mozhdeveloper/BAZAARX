@@ -21,6 +21,8 @@ import {
   ImagePlus,
   Shield,
   ShieldCheck,
+  Pencil,
+  Trash2,
 } from "lucide-react";
 import type { BuyerOrderSnapshot, OrderItemWarrantySnapshot } from "../types/orders";
 import { useCartStore } from "../stores/cartStore";
@@ -39,6 +41,7 @@ import { cn } from "../lib/utils";
 import { useToast } from "../hooks/use-toast";
 import { orderReadService } from "../services/orders/orderReadService";
 import { orderMutationService } from "../services/orders/orderMutationService";
+import { reviewService } from "../services/reviewService";
 import { returnService } from "../services/returnService";
 import { warrantyService } from "../services/warrantyService";
 import { OrderStatusBadge } from "../components/orders/OrderStatusBadge";
@@ -81,6 +84,15 @@ export default function OrdersPage() {
   const [reviewWarningModalOpen, setReviewWarningModalOpen] = useState(false);
   const [reviewModalOpen, setReviewModalOpen] = useState(false);
   const [orderToReview, setOrderToReview] = useState<any>(null);
+  const [editReviewOpen, setEditReviewOpen] = useState(false);
+  const [reviewToEdit, setReviewToEdit] = useState<any>(null);
+  const [editRating, setEditRating] = useState(0);
+  const [editComment, setEditComment] = useState("");
+  const [editHoveredRating, setEditHoveredRating] = useState(0);
+  const [editSubmitting, setEditSubmitting] = useState(false);
+  const [deleteReviewConfirmOpen, setDeleteReviewConfirmOpen] = useState(false);
+  const [reviewToDelete, setReviewToDelete] = useState<{ reviewId: string; orderId: string } | null>(null);
+  const [deleteReviewSubmitting, setDeleteReviewSubmitting] = useState(false);
   const [viewingOrderIndex, setViewingOrderIndex] = useState<number | null>(null);
   const [viewingImageIndex, setViewingImageIndex] = useState<number>(0);
   const [viewingReviewData, setViewingReviewData] = useState<any>(null); // For return request evidence or other single image views
@@ -750,6 +762,35 @@ export default function OrdersPage() {
                             </div>
                           </div>
                         )}
+                        {/* Edit & Delete Review Buttons */}
+                        {(order.review as any).id && (
+                          <div className="mt-3 flex gap-2 justify-end">
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              className="flex items-center gap-1.5 text-xs border-gray-300 text-gray-600 hover:text-[var(--brand-primary)] hover:border-[var(--brand-primary)]"
+                              onClick={() => {
+                                setReviewToEdit({ reviewId: (order.review as any).id, orderId: order.id, buyerId: profile?.id });
+                                setEditRating(order.review.rating || 0);
+                                setEditComment(order.review.comment || "");
+                                setEditReviewOpen(true);
+                              }}
+                            >
+                              <Pencil className="w-3.5 h-3.5" /> Edit Review
+                            </Button>
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              className="flex items-center gap-1.5 text-xs border-red-200 text-red-500 hover:bg-red-50 hover:border-red-400"
+                              onClick={() => {
+                                setReviewToDelete({ reviewId: (order.review as any).id, orderId: order.id });
+                                setDeleteReviewConfirmOpen(true);
+                              }}
+                            >
+                              <Trash2 className="w-3.5 h-3.5" /> Delete
+                            </Button>
+                          </div>
+                        )}
                       </div>
                     )}
                   </div>
@@ -982,7 +1023,20 @@ export default function OrdersPage() {
                               const itemReview = (order as any).reviews?.find((r: any) => r.productId === ((item as any).productId || item.id)) ||
                                 (!(order as any).reviews?.some((r: any) => r.productId) ? order.review : null);
                               return !itemReview;
-                            }) && (
+                            }) && (() => {
+                              const sellerStatus = (order as any).seller_approval_status;
+                              const isSellerBlocked = sellerStatus === 'blacklisted' || sellerStatus === 'suspended';
+                              return isSellerBlocked ? (
+                                <Button
+                                  size="sm"
+                                  variant="outline"
+                                  disabled
+                                  title="Reviews are unavailable because this seller's account has been suspended."
+                                  className="border-gray-200 text-gray-400 cursor-not-allowed opacity-60"
+                                >
+                                  Write Review
+                                </Button>
+                              ) : (
                                 <Button
                                   onClick={() => {
                                     setOrderToReview(order);
@@ -994,7 +1048,8 @@ export default function OrdersPage() {
                                 >
                                   Write Review
                                 </Button>
-                              )}
+                              );
+                            })()}
 
                             {/* Buy Again - add items to cart and go to cart for editing before checkout */}
                             <Button
@@ -1566,6 +1621,147 @@ export default function OrdersPage() {
           sellerId={orderToReview.sellerId || orderToReview.items[0]?.sellerId}
         />
       )}
+
+      {/* Edit Review Modal */}
+      <AnimatePresence>
+        {editReviewOpen && reviewToEdit && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-[2000] flex items-center justify-center bg-black/60 p-4"
+            onClick={() => !editSubmitting && setEditReviewOpen(false)}
+          >
+            <motion.div
+              initial={{ scale: 0.9, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.9, opacity: 0 }}
+              className="bg-white rounded-2xl p-6 max-w-md w-full shadow-2xl space-y-5"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <div className="flex items-center justify-between">
+                <h2 className="text-lg font-bold text-gray-900">Edit Review</h2>
+                <button onClick={() => !editSubmitting && setEditReviewOpen(false)} className="p-2 hover:bg-gray-100 rounded-full">
+                  <X className="w-4 h-4 text-gray-500" />
+                </button>
+              </div>
+              {/* Star Rating */}
+              <div>
+                <p className="text-sm font-semibold text-gray-800 mb-2">Rating <span className="text-red-500">*</span></p>
+                <div className="flex gap-1.5">
+                  {[1, 2, 3, 4, 5].map((val) => (
+                    <button
+                      key={val}
+                      onClick={() => setEditRating(val)}
+                      onMouseEnter={() => setEditHoveredRating(val)}
+                      onMouseLeave={() => setEditHoveredRating(0)}
+                      className="focus:outline-none transition-transform hover:scale-110 p-1"
+                      disabled={editSubmitting}
+                    >
+                      <Star className={cn("w-8 h-8 transition-colors", val <= (editHoveredRating || editRating) ? "fill-[var(--brand-primary)] text-[var(--brand-primary)]" : "text-gray-200")} />
+                    </button>
+                  ))}
+                </div>
+              </div>
+              {/* Comment */}
+              <div>
+                <p className="text-sm font-semibold text-gray-800 mb-2">Review</p>
+                <textarea
+                  value={editComment}
+                  onChange={(e) => setEditComment(e.target.value)}
+                  rows={4}
+                  className="w-full px-4 py-3 border border-gray-200 rounded-lg focus:outline-none focus:ring-1 focus:ring-[var(--brand-primary)] resize-none text-sm"
+                  disabled={editSubmitting}
+                  placeholder="Share your experience..."
+                />
+              </div>
+              <div className="flex gap-3 pt-2">
+                <Button variant="outline" className="flex-1" onClick={() => !editSubmitting && setEditReviewOpen(false)} disabled={editSubmitting}>
+                  Cancel
+                </Button>
+                <Button
+                  className="flex-1 bg-[var(--brand-primary)] hover:bg-[var(--brand-primary-dark)] text-white"
+                  disabled={editSubmitting || editRating === 0}
+                  onClick={async () => {
+                    if (!reviewToEdit?.reviewId || !profile?.id) return;
+                    setEditSubmitting(true);
+                    try {
+                      await reviewService.updateReview(reviewToEdit.reviewId, profile.id, { rating: editRating, comment: editComment });
+                      setEditReviewOpen(false);
+                      setReviewToEdit(null);
+                      void loadBuyerOrders(statusFilter);
+                      toast({ title: "Review Updated", description: "Your review has been updated.", duration: 4000 });
+                    } catch (err: any) {
+                      toast({ title: "Failed to update review", description: err.message || "Please try again.", variant: "destructive" });
+                    } finally {
+                      setEditSubmitting(false);
+                    }
+                  }}
+                >
+                  {editSubmitting ? (
+                    <div className="flex items-center gap-2"><div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />Saving...</div>
+                  ) : "Save Changes"}
+                </Button>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* Delete Review Confirm Dialog */}
+      <AnimatePresence>
+        {deleteReviewConfirmOpen && reviewToDelete && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-[2000] flex items-center justify-center bg-black/60 p-4"
+            onClick={() => !deleteReviewSubmitting && setDeleteReviewConfirmOpen(false)}
+          >
+            <motion.div
+              initial={{ scale: 0.9, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.9, opacity: 0 }}
+              className="bg-white rounded-2xl p-6 max-w-sm w-full shadow-2xl space-y-4"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <div className="w-12 h-12 bg-red-100 rounded-full flex items-center justify-center mx-auto">
+                <Trash2 className="w-6 h-6 text-red-500" />
+              </div>
+              <h2 className="text-lg font-bold text-gray-900 text-center">Delete Review?</h2>
+              <p className="text-sm text-gray-600 text-center">This action cannot be undone. Your review will be permanently removed.</p>
+              <div className="flex gap-3 pt-2">
+                <Button variant="outline" className="flex-1" onClick={() => !deleteReviewSubmitting && setDeleteReviewConfirmOpen(false)} disabled={deleteReviewSubmitting}>
+                  Cancel
+                </Button>
+                <Button
+                  className="flex-1 bg-red-600 hover:bg-red-700 text-white"
+                  disabled={deleteReviewSubmitting}
+                  onClick={async () => {
+                    if (!reviewToDelete?.reviewId || !profile?.id) return;
+                    setDeleteReviewSubmitting(true);
+                    try {
+                      await reviewService.deleteReview(reviewToDelete.reviewId, profile.id);
+                      setDeleteReviewConfirmOpen(false);
+                      setReviewToDelete(null);
+                      void loadBuyerOrders(statusFilter);
+                      toast({ title: "Review Deleted", description: "Your review has been removed.", duration: 4000 });
+                    } catch (err: any) {
+                      toast({ title: "Failed to delete review", description: err.message || "Please try again.", variant: "destructive" });
+                    } finally {
+                      setDeleteReviewSubmitting(false);
+                    }
+                  }}
+                >
+                  {deleteReviewSubmitting ? (
+                    <div className="flex items-center gap-2"><div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />Deleting...</div>
+                  ) : "Delete"}
+                </Button>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
 
       {/* Image Viewer Modal */}
       <AnimatePresence>

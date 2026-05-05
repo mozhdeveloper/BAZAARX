@@ -914,7 +914,8 @@ export class OrderService {
                             seller_id,
                             seller:sellers!products_seller_id_fkey (
                                 id,
-                                store_name
+                                store_name,
+                                approval_status
                             )
                         )
                     ),
@@ -1017,6 +1018,7 @@ export class OrderService {
                     product_name: item?.product?.name || item.product_name,
                     seller_id: item?.product?.seller_id || null,
                     seller_name: item?.product?.seller?.store_name || "Unknown Store",
+                    seller_approval_status: item?.product?.seller?.approval_status || null,
                 }));
 
                 const firstSellerItem = normalizedItems.find((item: any) => item.seller_id);
@@ -1050,6 +1052,7 @@ export class OrderService {
                     reviews: orderReviews,
                     seller_id: firstSellerItem?.seller_id || null,
                     store_name: firstSellerItem?.seller_name || "Unknown Store",
+                    seller_approval_status: firstSellerItem?.seller_approval_status || null,
                     total_amount: totalAmount,
                     status: mapNormalizedToBuyerUiStatus(
                         order.payment_status,

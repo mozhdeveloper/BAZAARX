@@ -1407,6 +1407,82 @@ export class ReviewService {
   }
 
   /**
+   * Delete a review (Buyer action — verifies ownership)
+   */
+  async deleteReview(reviewId: string, buyerId: string): Promise<void> {
+    if (!isSupabaseConfigured()) {
+      this.mockReviews = this.mockReviews.filter((r) => r.id !== reviewId);
+      return;
+    }
+
+    try {
+      // 1. Delete associated images
+      const { error: imagesError } = await (supabase as any)
+        .from('review_images')
+        .delete()
+        .eq('review_id', reviewId);
+
+      if (imagesError) {
+        console.warn('Error deleting review images:', imagesError);
+      }
+
+      // 2. Delete associated votes
+      const { error: votesError } = await (supabase as any)
+        .from('review_votes')
+        .delete()
+        .eq('review_id', reviewId);
+
+      if (votesError) {
+        console.warn('Error deleting review votes:', votesError);
+      }
+
+      // 3. Delete the review itself — enforces buyer ownership
+      const { error } = await (supabase as any)
+        .from('reviews')
+        .delete()
+        .eq('id', reviewId)
+        .eq('buyer_id', buyerId);
+
+      if (error) throw error;
+    } catch (error) {
+      console.error('Error deleting review (buyer):', error);
+      throw new Error('Failed to delete review');
+    }
+  }
+
+  /**
+   * Update a review's rating and comment (Buyer action — verifies ownership)
+   */
+  async updateReview(reviewId: string, buyerId: string, data: { rating: number; comment: string }): Promise<void> {
+    if (!isSupabaseConfigured()) {
+      const reviewIndex = this.mockReviews.findIndex((r) => r.id === reviewId);
+      if (reviewIndex >= 0) {
+        this.mockReviews[reviewIndex].rating = data.rating;
+        this.mockReviews[reviewIndex].comment = data.comment;
+        this.mockReviews[reviewIndex].updated_at = new Date().toISOString();
+      }
+      return;
+    }
+
+    try {
+      const { error } = await (supabase as any)
+        .from('reviews')
+        .update({
+          rating: data.rating,
+          comment: data.comment,
+          updated_at: new Date().toISOString(),
+        } as any)
+        .eq('id', reviewId)
+        .eq('buyer_id', buyerId);
+
+      if (error) throw error;
+    } catch (error) {
+      console.error('Error updating review (buyer):', error);
+      throw new Error('Failed to update review');
+    }
+  }
+
+  /**
    * Delete a review (Admin action)
    */
   async deleteReviewAdmin(reviewId: string): Promise<void> {
