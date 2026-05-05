@@ -296,9 +296,17 @@ export function SellerProducts() {
                                                 className="w-full h-40 object-cover transition-transform duration-700 group-hover:scale-110"
                                             />
                                             {/* Status badge overlay — top left */}
+                                            {product.approvalStatus === "approved" && product.isActive && (
+                                                <div className="absolute top-2 left-2 z-20">
+                                                    <div className="inline-flex items-center px-2 py-0.5 rounded-lg bg-green-500/90 backdrop-blur-sm text-white">
+                                                        <Check className="w-3 h-3 mr-1" />
+                                                        <span className="text-[10px] font-bold tracking-wide">Active</span>
+                                                    </div>
+                                                </div>
+                                            )}
                                             {product.approvalStatus === "pending" && (
                                                 <div className="absolute top-2 left-2 z-20">
-                                                    <div className="inline-flex items-center px-2 py-0.5 rounded-lg bg-[var(--color-pending)] backdrop-blur-sm text-white">
+                                                    <div className="inline-flex items-center px-2 py-0.5 rounded-lg bg-orange-500/90 backdrop-blur-sm text-white">
                                                         <Clock className="w-3 h-3 mr-1" />
                                                         <span className="text-[10px] font-bold tracking-wide">Pending Approval</span>
                                                     </div>
@@ -314,13 +322,13 @@ export function SellerProducts() {
                                             )}
                                             {product.approvalStatus === "draft" && (
                                                 <div className="absolute top-2 left-2 z-20">
-                                                    <div className="inline-flex items-center px-2 py-0.5 rounded-lg bg-blue-500/90 backdrop-blur-sm text-white">
+                                                    <div className="inline-flex items-center px-2 py-0.5 rounded-lg bg-orange-500/90 backdrop-blur-sm text-white">
                                                         <Clock className="w-3 h-3 mr-1" />
                                                         <span className="text-[10px] font-bold tracking-wide">Draft</span>
                                                     </div>
                                                 </div>
                                             )}
-                                            {!product.isActive && product.approvalStatus !== "pending" && product.approvalStatus !== "draft" && (
+                                            {!product.isActive && product.approvalStatus !== "pending" && product.approvalStatus !== "draft" && product.approvalStatus !== "approved" && (
                                                 <div className="absolute top-2 left-2 z-20">
                                                     <div className="inline-flex items-center px-2 py-0.5 rounded-lg bg-gray-600/90 backdrop-blur-sm text-white">
                                                         <Ban className="w-3 h-3 mr-1" />
