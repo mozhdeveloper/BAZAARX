@@ -147,28 +147,6 @@ export default function ShopPage() {
   // Show banner only if: profile exists AND onboarding not complete AND user hasn't dismissed it
   const showOnboardingBanner = profile && !hasCompletedOnboarding && !remindLater;
 
-  console.log("banner data", {
-    "profile": profile,
-    "!hasCompletedOnboarding": !hasCompletedOnboarding,
-    "!remindLater": !remindLater
-  });
-
-  // Debug logging
-  useEffect(() => {
-    if (profile) {
-      console.log("Profile loaded:", {
-        id: profile.id,
-        email: profile.email,
-        hasPreferences: !!profile.preferences,
-        preferences: profile.preferences,
-        interests: (profile.preferences as any)?.interests,
-        interestedCategories: (profile.preferences as any)?.interestedCategories,
-        hasCompletedOnboarding,
-        showOnboardingBanner
-      });
-    }
-  }, [profile, hasCompletedOnboarding, showOnboardingBanner]);
-
   // Add delay to prevent banner flickering on initial load while profile/preferences hydrate
   useEffect(() => {
     let timer: NodeJS.Timeout;
