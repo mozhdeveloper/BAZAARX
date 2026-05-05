@@ -20,19 +20,22 @@ export interface ProductRequestDTO {
   productName: string;
   description: string;
   category: string;
+  requestedBy: string;
+  requestedById: string | null;
   status: RequestStatus;
   sourcingStage: SourcingStage;
   demandCount: number;
   stakedBazcoins: number;
   votes: number;
+  comments: number;
   linkedProductId: string | null;
   rejectionHoldReason: string | null;
   rewardAmount: number;
-  requestedById: string | null;
   referenceLinks: string[];
   adminNotes: string | null;
   estimatedDemand: number;
   priority: string;
+  mergedIntoId: string | null;
   createdAt: Date;
 }
 
@@ -58,19 +61,22 @@ function mapRequest(r: any): ProductRequestDTO {
     productName: r.product_name,
     description: r.description || '',
     category: r.category || '',
+    requestedBy: r.requested_by_name || 'Anonymous',
+    requestedById: r.requested_by_id ?? null,
     status: r.status,
     sourcingStage: (r.sourcing_stage as SourcingStage) ?? null,
     demandCount: r.demand_count || 0,
     stakedBazcoins: r.staked_bazcoins || 0,
     votes: r.votes || 0,
+    comments: r.comments_count || 0,
     linkedProductId: r.linked_product_id ?? null,
     rejectionHoldReason: r.rejection_hold_reason ?? null,
     rewardAmount: r.reward_amount ?? 50,
-    requestedById: r.requested_by_id ?? null,
     referenceLinks: r.reference_links ?? [],
     adminNotes: r.admin_notes ?? null,
     estimatedDemand: r.estimated_demand || r.demand_count || 0,
     priority: r.priority || 'medium',
+    mergedIntoId: r.merged_into_id ?? null,
     createdAt: new Date(r.created_at),
   };
 }

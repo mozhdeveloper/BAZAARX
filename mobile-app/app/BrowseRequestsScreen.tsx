@@ -67,7 +67,7 @@ export default function BrowseRequestsScreen({ navigation, route }: Props) {
         <Text style={styles.headerTitle}>Community Requests</Text>
         <Pressable
           style={[styles.backBtn, { backgroundColor: COLORS.primary }]}
-          onPress={() => (navigation as any).navigate('CreateProductRequest')}
+          onPress={() => navigation.navigate('CreateProductRequest')}
           accessibilityLabel="Submit new request"
         >
           <Plus size={18} color="#FFFFFF" />
@@ -107,7 +107,7 @@ export default function BrowseRequestsScreen({ navigation, route }: Props) {
           <Text style={styles.emptySub}>Try a different filter or search term.</Text>
           <Pressable
             style={styles.emptyCreateBtn}
-            onPress={() => (navigation as any).navigate('CreateProductRequest')}
+            onPress={() => navigation.navigate('CreateProductRequest')}
           >
             <Plus size={14} color="#FFFFFF" />
             <Text style={styles.emptyCreateText}>Submit a Request</Text>

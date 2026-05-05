@@ -189,12 +189,12 @@ export default function ProductRequestDetailScreen({ navigation, route }: Props)
           estimated_demand: dto.demandCount,
           demand_count: dto.demandCount,
           staked_bazcoins: dto.stakedBazcoins,
-          comments_count: 0,
-          requested_by_name: '',
-          admin_notes: dto.rejectionHoldReason ?? undefined,
+          comments_count: dto.comments,
+          requested_by_name: dto.requestedBy,
+          admin_notes: dto.adminNotes ?? undefined,
           rejection_hold_reason: dto.rejectionHoldReason ?? undefined,
           linked_product_id: dto.linkedProductId ?? undefined,
-          reference_links: (dto as any).referenceLinks ?? [],
+          reference_links: dto.referenceLinks ?? [],
           created_at: dto.createdAt.toISOString(),
         };
         setRequest(mapped);
@@ -411,7 +411,19 @@ export default function ProductRequestDetailScreen({ navigation, route }: Props)
           {isAlreadyAvailable && (
             <Pressable
               style={[styles.statusMessageBox, { marginTop: 8, backgroundColor: '#F0FDF4', borderColor: '#BBF7D0', flexDirection: 'row', alignItems: 'center', gap: 8 }]}
-              onPress={() => (navigation as any).navigate('ProductDetail', { productId: request.linked_product_id })}
+              onPress={async () => {
+                if (!request.linked_product_id) return;
+                const { data: prod } = await supabase
+                  .from('products')
+                  .select('*')
+                  .eq('id', request.linked_product_id)
+                  .maybeSingle();
+                if (prod) {
+                  (navigation as any).navigate('ProductDetail', { product: prod });
+                } else {
+                  Alert.alert('Product not found', 'The matched product may no longer be available.');
+                }
+              }}
             >
               <ShoppingBag size={16} color="#166534" />
               <Text style={[styles.statusMessage, { color: '#166534', fontWeight: '700', flex: 1 }]}>View matched product in marketplace →</Text>

@@ -1128,11 +1128,44 @@ export const useAdminProductRequests = create<ProductRequestsState>((set) => ({
     set({ isLoading: true });
     try {
       const { supabase } = await import('../lib/supabase');
-      const updateData: Record<string, any> = { status, updated_at: new Date().toISOString() };
-      if (reason) updateData.rejection_hold_reason = reason;
-      if (reason) updateData.admin_notes = reason;
-      const { error } = await supabase.from('product_requests').update(updateData).eq('id', id);
-      if (error) throw error;
+
+      // Map target status → RPC action where possible (BX-07-023: audit logging via RPC)
+      const ACTION_MAP: Partial<Record<ProductRequest['status'], string>> = {
+        approved_for_sourcing: 'approve',
+        rejected:              'reject',
+        on_hold:               'hold',
+        already_available:     'resolve',
+      };
+      const rpcAction = ACTION_MAP[status];
+
+      if (rpcAction) {
+        // Use SECURITY DEFINER RPC — writes audit log atomically
+        await supabase.rpc('admin_action_product_request', {
+          p_request_id: id,
+          p_action: rpcAction,
+          p_reason: reason ?? null,
+          p_target_id: null,
+          p_new_stage: null,
+        });
+      } else {
+        // Direct update for statuses not covered by RPC (e.g. under_review)
+        const updateData: Record<string, any> = { status, updated_at: new Date().toISOString() };
+        if (reason) { updateData.rejection_hold_reason = reason; updateData.admin_notes = reason; }
+        const { error } = await supabase.from('product_requests').update(updateData).eq('id', id);
+        if (error) throw error;
+
+        // Write audit log manually for non-RPC updates
+        const { data: { user } } = await supabase.auth.getUser();
+        if (user?.id) {
+          await supabase.from('request_audit_logs').insert({
+            request_id: id,
+            admin_id: user.id,
+            action: status,
+            details: reason ? { reason } : {},
+          });
+        }
+      }
+
       set(state => ({
         requests: state.requests.map(req =>
           req.id === id
