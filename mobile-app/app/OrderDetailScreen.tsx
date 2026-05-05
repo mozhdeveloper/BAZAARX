@@ -55,6 +55,7 @@ import { safeImageUri } from '../src/utils/imageUtils';
 import ReviewModal from '../src/components/ReviewModal';
 import AddressFormModal from '../src/components/AddressFormModal';
 import ConfirmReceivedModal from '../src/components/ConfirmReceivedModal';
+import CancelOrderModal from '../src/components/seller/CancelOrderModal';
 import { BuyerBottomNav } from '../src/components/BuyerBottomNav';
 import { reviewService } from '@/services/reviewService';
 import { chatService } from '../src/services/chatService';
@@ -114,6 +115,8 @@ export default function OrderDetailScreen({ route, navigation }: Props) {
   const [isPaymentError, setIsPaymentError] = useState(false);
   const [showConfirmReceivedModal, setShowConfirmReceivedModal] = useState(false);
   const [isAddressModalVisible, setIsAddressModalVisible] = useState(false);
+  const [showCancelModal, setShowCancelModal] = useState(false);
+  const [isCancellingOrder, setIsCancellingOrder] = useState(false);
   const [dbPaymentMethod, setDbPaymentMethod] = useState<any>(null); // BX-PAYMENT-FIX: Fetch from order_payments
 
   // Receipt photo state (for confirm received flow)
@@ -597,27 +600,26 @@ export default function OrderDetailScreen({ route, navigation }: Props) {
     }
   };
 
-  const handleCancelOrder = async () => {
+  const handleConfirmCancel = async (reason: string) => {
+    setIsCancellingOrder(true);
     try {
-      console.log('Order Object:', order);
+      const realOrderId = (order as any).orderId || order.id;
 
-      // 1. Tell Supabase to cancel the order
-      await orderMutationService.updateOrderStatus({
-        orderId: (order as any).orderId || order.id,
-        nextStatus: 'cancelled',
-        actorRole: 'buyer',
-        note: 'Cancelled by buyer via app'
+      await orderMutationService.cancelOrder({
+        orderId: realOrderId,
+        reason: reason,
+        cancelledBy: user?.id,
+        changedByRole: 'buyer'
       });
 
-      // 2. Instantly update the local UI
-      await updateOrderStatus((order as any).orderId || order.id, 'cancelled');
-
-      // 3. Notify the user
+      await updateOrderStatus(realOrderId, 'cancelled');
+      setShowCancelModal(false);
       Alert.alert('Success', 'Your order has been successfully cancelled.');
-
-    } catch (error) {
+    } catch (error: any) {
       console.error('Cancellation error:', error);
-      Alert.alert('Cancellation Failed', 'There was a problem cancelling your order. Please check your connection and try again.');
+      Alert.alert('Cancellation Failed', error?.message || 'There was a problem cancelling your order. Please try again.');
+    } finally {
+      setIsCancellingOrder(false);
     }
   };
 
@@ -1159,16 +1161,7 @@ export default function OrderDetailScreen({ route, navigation }: Props) {
         {resolvedUiStatus === 'pending' && (
           <>
             <Pressable
-              onPress={() =>
-                Alert.alert(
-                  'Cancel Order',
-                  'Are you sure you want to cancel this order?',
-                  [
-                    { text: 'No, keep it', style: 'cancel' },
-                    { text: 'Yes, cancel', style: 'destructive', onPress: handleCancelOrder },
-                  ]
-                )
-              }
+              onPress={() => setShowCancelModal(true)}
               style={[styles.outlineButton, { flex: 1 }]}
             >
               <Text style={styles.outlineButtonText}>Cancel Order</Text>
@@ -1422,6 +1415,13 @@ export default function OrderDetailScreen({ route, navigation }: Props) {
         readOnly={!isEligibleForEdit}
         lockName={true} // Strict Mode: First & Last name are permanently locked post-checkout
         isOrderEdit={true} // Tells the modal this is a quick-fill, NOT a profile save!
+      />
+
+      <CancelOrderModal
+        visible={showCancelModal}
+        onClose={() => setShowCancelModal(false)}
+        onConfirm={handleConfirmCancel}
+        isUpdating={isCancellingOrder}
       />
 
     </View>

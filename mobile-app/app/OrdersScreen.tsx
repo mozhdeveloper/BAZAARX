@@ -789,11 +789,11 @@ export default function OrdersScreen({ navigation, route }: Props) {
       const realOrderId = (order as any).orderId || order.id;
 
       // 1. Tell Supabase to cancel the order using the successful endpoint
-      await orderMutationService.updateOrderStatus({
+      await orderMutationService.cancelOrder({
         orderId: realOrderId,
-        nextStatus: 'cancelled',
-        actorRole: 'buyer',
-        note: reason || 'Cancelled by buyer via app'
+        reason: reason,
+        cancelledBy: user?.id,
+        changedByRole: 'buyer'
       });
 
       // 2. Instantly update the local UI so it jumps to the Cancelled tab
