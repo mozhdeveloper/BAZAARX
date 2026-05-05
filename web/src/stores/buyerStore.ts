@@ -69,12 +69,12 @@ interface BuyerStore {
   updateCartQuantity: (productId: string, quantity: number, variantId?: string) => void;
   updateItemVariant: (productId: string, oldVariantId: string | undefined, newVariant: ProductVariant, quantity?: number) => Promise<void>;
   updateCartNotes: (productId: string, notes: string) => void;
-  
+
   clearCart: () => Promise<void>;
   isValidatingCheckout: boolean;
   checkoutErrors: Record<string, string>;
   validateCheckout: (selectedIds: string[]) => Promise<boolean>;
-  
+
   getCartTotal: () => number;
   getCartItemCount: () => number;
   getTotalCartItems: () => number;
@@ -243,7 +243,7 @@ export const useBuyerStore = create<BuyerStore>()(persist(
         // 3) Update local Zustand state only after remote writes succeed
         set((state) => {
           if (!state.profile) return { profile: null };
-          
+
           // Deep merge preferences if they are being updated
           const updatedProfile = { ...state.profile, ...updates };
           if (updates.preferences && state.profile.preferences) {
@@ -252,7 +252,7 @@ export const useBuyerStore = create<BuyerStore>()(persist(
               ...updates.preferences
             };
           }
-          
+
           return { profile: updatedProfile };
         });
       } catch (err) {
@@ -934,7 +934,7 @@ export const useBuyerStore = create<BuyerStore>()(persist(
         }
         return result.isValid && Object.keys(errors).length === 0;
       } catch (e: any) {
-        set({ checkoutErrors: { 'global': 'Validation failed.' }});
+        set({ checkoutErrors: { 'global': 'Validation failed.' } });
         return false;
       } finally {
         set({ isValidatingCheckout: false });
@@ -1667,6 +1667,7 @@ export const useBuyerStore = create<BuyerStore>()(persist(
             ...(dbPreferences.privacy || {})
           },
           interestedCategories: dbPreferences.interestedCategories || [],
+          interests: dbPreferences.interests || [],  // Preserve interests field from database
         };
 
         const buyerInfo = {
@@ -1981,7 +1982,7 @@ export const useBuyerStore = create<BuyerStore>()(persist(
       if (updates.imageUrl !== undefined) dbUpdate.image_url = updates.imageUrl;
       if (updates.sharedDate !== undefined) dbUpdate.shared_date = updates.sharedDate;
       if (updates.privacy !== undefined) dbUpdate.privacy = updates.privacy;
-      
+
       // Auto-fetch recipient details if addressId is changed/provided
       if (updates.delivery?.addressId) {
         const { addresses } = get();
@@ -1995,7 +1996,7 @@ export const useBuyerStore = create<BuyerStore>()(persist(
           dbUpdate.recipient_name = addr.fullName;
         }
       }
-      
+
       if (updates.delivery !== undefined) dbUpdate.delivery = updates.delivery;
 
       const { error } = await db
@@ -2118,7 +2119,7 @@ export const useBuyerStore = create<BuyerStore>()(persist(
     removeRegistryItem: async (registryId, productId) => {
       const registry = get().registries.find(r => r.id === registryId);
       const item = registry?.products?.find(p => p.id === productId);
-      
+
       if (item && item.receivedQty > 0) {
         console.warn('[removeRegistryItem] Cannot remove item with gift activity');
         throw new Error('Cannot remove item with gift activity');

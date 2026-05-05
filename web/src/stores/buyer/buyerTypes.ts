@@ -238,6 +238,7 @@ export interface BuyerProfile {
       showFollowing: boolean;
     };
     interestedCategories?: string[];
+    interests?: string[];
   };
   memberSince: Date;
   totalOrders: number;

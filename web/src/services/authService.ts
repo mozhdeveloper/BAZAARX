@@ -266,7 +266,7 @@ export class AuthService {
       const { data, error } = await supabase.auth.signUp({
         email,
         password,
-        options: { 
+        options: {
           data: metadata,
           emailRedirectTo: `${window.location.origin}/auth/callback`
         },
@@ -408,11 +408,24 @@ export class AuthService {
 
     if (existingRole) return; // Role already exists
 
-    const { error } = await supabase
-      .from('user_roles')
-      .insert({ user_id: userId, role } as any);
+    // Retry up to 3 times — user_roles has a FK to profiles which may still be
+    // propagating from the auth trigger when this is called during signup.
+    // This is especially important for OAuth callbacks where the profile trigger
+    // may be slow to execute.
+    for (let attempt = 1; attempt <= 3; attempt++) {
+      const { error } = await supabase
+        .from('user_roles')
+        .insert({ user_id: userId, role } as any);
 
-    if (error) {
+      if (!error) return;
+
+      // FK constraint error (23503) — profile may not exist yet
+      if (error.code === '23503' && attempt < 3) {
+        console.warn(`[addUserRole] FK constraint on attempt ${attempt}, retrying in ${500 * attempt}ms...`);
+        await new Promise(resolve => setTimeout(resolve, 500 * attempt));
+        continue;
+      }
+
       console.error('Error adding user role:', error);
       throw error;
     }
@@ -500,7 +513,7 @@ export class AuthService {
         .maybeSingle();
 
       if (error || !data) return false;
-      
+
       const preferences = (data as any).preferences;
       return !!(
         (preferences && preferences.interestedCategories && preferences.interestedCategories.length > 0) ||
@@ -581,6 +594,7 @@ export class AuthService {
         }
 
         // Also ensure buyer record exists for buyer role users
+        // Use ensureBuyerProfileConsistency to guarantee consistency across login methods
         const { error: buyerError } = await supabase
           .from('buyers')
           .upsert(
@@ -764,6 +778,63 @@ export class AuthService {
     } catch (error) {
       console.error('Error fetching buyer profile:', error);
       throw new Error('Failed to load buyer profile.');
+    }
+  }
+
+  /**
+   * Ensure buyer profile is consistent across linked identities (email/password + OAuth)
+   * This method verifies that the buyer record exists and has the correct preferences
+   * regardless of which login method was used.
+   * @param userId - User ID
+   * @returns Promise<Buyer | null>
+   */
+  async ensureBuyerProfileConsistency(userId: string): Promise<Buyer | null> {
+    if (!isSupabaseConfigured()) {
+      return null;
+    }
+
+    try {
+      // 1. Check if buyer record exists
+      const { data: existingBuyer, error: fetchError } = await supabase
+        .from('buyers')
+        .select('id, preferences')
+        .eq('id', userId)
+        .maybeSingle();
+
+      if (fetchError && fetchError.code !== 'PGRST116') {
+        console.error('Error checking buyer profile consistency:', fetchError);
+        throw fetchError;
+      }
+
+      // 2. If buyer record doesn't exist, create it with default preferences
+      if (!existingBuyer) {
+        console.log(`[ensureBuyerProfileConsistency] Creating missing buyer record for ${userId}`);
+        const { error: insertError } = await supabase
+          .from('buyers')
+          .insert({
+            id: userId,
+            preferences: {},
+            bazcoins: 0,
+          } as any);
+
+        if (insertError) {
+          console.error('Error creating buyer record for consistency:', insertError);
+          throw insertError;
+        }
+      }
+
+      // 3. Fetch and return the complete buyer profile
+      const { data, error } = await supabase
+        .from('buyers')
+        .select('*, profile:profiles(*)')
+        .eq('id', userId)
+        .single();
+
+      if (error) throw error;
+      return data;
+    } catch (error) {
+      console.error('Error ensuring buyer profile consistency:', error);
+      return null;
     }
   }
 
@@ -1215,18 +1286,18 @@ export class AuthService {
     try {
       const { data } = await supabase.auth.getSession();
       const sessionUser = data?.session?.user;
-      
-      if (sessionUser?.email_confirmed_at && 
-          sessionUser.email?.toLowerCase() === email.toLowerCase()) {
+
+      if (sessionUser?.email_confirmed_at &&
+        sessionUser.email?.toLowerCase() === email.toLowerCase()) {
         return true;
       }
 
       // If no session, the user might have just verified. Let's try to get user.
       const { data: userData } = await supabase.auth.getUser();
       const user = userData?.user;
-      
-      if (user?.email_confirmed_at && 
-          user.email?.toLowerCase() === email.toLowerCase()) {
+
+      if (user?.email_confirmed_at &&
+        user.email?.toLowerCase() === email.toLowerCase()) {
         return true;
       }
 
