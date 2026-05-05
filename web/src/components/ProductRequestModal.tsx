@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { X, Package, ImagePlus, Send, CheckCircle, Upload, Trash2, Link, Plus } from 'lucide-react';
+import { X, Package, ImagePlus, Send, CheckCircle, Upload, Trash2, Link, Plus, ChevronDown } from 'lucide-react';
 import { Button } from './ui/button';
 import { Input } from './ui/input';
 import { Label } from './ui/label';
@@ -8,6 +8,12 @@ import { useImageUpload } from './hooks/use-image-upload';
 import { cn } from '@/lib/utils';
 import { productRequestService } from '@/services/productRequestService';
 import { supabase } from '@/lib/supabase';
+
+const CATEGORIES = [
+  'Electronics', 'Home & Living', 'Fashion', 'Beauty & Care',
+  'Sports & Outdoors', 'Toys & Hobbies', 'Food & Beverage',
+  'Office & School', 'Pet Supplies', 'Tools & Hardware', 'Other',
+];
 
 interface ProductRequestModalProps {
   isOpen: boolean;
@@ -23,6 +29,7 @@ export default function ProductRequestModal({
   const [formData, setFormData] = useState({
     productName: initialSearchTerm,
     description: '',
+    category: '',
     imageUrl: ''
   });
   const [referenceLinks, setReferenceLinks] = useState<string[]>(['']);
@@ -72,7 +79,7 @@ export default function ProductRequestModal({
       await productRequestService.addRequest({
         productName: formData.productName.trim(),
         description: formData.description.trim(),
-        category: 'General',
+        category: formData.category || 'General',
         requestedByName,
         requestedById,
         referenceLinks: referenceLinks.map(l => l.trim()).filter(Boolean),
@@ -87,6 +94,7 @@ export default function ProductRequestModal({
         setFormData({
           productName: '',
           description: '',
+          category: '',
           imageUrl: ''
         });
         setReferenceLinks(['']);
@@ -146,55 +154,63 @@ export default function ProductRequestModal({
 
   return (
     <AnimatePresence>
+      {/* Backdrop — z-[200] sits above Header's z-[100] */}
       <motion.div
         initial={{ opacity: 0 }}
         animate={{ opacity: 1 }}
         exit={{ opacity: 0 }}
-        className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4"
+        transition={{ duration: 0.18 }}
+        className="fixed inset-0 bg-black/50 backdrop-blur-[2px] z-[200] flex items-center justify-center p-4"
         onClick={onClose}
       >
         <motion.div
-          initial={{ opacity: 0, scale: 0.96, y: 16 }}
+          initial={{ opacity: 0, scale: 0.97, y: 12 }}
           animate={{ opacity: 1, scale: 1, y: 0 }}
-          exit={{ opacity: 0, scale: 0.96, y: 16 }}
-          transition={{ type: 'spring', damping: 26, stiffness: 380 }}
-          className="bg-white rounded-2xl shadow-2xl w-full max-w-md flex flex-col"
-          style={{ maxHeight: 'min(82vh, 560px)' }}
+          exit={{ opacity: 0, scale: 0.97, y: 12 }}
+          transition={{ type: 'spring', damping: 28, stiffness: 400 }}
+          className="bg-white rounded-2xl shadow-2xl w-full max-w-lg flex flex-col overflow-hidden"
+          style={{ maxHeight: 'min(88vh, 680px)' }}
           onClick={(e) => e.stopPropagation()}
         >
           {!isSuccess ? (
             <>
-              {/* ── Sticky Header ── */}
-              <div className="flex items-center gap-3 px-5 py-3 border-b border-gray-100 flex-shrink-0">
-                <div className="w-10 h-10 rounded-xl bg-orange-50 flex items-center justify-center flex-shrink-0">
-                  <Package className="w-5 h-5 text-orange-500" />
-                </div>
-                <div className="flex-1 min-w-0">
-                  <h2 className="text-base font-bold text-gray-900 leading-tight">Request a Product</h2>
-                  <p className="text-xs text-gray-500 leading-tight mt-0.5">Can't find what you're looking for?</p>
-                </div>
+              {/* ── Header ── */}
+              <div className="relative flex-shrink-0 bg-gradient-to-br from-orange-500 to-amber-500 px-6 pt-5 pb-6">
+                {/* Close button */}
                 <button
                   onClick={onClose}
-                  className="w-8 h-8 flex items-center justify-center rounded-lg text-gray-400 hover:text-gray-600 hover:bg-gray-100 transition-colors flex-shrink-0"
+                  className="absolute top-4 right-4 w-8 h-8 flex items-center justify-center rounded-full bg-white/20 hover:bg-white/30 text-white transition-colors"
                   aria-label="Close"
                 >
                   <X className="w-4 h-4" />
                 </button>
-              </div>
 
-              {/* ── Scrollable Body ── */}
-              <div className="flex-1 overflow-y-auto px-5 py-4 space-y-4 scrollbar-hide">
-                {/* Info Banner */}
-                <div className="flex gap-3 p-3 bg-blue-50 border border-blue-100 rounded-xl">
-                  <div className="w-1 rounded-full bg-blue-400 flex-shrink-0" />
-                  <p className="text-xs text-blue-700 leading-relaxed">
-                    Tell us what you need and we'll notify you when it becomes available or find a seller.
+                {/* Icon + title */}
+                <div className="flex items-center gap-3">
+                  <div className="w-11 h-11 rounded-2xl bg-white/20 flex items-center justify-center flex-shrink-0">
+                    <Package className="w-5 h-5 text-white" />
+                  </div>
+                  <div>
+                    <h2 className="text-lg font-extrabold text-white leading-tight">Request a Product</h2>
+                    <p className="text-xs text-white/75 mt-0.5">Can't find it? We'll source it for you.</p>
+                  </div>
+                </div>
+
+                {/* Info strip */}
+                <div className="mt-4 flex items-start gap-2.5 bg-white/15 rounded-xl px-3.5 py-3">
+                  <span className="text-base mt-0.5">💡</span>
+                  <p className="text-xs text-white/90 leading-relaxed">
+                    Tell us what you need and we'll notify you when it becomes available or when we find a trusted seller.
                   </p>
                 </div>
+              </div>
+
+              {/* ── Scrollable body ── */}
+              <div className="flex-1 overflow-y-auto px-6 py-5 space-y-5 scrollbar-hide">
 
                 {/* Product Name */}
                 <div className="space-y-1.5">
-                  <Label htmlFor="productName" className="text-sm font-semibold text-gray-700">
+                  <Label htmlFor="productName" className="text-sm font-semibold text-gray-800">
                     Product Name <span className="text-red-500">*</span>
                   </Label>
                   <Input
@@ -202,15 +218,35 @@ export default function ProductRequestModal({
                     name="productName"
                     value={formData.productName}
                     onChange={handleChange}
-                    placeholder="What product are you looking for?"
-                    className="h-10 text-sm border-gray-200 focus:border-orange-400 focus:ring-orange-400/20 rounded-lg"
+                    placeholder="e.g. USB-C cable that won't fray"
+                    className="h-11 text-sm border-gray-200 focus:border-orange-400 focus:ring-2 focus:ring-orange-400/20 rounded-xl"
                     required
                   />
                 </div>
 
+                {/* Category */}
+                <div className="space-y-1.5">
+                  <Label htmlFor="category" className="text-sm font-semibold text-gray-800">Category</Label>
+                  <div className="relative">
+                    <select
+                      id="category"
+                      name="category"
+                      value={formData.category}
+                      onChange={(e) => setFormData(prev => ({ ...prev, category: e.target.value }))}
+                      className="w-full h-11 pl-3.5 pr-10 text-sm border border-gray-200 rounded-xl bg-white text-gray-700 focus:outline-none focus:ring-2 focus:ring-orange-400/20 focus:border-orange-400 appearance-none transition-colors"
+                    >
+                      <option value="">Select a category</option>
+                      {CATEGORIES.map(c => (
+                        <option key={c} value={c}>{c}</option>
+                      ))}
+                    </select>
+                    <ChevronDown className="pointer-events-none absolute right-3.5 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
+                  </div>
+                </div>
+
                 {/* Description */}
                 <div className="space-y-1.5">
-                  <Label htmlFor="description" className="text-sm font-semibold text-gray-700">
+                  <Label htmlFor="description" className="text-sm font-semibold text-gray-800">
                     Description <span className="text-red-500">*</span>
                   </Label>
                   <textarea
@@ -218,18 +254,18 @@ export default function ProductRequestModal({
                     name="description"
                     value={formData.description}
                     onChange={handleChange}
-                    placeholder="Brand, specifications, features, preferred price range…"
-                    className="w-full px-3 py-2.5 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-orange-400/20 focus:border-orange-400 resize-none placeholder:text-gray-400 transition-colors"
-                    rows={2}
+                    placeholder="Describe the brand, specifications, features, or preferred price range…"
+                    className="w-full px-3.5 py-3 text-sm border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-orange-400/20 focus:border-orange-400 resize-none placeholder:text-gray-400 transition-colors leading-relaxed"
+                    rows={3}
                     required
                   />
-                  <p className="text-[11px] text-gray-400">More details = faster match.</p>
+                  <p className="text-[11px] text-gray-400">More detail = faster match.</p>
                 </div>
 
                 {/* Image Upload */}
                 <div className="space-y-1.5">
-                  <Label className="text-sm font-semibold text-gray-700">
-                    Reference Image <span className="text-gray-400 font-normal">(Optional)</span>
+                  <Label className="text-sm font-semibold text-gray-800">
+                    Reference Image <span className="text-gray-400 font-normal text-xs">(optional)</span>
                   </Label>
 
                   <Input
@@ -248,20 +284,20 @@ export default function ProductRequestModal({
                       onDragLeave={handleDragLeave}
                       onDrop={handleDrop}
                       className={cn(
-                        "flex h-24 cursor-pointer flex-col items-center justify-center gap-2 rounded-xl border-2 border-dashed border-gray-200 bg-gray-50 transition-all hover:border-orange-300 hover:bg-orange-50/40",
+                        "flex h-28 cursor-pointer flex-col items-center justify-center gap-2 rounded-xl border-2 border-dashed border-gray-200 bg-gray-50 transition-all hover:border-orange-400 hover:bg-orange-50/40",
                         isDragging && "border-orange-400 bg-orange-50",
                       )}
                     >
-                      <div className="w-9 h-9 rounded-full bg-white shadow-sm flex items-center justify-center">
-                        <ImagePlus className="h-4 w-4 text-gray-400" />
+                      <div className="w-10 h-10 rounded-full bg-white shadow-sm flex items-center justify-center">
+                        <ImagePlus className="h-4.5 w-4.5 text-gray-400" />
                       </div>
                       <div className="text-center">
-                        <p className="text-xs font-medium text-gray-600">Click to upload or drag & drop</p>
-                        <p className="text-[11px] text-gray-400">JPG, PNG, GIF — max 10 MB</p>
+                        <p className="text-xs font-semibold text-gray-600">Click to upload or drag & drop</p>
+                        <p className="text-[11px] text-gray-400 mt-0.5">JPG, PNG, GIF — max 10 MB</p>
                       </div>
                     </div>
                   ) : (
-                    <div className="relative group rounded-xl overflow-hidden border border-gray-200 h-24">
+                    <div className="relative group rounded-xl overflow-hidden border border-gray-200 h-28">
                       <img
                         loading="lazy"
                         src={previewUrl}
@@ -289,15 +325,17 @@ export default function ProductRequestModal({
                 </div>
 
                 {/* Reference Links */}
-                <div className="space-y-1.5">
-                  <Label className="text-sm font-semibold text-gray-700">
-                    Reference Links <span className="text-gray-400 font-normal">(Optional)</span>
-                  </Label>
-                  <p className="text-[11px] text-gray-400">Paste links from Shopee, Lazada, Amazon, etc.</p>
-                  <div className="space-y-2 mt-2">
+                <div className="space-y-2">
+                  <div>
+                    <Label className="text-sm font-semibold text-gray-800">
+                      Reference Links <span className="text-gray-400 font-normal text-xs">(optional)</span>
+                    </Label>
+                    <p className="text-[11px] text-gray-400 mt-0.5">Paste links from Shopee, Lazada, Amazon, etc.</p>
+                  </div>
+                  <div className="space-y-2">
                     {referenceLinks.map((link, idx) => (
                       <div key={idx} className="flex items-center gap-2">
-                        <div className="w-8 h-8 rounded-lg bg-gray-50 border border-gray-200 flex items-center justify-center flex-shrink-0">
+                        <div className="w-9 h-9 rounded-xl bg-gray-50 border border-gray-200 flex items-center justify-center flex-shrink-0">
                           <Link className="w-3.5 h-3.5 text-gray-400" />
                         </div>
                         <Input
@@ -308,14 +346,14 @@ export default function ProductRequestModal({
                             updated[idx] = e.target.value;
                             setReferenceLinks(updated);
                           }}
-                          placeholder={`https://shopee.ph/product-${idx + 1}`}
-                          className="flex-1 h-9 text-sm border-gray-200 focus:border-orange-400 focus:ring-orange-400/20 rounded-lg"
+                          placeholder={`https://shopee.ph/product-link`}
+                          className="flex-1 h-9 text-sm border-gray-200 focus:border-orange-400 focus:ring-orange-400/20 rounded-xl"
                         />
                         {referenceLinks.length > 1 && (
                           <button
                             type="button"
                             onClick={() => setReferenceLinks(referenceLinks.filter((_, i) => i !== idx))}
-                            className="w-8 h-8 rounded-lg flex items-center justify-center text-gray-300 hover:text-red-400 hover:bg-red-50 transition-colors flex-shrink-0"
+                            className="w-9 h-9 rounded-xl flex items-center justify-center text-gray-300 hover:text-red-400 hover:bg-red-50 transition-colors flex-shrink-0"
                           >
                             <X className="w-3.5 h-3.5" />
                           </button>
@@ -326,7 +364,7 @@ export default function ProductRequestModal({
                       <button
                         type="button"
                         onClick={() => setReferenceLinks([...referenceLinks, ''])}
-                        className="flex items-center gap-1.5 text-xs text-orange-500 hover:text-orange-600 font-semibold mt-1 transition-colors"
+                        className="flex items-center gap-1.5 text-xs text-orange-500 hover:text-orange-600 font-semibold transition-colors mt-1"
                       >
                         <Plus className="w-3.5 h-3.5" />
                         Add another link
@@ -336,32 +374,31 @@ export default function ProductRequestModal({
                 </div>
               </div>
 
-              {/* ── Sticky Footer ── */}
-              <div className="flex gap-3 px-5 py-3 border-t border-gray-100 bg-white flex-shrink-0 rounded-b-2xl">
+              {/* ── Footer ── */}
+              <div className="flex-shrink-0 border-t border-gray-100 bg-gray-50/60 px-6 py-4 flex items-center gap-3">
                 <Button
                   type="button"
                   variant="outline"
                   onClick={onClose}
-                  className="flex-1 h-10 text-sm font-semibold border-gray-200 text-gray-600 hover:bg-gray-50 rounded-xl"
+                  className="flex-1 h-11 text-sm font-semibold border-gray-200 text-gray-600 hover:bg-white rounded-xl"
                   disabled={isSubmitting}
                 >
                   Cancel
                 </Button>
                 <Button
-                  type="submit"
-                  form="product-request-form"
-                  className="flex-1 h-10 text-sm font-semibold bg-orange-500 hover:bg-orange-600 text-white rounded-xl shadow-sm shadow-orange-200 active:scale-[0.98] transition-all"
-                  disabled={isSubmitting || !formData.productName || !formData.description}
+                  type="button"
                   onClick={handleSubmit}
+                  className="flex-1 h-11 text-sm font-bold bg-orange-500 hover:bg-orange-600 text-white rounded-xl shadow-sm shadow-orange-200 active:scale-[0.98] transition-all disabled:opacity-50"
+                  disabled={isSubmitting || !formData.productName.trim() || !formData.description.trim()}
                 >
                   {isSubmitting ? (
                     <span className="flex items-center gap-2">
-                      <span className="w-3.5 h-3.5 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                      <span className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
                       Submitting…
                     </span>
                   ) : (
                     <span className="flex items-center gap-2">
-                      <Send className="w-3.5 h-3.5" />
+                      <Send className="w-4 h-4" />
                       Submit Request
                     </span>
                   )}
@@ -369,23 +406,25 @@ export default function ProductRequestModal({
               </div>
             </>
           ) : (
-            /* Success State */
-            <div className="flex flex-col items-center justify-center px-8 py-12 text-center">
+            /* ── Success State ── */
+            <div className="flex flex-col items-center justify-center px-8 py-16 text-center">
               <motion.div
-                initial={{ scale: 0 }}
-                animate={{ scale: 1 }}
-                transition={{ type: 'spring', damping: 18, stiffness: 320 }}
-                className="w-16 h-16 bg-green-50 rounded-full flex items-center justify-center mb-5"
+                initial={{ scale: 0, rotate: -15 }}
+                animate={{ scale: 1, rotate: 0 }}
+                transition={{ type: 'spring', damping: 16, stiffness: 280, delay: 0.05 }}
+                className="w-20 h-20 bg-green-50 rounded-full flex items-center justify-center mb-6 ring-8 ring-green-50/60"
               >
-                <CheckCircle className="w-8 h-8 text-green-500" />
+                <CheckCircle className="w-10 h-10 text-green-500" />
               </motion.div>
-              <h3 className="text-lg font-bold text-gray-900 mb-1">Request Submitted!</h3>
-              <p className="text-sm text-gray-500 leading-relaxed mb-6">
-                We've received your request and will notify you when we find a match or when the product becomes available.
-              </p>
-              <div className="w-full bg-orange-50 border border-orange-100 rounded-xl px-4 py-3 text-xs text-orange-700 text-left">
-                <strong>Tip:</strong> Check your profile page for request status updates.
-              </div>
+              <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.15 }}>
+                <h3 className="text-xl font-extrabold text-gray-900 mb-2">Request Submitted!</h3>
+                <p className="text-sm text-gray-500 leading-relaxed max-w-xs mx-auto mb-6">
+                  We've received your request and will notify you when we find a match or the product becomes available.
+                </p>
+                <div className="bg-orange-50 border border-orange-100 rounded-2xl px-4 py-3 text-xs text-orange-700 text-left">
+                  <strong>Tip:</strong> Visit your profile to track the status of your request.
+                </div>
+              </motion.div>
             </div>
           )}
         </motion.div>

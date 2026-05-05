@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, useRef, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import Header from '../components/Header';
@@ -18,9 +18,12 @@ import {
   Hammer,
   Eye,
   CheckCircle2,
+  ShoppingBag,
+  X,
 } from 'lucide-react';
 import { cn } from '../lib/utils';
 import { productRequestService, type ProductRequest } from '../services/productRequestService';
+import { productService } from '../services/productService';
 import ProductRequestModal from '../components/ProductRequestModal';
 
 /* ── Status / tab config ──────────────────────────────────────────────── */
@@ -48,6 +51,10 @@ const TRENDING_SEARCHES = [
   'Wireless charging',
 ];
 
+type SearchResultItem =
+  | { kind: 'product'; id: string; name: string; status: 'available' | 'sold' }
+  | { kind: 'request'; id: string; name: string; status: string };
+
 export default function CommunityRequestsPage() {
   const navigate = useNavigate();
   const [requests, setRequests] = useState<ProductRequest[]>([]);
@@ -55,6 +62,71 @@ export default function CommunityRequestsPage() {
   const [searchQuery, setSearchQuery] = useState('');
   const [filterStatus, setFilterStatus] = useState<string | null>(null);
   const [showRequestModal, setShowRequestModal] = useState(false);
+
+  // Live search dropdown
+  const [searchResults, setSearchResults] = useState<SearchResultItem[]>([]);
+  const [searchLoading, setSearchLoading] = useState(false);
+  const [showDropdown, setShowDropdown] = useState(false);
+  const searchRef = useRef<HTMLDivElement>(null);
+  const searchTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // Close dropdown when clicking outside
+  useEffect(() => {
+    const handler = (e: MouseEvent) => {
+      if (searchRef.current && !searchRef.current.contains(e.target as Node)) {
+        setShowDropdown(false);
+      }
+    };
+    document.addEventListener('mousedown', handler);
+    return () => document.removeEventListener('mousedown', handler);
+  }, []);
+
+  const runSearch = useCallback(async (q: string) => {
+    if (!q.trim()) { setSearchResults([]); setShowDropdown(false); return; }
+    setSearchLoading(true);
+    setShowDropdown(true);
+    try {
+      const [products, reqAll] = await Promise.all([
+        productService.searchProducts(q, 8),
+        productRequestService.getAllRequests(),
+      ]);
+      const productItems: SearchResultItem[] = products.map((p) => ({
+        kind: 'product',
+        id: p.id,
+        name: p.name || 'Unnamed product',
+        status: (Number((p as any).stock) === 0 && Number((p as any).sold_count) > 0) ? 'sold' : 'available',
+      }));
+      const lower = q.toLowerCase();
+      const reqItems: SearchResultItem[] = reqAll
+        .filter((r) =>
+          r.productName.toLowerCase().includes(lower) ||
+          r.description.toLowerCase().includes(lower)
+        )
+        .slice(0, 5)
+        .map((r) => ({ kind: 'request', id: r.id, name: r.productName, status: r.status }));
+      setSearchResults([...productItems, ...reqItems]);
+    } catch {
+      setSearchResults([]);
+    } finally {
+      setSearchLoading(false);
+    }
+  }, []);
+
+  const handleSearchChange = (value: string) => {
+    setSearchQuery(value);
+    if (searchTimerRef.current) clearTimeout(searchTimerRef.current);
+    searchTimerRef.current = setTimeout(() => runSearch(value), 300);
+  };
+
+  const handleResultClick = (item: SearchResultItem) => {
+    setShowDropdown(false);
+    setSearchQuery('');
+    if (item.kind === 'product') {
+      navigate(`/products/${item.id}`);
+    } else {
+      navigate(`/requests/${item.id}`);
+    }
+  };
 
   useEffect(() => {
     productRequestService.getAllRequests().then((data) => {
@@ -94,7 +166,7 @@ export default function CommunityRequestsPage() {
 
   return (
     <div className="min-h-screen bg-gray-50">
-      <Header />
+      <Header hideSearch />
 
       {/* ════════════════ AI-POWERED SEARCH HERO ════════════════ */}
       <section className="relative overflow-hidden bg-[#FFFBF5]">
@@ -113,17 +185,107 @@ export default function CommunityRequestsPage() {
             Search first. If it exists, join the crowd.
             If not—request it and we'll test it before you waste money on junk.
           </p>
-          <div className="max-w-2xl mx-auto mb-6">
+          <div className="max-w-2xl mx-auto mb-6" ref={searchRef}>
             <div className="relative">
-              <Search className="absolute left-5 top-1/2 -translate-y-1/2 h-5 w-5 text-gray-400" />
+              <Search className="absolute left-5 top-1/2 -translate-y-1/2 h-5 w-5 text-gray-400 pointer-events-none z-10" />
               <input
                 type="text"
-                placeholder="Try: 'USB-C cable that won't fray' or 'standing desk mat'"
+                placeholder="Search products, brands, or past requests…"
                 value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                className="w-full pr-5 py-4 rounded-full border-2 border-gray-200 text-base focus:outline-none focus:border-[var(--brand-primary)] focus:ring-2 focus:ring-[var(--brand-primary)]/20 bg-white shadow-sm transition-all placeholder:text-gray-400"
-                style={{ paddingLeft: '3rem' }}
+                onChange={(e) => handleSearchChange(e.target.value)}
+                onFocus={() => { if (searchQuery.trim()) setShowDropdown(true); }}
+                className="w-full py-4 rounded-full border-2 border-gray-200 text-base focus:outline-none focus:border-[var(--brand-primary)] focus:ring-2 focus:ring-[var(--brand-primary)]/20 bg-white shadow-sm transition-all placeholder:text-gray-400"
+                style={{ paddingLeft: '3rem', paddingRight: searchQuery ? '3rem' : '1.25rem' }}
               />
+              {searchQuery && (
+                <button
+                  onClick={() => { setSearchQuery(''); setSearchResults([]); setShowDropdown(false); }}
+                  className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 transition-colors"
+                  aria-label="Clear search"
+                >
+                  <X className="h-4 w-4" />
+                </button>
+              )}
+
+              {/* Live search dropdown */}
+              {showDropdown && (
+                <div className="absolute left-0 right-0 top-full mt-2 bg-white rounded-2xl shadow-xl border border-gray-100 overflow-hidden z-50 max-h-[360px] overflow-y-auto">
+                  {searchLoading ? (
+                    <div className="flex items-center justify-center py-8 gap-2 text-gray-400">
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                      <span className="text-sm">Searching…</span>
+                    </div>
+                  ) : searchResults.length === 0 ? (
+                    <div className="py-8 text-center">
+                      <Package className="h-8 w-8 text-gray-300 mx-auto mb-2" />
+                      <p className="text-sm text-gray-400">No matches found</p>
+                      <button
+                        onClick={() => { setShowDropdown(false); setShowRequestModal(true); }}
+                        className="mt-3 text-xs font-semibold text-[var(--brand-primary)] hover:underline"
+                      >
+                        + Request this product
+                      </button>
+                    </div>
+                  ) : (
+                    <>
+                      {/* Products section */}
+                      {searchResults.filter(r => r.kind === 'product').length > 0 && (
+                        <div>
+                          <p className="px-4 pt-3 pb-1 text-[10px] font-bold uppercase tracking-widest text-gray-400">Available in BazaarX</p>
+                          {searchResults.filter(r => r.kind === 'product').map((item) => (
+                            <button
+                              key={item.id}
+                              onClick={() => handleResultClick(item)}
+                              className="w-full flex items-center gap-3 px-4 py-2.5 hover:bg-[var(--brand-wash)] transition-colors text-left"
+                            >
+                              <div className="w-8 h-8 rounded-lg bg-green-50 flex items-center justify-center flex-shrink-0">
+                                <ShoppingBag className="h-4 w-4 text-green-600" />
+                              </div>
+                              <div className="flex-1 min-w-0">
+                                <p className="text-sm font-semibold text-gray-800 truncate">{item.name}</p>
+                              </div>
+                              <span className="text-xs font-medium px-2 py-0.5 rounded-full bg-green-100 text-green-700 flex-shrink-0">
+                                {item.status === 'sold' ? 'Sold' : 'Available'}
+                              </span>
+                            </button>
+                          ))}
+                        </div>
+                      )}
+                      {/* Requests section */}
+                      {searchResults.filter(r => r.kind === 'request').length > 0 && (
+                        <div className="border-t border-gray-100">
+                          <p className="px-4 pt-3 pb-1 text-[10px] font-bold uppercase tracking-widest text-gray-400">Community Requests</p>
+                          {searchResults.filter(r => r.kind === 'request').map((item) => (
+                            <button
+                              key={item.id}
+                              onClick={() => handleResultClick(item)}
+                              className="w-full flex items-center gap-3 px-4 py-2.5 hover:bg-[var(--brand-wash)] transition-colors text-left"
+                            >
+                              <div className="w-8 h-8 rounded-lg bg-amber-50 flex items-center justify-center flex-shrink-0">
+                                <Package className="h-4 w-4 text-amber-600" />
+                              </div>
+                              <div className="flex-1 min-w-0">
+                                <p className="text-sm font-semibold text-gray-800 truncate">{item.name}</p>
+                              </div>
+                              <span className="text-xs font-medium px-2 py-0.5 rounded-full bg-amber-100 text-amber-700 flex-shrink-0">
+                                Requested
+                              </span>
+                            </button>
+                          ))}
+                        </div>
+                      )}
+                      <div className="border-t border-gray-100 px-4 py-2.5">
+                        <button
+                          onClick={() => { setShowDropdown(false); setShowRequestModal(true); }}
+                          className="text-xs font-semibold text-[var(--brand-primary)] hover:underline"
+                        >
+                          + Can't find it? Request this product
+                        </button>
+                      </div>
+                    </>
+                  )}
+                </div>
+              )}
             </div>
           </div>
           <div className="flex items-center justify-center flex-wrap gap-2">
