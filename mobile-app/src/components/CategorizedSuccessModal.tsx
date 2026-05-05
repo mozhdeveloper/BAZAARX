@@ -3,31 +3,26 @@ import {
     View,
     Text,
     StyleSheet,
-    Image,
     Dimensions,
     Animated,
     Platform,
 } from 'react-native';
 import { BlurView } from 'expo-blur';
-import { COLORS } from '../constants/theme';
+import { FolderCheck } from 'lucide-react-native';
 
-interface AddedToCartModalProps {
+interface CategorizedSuccessModalProps {
     visible: boolean;
     onClose: () => void;
-    productName: string;
-    productImage: string;
-    message?: string;
+    collectionName: string;
 }
 
 const { width } = Dimensions.get('window');
 
-export const AddedToCartModal = ({
+export const CategorizedSuccessModal = ({
     visible,
     onClose,
-    productName,
-    productImage,
-    message,
-}: AddedToCartModalProps) => {
+    collectionName,
+}: CategorizedSuccessModalProps) => {
     const fadeAnim = useRef(new Animated.Value(0)).current;
     const scaleAnim = useRef(new Animated.Value(0.9)).current;
     const translateYAnim = useRef(new Animated.Value(20)).current;
@@ -104,21 +99,15 @@ export const AddedToCartModal = ({
             >
                 <BlurView intensity={Platform.OS === 'ios' ? 20 : 0} style={styles.blurContainer} tint="light">
                     <View style={styles.content}>
-                        <Text style={styles.title}>{message || 'Item added to your cart!'}</Text>
-
-                        <View style={styles.productPreview}>
-                            <View style={styles.imageContainer}>
-                                <Image
-                                    source={{ uri: productImage || 'https://images.unsplash.com/photo-1560393464-5c69a73c5770?w=200' }}
-                                    style={styles.productImage}
-                                    resizeMode="cover"
-                                />
-                            </View>
-                            <View style={styles.textContainer}>
-                                <Text style={styles.productName} numberOfLines={1}>
-                                    {productName}
-                                </Text>
-                            </View>
+                        <View style={styles.iconContainer}>
+                            <FolderCheck size={24} color="#059669" />
+                        </View>
+                        
+                        <View style={styles.textGroup}>
+                            <Text style={styles.title}>Added to Collection</Text>
+                            <Text style={styles.collectionName} numberOfLines={1}>
+                                Saved in "{collectionName}"
+                            </Text>
                         </View>
                     </View>
                 </BlurView>
@@ -136,8 +125,8 @@ const styles = StyleSheet.create({
         bottom: 0,
         justifyContent: 'center',
         alignItems: 'center',
-        zIndex: 1000,
-        elevation: 1000,
+        zIndex: 2000,
+        elevation: 2000,
     },
     modalContainer: {
         width: width * 0.85,
@@ -158,57 +147,31 @@ const styles = StyleSheet.create({
     },
     blurContainer: {
         padding: 24,
-        alignItems: 'center',
     },
     content: {
-        alignItems: 'center',
-        width: '100%',
-        gap: 16,
-    },
-    title: {
-        fontSize: 20,
-        fontWeight: '700',
-        color: '#111827',
-        textAlign: 'center',
-        lineHeight: 28,
-    },
-    productPreview: {
         flexDirection: 'row',
         alignItems: 'center',
-        backgroundColor: 'rgba(249, 250, 251, 0.8)',
-        padding: 12,
-        borderRadius: 16,
-        borderWidth: 1,
-        borderColor: '#F3F4F6',
-        width: '100%',
-        gap: 12,
+        gap: 16,
     },
-    imageContainer: {
+    iconContainer: {
         width: 48,
         height: 48,
-        borderRadius: 12,
-        backgroundColor: '#FFF',
-        padding: 4,
-        shadowColor: '#000',
-        shadowOffset: { width: 0, height: 1 },
-        shadowOpacity: 0.05,
-        shadowRadius: 2,
-        elevation: 1,
-        borderWidth: 1,
-        borderColor: '#F3F4F6',
-    },
-    productImage: {
-        width: '100%',
-        height: '100%',
-        borderRadius: 8,
-    },
-    textContainer: {
-        flex: 1,
+        borderRadius: 24,
+        backgroundColor: '#D1FAE5',
         justifyContent: 'center',
+        alignItems: 'center',
     },
-    productName: {
-        fontSize: 14,
-        fontWeight: '600',
+    textGroup: {
+        flex: 1,
+        gap: 4,
+    },
+    title: {
+        fontSize: 18,
+        fontWeight: '700',
         color: '#111827',
+    },
+    collectionName: {
+        fontSize: 14,
+        color: '#4B5563',
     },
 });

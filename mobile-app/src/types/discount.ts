@@ -86,7 +86,7 @@ export interface ActiveDiscount {
   originalPrice: number;
   badgeText?: string;
   badgeColor?: string;
-  endsAt: Date;
+  endsAt: string | Date;
 }
 
 // Form types

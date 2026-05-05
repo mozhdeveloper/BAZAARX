@@ -57,9 +57,11 @@ import { AIChatBubble } from '../src/components/AIChatBubble';
 import { AddedToCartModal } from '../src/components/AddedToCartModal';
 import { AddToWishlistModal } from '../src/components/AddToWishlistModal';
 import { WishlistSelectionModal } from '../src/components/WishlistSelectionModal';
+import { VariantSelectionModal } from '../src/components/VariantSelectionModal';
+import { FavoritesSelectionModal } from '../src/components/FavoritesSelectionModal';
+import { useFavorites } from '../src/hooks/useFavorites';
 import CameraSearchModal from '../src/components/CameraSearchModal';
 import { MasonryProductCard } from '../src/components/ProductCard';
-import { VariantSelectionModal } from '../src/components/VariantSelectionModal';
 import { chatService } from '../src/services/chatService';
 import { useCartStore } from '../src/stores/cartStore';
 import { useWishlistStore } from '../src/stores/wishlistStore';
@@ -145,9 +147,30 @@ const AnimatedText = Animated.createAnimatedComponent(Text);
 
 export default function ProductDetailScreen({ route, navigation }: Props) {
   const insets = useSafeAreaInsets();
-  const { product: initialProduct } = route.params;
+  const { product: initialProduct, productId } = route.params || {};
   const [product, setProduct] = useState(initialProduct);
+  const [loading, setLoading] = useState((!initialProduct && !!productId) || (!!initialProduct && (!initialProduct.variants || initialProduct.variants.length === 0)));
   const { user, isGuest } = useAuthStore();
+
+  // Fetch product if only ID is provided
+  useEffect(() => {
+    const fetchInitialProduct = async () => {
+      if (!product && productId) {
+        setLoading(true);
+        try {
+          const fetched = await productService.getProductById(productId);
+          if (fetched) {
+            setProduct(fetched as any);
+          }
+        } catch (error) {
+          console.error('[ProductDetail] Error fetching initial product:', error);
+        } finally {
+          setLoading(false);
+        }
+      }
+    };
+    fetchInitialProduct();
+  }, [productId]);
 
   // State
   const [activeTab, setActiveTab] = useState<'details' | 'support' | 'ratings'>('details');
@@ -156,36 +179,38 @@ export default function ProductDetailScreen({ route, navigation }: Props) {
   useEffect(() => {
     const fetchFullProduct = async () => {
       // Re-fetch only if we don't have variants or structured variants but id exists
-      if (product.id && (!product.variants || product.variants.length === 0)) {
+      if (product?.id && (!product.variants || product.variants.length === 0)) {
+        setLoading(true);
         try {
           const fullProduct = await productService.getProductById(product.id);
           if (fullProduct) {
             setProduct(fullProduct as any);
           }
-
         } catch (error) {
           console.error('[ProductDetail] Error fetching full product:', error);
+        } finally {
+          setLoading(false);
         }
       }
     };
     fetchFullProduct();
-  }, [product.id]);
+  }, [product?.id]);
 
   const [activeCampaignDiscount, setActiveCampaignDiscount] = useState<ActiveDiscount | null>(
-    (product as any).activeCampaignDiscount ?? null
+    (product as any)?.activeCampaignDiscount ?? null
   );
 
   useEffect(() => {
     const loadDiscount = async () => {
-      if (product.id) {
+      if (product?.id) {
         try {
           // First check if the product already has campaign discount info (e.g., from flash sale)
-          if ((product as any).activeCampaignDiscount) {
+          if ((product as any)?.activeCampaignDiscount) {
             setActiveCampaignDiscount((product as any).activeCampaignDiscount);
             return;
           }
           // Otherwise fetch from database (regular campaigns)
-          const discount = await discountService.getActiveProductDiscount(product.id);
+          const discount = await discountService.getActiveProductDiscount(product!.id);
           setActiveCampaignDiscount(discount);
         } catch (e) {
           console.error('[ProductDetail] Error fetching discount:', e);
@@ -193,7 +218,7 @@ export default function ProductDetailScreen({ route, navigation }: Props) {
       }
     };
     loadDiscount();
-  }, [product.id, product]);
+  }, [product?.id, product]);
 
   const [relatedProducts, setRelatedProducts] = useState<any[]>([]);
 
@@ -212,20 +237,20 @@ export default function ProductDetailScreen({ route, navigation }: Props) {
 
   useEffect(() => {
     const loadWarrantyInfo = async () => {
-      if (product.id) {
+      if (product?.id) {
         try {
           // Extract warranty info from product data
-          const hasWarranty = product.has_warranty || product.hasWarranty || false;
+          const hasWarranty = (product as any).has_warranty || (product as any).hasWarranty || false;
           if (hasWarranty) {
             setWarrantyInfo({
               hasWarranty,
-              warrantyType: product.warranty_type || product.warrantyType || null,
-              warrantyDurationMonths: product.warranty_duration_months || product.warrantyDurationMonths || null,
-              warrantyProviderName: product.warranty_provider_name || product.warrantyProviderName || null,
-              warrantyProviderContact: product.warranty_provider_contact || product.warrantyProviderContact || null,
-              warrantyProviderEmail: product.warranty_provider_email || product.warrantyProviderEmail || null,
-              warrantyTermsUrl: product.warranty_terms_url || product.warrantyTermsUrl || null,
-              warrantyPolicy: product.warranty_policy || product.warrantyPolicy || null,
+              warrantyType: (product as any).warranty_type || (product as any).warrantyType || null,
+              warrantyDurationMonths: (product as any).warranty_duration_months || (product as any).warrantyDurationMonths || null,
+              warrantyProviderName: (product as any).warranty_provider_name || (product as any).warrantyProviderName || null,
+              warrantyProviderContact: (product as any).warranty_provider_contact || (product as any).warrantyProviderContact || null,
+              warrantyProviderEmail: (product as any).warranty_provider_email || (product as any).warrantyProviderEmail || null,
+              warrantyTermsUrl: (product as any).warranty_terms_url || (product as any).warrantyTermsUrl || null,
+              warrantyPolicy: (product as any).warranty_policy || (product as any).warrantyPolicy || null,
             });
           }
         } catch (e) {
@@ -234,7 +259,7 @@ export default function ProductDetailScreen({ route, navigation }: Props) {
       }
     };
     loadWarrantyInfo();
-  }, [product.id]);
+  }, [product?.id]);
 
   useEffect(() => {
     const fetchRelated = async () => {
@@ -243,7 +268,7 @@ export default function ProductDetailScreen({ route, navigation }: Props) {
       try {
         const results = await productService.getProducts({ categoryId, limit: 5 });
         const normalized = results
-          .filter((p: any) => p.id !== product.id)
+          .filter((p: any) => p.id !== product?.id)
           .slice(0, 4)
           .map((p: any) => ({
             ...p,
@@ -265,10 +290,10 @@ export default function ProductDetailScreen({ route, navigation }: Props) {
       }
     };
     fetchRelated();
-  }, [(product as any).category_id]);
+  }, [(product as any)?.category_id]);
 
   // Structured variants from product_variants table
-  const productVariants = product.variants || [];
+  const productVariants = product?.variants || [];
   const hasStructuredVariants = productVariants.length > 0;
 
   // ─── Refined Variant Logic (Align with Web) ───
@@ -291,18 +316,18 @@ export default function ProductDetailScreen({ route, navigation }: Props) {
   // Extract raw values from variants
   const rawValues1 = hasStructuredVariants
     ? [...new Set(productVariants.map((v: any) => v.option_1_value || v.size).filter(Boolean))]
-    : (product.option1Values || product.colors || []);
+    : ((product as any)?.option1Values || (product as any)?.colors || []);
   const rawValues2 = hasStructuredVariants
     ? [...new Set(productVariants.map((v: any) => v.option_2_value || v.color).filter(Boolean))]
-    : (product.option2Values || product.sizes || []);
+    : ((product as any)?.option2Values || (product as any)?.sizes || []);
 
   const deduped1 = dedupe(rawValues1);
   const deduped2 = dedupe(rawValues2);
 
   const option1Values = deduped1;
   const option2Values = deduped2;
-  const dbLabel1 = (product.variant_label_1 as string | undefined)?.trim();
-  const dbLabel2 = (product.variant_label_2 as string | undefined)?.trim();
+  const dbLabel1 = (product?.variant_label_1 as string | undefined)?.trim();
+  const dbLabel2 = (product?.variant_label_2 as string | undefined)?.trim();
   const hasLegacySizeAxis1 = hasStructuredVariants && productVariants.some((v: any) => !v.option_1_value && !!v.size);
   const hasLegacyColorAxis2 = hasStructuredVariants && productVariants.some((v: any) => !v.option_2_value && !!v.color);
   const variantLabel1 = option1Values.length > 0 ? (dbLabel1 || (hasLegacySizeAxis1 ? 'Size' : 'Option 1')) : undefined;
@@ -437,30 +462,30 @@ export default function ProductDetailScreen({ route, navigation }: Props) {
   // Computed modal variant price, stock, and image
   const modalVariantInfo = useMemo(() => {
     if (!hasStructuredVariants) {
-      return { price: product.price, stock: product.stock, image: null };
+      return { price: product?.price, stock: product?.stock, image: null };
     }
     const matchedVariant = productVariants.find((v: any) => matchVariant(v, modalSelectedOption1, modalSelectedOption2));
     return {
-      price: matchedVariant?.price ?? product.price,
-      stock: matchedVariant?.stock ?? product.stock,
+      price: matchedVariant?.price ?? product?.price,
+      stock: matchedVariant?.stock ?? product?.stock,
       variantId: matchedVariant?.id,
       image: matchedVariant?.thumbnail_url || matchedVariant?.image || null,
     };
-  }, [hasStructuredVariants, productVariants, modalSelectedOption1, modalSelectedOption2, product.price, product.stock]);
+  }, [hasStructuredVariants, productVariants, modalSelectedOption1, modalSelectedOption2, product?.price, product?.stock]);
 
   // Main screen variant info (for accurate stock display and validation)
   const selectedVariantInfo = useMemo(() => {
     if (!hasStructuredVariants) {
-      return { price: product.price, stock: product.stock, image: null };
+      return { price: product?.price, stock: product?.stock, image: null };
     }
     const matchedVariant = productVariants.find((v: any) => matchVariant(v, selectedOption1, selectedOption2));
     return {
-      price: matchedVariant?.price ?? product.price,
-      stock: matchedVariant?.stock ?? product.stock,
+      price: matchedVariant?.price ?? product?.price,
+      stock: matchedVariant?.stock ?? product?.stock,
       variantId: matchedVariant?.id,
       image: matchedVariant?.thumbnail_url || matchedVariant?.image || null,
     };
-  }, [hasStructuredVariants, productVariants, selectedOption1, selectedOption2, product.price, product.stock]);
+  }, [hasStructuredVariants, productVariants, selectedOption1, selectedOption2, product?.price, product?.stock]);
 
   useEffect(() => {
     const maxStock = Math.max(1, Number(selectedVariantInfo.stock ?? 1));
@@ -469,12 +494,12 @@ export default function ProductDetailScreen({ route, navigation }: Props) {
 
   // Extract seller name robustly (fixes lint errors with mixed object/string types)
   const displayStoreName = useMemo(() => {
-    const s = product.seller as any;
+    const s = product?.seller as any;
     if (typeof s === 'object' && s !== null && s.store_name) {
       return s.store_name;
     }
     return typeof s === 'string' ? s : 'Store';
-  }, [product.seller]);
+  }, [product?.seller]);
 
   // Check if seller is restricted (vacation mode, blacklisted, suspended, or rejected)
   const isSellerRestricted = useMemo(() => {
@@ -531,10 +556,10 @@ export default function ProductDetailScreen({ route, navigation }: Props) {
     setReviewFilters(prev => ({ ...prev, withImages: newWithImages || undefined }));
   };
 
-  const effectiveAverageRating = averageRating > 0 ? averageRating : Number(product.rating || 0);
+  const effectiveAverageRating = averageRating > 0 ? averageRating : Number(product?.rating || 0);
   const effectiveReviewTotal = reviewsTotal > 0
     ? reviewsTotal
-    : Number((product as any).reviewCount || (product as any).totalReviews || 0);
+    : Number((product as any)?.reviewCount || (product as any)?.totalReviews || 0);
   const storedOriginalPrice = (() => {
     const pbPrice = (product as any).original_price ?? (product as any).originalPrice;
     return typeof pbPrice === 'number' ? pbPrice : parseFloat(String(pbPrice || 0));
@@ -546,7 +571,7 @@ export default function ProductDetailScreen({ route, navigation }: Props) {
     if (activeCampaignDiscount && storedOriginalPrice > 0) {
       return storedOriginalPrice;
     }
-    return Number(product.price ?? 0);
+    return Number(product?.price ?? 0);
   })();
 
   // Apply campaign discount on top of the raw price (mirrors web getCampaignAdjustedPrice)
@@ -575,10 +600,11 @@ export default function ProductDetailScreen({ route, navigation }: Props) {
       : Math.round(((originalPrice - regularPrice) / originalPrice) * 100))
     : 0;
 
-  const soldCount = Number((product as any).sales_count ?? (product as any).sold ?? 0);
+  const soldCount = Number((product as any)?.sales_count ?? (product as any)?.sold ?? 0);
 
   // Wishlist State
   const [showWishlistModal, setShowWishlistModal] = useState(false);
+  const [showFavoritesModal, setShowFavoritesModal] = useState(false);
 
   // Carousel ref for dynamic scrolling
   const imageCarouselRef = useRef<FlatList>(null);
@@ -603,13 +629,13 @@ export default function ProductDetailScreen({ route, navigation }: Props) {
   // Use spread to convert Set to array for stable memo dep
   const brokenIndicesArray = useMemo(() => [...brokenImageIndices], [brokenImageIndices]);
   const productImages: string[] = useMemo(() => {
-    const raw = product.images;
+    const raw = product?.images;
     const baseImages = (!raw || !Array.isArray(raw) || raw.length === 0)
-      ? (product.image ? [product.image] : [])
+      ? (product?.image ? [product.image] : [])
       : [...raw].sort((a: any, b: any) => (a.sort_order ?? 0) - (b.sort_order ?? 0))
         .map((img: any) => {
           if (typeof img === 'string') return img;
-          return img.image_url || img.url || img.uri || product.image || '';
+          return img.image_url || img.url || img.uri || product?.image || '';
         }).filter(Boolean) as string[];
 
     // Include variant-specific images at the end if they aren't already in baseImages
@@ -625,7 +651,7 @@ export default function ProductDetailScreen({ route, navigation }: Props) {
 
     // Fallback to placeholder if no valid images
     return validImages.length > 0 ? validImages : [PLACEHOLDER_IMAGE];
-  }, [product.images, product.image, productVariants, brokenIndicesArray]);
+  }, [product?.images, product?.image, productVariants, brokenIndicesArray]);
 
   const hasMultipleImages = productImages.length > 1;
   const isPlaceholderOnly = productImages.length === 1 && productImages[0] === PLACEHOLDER_IMAGE;
@@ -725,13 +751,14 @@ export default function ProductDetailScreen({ route, navigation }: Props) {
   }, [selectedVariantInfo.image, productImages]);
   const setQuickOrder = useCartStore((state) => state.setQuickOrder);
   const { addItem: addToWishlist, isInWishlist, categories, createCategory } = useWishlistStore();
-  const isFavorite = isInWishlist(product.id);
+  const { isFavorited } = useFavorites();
+  const isFavorite = isFavorited(product?.id || '');
 
   // Constants
   const cartItemCount = useCartStore((state) => state.items.length);
 
   const fetchReviews = async (page = 1, append = false, currentFilters = reviewFilters) => {
-    if (!product.id) return;
+    if (!product?.id) return;
 
 
     if (append) {
@@ -741,7 +768,7 @@ export default function ProductDetailScreen({ route, navigation }: Props) {
     }
 
     try {
-      const { reviews: fetchedReviews, total, stats } = await reviewService.getProductReviews(product.id, page, 5, currentFilters);
+      const { reviews: fetchedReviews, total, stats } = await reviewService.getProductReviews(product!.id, page, 5, currentFilters);
       const mergedReviews = append
         ? Array.from(new Map([...reviews, ...fetchedReviews].map((review) => [review.id, review])).values())
         : fetchedReviews;
@@ -772,7 +799,7 @@ export default function ProductDetailScreen({ route, navigation }: Props) {
       setReviewPage(1);
       setReviews([]);
       fetchReviews(1, false, reviewFilters);
-    }, [product.id, reviewFilters])
+    }, [product?.id, reviewFilters])
   );
 
   const handleLoadMoreReviews = () => {
@@ -845,7 +872,7 @@ export default function ProductDetailScreen({ route, navigation }: Props) {
     const selectedVariant = buildSelectedVariant(modalSelectedOption1, modalSelectedOption2);
 
     // Find matching structured variant to get its price/stock
-    let variantPrice = product.price;
+    let variantPrice = product?.price;
     let matchedVariant: any = null;
 
     if (hasStructuredVariants) {
@@ -857,7 +884,7 @@ export default function ProductDetailScreen({ route, navigation }: Props) {
 
     if (variantModalAction === 'cart') {
       const addItemResult = await addItem({
-        ...product,
+        ...product!,
         price: variantPrice,
         selectedVariant: {
           ...selectedVariant,
@@ -879,8 +906,8 @@ export default function ProductDetailScreen({ route, navigation }: Props) {
       if (addItemResult) {
         setTimeout(() => {
           setAddedProductInfo({
-            name: `${product.name}${variantText}`,
-            image: matchedVariant?.thumbnail_url || productImages[0] || product.image
+            name: `${product!.name}${variantText}`,
+            image: matchedVariant?.thumbnail_url || productImages[0] || product!.image
           });
           setShowAddedToCartModal(true);
         }, 300);
@@ -890,7 +917,7 @@ export default function ProductDetailScreen({ route, navigation }: Props) {
       return;
     } else {
       setQuickOrder({
-        ...product,
+        ...product!,
         price: variantPrice,
         selectedVariant: {
           ...selectedVariant,
@@ -934,7 +961,7 @@ export default function ProductDetailScreen({ route, navigation }: Props) {
       return;
     }
 
-    const variantPrice = selectedVariant.price ?? product.price;
+    const variantPrice = selectedVariant.price ?? product?.price;
     const variantId = selectedVariant.variantId;
 
     // Build selected variant object for cart/order
@@ -948,7 +975,7 @@ export default function ProductDetailScreen({ route, navigation }: Props) {
 
       try {
         const addItemResult = await addItem({
-          ...product,
+          ...product!,
           originalPrice: variantPrice || 0,
           price: discountedPrice,
           activeCampaignDiscount: activeCampaignDiscount || undefined,
@@ -964,8 +991,8 @@ export default function ProductDetailScreen({ route, navigation }: Props) {
         if (addItemResult) {
           const variantText = [selectedVariant.option1Value, selectedVariant.option2Value].filter(Boolean).join(', ');
           setAddedProductInfo({
-            name: `${product.name}${variantText ? ` (${variantText})` : ''}`,
-            image: selectedVariant.image || productImages[0] || product.image || ''
+            name: `${product!.name}${variantText ? ` (${variantText})` : ''}`,
+            image: selectedVariant.image || productImages[0] || product!.image || ''
           });
           setShowAddedToCartModal(true);
         } else {
@@ -979,7 +1006,7 @@ export default function ProductDetailScreen({ route, navigation }: Props) {
     } else {
       // Buy Now — navigate immediately, no overlay needed
       setQuickOrder({
-        ...product,
+        ...product!,
         originalPrice: variantPrice || 0,
         price: discountedPrice,
         activeCampaignDiscount: activeCampaignDiscount || undefined,
@@ -1022,7 +1049,7 @@ export default function ProductDetailScreen({ route, navigation }: Props) {
   }, [isSellerRestricted]);
 
   const handleShare = async () => {
-    await Share.share({ message: `Check out ${product.name} on BazaarX! ₱${product.price}` });
+    await Share.share({ message: `Check out ${product!.name} on BazaarX! ₱${product!.price}` });
   };
 
   const handleMenuAction = (action: string) => {
@@ -1060,7 +1087,7 @@ export default function ProductDetailScreen({ route, navigation }: Props) {
       return;
     }
     if (chatLoading) return;
-    const sellerId = product.seller_id || product.sellerId;
+    const sellerId = product?.seller_id || (product as any)?.sellerId;
     const buyerId = user?.id;
     if (!sellerId || !buyerId) return;
     setChatLoading(true);
@@ -1082,7 +1109,7 @@ export default function ProductDetailScreen({ route, navigation }: Props) {
   }
 
   const handleVisitStore = () => {
-    const sellerId = product.seller_id || product.sellerId;
+    const sellerId = product?.seller_id || (product as any)?.sellerId;
     if (!sellerId) {
       Alert.alert('Store Unavailable', 'Store information is not available for this product.');
       return;
@@ -1091,9 +1118,9 @@ export default function ProductDetailScreen({ route, navigation }: Props) {
       store: {
         id: sellerId,
         name: displayStoreName,
-        image: product.seller_avatar || product.sellerAvatar || null,
-        rating: product.sellerRating || 0,
-        verified: product.sellerVerified || false,
+        image: (product as any)?.seller_avatar || (product as any)?.sellerAvatar || null,
+        rating: (product as any)?.sellerRating || 0,
+        verified: (product as any)?.sellerVerified || false,
       }
     });
   };
@@ -1101,7 +1128,7 @@ export default function ProductDetailScreen({ route, navigation }: Props) {
   // Check follow status on mount
   useEffect(() => {
     const checkFollow = async () => {
-      const sellerId = product.seller_id || product.sellerId;
+      const sellerId = product?.seller_id || (product as any)?.sellerId;
       if (!user || isGuest || !sellerId) return;
       try {
         const following = await sellerService.checkIsFollowing(user.id, sellerId);
@@ -1111,7 +1138,7 @@ export default function ProductDetailScreen({ route, navigation }: Props) {
       }
     };
     checkFollow();
-  }, [product.seller_id, product.sellerId, user, isGuest]);
+  }, [product?.seller_id, (product as any)?.sellerId, user, isGuest]);
 
   const handleFollowSeller = async () => {
     if (isGuest) {
@@ -1119,7 +1146,7 @@ export default function ProductDetailScreen({ route, navigation }: Props) {
       setShowGuestModal(true);
       return;
     }
-    const sellerId = product.seller_id || product.sellerId;
+    const sellerId = product?.seller_id || (product as any)?.sellerId;
     if (!user || !sellerId) return;
     const prev = isFollowingSeller;
     setIsFollowingSeller(!prev);
@@ -1136,15 +1163,24 @@ export default function ProductDetailScreen({ route, navigation }: Props) {
   };
 
   const handleWishlistAction = useCallback(() => {
+    console.log('[ProductDetail] Wishlist action triggered');
     const { isGuest: guestCheck } = useAuthStore.getState();
     if (guestCheck) {
       navigation.navigate('Login', { from: 'ProductDetail' });
       return;
     }
-
-    // Always open the registry modal so a buyer can add this product to another folder.
     setShowWishlistModal(true);
-  }, []);
+  }, [navigation]);
+
+  const handleFavoritesAction = useCallback(() => {
+    console.log('[ProductDetail] Favorites action triggered');
+    const { isGuest: guestCheck } = useAuthStore.getState();
+    if (guestCheck) {
+      navigation.navigate('Login', { from: 'ProductDetail' });
+      return;
+    }
+    setShowFavoritesModal(true);
+  }, [navigation]);
 
   const handleMarkReviewHelpful = async (reviewId: string) => {
     if (helpfulReviewIds[reviewId]) {
@@ -1176,9 +1212,35 @@ export default function ProductDetailScreen({ route, navigation }: Props) {
     }
   };
 
-
-
-
+  if (loading || !product) {
+    return (
+      <View style={[styles.container, { backgroundColor: COLORS.background }]}>
+        <View style={{ paddingTop: insets.top + 20, paddingHorizontal: 20 }}>
+            <View style={{ width: 40, height: 40, borderRadius: 20, backgroundColor: '#F3F4F6' }} />
+        </View>
+        <ScrollView contentContainerStyle={{ paddingHorizontal: 20, paddingTop: 40 }}>
+            {/* Skeleton Image */}
+            <View style={{ width: width - 40, height: width - 40, backgroundColor: '#F3F4F6', borderRadius: 24, marginBottom: 24 }} />
+            
+            {/* Skeleton Price */}
+            <View style={{ width: 120, height: 32, backgroundColor: '#F3F4F6', borderRadius: 8, marginBottom: 16 }} />
+            
+            {/* Skeleton Title */}
+            <View style={{ width: '80%', height: 24, backgroundColor: '#F3F4F6', borderRadius: 6, marginBottom: 8 }} />
+            <View style={{ width: '60%', height: 24, backgroundColor: '#F3F4F6', borderRadius: 6, marginBottom: 24 }} />
+            
+            {/* Skeleton Variants */}
+            <View style={{ flexDirection: 'row', gap: 12, marginBottom: 32 }}>
+                {[1, 2, 3].map(i => (
+                    <View key={i} style={{ width: 60, height: 60, borderRadius: 12, backgroundColor: '#F3F4F6' }} />
+                ))}
+            </View>
+            
+            <ActivityIndicator size="large" color={BRAND_COLOR} style={{ marginTop: 20 }} />
+        </ScrollView>
+      </View>
+    );
+  }
 
   return (
     <View style={styles.container}>
@@ -1210,14 +1272,16 @@ export default function ProductDetailScreen({ route, navigation }: Props) {
             <Text style={{ fontSize: 24, fontWeight: '900', color: '#FB8C00' }}>BazaarX</Text>
           </View>
 
-          <Pressable onPress={() => navigation.navigate('MainTabs', { screen: 'Cart' })} style={{ width: 42, height: 42, alignItems: 'center', justifyContent: 'center' }}>
-            <ShoppingCart size={20} color="#78350F" />
-            {cartItemCount > 0 && (
-              <View style={[styles.badge, { right: -2, top: -2 }]}>
-                <Text style={styles.badgeText}>{cartItemCount > 9 ? '9+' : cartItemCount}</Text>
-              </View>
-            )}
-          </Pressable>
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
+            <Pressable onPress={() => navigation.navigate('MainTabs', { screen: 'Cart' })} style={{ width: 42, height: 42, alignItems: 'center', justifyContent: 'center' }}>
+              <ShoppingCart size={20} color="#78350F" />
+              {cartItemCount > 0 && (
+                <View style={[styles.badge, { right: -2, top: -2 }]}>
+                  <Text style={styles.badgeText}>{cartItemCount > 9 ? '9+' : cartItemCount}</Text>
+                </View>
+              )}
+            </Pressable>
+          </View>
         </View>
       </LinearGradient>
 
@@ -1239,10 +1303,13 @@ export default function ProductDetailScreen({ route, navigation }: Props) {
         <View style={{ paddingHorizontal: 20, marginBottom: 10 }}>
           <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
             <Pressable onPress={() => navigation.goBack()}>
-              <ArrowLeft size={24} color="#78350F" strokeWidth={2.5} />
+              <ArrowLeft size={24} color={BRAND_COLOR} strokeWidth={2.5} />
             </Pressable>
-            <Pressable onPress={() => handleWishlistAction()} style={{ width: 44, height: 44, alignItems: 'center', justifyContent: 'center' }}>
-              <Gift size={24} color={BRAND_ACCENT} strokeWidth={1.5} fill="transparent" />
+            <Pressable 
+              onPress={() => handleWishlistAction()}
+              style={{ width: 40, height: 40, alignItems: 'center', justifyContent: 'center' }}
+            >
+              <Gift size={24} color={BRAND_COLOR} strokeWidth={1.5} />
             </Pressable>
           </View>
         </View>
@@ -1314,13 +1381,99 @@ export default function ProductDetailScreen({ route, navigation }: Props) {
             )}
           </Pressable>
 
-          {/* --- VARIANT IMAGE SELECTION (below main image) --- */}
+        </View>
+
+        {/* --- PRODUCT DETAILS (Price & Heart) --- */}
+        <View style={{ paddingHorizontal: 20, marginTop: 16, marginBottom: 8 }}>
+          <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+            <View style={styles.priceRow}>
+              {hasDiscount ? (
+                <View>
+                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                    <Text style={[styles.currentPrice, { color: '#DC2626', fontSize: 24 }]}>
+                      ₱{regularPrice.toLocaleString()}
+                    </Text>
+                    <View style={{ backgroundColor: '#DC2626', paddingHorizontal: 8, paddingVertical: 3, borderRadius: 10 }}>
+                      <Text style={{ color: '#FFF', fontSize: 11, fontWeight: '900' }}>{discountPercent}% OFF</Text>
+                    </View>
+                  </View>
+                  {originalPrice > 0 && (
+                    <Text style={{ fontSize: 13, color: '#9CA3AF', textDecorationLine: 'line-through', marginTop: 2 }}>
+                      ₱{originalPrice.toLocaleString()}
+                    </Text>
+                  )}
+                </View>
+              ) : (
+                <Text style={[styles.currentPrice, { fontSize: 24 }]}>₱{regularPrice.toLocaleString()}</Text>
+              )}
+            </View>
+
+            <Pressable 
+              onPress={() => handleFavoritesAction()}
+              style={{
+                width: 48,
+                height: 48,
+                borderRadius: 24,
+                backgroundColor: '#FFF',
+                alignItems: 'center',
+                justifyContent: 'center',
+                elevation: 4,
+                shadowColor: '#000',
+                shadowOpacity: 0.1,
+                shadowRadius: 4,
+                marginTop: -4
+              }}
+            >
+              <Heart 
+                size={26} 
+                color={BRAND_COLOR} 
+                strokeWidth={1.5}
+                fill={isFavorite ? BRAND_COLOR : "transparent"}
+              />
+            </Pressable>
+          </View>
+
+          {/* Product Name (Keep it with Price for layout stability) */}
+          <Text style={[styles.productName, { color: '#431407', fontSize: 18, lineHeight: 24, marginBottom: 4, marginTop: 8 }]}>{product.name}</Text>
+          
+          {/* Rating (Keep it here too) */}
+          <View style={{ flexDirection: 'row', alignItems: 'center', marginTop: 4 }}>
+            <View style={{ flexDirection: 'row', gap: 2, marginRight: 6 }}>
+              {[1, 2, 3, 4, 5].map((s) => {
+                const isFilled = s <= Math.round(effectiveAverageRating);
+                return (
+                  <Star
+                    key={s}
+                    size={14}
+                    color={isFilled ? '#FB8C00' : '#D1D5DB'}
+                    fill={isFilled ? '#FB8C00' : 'transparent'}
+                  />
+                );
+              })}
+            </View>
+            <Text style={{ fontSize: 13, fontWeight: '700', color: '#B45309' }}>
+              {effectiveAverageRating > 0 ? effectiveAverageRating.toFixed(1) : 'No rating'}
+              {effectiveReviewTotal > 0 && (
+                <Text style={{ fontWeight: '400', color: '#6B7280' }}> ({effectiveReviewTotal.toLocaleString()})</Text>
+              )}
+            </Text>
+          </View>
+
+          {/* 4. Free Shipping */}
+          <View style={{ backgroundColor: '#FFF7ED', paddingHorizontal: 8, paddingVertical: 3, borderRadius: 6, alignSelf: 'flex-start', marginTop: 12 }}>
+            <Text style={{ fontSize: 11, fontWeight: '700', color: '#FB8C00' }}>Free Shipping</Text>
+          </View>
+
+          {/* --- VARIANT IMAGE SELECTION (Now below Price/Rating) --- */}
           {hasOption2 && (
-            <View style={{ marginTop: 10 }}>
+            <View style={{ marginTop: 20 }}>
+              <Text style={{ fontSize: 13, fontWeight: '700', color: '#6B7280', marginBottom: 10 }}>
+                {finalVariantLabel2}: <Text style={{ color: COLORS.textHeadline }}>{selectedOption2 || 'Select One'}</Text>
+              </Text>
               <ScrollView
                 horizontal
                 showsHorizontalScrollIndicator={false}
-                contentContainerStyle={{ gap: 8 }}
+                contentContainerStyle={{ gap: 10 }}
               >
                 {option2Values.filter((s: string) => s.trim() !== '').map((value: string, index: number) => {
                   const isSelected = selectedOption2 === value;
@@ -1337,14 +1490,15 @@ export default function ProductDetailScreen({ route, navigation }: Props) {
                     <Pressable
                       key={`variant-${value}-${index}`}
                       style={{
-                        width: 44,
-                        height: 44,
-                        borderRadius: 8,
+                        width: 52,
+                        height: 52,
+                        borderRadius: 10,
                         borderWidth: isSelected ? 2.5 : 1.5,
                         borderColor: isSelected ? BRAND_COLOR : '#E5E7EB',
                         overflow: 'hidden',
                         position: 'relative',
                         opacity: isOOS ? 0.35 : 1,
+                        backgroundColor: '#FFF'
                       }}
                       onPress={() => !isOOS && handleSelectOption2(value)}
                       disabled={isOOS}
@@ -1352,12 +1506,12 @@ export default function ProductDetailScreen({ route, navigation }: Props) {
                       {variantImg ? (
                         <Image source={{ uri: variantImg }} style={{ width: '100%', height: '100%' }} contentFit="cover" />
                       ) : (
-                        <View style={{ width: '100%', height: '100%', backgroundColor: '#E5E7EB', alignItems: 'center', justifyContent: 'center' }}>
-                          <Text style={{ fontSize: 9, color: '#6B7280', fontWeight: '600' }}>{value}</Text>
+                        <View style={{ width: '100%', height: '100%', backgroundColor: '#F3F4F6', alignItems: 'center', justifyContent: 'center' }}>
+                          <Text style={{ fontSize: 10, color: '#6B7280', fontWeight: '700' }}>{value}</Text>
                         </View>
                       )}
                       {isSelected && !isOOS && (
-                        <View style={{ position: 'absolute', bottom: 2, right: 2, backgroundColor: '#FFF', borderRadius: 8 }}>
+                        <View style={{ position: 'absolute', top: 2, right: 2, backgroundColor: '#FFF', borderRadius: 10 }}>
                           <CheckCircle size={14} color={BRAND_COLOR} fill="#FFF" />
                         </View>
                       )}
@@ -1365,70 +1519,8 @@ export default function ProductDetailScreen({ route, navigation }: Props) {
                   );
                 })}
               </ScrollView>
-              {selectedOption2 && (
-                <Text style={{ fontSize: 12, fontWeight: '600', color: '#6B7280', marginTop: 6 }}>
-                  {finalVariantLabel2}: <Text style={{ fontWeight: '700', color: COLORS.textHeadline }}>{selectedOption2}</Text>
-                </Text>
-              )}
             </View>
           )}
-        </View>
-
-        {/* --- PRODUCT DETAILS (below image) --- */}
-        <View style={{ paddingHorizontal: 20, marginTop: 12, marginBottom: 15 }}>
-          {/* 1. Price (first thing below image) */}
-          <View style={styles.priceRow}>
-            {hasDiscount ? (
-              <View>
-                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-                  <Text style={[styles.currentPrice, { color: '#DC2626', fontSize: 18 }]}>
-                    ₱{regularPrice.toLocaleString()}
-                  </Text>
-                  <View style={{ backgroundColor: '#DC2626', paddingHorizontal: 8, paddingVertical: 3, borderRadius: 10 }}>
-                    <Text style={{ color: '#FFF', fontSize: 10, fontWeight: '900' }}>{discountPercent}% OFF</Text>
-                  </View>
-                </View>
-                {originalPrice > 0 && (
-                  <Text style={{ fontSize: 12, color: '#9CA3AF', textDecorationLine: 'line-through', marginTop: 2 }}>
-                    ₱{originalPrice.toLocaleString()}
-                  </Text>
-                )}
-              </View>
-            ) : (
-              <Text style={[styles.currentPrice, { fontSize: 18 }]}>₱{regularPrice.toLocaleString()}</Text>
-            )}
-          </View>
-
-          {/* 2. Product Name */}
-          <Text style={[styles.productName, { color: '#431407', fontSize: 15, lineHeight: 21, marginBottom: 4 }]}>{product.name}</Text>
-
-          {/* 3. Rating */}
-          <View style={{ flexDirection: 'row', alignItems: 'center', marginTop: 4 }}>
-            <View style={{ flexDirection: 'row', gap: 2, marginRight: 6 }}>
-              {[1, 2, 3, 4, 5].map((s) => {
-                const isFilled = s <= Math.round(effectiveAverageRating);
-                return (
-                  <Star
-                    key={s}
-                    size={13}
-                    color={isFilled ? '#FB8C00' : '#D1D5DB'}
-                    fill={isFilled ? '#FB8C00' : 'transparent'}
-                  />
-                );
-              })}
-            </View>
-            <Text style={{ fontSize: 12, fontWeight: '700', color: '#B45309' }}>
-              {effectiveAverageRating > 0 ? effectiveAverageRating.toFixed(1) : 'No rating'}
-              {effectiveReviewTotal > 0 && (
-                <Text style={{ fontWeight: '400', color: '#6B7280' }}> ({effectiveReviewTotal.toLocaleString()})</Text>
-              )}
-            </Text>
-          </View>
-
-          {/* 4. Free Shipping */}
-          <View style={{ backgroundColor: '#FFF7ED', paddingHorizontal: 8, paddingVertical: 3, borderRadius: 6, alignSelf: 'flex-start', marginTop: 6 }}>
-            <Text style={{ fontSize: 11, fontWeight: '700', color: '#FB8C00' }}>Free Shipping</Text>
-          </View>
 
           {/* 5. Stock */}
           <AnimatedText style={{
@@ -2304,6 +2396,12 @@ export default function ProductDetailScreen({ route, navigation }: Props) {
         onItemAdded={() => {
           Alert.alert(LABELS.ADDED_TO_WISHLIST, 'Successfully added to your wishlist.');
         }}
+      />
+
+      <FavoritesSelectionModal
+        visible={showFavoritesModal}
+        onClose={() => setShowFavoritesModal(false)}
+        product={product}
       />
 
       {/* Product Menu Modal */}

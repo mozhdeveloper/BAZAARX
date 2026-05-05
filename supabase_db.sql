@@ -410,6 +410,26 @@ CREATE TABLE public.email_templates (
   CONSTRAINT email_templates_approved_by_fkey FOREIGN KEY (approved_by) REFERENCES public.admins(id),
   CONSTRAINT email_templates_created_by_fkey FOREIGN KEY (created_by) REFERENCES public.admins(id)
 );
+CREATE TABLE public.favorites_folders (
+  id uuid NOT NULL DEFAULT gen_random_uuid(),
+  user_id uuid NOT NULL,
+  name text NOT NULL,
+  is_default boolean DEFAULT false,
+  created_at timestamp with time zone DEFAULT now(),
+  CONSTRAINT favorites_folders_pkey PRIMARY KEY (id),
+  CONSTRAINT favorites_folders_user_id_fkey FOREIGN KEY (user_id) REFERENCES auth.users(id)
+);
+CREATE TABLE public.favorites_items (
+  id uuid NOT NULL DEFAULT gen_random_uuid(),
+  folder_id uuid NOT NULL,
+  product_id uuid NOT NULL,
+  user_id uuid NOT NULL,
+  created_at timestamp with time zone DEFAULT now(),
+  CONSTRAINT favorites_items_pkey PRIMARY KEY (id),
+  CONSTRAINT favorites_items_folder_id_fkey FOREIGN KEY (folder_id) REFERENCES public.favorites_folders(id),
+  CONSTRAINT favorites_items_product_id_fkey FOREIGN KEY (product_id) REFERENCES public.products(id),
+  CONSTRAINT favorites_items_user_id_fkey FOREIGN KEY (user_id) REFERENCES auth.users(id)
+);
 CREATE TABLE public.featured_products (
   id uuid NOT NULL DEFAULT gen_random_uuid(),
   product_id uuid NOT NULL UNIQUE,
@@ -948,13 +968,26 @@ CREATE TABLE public.product_requests (
   requested_by_id uuid,
   votes integer NOT NULL DEFAULT 0,
   comments_count integer NOT NULL DEFAULT 0,
-  status text NOT NULL DEFAULT 'pending'::text CHECK (status = ANY (ARRAY['pending'::text, 'approved'::text, 'rejected'::text, 'in_progress'::text])),
+  status text NOT NULL DEFAULT 'new'::text CHECK (status = ANY (ARRAY['new'::text, 'under_review'::text, 'already_available'::text, 'approved_for_sourcing'::text, 'rejected'::text, 'on_hold'::text, 'converted_to_listing'::text, 'pending'::text, 'approved'::text, 'in_progress'::text])),
   priority text NOT NULL DEFAULT 'medium'::text CHECK (priority = ANY (ARRAY['low'::text, 'medium'::text, 'high'::text])),
   estimated_demand integer DEFAULT 0,
   admin_notes text,
   created_at timestamp with time zone NOT NULL DEFAULT now(),
   updated_at timestamp with time zone NOT NULL DEFAULT now(),
-  CONSTRAINT product_requests_pkey PRIMARY KEY (id)
+  title text,
+  summary text,
+  sourcing_stage text,
+  demand_count integer NOT NULL DEFAULT 0,
+  staked_bazcoins integer NOT NULL DEFAULT 0,
+  linked_product_id uuid,
+  rejection_hold_reason text,
+  merged_into_id uuid,
+  converted_at timestamp with time zone,
+  reward_amount integer NOT NULL DEFAULT 50,
+  reference_links ARRAY NOT NULL DEFAULT '{}'::text[],
+  CONSTRAINT product_requests_pkey PRIMARY KEY (id),
+  CONSTRAINT product_requests_linked_product_id_fkey FOREIGN KEY (linked_product_id) REFERENCES public.products(id),
+  CONSTRAINT product_requests_merged_into_id_fkey FOREIGN KEY (merged_into_id) REFERENCES public.product_requests(id)
 );
 CREATE TABLE public.product_revisions (
   id uuid NOT NULL DEFAULT gen_random_uuid(),
@@ -1166,6 +1199,42 @@ CREATE TABLE public.registry_items (
   CONSTRAINT registry_items_pkey PRIMARY KEY (id),
   CONSTRAINT registry_items_registry_id_fkey FOREIGN KEY (registry_id) REFERENCES public.registries(id),
   CONSTRAINT registry_items_product_id_fkey FOREIGN KEY (product_id) REFERENCES public.products(id)
+);
+CREATE TABLE public.request_attachments (
+  id uuid NOT NULL DEFAULT gen_random_uuid(),
+  request_id uuid NOT NULL,
+  uploaded_by uuid,
+  file_url text NOT NULL,
+  file_type text NOT NULL,
+  caption text,
+  is_supplier_link boolean NOT NULL DEFAULT false,
+  created_at timestamp with time zone NOT NULL DEFAULT now(),
+  CONSTRAINT request_attachments_pkey PRIMARY KEY (id),
+  CONSTRAINT request_attachments_request_id_fkey FOREIGN KEY (request_id) REFERENCES public.product_requests(id),
+  CONSTRAINT request_attachments_uploaded_by_fkey FOREIGN KEY (uploaded_by) REFERENCES public.profiles(id)
+);
+CREATE TABLE public.request_audit_logs (
+  id uuid NOT NULL DEFAULT gen_random_uuid(),
+  request_id uuid NOT NULL,
+  admin_id uuid,
+  action text NOT NULL,
+  details jsonb,
+  created_at timestamp with time zone NOT NULL DEFAULT now(),
+  CONSTRAINT request_audit_logs_pkey PRIMARY KEY (id),
+  CONSTRAINT request_audit_logs_request_id_fkey FOREIGN KEY (request_id) REFERENCES public.product_requests(id),
+  CONSTRAINT request_audit_logs_admin_id_fkey FOREIGN KEY (admin_id) REFERENCES public.profiles(id)
+);
+CREATE TABLE public.request_supports (
+  id uuid NOT NULL DEFAULT gen_random_uuid(),
+  request_id uuid NOT NULL,
+  user_id uuid NOT NULL,
+  support_type text NOT NULL CHECK (support_type = ANY (ARRAY['upvote'::text, 'pledge'::text, 'stake'::text])),
+  bazcoin_amount integer NOT NULL DEFAULT 0 CHECK (bazcoin_amount >= 0),
+  rewarded boolean NOT NULL DEFAULT false,
+  created_at timestamp with time zone NOT NULL DEFAULT now(),
+  CONSTRAINT request_supports_pkey PRIMARY KEY (id),
+  CONSTRAINT request_supports_request_id_fkey FOREIGN KEY (request_id) REFERENCES public.product_requests(id),
+  CONSTRAINT request_supports_user_id_fkey FOREIGN KEY (user_id) REFERENCES public.profiles(id)
 );
 CREATE TABLE public.return_messages (
   id uuid NOT NULL DEFAULT gen_random_uuid(),
@@ -1472,6 +1541,22 @@ CREATE TABLE public.store_followers (
   CONSTRAINT store_followers_buyer_id_fkey FOREIGN KEY (buyer_id) REFERENCES public.buyers(id),
   CONSTRAINT store_followers_seller_id_fkey FOREIGN KEY (seller_id) REFERENCES public.sellers(id)
 );
+CREATE TABLE public.supplier_offers (
+  id uuid NOT NULL DEFAULT gen_random_uuid(),
+  request_id uuid NOT NULL,
+  supplier_id uuid NOT NULL,
+  price numeric NOT NULL CHECK (price >= 0::numeric),
+  moq integer NOT NULL DEFAULT 1 CHECK (moq >= 1),
+  lead_time_days integer NOT NULL DEFAULT 7 CHECK (lead_time_days >= 0),
+  terms text,
+  quality_notes text,
+  status text NOT NULL DEFAULT 'submitted'::text CHECK (status = ANY (ARRAY['submitted'::text, 'shortlisted'::text, 'rejected'::text, 'awarded'::text])),
+  created_at timestamp with time zone NOT NULL DEFAULT now(),
+  updated_at timestamp with time zone NOT NULL DEFAULT now(),
+  CONSTRAINT supplier_offers_pkey PRIMARY KEY (id),
+  CONSTRAINT supplier_offers_request_id_fkey FOREIGN KEY (request_id) REFERENCES public.product_requests(id),
+  CONSTRAINT supplier_offers_supplier_id_fkey FOREIGN KEY (supplier_id) REFERENCES public.sellers(id)
+);
 CREATE TABLE public.support_tickets (
   id uuid NOT NULL DEFAULT gen_random_uuid(),
   user_id uuid NOT NULL,
@@ -1524,6 +1609,19 @@ CREATE TABLE public.ticket_messages (
   CONSTRAINT ticket_messages_pkey PRIMARY KEY (id),
   CONSTRAINT ticket_messages_ticket_id_fkey FOREIGN KEY (ticket_id) REFERENCES public.support_tickets(id),
   CONSTRAINT ticket_messages_sender_id_fkey FOREIGN KEY (sender_id) REFERENCES public.profiles(id)
+);
+CREATE TABLE public.trust_artifacts (
+  id uuid NOT NULL DEFAULT gen_random_uuid(),
+  product_id uuid NOT NULL,
+  request_id uuid,
+  artifact_type text NOT NULL CHECK (artifact_type = ANY (ARRAY['report'::text, 'test_video'::text, 'true_spec_label'::text, 'certificate'::text])),
+  url text NOT NULL,
+  grade text CHECK (grade = ANY (ARRAY['A'::text, 'B'::text, 'C'::text])),
+  notes text,
+  created_at timestamp with time zone NOT NULL DEFAULT now(),
+  CONSTRAINT trust_artifacts_pkey PRIMARY KEY (id),
+  CONSTRAINT trust_artifacts_product_id_fkey FOREIGN KEY (product_id) REFERENCES public.products(id),
+  CONSTRAINT trust_artifacts_request_id_fkey FOREIGN KEY (request_id) REFERENCES public.product_requests(id)
 );
 CREATE TABLE public.user_consent (
   id uuid NOT NULL DEFAULT gen_random_uuid(),

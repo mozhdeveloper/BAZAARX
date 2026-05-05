@@ -72,7 +72,7 @@ export type RootStackParamList = {
   MainTabs: NavigatorScreenParams<TabParamList>;
   ProductListing: { searchQuery: string };
   SearchResults: { searchQuery: string };
-  ProductDetail: { product: Product };
+  ProductDetail: { product?: Product; productId?: string };
   Checkout: {
     selectedItems?: CartItem[];
     deliveryAddress?: string;
@@ -149,6 +149,7 @@ export type RootStackParamList = {
     currentUserId: string;
     userType: 'buyer' | 'seller';
   };
+  Favorites: undefined;
 };
 
 const Stack = createNativeStackNavigator<RootStackParamList>();
@@ -751,6 +752,7 @@ export default function App() {
               <Stack.Screen name="AddProduct" getComponent={() => require('./src/components/seller/AddProductScreen').default} />
               <Stack.Screen name="Chat" getComponent={() => require('./src/components/ChatScreen').default} />
               <Stack.Screen name="Categories" getComponent={() => require('./app/CategoriesScreen').default} />
+              <Stack.Screen name="Favorites" getComponent={() => require('./app/FavoritesScreen').default} />
               <Stack.Screen name="AdminStack" getComponent={() => require('./app/admin/AdminStack').default} options={{ headerShown: false }} />
             </Stack.Navigator>
           </NavigationContainer>

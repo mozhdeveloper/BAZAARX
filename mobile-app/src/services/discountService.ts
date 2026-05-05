@@ -589,7 +589,7 @@ export class DiscountService {
             originalPrice: originalPrice,
             badgeText: discountPct > 0 ? `${discountPct}% OFF` : 'SALE',
             badgeColor: '#FF6A00',
-            endsAt: new Date(slot?.end_time || Date.now())
+            endsAt: slot?.end_time || new Date().toISOString()
           } : undefined,
         };
       });
@@ -666,7 +666,7 @@ export class DiscountService {
         originalPrice: originalPrice,
         badgeText: discount.badge_text,
         badgeColor: discount.badge_color,
-        endsAt: new Date(discount.ends_at)
+        endsAt: discount.ends_at
       };
     } catch (error) {
       console.error('Error fetching product discount:', error);
