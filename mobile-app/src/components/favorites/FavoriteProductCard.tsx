@@ -1,7 +1,7 @@
 import React from 'react';
 import { View, Text, Pressable, StyleSheet } from 'react-native';
 import { Image } from 'expo-image';
-import { Trash2, ShoppingCart } from 'lucide-react-native';
+import { Trash2, ShoppingCart, Folder } from 'lucide-react-native';
 import { safeImageUri, PLACEHOLDER_PRODUCT } from '../../utils/imageUtils';
 import { COLORS } from '../../constants/theme';
 
@@ -12,15 +12,16 @@ interface FavoriteProductCardProps {
     onPress: () => void;
     onAddToCart: (quantity: number) => void;
     isInCart?: boolean;
+    folderName?: string;
 }
-
 export const FavoriteProductCard: React.FC<FavoriteProductCardProps> = ({ 
     product, 
     discount, 
     onRemove, 
     onPress,
     onAddToCart,
-    isInCart = false
+    isInCart = false,
+    folderName
 }) => {
     const [quantity, setQuantity] = React.useState(1);
     const basePrice = typeof product.price === 'number' ? product.price : parseFloat(String(product.price || 0));
@@ -73,12 +74,28 @@ export const FavoriteProductCard: React.FC<FavoriteProductCardProps> = ({
             
             <View style={styles.infoContainer}>
                 <View>
-                    <Text style={styles.name} numberOfLines={2}>
-                        {product.name}
-                    </Text>
+                    <View style={styles.nameRow}>
+                        <Text style={styles.name} numberOfLines={2}>
+                            {product.name}
+                        </Text>
+                        {isInCart && (
+                            <View style={styles.inCartBadge}>
+                                <ShoppingCart size={10} color={COLORS.primary} style={{ marginRight: 4 }} />
+                                <Text style={styles.inCartBadgeText}>In Cart</Text>
+                            </View>
+                        )}
+                    </View>
                     <Text style={styles.sellerName}>
                         {product.seller?.store_name || 'Verified Seller'}
                     </Text>
+                    <View style={styles.badgeRow}>
+                        {folderName && (
+                            <View style={styles.folderBadge}>
+                                <Folder size={10} color={COLORS.primary} style={{ marginRight: 4 }} />
+                                <Text style={styles.folderBadgeText}>{folderName}</Text>
+                            </View>
+                        )}
+                    </View>
                 </View>
 
                 <View style={styles.priceContainer}>
@@ -123,12 +140,10 @@ export const FavoriteProductCard: React.FC<FavoriteProductCardProps> = ({
                         </Pressable>
                         <Pressable 
                             onPress={handleAddToCart}
-                            style={[styles.cartBtn, isInCart && styles.inCartBtn]}
+                            style={styles.cartBtn}
                         >
-                            <ShoppingCart size={16} color={isInCart ? '#9CA3AF' : COLORS.primary} />
-                            <Text style={[styles.cartBtnText, isInCart && styles.inCartBtnText]}>
-                                {isInCart ? 'In Cart' : 'Add'}
-                            </Text>
+                            <ShoppingCart size={16} color={COLORS.primary} />
+                            <Text style={styles.cartBtnText}>Add</Text>
                         </Pressable>
                     </View>
                 </View>
@@ -172,7 +187,14 @@ const styles = StyleSheet.create({
         flex: 1,
         justifyContent: 'space-between',
     },
+    nameRow: {
+        flexDirection: 'row',
+        justifyContent: 'space-between',
+        alignItems: 'flex-start',
+        gap: 8,
+    },
     name: {
+        flex: 1,
         fontSize: 15,
         fontWeight: '600',
         color: '#111827',
@@ -180,7 +202,48 @@ const styles = StyleSheet.create({
     sellerName: {
         fontSize: 12,
         color: '#6B7280',
-        marginTop: 4,
+        marginTop: 2,
+    },
+    folderBadge: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        backgroundColor: '#FFF7ED',
+        paddingHorizontal: 8,
+        paddingVertical: 2,
+        borderRadius: 6,
+        marginTop: 6,
+        alignSelf: 'flex-start',
+        borderWidth: 1,
+        borderColor: '#FFEDD5',
+    },
+    folderBadgeText: {
+        fontSize: 10,
+        fontWeight: '700',
+        color: COLORS.primary,
+        textTransform: 'uppercase',
+    },
+    badgeRow: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        flexWrap: 'wrap',
+        gap: 6,
+        marginTop: 6,
+    },
+    inCartBadge: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        backgroundColor: '#FFF7ED',
+        paddingHorizontal: 8,
+        paddingVertical: 2,
+        borderRadius: 6,
+        borderWidth: 1,
+        borderColor: '#FFEDD5',
+    },
+    inCartBadgeText: {
+        fontSize: 10,
+        fontWeight: '700',
+        color: COLORS.primary,
+        textTransform: 'uppercase',
     },
     priceContainer: {
         marginTop: 8,

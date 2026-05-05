@@ -27,6 +27,7 @@ export const useFavorites = () => {
     const [folders, setFolders] = useState<FavoritesFolder[]>([]);
     const [loading, setLoading] = useState(false);
     const [favoritedProductIds, setFavoritedProductIds] = useState<Set<string>>(new Set());
+    const [itemFolders, setItemFolders] = useState<Record<string, string[]>>({});
 
     const fetchFolders = useCallback(async () => {
         if (!user?.id) return;
@@ -102,14 +103,30 @@ export const useFavorites = () => {
             
             setFolders(transformedFolders);
 
-            // Fetch all favorited IDs for the current user to provide a fast isFavorited check
             const { data: itemData } = await (supabase as any)
                 .from('favorites_items')
-                .select('product_id')
+                .select(`
+                    product_id,
+                    folder:favorites_folders(name, is_default)
+                `)
                 .eq('user_id', user.id);
             
             if (itemData) {
-                setFavoritedProductIds(new Set(itemData.map((i: any) => i.product_id)));
+                const map: Record<string, string[]> = {};
+                const ids = new Set<string>();
+                
+                (itemData as any[]).forEach(item => {
+                    ids.add(item.product_id);
+                    if (item.folder && !item.folder.is_default) {
+                        if (!map[item.product_id]) map[item.product_id] = [];
+                        if (!map[item.product_id].includes(item.folder.name)) {
+                            map[item.product_id].push(item.folder.name);
+                        }
+                    }
+                });
+                
+                setItemFolders(map);
+                setFavoritedProductIds(ids);
             }
         } catch (error) {
             console.error('[useFavorites] Error fetching folders:', error);
@@ -180,14 +197,25 @@ export const useFavorites = () => {
 
         try {
             setLoading(true);
-            // Delete folder (favorites_items should have CASCADE delete, or we delete manually)
-            const { error } = await (supabase as any)
+            
+            // 1. Manually delete all items in this folder first to avoid foreign key constraints
+            const { error: itemsError } = await (supabase as any)
+                .from('favorites_items')
+                .delete()
+                .eq('folder_id', folderId)
+                .eq('user_id', user.id);
+
+            if (itemsError) throw itemsError;
+
+            // 2. Delete the folder
+            const { error: folderError } = await (supabase as any)
                 .from('favorites_folders')
                 .delete()
                 .eq('id', folderId)
                 .eq('user_id', user.id);
 
-            if (error) throw error;
+            if (folderError) throw folderError;
+            
             await fetchFolders();
             return true;
         } catch (error) {
@@ -378,6 +406,7 @@ export const useFavorites = () => {
         addToFavorites,
         removeFromFolder,
         fetchItemsByFolder,
-        isFavorited: (productId: string) => favoritedProductIds.has(productId)
+        isFavorited: (productId: string) => favoritedProductIds.has(productId),
+        getItemFolders: (productId: string) => itemFolders[productId] || []
     };
 };

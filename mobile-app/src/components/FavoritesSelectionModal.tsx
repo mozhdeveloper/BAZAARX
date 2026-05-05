@@ -108,7 +108,10 @@ export const FavoritesSelectionModal = ({ visible, onClose, product }: Favorites
                 <Animated.View 
                     style={[styles.content, { transform: [{ translateY: slideAnim }], paddingBottom: Math.max(insets.bottom, 20) }]}
                 >
-                    <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
+                    <KeyboardAvoidingView 
+                        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+                        style={styles.keyboardAvoidingView}
+                    >
                         {/* Header */}
                         <View style={styles.header}>
                             <View style={styles.headerTop}>
@@ -136,7 +139,11 @@ export const FavoritesSelectionModal = ({ visible, onClose, product }: Favorites
                             </View>
                         </View>
 
-                        <ScrollView style={styles.scrollArea} showsVerticalScrollIndicator={false}>
+                        <ScrollView 
+                            style={styles.scrollArea} 
+                            contentContainerStyle={styles.scrollContent}
+                            showsVerticalScrollIndicator={false}
+                        >
                             {isCreating ? (
                                 <View style={styles.createForm}>
                                     <Text style={styles.inputLabel}>Collection Name</Text>
@@ -248,8 +255,12 @@ const styles = StyleSheet.create({
         borderTopLeftRadius: 24,
         borderTopRightRadius: 24,
         width: '100%',
-        maxHeight: '90%',
+        maxHeight: height * 0.85,
         marginTop: 'auto',
+        overflow: 'hidden',
+    },
+    keyboardAvoidingView: {
+        flexShrink: 1,
     },
     header: {
         padding: 24,
@@ -302,8 +313,12 @@ const styles = StyleSheet.create({
         marginTop: 4,
     },
     scrollArea: {
+        flexShrink: 1,
+    },
+    scrollContent: {
         paddingHorizontal: 24,
-        paddingVertical: 16,
+        paddingTop: 8,
+        paddingBottom: 24,
     },
     createForm: {
         marginTop: 8,
@@ -356,7 +371,7 @@ const styles = StyleSheet.create({
         backgroundColor: '#D1D5DB',
     },
     listContainer: {
-        paddingBottom: 32,
+        paddingBottom: 8,
     },
     sectionTitle: {
         fontSize: 12,

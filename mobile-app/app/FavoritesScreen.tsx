@@ -33,7 +33,7 @@ type TabType = 'all' | 'collections';
 export default function FavoritesScreen() {
     const insets = useSafeAreaInsets();
     const navigation = useNavigation<any>();
-    const { folders, loading, fetchFolders, fetchItemsByFolder, removeFromFolder, createCollection, updateCollection, deleteCollection } = useFavorites();
+    const { folders, loading, fetchFolders, fetchItemsByFolder, removeFromFolder, createCollection, updateCollection, deleteCollection, getItemFolders } = useFavorites();
 
     const [activeTab, setActiveTab] = useState<TabType>('all');
     const [items, setItems] = useState<any[]>([]);
@@ -310,8 +310,9 @@ export default function FavoritesScreen() {
                                         discount={discounts[item.product_id]}
                                         onPress={() => navigation.navigate('ProductDetail', { product: item.product })}
                                         onRemove={() => handleRemove(item.product_id)}
-                                        onAddToCart={(qty) => handleAddToCart(item.product, qty)}
+                                        onAddToCart={(qty: number) => handleAddToCart(item.product, qty)}
                                         isInCart={cartItems.some(ci => ci.id === item.product_id)}
+                                        folderName={selectedFolder?.is_default ? getItemFolders(item.product_id)[0] : selectedFolder?.name}
                                     />
                                 )
                             )}
@@ -364,7 +365,7 @@ export default function FavoritesScreen() {
                                             styles.tabText,
                                             activeTab === tab && styles.activeTabText
                                         ]}>
-                                            {tab === 'all' ? 'All Items' : 'Collections'}
+                                            {tab === 'all' ? 'All' : 'Collections'}
                                         </Text>
                                     </Pressable>
                                 ))}
@@ -384,8 +385,9 @@ export default function FavoritesScreen() {
                                             discount={discounts[item.product_id]}
                                             onPress={() => navigation.navigate('ProductDetail', { product: item.product })}
                                             onRemove={() => handleRemove(item.product_id)}
-                                            onAddToCart={(qty) => handleAddToCart(item.product, qty)}
+                                            onAddToCart={(qty: number) => handleAddToCart(item.product, qty)}
                                             isInCart={cartItems.some(ci => ci.id === item.product_id)}
+                                            folderName={getItemFolders(item.product_id)[0]}
                                         />
                                     ) : (
                                         <FolderCard
