@@ -11,7 +11,6 @@ import {
   Loader2,
   Plus,
   TrendingUp,
-  FlaskConical,
   Flame,
   Search,
   ShieldCheck,
@@ -360,44 +359,113 @@ export default function CommunityRequestsPage() {
         </div>
       </section>
 
-      {/* ════════════════ PURPLE GRADIENT HEADER ════════════════ */}
-      <section
-        className="relative overflow-hidden"
-        style={{
-          background: 'linear-gradient(135deg, #6B46C1 0%, #805AD5 30%, #667EEA 60%, #7C3AED 100%)',
-        }}
-      >
-        <div className="max-w-6xl mx-auto px-4 md:px-8 pt-10 pb-10">
-          {/* Title row */}
-          <div className="flex items-center gap-4 mb-2">
-            <div className="w-14 h-14 rounded-2xl bg-white/15 flex items-center justify-center">
-              <FlaskConical className="h-7 w-7 text-white" />
-            </div>
+      {/* ════════════════ ACTIVE REQUESTS ════════════════ */}
+      <section className="py-14 bg-[#FAFAF8]">
+        <div className="max-w-6xl mx-auto px-4 md:px-8">
+          {/* Section header */}
+          <div className="flex items-end justify-between mb-8">
             <div>
-              <h1 className="text-3xl md:text-4xl font-extrabold text-white tracking-tight">
-                Bazaarx Lab Pipeline
-              </h1>
-              <p className="text-white/70 text-sm mt-0.5">
-                Transparent product development from community request to verified marketplace
-              </p>
+              <h2 className="text-2xl md:text-3xl font-extrabold text-[var(--text-headline)] uppercase tracking-tight">
+                Active Requests
+              </h2>
+              <div className="h-1 w-12 bg-[var(--brand-primary)] rounded-full mt-2" />
             </div>
+            <button
+              onClick={() => setFilterStatus(null)}
+              className="text-xs font-bold uppercase tracking-widest text-[var(--text-headline)] border border-[var(--text-headline)] px-4 py-2 rounded-full hover:bg-[var(--text-headline)] hover:text-white transition-colors whitespace-nowrap"
+            >
+              All Requests →
+            </button>
           </div>
 
-          {/* Stat cards */}
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mt-8">
-            {[
-              { label: 'Total Requests', value: totalCount,              emoji: '📊' },
-              { label: 'Gathering',      value: statusCounts.pending,    emoji: '📍' },
-              { label: 'In Sourcing',    value: statusCounts.in_progress, emoji: '🔍' },
-              { label: 'Verified',       value: statusCounts.approved,    emoji: '✅' },
-            ].map(({ label, value, emoji }) => (
-              <div key={label} className="bg-white/15 backdrop-blur-sm rounded-2xl p-5 border border-white/10">
-                <div className="text-2xl mb-3">{emoji}</div>
-                <p className="text-4xl font-extrabold text-white">{value}</p>
-                <p className="text-white/60 text-sm mt-1 font-medium">{label}</p>
-              </div>
-            ))}
-          </div>
+          {loading ? (
+            <div className="flex items-center justify-center py-16 gap-2 text-gray-400">
+              <Loader2 className="h-5 w-5 animate-spin" />
+              <span className="text-sm">Loading requests…</span>
+            </div>
+          ) : (
+            <div className="grid sm:grid-cols-2 gap-5">
+              {([
+                { key: 'pending',     label: 'Gathering Interest', color: 'text-amber-600',  border: 'border-amber-200',  bg: 'bg-amber-50' },
+                { key: 'in_progress', label: 'Sourcing',           color: 'text-blue-600',   border: 'border-blue-200',   bg: 'bg-blue-50' },
+                { key: 'testing',     label: 'Testing',            color: 'text-purple-600', border: 'border-purple-200', bg: 'bg-purple-50' },
+                { key: 'approved',    label: 'Verified',           color: 'text-emerald-600',border: 'border-emerald-200',bg: 'bg-emerald-50' },
+              ] as const).map(({ key, label, color, border, bg }) => {
+                const stageRequests = requests
+                  .filter((r) => r.status === key)
+                  .sort((a, b) => (b.votes + b.estimatedDemand) - (a.votes + a.estimatedDemand));
+                const topRequest = stageRequests[0];
+                const totalHeat = stageRequests.reduce((s, r) => s + r.votes + r.estimatedDemand, 0);
+
+                return (
+                  <motion.div
+                    key={key}
+                    initial={{ opacity: 0, y: 16 }}
+                    whileInView={{ opacity: 1, y: 0 }}
+                    viewport={{ once: true, margin: '-30px' }}
+                    className="bg-white border border-gray-150 rounded-2xl overflow-hidden shadow-sm hover:shadow-md transition-shadow"
+                  >
+                    {/* Stage header bar */}
+                    <div className={`flex items-center justify-between px-5 py-3.5 border-b ${border} ${bg}`}>
+                      <span className={`text-xs font-extrabold uppercase tracking-widest ${color}`}>{label}</span>
+                      <span className={`flex items-center gap-1.5 text-sm font-bold ${color}`}>
+                        <Flame className="h-4 w-4" />
+                        {totalHeat.toLocaleString()}
+                      </span>
+                    </div>
+
+                    {/* Card body */}
+                    {topRequest ? (
+                      <div
+                        className="px-5 py-5 cursor-pointer group"
+                        onClick={() => navigate(`/requests/${topRequest.id}`)}
+                      >
+                        <h3 className="text-base font-extrabold text-[var(--text-headline)] leading-snug mb-2 group-hover:text-[var(--brand-primary)] transition-colors line-clamp-2">
+                          {topRequest.productName}
+                        </h3>
+                        {topRequest.description && (
+                          <p className="text-sm text-gray-500 line-clamp-2 leading-relaxed mb-4">
+                            {topRequest.description}
+                          </p>
+                        )}
+
+                        {/* Stats row */}
+                        <div className="flex items-center gap-4 text-xs text-gray-500 font-semibold uppercase tracking-wide mb-4">
+                          <span>{topRequest.votes.toLocaleString()} Votes</span>
+                          <span className="text-gray-300">•</span>
+                          <span>{topRequest.estimatedDemand.toLocaleString()} Pledges</span>
+                          <span className="text-gray-300">•</span>
+                          <span>{topRequest.category}</span>
+                        </div>
+
+                        {/* Requester */}
+                        <p className={`text-xs font-bold uppercase tracking-widest ${color}`}>
+                          Requested by {topRequest.requestedBy}
+                        </p>
+
+                        {/* More count */}
+                        {stageRequests.length > 1 && (
+                          <p className="text-xs text-gray-400 mt-3">
+                            +{stageRequests.length - 1} more in this stage
+                          </p>
+                        )}
+                      </div>
+                    ) : (
+                      <div className="px-5 py-8 text-center">
+                        <p className="text-sm text-gray-400">No requests in this stage yet.</p>
+                        <button
+                          onClick={(e) => { e.stopPropagation(); setShowRequestModal(true); }}
+                          className={`mt-3 text-xs font-bold uppercase tracking-wide ${color} hover:underline`}
+                        >
+                          + Be the first to request
+                        </button>
+                      </div>
+                    )}
+                  </motion.div>
+                );
+              })}
+            </div>
+          )}
         </div>
       </section>
 
