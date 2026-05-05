@@ -14,10 +14,25 @@ export const useFlashSaleVisibility = (flashSaleProducts: any[], refreshData?: (
   // Track whether the section was visible on the previous tick so we can detect
   // the visible→hidden transition and trigger a data refresh exactly once.
   const wasVisibleRef = useRef(false);
+  // After expiry, suppress re-showing for a fixed window to handle clock skew
+  // between device and DB server (Supabase may still return "active" products
+  // for a few seconds after the device timer hits zero).
+  const suppressedUntilRef = useRef<number>(0);
 
   useEffect(() => {
     const calculateVisibility = () => {
       const now = Date.now();
+
+      // If we're in the suppression window, keep the section hidden and wait.
+      if (suppressedUntilRef.current > now) {
+        setIsVisible(false);
+        setSecondsRemaining(0);
+        return;
+      }
+      // Clear stale suppression once the window has elapsed.
+      if (suppressedUntilRef.current > 0) {
+        suppressedUntilRef.current = 0;
+      }
       
       // 1. Filter for products that are truly active (not expired, not paused).
       //    Use secondsLeft (floor division) as the expiry condition so visibility
@@ -47,8 +62,11 @@ export const useFlashSaleVisibility = (flashSaleProducts: any[], refreshData?: (
 
       // 3. Detect visible → hidden transition and trigger a single data refresh
       //    so stale products are cleared from state immediately.
+      //    Also open a 10-second suppression window to prevent DB clock skew
+      //    from immediately re-showing just-expired products.
       if (!shouldShow && wasVisibleRef.current) {
         wasVisibleRef.current = false;
+        suppressedUntilRef.current = now + 10_000; // block re-show for 10 s
         setIsVisible(false);
         setSecondsRemaining(0);
         refreshData?.();

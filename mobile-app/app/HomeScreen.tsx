@@ -566,6 +566,7 @@ export default function HomeScreen({ navigation }: Props) {
   const { isVisible: isFlashSaleVisible, formattedTime: flashSaleTime } = useFlashSaleVisibility(
     flashSaleProducts,
     useCallback(() => {
+      setFlashSaleProducts([]); // immediately clear stale data before async reload
       loadAllData();
     }, [loadAllData])
   );
