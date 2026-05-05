@@ -18,6 +18,7 @@ This PR introduces a significant upgrade to the Favorites management system in t
 ### 3. UI/UX Refinement
 - **Categorization Modals**: Implemented a slide-up folder selection modal with "duplicate-aware" logic that disables collections where the item already exists.
 - **Premium Feedback**: Added `CategorizedSuccessModal` and `DeletionSuccessModal` featuring smooth animations and BlurView backgrounds for consistent, high-end user feedback.
+- **Empty Folder CTA**: Introduced a context-aware "Add Item" button in empty collections that directs users straight to the Shop screen, improving discovery and engagement.
 - **UI Cleanup**: Filtered out redundant folders (like the master "All" list) from selectable options to streamline the organization workflow.
 
 ### 4. Technical & Database Improvements
@@ -33,5 +34,6 @@ This PR introduces a significant upgrade to the Favorites management system in t
 - [x] Real-time search bar integrated and tested
 - [x] Duplicate prevention logic applied at UI and DB levels
 - [x] Animated success modals added for all actions
+- [x] Context-aware "Add Item" CTA and Shop navigation implemented
 - [x] TypeScript errors resolved across all modified screens
 - [x] Master "All" list correctly filtered from selectable options

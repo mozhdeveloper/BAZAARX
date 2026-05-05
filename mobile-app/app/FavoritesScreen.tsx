@@ -318,21 +318,44 @@ export default function FavoritesScreen() {
 
     const renderEmptyState = () => {
         if (showSkeletons) return null;
+        
+        const isFolderView = !!selectedFolder;
+        
         return (
             <View style={styles.emptyContainer}>
                 <View style={styles.emptyIconContainer}>
                     <Ghost size={40} color="#9CA3AF" />
                 </View>
-                <Text style={styles.emptyTitle}>Your list is empty</Text>
-                <Text style={styles.emptySubtitle}>
-                    Save products you love to keep track of them here.
+                <Text style={styles.emptyTitle}>
+                    {isFolderView ? `This collection is empty` : 'Your list is empty'}
                 </Text>
-                {activeTab === 'collections' && (
+                <Text style={styles.emptySubtitle}>
+                    {isFolderView 
+                        ? `Start adding your favorite products to "${selectedFolder?.name}"`
+                        : 'Save products you love to keep track of them here.'}
+                </Text>
+                
+                {(isFolderView || activeTab === 'collections') ? (
                     <Pressable 
-                        onPress={handleCreateCollection}
+                        onPress={() => {
+                            if (isFolderView) {
+                                navigation.navigate('MainTabs', { screen: 'Shop' });
+                            } else {
+                                handleCreateCollection();
+                            }
+                        }}
                         style={styles.createBtn}
                     >
-                        <Text style={styles.createBtnText}>Create Collection</Text>
+                        <Text style={styles.createBtnText}>
+                            {isFolderView ? 'Add Item' : 'Create Collection'}
+                        </Text>
+                    </Pressable>
+                ) : (
+                    <Pressable 
+                        onPress={() => navigation.navigate('MainTabs', { screen: 'Shop' })}
+                        style={styles.createBtn}
+                    >
+                        <Text style={styles.createBtnText}>Start Shopping</Text>
                     </Pressable>
                 )}
             </View>
