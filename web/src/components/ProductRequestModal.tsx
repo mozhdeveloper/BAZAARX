@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { X, Package, ImagePlus, Send, CheckCircle, Upload, Trash2 } from 'lucide-react';
+import { X, Package, ImagePlus, Send, CheckCircle, Upload, Trash2, Link, Plus } from 'lucide-react';
 import { Button } from './ui/button';
 import { Input } from './ui/input';
 import { Label } from './ui/label';
@@ -25,6 +25,7 @@ export default function ProductRequestModal({
     description: '',
     imageUrl: ''
   });
+  const [referenceLinks, setReferenceLinks] = useState<string[]>(['']);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isSuccess, setIsSuccess] = useState(false);
   const [isDragging, setIsDragging] = useState(false);
@@ -74,6 +75,7 @@ export default function ProductRequestModal({
         category: 'General',
         requestedByName,
         requestedById,
+        referenceLinks: referenceLinks.map(l => l.trim()).filter(Boolean),
       });
 
       setIsSubmitting(false);
@@ -87,6 +89,7 @@ export default function ProductRequestModal({
           description: '',
           imageUrl: ''
         });
+        setReferenceLinks(['']);
         handleRemove();
         onClose();
       }, 2000);
@@ -147,49 +150,51 @@ export default function ProductRequestModal({
         initial={{ opacity: 0 }}
         animate={{ opacity: 1 }}
         exit={{ opacity: 0 }}
-        className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4"
+        className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4"
         onClick={onClose}
       >
         <motion.div
-          initial={{ opacity: 0, scale: 0.95, y: 20 }}
+          initial={{ opacity: 0, scale: 0.96, y: 16 }}
           animate={{ opacity: 1, scale: 1, y: 0 }}
-          exit={{ opacity: 0, scale: 0.95, y: 20 }}
-          className="bg-white rounded-2xl shadow-2xl max-w-md w-full p-6"
+          exit={{ opacity: 0, scale: 0.96, y: 16 }}
+          transition={{ type: 'spring', damping: 26, stiffness: 380 }}
+          className="bg-white rounded-2xl shadow-2xl w-full max-w-md flex flex-col"
+          style={{ maxHeight: 'min(82vh, 560px)' }}
           onClick={(e) => e.stopPropagation()}
         >
           {!isSuccess ? (
             <>
-              {/* Header */}
-              <div className="flex items-start justify-between mb-6">
-                <div className="flex items-center gap-3">
-                  <div className="w-12 h-12 bg-orange-100 rounded-xl flex items-center justify-center">
-                    <Package className="w-6 h-6 text-orange-600" />
-                  </div>
-                  <div>
-                    <h2 className="text-xl font-bold text-gray-900">Request Product</h2>
-                    <p className="text-sm text-gray-600">Can't find what you're looking for?</p>
-                  </div>
+              {/* ── Sticky Header ── */}
+              <div className="flex items-center gap-3 px-5 py-3 border-b border-gray-100 flex-shrink-0">
+                <div className="w-10 h-10 rounded-xl bg-orange-50 flex items-center justify-center flex-shrink-0">
+                  <Package className="w-5 h-5 text-orange-500" />
+                </div>
+                <div className="flex-1 min-w-0">
+                  <h2 className="text-base font-bold text-gray-900 leading-tight">Request a Product</h2>
+                  <p className="text-xs text-gray-500 leading-tight mt-0.5">Can't find what you're looking for?</p>
                 </div>
                 <button
                   onClick={onClose}
-                  className="text-gray-400 hover:text-gray-600 transition-colors"
+                  className="w-8 h-8 flex items-center justify-center rounded-lg text-gray-400 hover:text-gray-600 hover:bg-gray-100 transition-colors flex-shrink-0"
+                  aria-label="Close"
                 >
-                  <X className="w-5 h-5" />
+                  <X className="w-4 h-4" />
                 </button>
               </div>
 
-              {/* Info Banner */}
-              <div className="mb-6 p-4 bg-blue-50 border border-blue-200 rounded-lg">
-                <p className="text-sm text-blue-800">
-                  Tell us what you need and we'll notify you when it becomes available or find a seller who can provide it!
-                </p>
-              </div>
+              {/* ── Scrollable Body ── */}
+              <div className="flex-1 overflow-y-auto px-5 py-4 space-y-4 scrollbar-hide">
+                {/* Info Banner */}
+                <div className="flex gap-3 p-3 bg-blue-50 border border-blue-100 rounded-xl">
+                  <div className="w-1 rounded-full bg-blue-400 flex-shrink-0" />
+                  <p className="text-xs text-blue-700 leading-relaxed">
+                    Tell us what you need and we'll notify you when it becomes available or find a seller.
+                  </p>
+                </div>
 
-              {/* Form */}
-              <form onSubmit={handleSubmit} className="space-y-4">
                 {/* Product Name */}
-                <div>
-                  <Label htmlFor="productName" className="text-sm font-medium text-gray-700">
+                <div className="space-y-1.5">
+                  <Label htmlFor="productName" className="text-sm font-semibold text-gray-700">
                     Product Name <span className="text-red-500">*</span>
                   </Label>
                   <Input
@@ -198,14 +203,14 @@ export default function ProductRequestModal({
                     value={formData.productName}
                     onChange={handleChange}
                     placeholder="What product are you looking for?"
-                    className="mt-1"
+                    className="h-10 text-sm border-gray-200 focus:border-orange-400 focus:ring-orange-400/20 rounded-lg"
                     required
                   />
                 </div>
 
                 {/* Description */}
-                <div>
-                  <Label htmlFor="description" className="text-sm font-medium text-gray-700">
+                <div className="space-y-1.5">
+                  <Label htmlFor="description" className="text-sm font-semibold text-gray-700">
                     Description <span className="text-red-500">*</span>
                   </Label>
                   <textarea
@@ -213,24 +218,19 @@ export default function ProductRequestModal({
                     name="description"
                     value={formData.description}
                     onChange={handleChange}
-                    placeholder="Provide more details about what you're looking for (brand, specifications, features, etc.)"
-                    className="mt-1 w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-orange-500 resize-none"
-                    rows={4}
+                    placeholder="Brand, specifications, features, preferred price range…"
+                    className="w-full px-3 py-2.5 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-orange-400/20 focus:border-orange-400 resize-none placeholder:text-gray-400 transition-colors"
+                    rows={2}
                     required
                   />
-                  <p className="text-xs text-gray-500 mt-1">
-                    The more details you provide, the better we can help you!
-                  </p>
+                  <p className="text-[11px] text-gray-400">More details = faster match.</p>
                 </div>
 
                 {/* Image Upload */}
-                <div>
-                  <Label className="text-sm font-medium text-gray-700">
-                    Product Image (Optional)
+                <div className="space-y-1.5">
+                  <Label className="text-sm font-semibold text-gray-700">
+                    Reference Image <span className="text-gray-400 font-normal">(Optional)</span>
                   </Label>
-                  <p className="text-xs text-gray-500 mb-2">
-                    Upload a reference image to help us find exactly what you need
-                  </p>
 
                   <Input
                     type="file"
@@ -248,57 +248,39 @@ export default function ProductRequestModal({
                       onDragLeave={handleDragLeave}
                       onDrop={handleDrop}
                       className={cn(
-                        "flex h-48 cursor-pointer flex-col items-center justify-center gap-3 rounded-lg border-2 border-dashed border-gray-300 bg-gray-50 transition-colors hover:bg-gray-100",
-                        isDragging && "border-orange-500 bg-orange-50",
+                        "flex h-24 cursor-pointer flex-col items-center justify-center gap-2 rounded-xl border-2 border-dashed border-gray-200 bg-gray-50 transition-all hover:border-orange-300 hover:bg-orange-50/40",
+                        isDragging && "border-orange-400 bg-orange-50",
                       )}
                     >
-                      <div className="rounded-full bg-white p-3 shadow-sm">
-                        <ImagePlus className="h-6 w-6 text-gray-500" />
+                      <div className="w-9 h-9 rounded-full bg-white shadow-sm flex items-center justify-center">
+                        <ImagePlus className="h-4 w-4 text-gray-400" />
                       </div>
                       <div className="text-center">
-                        <p className="text-sm font-medium text-gray-700">Click to upload or drag & drop</p>
-                        <p className="text-xs text-gray-500">JPG, PNG, GIF (Max 10MB)</p>
+                        <p className="text-xs font-medium text-gray-600">Click to upload or drag & drop</p>
+                        <p className="text-[11px] text-gray-400">JPG, PNG, GIF — max 10 MB</p>
                       </div>
                     </div>
                   ) : (
-                    <div className="relative">
-                      <div className="group relative h-48 overflow-hidden rounded-lg border border-gray-200">
-                        <img loading="lazy" 
-                          src={previewUrl}
-                          alt="Preview"
-                          className="h-full w-full object-cover transition-transform duration-300 group-hover:scale-105"
-                        />
-                        <div className="absolute inset-0 bg-black/40 opacity-0 transition-opacity group-hover:opacity-100" />
-                        <div className="absolute inset-0 flex items-center justify-center gap-2 opacity-0 transition-opacity group-hover:opacity-100">
-                          <Button
-                            size="sm"
-                            variant="secondary"
-                            onClick={handleThumbnailClick}
-                            className="h-9 w-9 p-0"
-                            type="button"
-                          >
-                            <Upload className="h-4 w-4" />
-                          </Button>
-                          <Button
-                            size="sm"
-                            variant="destructive"
-                            onClick={handleRemove}
-                            className="h-9 w-9 p-0"
-                            type="button"
-                          >
-                            <Trash2 className="h-4 w-4" />
-                          </Button>
-                        </div>
+                    <div className="relative group rounded-xl overflow-hidden border border-gray-200 h-24">
+                      <img
+                        loading="lazy"
+                        src={previewUrl}
+                        alt="Preview"
+                        className="h-full w-full object-cover transition-transform duration-300 group-hover:scale-105"
+                      />
+                      <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-2">
+                        <Button size="sm" variant="secondary" onClick={handleThumbnailClick} className="h-8 w-8 p-0" type="button">
+                          <Upload className="h-3.5 w-3.5" />
+                        </Button>
+                        <Button size="sm" variant="destructive" onClick={handleRemove} className="h-8 w-8 p-0" type="button">
+                          <Trash2 className="h-3.5 w-3.5" />
+                        </Button>
                       </div>
                       {fileName && (
-                        <div className="mt-2 flex items-center gap-2 text-sm text-gray-600">
-                          <span className="truncate">{fileName}</span>
-                          <button
-                            onClick={handleRemove}
-                            className="ml-auto rounded-full p-1 hover:bg-gray-200"
-                            type="button"
-                          >
-                            <X className="h-4 w-4" />
+                        <div className="absolute bottom-0 left-0 right-0 bg-black/50 px-3 py-1.5 flex items-center gap-2">
+                          <span className="text-[11px] text-white truncate flex-1">{fileName}</span>
+                          <button onClick={handleRemove} className="text-white/70 hover:text-white" type="button">
+                            <X className="h-3.5 w-3.5" />
                           </button>
                         </div>
                       )}
@@ -306,55 +288,103 @@ export default function ProductRequestModal({
                   )}
                 </div>
 
-                {/* Submit Buttons */}
-                <div className="flex gap-3 pt-4">
-                  <Button
-                    type="button"
-                    variant="outline"
-                    onClick={onClose}
-                    className="flex-1 border-gray-300"
-                    disabled={isSubmitting}
-                  >
-                    Cancel
-                  </Button>
-                  <Button
-                    type="submit"
-                    className="flex-1 bg-orange-500 hover:bg-orange-600 text-white"
-                    disabled={isSubmitting || !formData.productName || !formData.description}
-                  >
-                    {isSubmitting ? (
-                      <>
-                        <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin mr-2" />
-                        Submitting...
-                      </>
-                    ) : (
-                      <>
-                        <Send className="w-4 h-4 mr-2" />
-                        Submit Request
-                      </>
+                {/* Reference Links */}
+                <div className="space-y-1.5">
+                  <Label className="text-sm font-semibold text-gray-700">
+                    Reference Links <span className="text-gray-400 font-normal">(Optional)</span>
+                  </Label>
+                  <p className="text-[11px] text-gray-400">Paste links from Shopee, Lazada, Amazon, etc.</p>
+                  <div className="space-y-2 mt-2">
+                    {referenceLinks.map((link, idx) => (
+                      <div key={idx} className="flex items-center gap-2">
+                        <div className="w-8 h-8 rounded-lg bg-gray-50 border border-gray-200 flex items-center justify-center flex-shrink-0">
+                          <Link className="w-3.5 h-3.5 text-gray-400" />
+                        </div>
+                        <Input
+                          type="url"
+                          value={link}
+                          onChange={(e) => {
+                            const updated = [...referenceLinks];
+                            updated[idx] = e.target.value;
+                            setReferenceLinks(updated);
+                          }}
+                          placeholder={`https://shopee.ph/product-${idx + 1}`}
+                          className="flex-1 h-9 text-sm border-gray-200 focus:border-orange-400 focus:ring-orange-400/20 rounded-lg"
+                        />
+                        {referenceLinks.length > 1 && (
+                          <button
+                            type="button"
+                            onClick={() => setReferenceLinks(referenceLinks.filter((_, i) => i !== idx))}
+                            className="w-8 h-8 rounded-lg flex items-center justify-center text-gray-300 hover:text-red-400 hover:bg-red-50 transition-colors flex-shrink-0"
+                          >
+                            <X className="w-3.5 h-3.5" />
+                          </button>
+                        )}
+                      </div>
+                    ))}
+                    {referenceLinks.length < 5 && (
+                      <button
+                        type="button"
+                        onClick={() => setReferenceLinks([...referenceLinks, ''])}
+                        className="flex items-center gap-1.5 text-xs text-orange-500 hover:text-orange-600 font-semibold mt-1 transition-colors"
+                      >
+                        <Plus className="w-3.5 h-3.5" />
+                        Add another link
+                      </button>
                     )}
-                  </Button>
+                  </div>
                 </div>
-              </form>
+              </div>
+
+              {/* ── Sticky Footer ── */}
+              <div className="flex gap-3 px-5 py-3 border-t border-gray-100 bg-white flex-shrink-0 rounded-b-2xl">
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={onClose}
+                  className="flex-1 h-10 text-sm font-semibold border-gray-200 text-gray-600 hover:bg-gray-50 rounded-xl"
+                  disabled={isSubmitting}
+                >
+                  Cancel
+                </Button>
+                <Button
+                  type="submit"
+                  form="product-request-form"
+                  className="flex-1 h-10 text-sm font-semibold bg-orange-500 hover:bg-orange-600 text-white rounded-xl shadow-sm shadow-orange-200 active:scale-[0.98] transition-all"
+                  disabled={isSubmitting || !formData.productName || !formData.description}
+                  onClick={handleSubmit}
+                >
+                  {isSubmitting ? (
+                    <span className="flex items-center gap-2">
+                      <span className="w-3.5 h-3.5 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                      Submitting…
+                    </span>
+                  ) : (
+                    <span className="flex items-center gap-2">
+                      <Send className="w-3.5 h-3.5" />
+                      Submit Request
+                    </span>
+                  )}
+                </Button>
+              </div>
             </>
           ) : (
             /* Success State */
-            <div className="text-center py-8">
+            <div className="flex flex-col items-center justify-center px-8 py-12 text-center">
               <motion.div
                 initial={{ scale: 0 }}
                 animate={{ scale: 1 }}
-                className="w-20 h-20 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-4"
+                transition={{ type: 'spring', damping: 18, stiffness: 320 }}
+                className="w-16 h-16 bg-green-50 rounded-full flex items-center justify-center mb-5"
               >
-                <CheckCircle className="w-10 h-10 text-green-600" />
+                <CheckCircle className="w-8 h-8 text-green-500" />
               </motion.div>
-              <h3 className="text-xl font-bold text-gray-900 mb-2">Request Submitted!</h3>
-              <p className="text-gray-600 mb-6">
-                We've received your product request. We'll notify you via email when we find a match or when the product becomes available.
+              <h3 className="text-lg font-bold text-gray-900 mb-1">Request Submitted!</h3>
+              <p className="text-sm text-gray-500 leading-relaxed mb-6">
+                We've received your request and will notify you when we find a match or when the product becomes available.
               </p>
-              <div className="bg-orange-50 border border-orange-200 rounded-lg p-4">
-                <p className="text-sm text-orange-800">
-                  💡 <strong>Tip:</strong> Check your profile for request status updates
-                </p>
+              <div className="w-full bg-orange-50 border border-orange-100 rounded-xl px-4 py-3 text-xs text-orange-700 text-left">
+                <strong>Tip:</strong> Check your profile page for request status updates.
               </div>
             </div>
           )}

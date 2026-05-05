@@ -389,14 +389,40 @@ export default function HomeScreen({ navigation }: Props) {
 
   const filteredProducts = quickSearchProducts;
 
+  // API-backed store search — runs in parallel with product quick-search.
+  // Supplements the pre-fetched sellers list with a direct Supabase query so
+  // stores are found even when the cached list is stale or incomplete.
+  const [apiMatchedStores, setApiMatchedStores] = useState<any[]>([]);
+  useEffect(() => {
+    const q = debouncedSearchQuery.trim();
+    if (!q) { setApiMatchedStores([]); return; }
+    let active = true;
+    (async () => {
+      try {
+        const results = await sellerService.getPublicStores({ searchQuery: q, limit: 5 });
+        if (!active) return;
+        setApiMatchedStores(results || []);
+      } catch {
+        // Pre-fetched list is the fallback — no action needed
+      }
+    })();
+    return () => { active = false; };
+  }, [debouncedSearchQuery]);
+
+  // Merge pre-fetched filtered list with API results, de-duplicated by seller ID
   const filteredStores = useMemo(() => {
     if (!debouncedSearchQuery.trim()) return [];
     const q = debouncedSearchQuery.toLowerCase();
-    return (sellers || []).filter((s: any) =>
+    const fromList = (sellers || []).filter((s: any) =>
       (s.store_name || '').toLowerCase().includes(q) ||
       (s.business_name || '').toLowerCase().includes(q)
     );
-  }, [sellers, debouncedSearchQuery]);
+    // Merge: API results take priority (richer data), fill gaps with list results
+    const merged = new Map<string, any>();
+    apiMatchedStores.forEach(s => { if (s.id) merged.set(String(s.id), s); });
+    fromList.forEach(s => { if (s.id && !merged.has(String(s.id))) merged.set(String(s.id), s); });
+    return Array.from(merged.values());
+  }, [sellers, debouncedSearchQuery, apiMatchedStores]);
 
   const loadAllData = useCallback(async () => {
     setIsLoadingProducts(true);
@@ -540,6 +566,7 @@ export default function HomeScreen({ navigation }: Props) {
   const { isVisible: isFlashSaleVisible, formattedTime: flashSaleTime } = useFlashSaleVisibility(
     flashSaleProducts,
     useCallback(() => {
+      setFlashSaleProducts([]); // immediately clear stale data before async reload
       loadAllData();
     }, [loadAllData])
   );

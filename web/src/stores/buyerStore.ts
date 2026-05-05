@@ -979,11 +979,15 @@ export const useBuyerStore = create<BuyerStore>()(persist(
     },
 
     getCartItemCount: () => {
-      return get().cartItems.reduce((total, item) => total + item.quantity, 0);
+      // Returns count of distinct cart LINE ITEMS (one entry per product/variant row),
+      // NOT the sum of item quantities. Each DB cart_items row = 1, regardless of quantity.
+      return get().cartItems.length;
     },
 
     getTotalCartItems: () => {
-      return get().cartItems.reduce((total, item) => total + item.quantity, 0);
+      // Same as getCartItemCount: distinct line items, not quantity sum.
+      // e.g. Dried Mangoes ×2 counts as 1 item (not 2).
+      return get().cartItems.length;
     },
 
     groupCartBySeller: () => {
@@ -1248,14 +1252,19 @@ export const useBuyerStore = create<BuyerStore>()(persist(
     },
 
     getSelectedTotal: () => {
-      const { groupedCart, appliedVouchers, platformVoucher } = get();
+      const { groupedCart, appliedVouchers, platformVoucher, campaignDiscountCache } = get();
       let total = 0;
 
       Object.entries(groupedCart).forEach(([sellerId, group]) => {
-        // Calculate subtotal for SELECTED items in this group
+        // Calculate subtotal for SELECTED items using discounted prices
         const selectedSubtotal = group.items
           .filter(item => item.selected)
-          .reduce((sum, item) => sum + (item.selectedVariant?.price || item.price) * item.quantity, 0);
+          .reduce((sum, item) => {
+            const basePrice = item.selectedVariant?.price || item.price;
+            const activeDiscount = campaignDiscountCache[item.id] ?? null;
+            const { discountedUnitPrice } = discountService.calculateLineDiscount(basePrice, 1, activeDiscount);
+            return sum + discountedUnitPrice * item.quantity;
+          }, 0);
 
         if (selectedSubtotal === 0) return;
 
@@ -1286,7 +1295,7 @@ export const useBuyerStore = create<BuyerStore>()(persist(
     },
 
     getSelectedCount: () => {
-      return get().cartItems.filter(item => item.selected).reduce((total, item) => total + item.quantity, 0);
+      return get().cartItems.filter(item => item.selected).length;
     },
 
     // Reviews & Ratings
@@ -1495,6 +1504,14 @@ export const useBuyerStore = create<BuyerStore>()(persist(
 
           set({ cartItems: itemsWithSelection });
           get().groupCartBySeller();
+
+          // Pre-warm discount cache so the Header dropdown always shows discounts immediately
+          const productIds = itemsWithSelection.map(item => item.id).filter(Boolean);
+          if (productIds.length > 0) {
+            discountService.getActiveDiscountsForProducts(productIds)
+              .then(discounts => { get().updateCampaignDiscountCache(discounts); })
+              .catch(() => {});
+          }
         }
       } catch (error) {
         console.error('Error initializing cart from DB:', error);

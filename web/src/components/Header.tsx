@@ -17,6 +17,7 @@ import React, { useEffect, useRef, useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { authService } from "../services/authService";
 import { chatService } from "../services/chatService";
+import { discountService } from "../services/discountService";
 import { useBuyerStore } from "../stores/buyerStore";
 import { NotificationsDropdown } from "./NotificationsDropdown";
 import ProductRequestModal from "./ProductRequestModal";
@@ -31,7 +32,51 @@ interface HeaderProps {
 const Header: React.FC<HeaderProps> = ({ transparentOnTop = false, hideSearch = false }) => {
   const navigate = useNavigate();
   const location = useLocation();
-  const { profile, logout, getTotalCartItems, cartItems, initializeCart, subscribeToProfile, unsubscribeFromProfile } = useBuyerStore();
+  const { profile, logout, getTotalCartItems, cartItems, campaignDiscountCache, updateCampaignDiscountCache, initializeCart, subscribeToProfile, unsubscribeFromProfile } = useBuyerStore();
+
+  // Live discount map — merges the reactive Zustand cache with freshly fetched data.
+  // campaignDiscountCache from Zustand IS reactive: any update from the cart page or
+  // initializeCart is immediately visible here. We supplement it with a per-session
+  // fetch so the header stays accurate even before the user visits the cart page.
+  const [fetchedDiscounts, setFetchedDiscounts] = useState<Record<string, import('@/types/discount').ActiveDiscount>>({});
+
+  // Derived: always includes the latest Zustand cache + any fresh header-fetch results
+  const headerDiscountMap: Record<string, import('@/types/discount').ActiveDiscount> = { ...campaignDiscountCache, ...fetchedDiscounts };
+
+  const cartProductIdsKey = cartItems.map(i => i.id).filter(Boolean).sort().join('|');
+
+  useEffect(() => {
+    let cancelled = false;
+    const productIds = cartProductIdsKey ? cartProductIdsKey.split('|') : [];
+    if (productIds.length === 0) return; // don't clear on initial empty-cart state
+    discountService.getActiveDiscountsForProducts(productIds).then(discounts => {
+      if (cancelled) return;
+      setFetchedDiscounts(discounts);
+      updateCampaignDiscountCache(discounts); // keep store cache in sync
+    }).catch(() => { /* campaignDiscountCache already serves as fallback */ });
+    return () => { cancelled = true; };
+  }, [cartProductIdsKey]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Resolve effective (post-discount) unit price for a cart item
+  const getDropdownPrice = (item: (typeof cartItems)[0]): number => {
+    const basePrice = (item as any).selectedVariant?.price ?? item.price;
+    const discount = headerDiscountMap[item.id] ?? null;
+    const { discountedUnitPrice } = discountService.calculateLineDiscount(basePrice, 1, discount);
+    return discountedUnitPrice;
+  };
+
+  // Check if a cart item is in stock using stored cart state (no live fetch in header).
+  // NOTE: products table has no stock column — item.stock is always 0 unless explicitly set.
+  // We therefore prefer selectedVariant.stock when available, and default to in-stock when
+  // no reliable stock information exists (avoids incorrectly excluding items from the total).
+  const isDropdownItemInStock = (item: (typeof cartItems)[0]): boolean => {
+    const variantStock = (item as any).selectedVariant?.stock;
+    if (typeof variantStock === 'number') {
+      return variantStock > 0; // explicit variant stock → trust it
+    }
+    // No selected variant → item.stock is always 0 (not fetched); assume in-stock
+    return true;
+  };
   const [showProfileMenu, setShowProfileMenu] = useState(false);
   const [showCartDropdown, setShowCartDropdown] = useState(false);
   const cartDropdownRef = useRef<HTMLDivElement>(null);
@@ -315,31 +360,57 @@ const Header: React.FC<HeaderProps> = ({ transparentOnTop = false, hideSearch = 
                         {cartItems.slice(0, 5).map((item) => {
                           const img = item.image || (item as any).selectedVariant?.image || '';
                           const price = (item as any).selectedVariant?.price ?? item.price;
+                          const effectivePrice = getDropdownPrice(item);
+                          // Strikethrough: use campaign-discount base price, or seller's "compare-at" originalPrice
+                          const strikethroughPrice: number | null = effectivePrice < price
+                            ? price                                                      // campaign discount active
+                            : ((item.originalPrice ?? 0) > price ? (item.originalPrice ?? null) : null); // seller "was" price
                           const variantLabel = (item as any).selectedVariant?.name ||
                             [(item as any).selectedVariant?.size, (item as any).selectedVariant?.color].filter(Boolean).join(' / ');
+                          const discountPct = strikethroughPrice !== null
+                            ? Math.round(((strikethroughPrice - effectivePrice) / strikethroughPrice) * 100)
+                            : 0;
                           return (
                             <div
                               key={item.cartItemId || item.id}
                               className="flex items-center gap-3 px-4 py-2.5 hover:bg-gray-50 transition-colors cursor-pointer"
                               onClick={() => { setShowCartDropdown(false); navigate(`/product/${item.id}`); }}
                             >
-                              <div className="w-11 h-11 rounded-lg overflow-hidden bg-gray-100 flex-shrink-0">
+                              {/* Thumbnail with discount badge overlay */}
+                              <div className="relative w-11 h-11 rounded-lg overflow-hidden bg-gray-100 flex-shrink-0">
                                 <img
                                   src={img || 'https://placehold.co/80x80?text=?'}
                                   alt={item.name}
                                   className="w-full h-full object-cover"
                                   onError={(e) => { (e.target as HTMLImageElement).src = 'https://placehold.co/80x80?text=?'; }}
                                 />
+                                {discountPct > 0 && (
+                                  <div className="absolute bottom-0 left-0 right-0 bg-[#DC2626] text-white text-[8px] font-black text-center leading-[13px] tracking-wide">
+                                    -{discountPct}%
+                                  </div>
+                                )}
                               </div>
                               <div className="flex-1 min-w-0">
                                 <p className="text-xs font-semibold text-[var(--text-headline)] line-clamp-1">{item.name}</p>
                                 {variantLabel && (
                                   <p className="text-[10px] text-gray-400">{variantLabel}</p>
                                 )}
-                                <div className="flex items-center gap-2 mt-0.5">
-                                  <span className="text-xs font-bold text-[var(--brand-primary)]">₱{price.toLocaleString()}</span>
-                                  <span className="text-[10px] text-gray-400">× {item.quantity}</span>
-                                </div>
+                                {!isDropdownItemInStock(item) ? (
+                                  <p className="text-[10px] font-semibold text-red-500 mt-0.5">Out of Stock</p>
+                                ) : (
+                                  <div className="flex items-center gap-1.5 mt-0.5 flex-wrap">
+                                    <span className="text-xs font-bold text-[var(--brand-primary)]">₱{effectivePrice.toLocaleString()}</span>
+                                    {strikethroughPrice !== null && (
+                                      <span className="text-[10px] text-gray-400 line-through">₱{strikethroughPrice.toLocaleString()}</span>
+                                    )}
+                                    {discountPct > 0 && (
+                                      <span className="inline-flex items-center px-1 py-0.5 rounded text-[9px] font-black bg-red-600 text-white leading-none">
+                                        -{discountPct}%
+                                      </span>
+                                    )}
+                                    <span className="text-[10px] text-gray-400">× {item.quantity}</span>
+                                  </div>
+                                )}
                               </div>
                             </div>
                           );
@@ -355,10 +426,7 @@ const Header: React.FC<HeaderProps> = ({ transparentOnTop = false, hideSearch = 
                         <div className="flex items-center justify-between mb-3">
                           <span className="text-xs text-gray-500">{getTotalCartItems()} item{getTotalCartItems() !== 1 ? 's' : ''}</span>
                           <span className="text-sm font-bold text-[var(--text-headline)]">
-                            ₱{cartItems.reduce((sum, item) => {
-                              const p = (item as any).selectedVariant?.price ?? item.price;
-                              return sum + p * item.quantity;
-                            }, 0).toLocaleString()}
+                            ₱{cartItems.filter(isDropdownItemInStock).reduce((sum, item) => sum + getDropdownPrice(item) * item.quantity, 0).toLocaleString()}
                           </span>
                         </div>
                         <button

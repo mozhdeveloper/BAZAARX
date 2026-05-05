@@ -42,6 +42,7 @@ export interface ProductRequest {
   mergedIntoId: string | null;
   rewardAmount: number;
   adminNotes?: string;
+  referenceLinks: string[];
 }
 
 export interface RequestAuditEntry {
@@ -78,6 +79,7 @@ class ProductRequestService {
       mergedIntoId: row.merged_into_id ?? null,
       rewardAmount: row.reward_amount ?? 50,
       adminNotes: row.admin_notes ?? undefined,
+      referenceLinks: row.reference_links ?? [],
     };
   }
 
@@ -167,6 +169,7 @@ class ProductRequestService {
     requestedById?: string;
     priority?: 'low' | 'medium' | 'high';
     estimatedDemand?: number;
+    referenceLinks?: string[];
   }): Promise<ProductRequest> {
     if (!isSupabaseConfigured()) throw new Error('Supabase not configured');
 
@@ -178,6 +181,7 @@ class ProductRequestService {
       requested_by_id: params.requestedById || null,
       priority: params.priority || 'medium',
       estimated_demand: params.estimatedDemand || 0,
+      reference_links: params.referenceLinks ?? [],
     };
 
     try {

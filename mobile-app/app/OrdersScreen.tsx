@@ -825,7 +825,7 @@ export default function OrdersScreen({ navigation, route }: Props) {
           navigation.navigate('OrderDetail', { order });
         }
       }}
-      onCancel={() => handleCancelOrder(order)}
+      onCancel={order.buyerUiStatus === 'pending' ? () => handleCancelOrder(order) : undefined}
       onReceive={order.buyerUiStatus === 'delivered' ? () => handleOrderReceived(order) : undefined}
       onReview={order.buyerUiStatus === 'received' ? () => handleReview(order) : undefined}
       onReturn={(order.buyerUiStatus === 'received') && (Date.now() - new Date((order as any).receivedAt || order.deliveredAt || order.updatedAt || order.createdAt).getTime()) <= 7 * 24 * 60 * 60 * 1000 ? () => navigation.navigate('ReturnRequest', { order }) : undefined}
@@ -855,17 +855,9 @@ export default function OrdersScreen({ navigation, route }: Props) {
     switch (uiStatus) {
       case 'processing':
         return (
-          <View style={styles.buttonRow}>
-            <Pressable
-              style={[styles.outlineButton, { flex: 1, borderColor: '#EF4444', marginRight: 8, backgroundColor: '#FEF2F2' }]}
-              onPress={() => handleCancelOrder(order)}
-            >
-              <Text style={[styles.outlineButtonText, { color: '#EF4444' }]}>Cancel</Text>
-            </Pressable>
-            <Pressable style={[styles.outlineButton, { flex: 1 }]} onPress={() => navigation.navigate('OrderDetail', { order })}>
-              <Text style={styles.outlineButtonText}>View Details</Text>
-            </Pressable>
-          </View>
+          <Pressable style={styles.outlineButton} onPress={() => navigation.navigate('OrderDetail', { order })}>
+            <Text style={styles.outlineButtonText}>View Details</Text>
+          </Pressable>
         );
       case 'shipped':
         return (
