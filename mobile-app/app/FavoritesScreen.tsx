@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import {
     View,
     Text,
@@ -16,7 +16,7 @@ import {
     Platform,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { ChevronLeft, PlusCircle, Ghost, Heart, Trash2, Edit2, X, Folder } from 'lucide-react-native';
+import { ChevronLeft, PlusCircle, Ghost, Heart, Trash2, Edit2, X, Folder, Search } from 'lucide-react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useNavigation } from '@react-navigation/native';
 import { useFavorites, FavoritesFolder } from '../src/hooks/useFavorites';
@@ -63,6 +63,7 @@ export default function FavoritesScreen() {
     const [isMoveModalVisible, setIsMoveModalVisible] = useState(false);
     const [productToMove, setProductToMove] = useState<any>(null);
     const [isMoving, setIsMoving] = useState(false);
+    const [searchQuery, setSearchQuery] = useState('');
 
     const cartItems = useCartStore(state => state.items);
     const addItemToCart = useCartStore(state => state.addItem);
@@ -141,6 +142,13 @@ export default function FavoritesScreen() {
             ]
         );
     };
+
+    const filteredItems = useMemo(() => {
+        if (!searchQuery.trim()) return items;
+        return items.filter(item => 
+            item.product?.name?.toLowerCase().includes(searchQuery.toLowerCase())
+        );
+    }, [items, searchQuery]);
 
     const handleMove = (product: any) => {
         setProductToMove(product);
@@ -408,6 +416,26 @@ export default function FavoritesScreen() {
                                 )}
                             </View>
 
+                            {activeTab === 'all' && (
+                                <View style={styles.searchContainer}>
+                                    <View style={styles.searchBar}>
+                                        <Search size={20} color="#9CA3AF" />
+                                        <TextInput
+                                            style={styles.searchInput}
+                                            placeholder="Search favorites..."
+                                            placeholderTextColor="#9CA3AF"
+                                            value={searchQuery}
+                                            onChangeText={setSearchQuery}
+                                        />
+                                        {searchQuery.length > 0 && (
+                                            <Pressable onPress={() => setSearchQuery('')}>
+                                                <X size={18} color="#9CA3AF" />
+                                            </Pressable>
+                                        )}
+                                    </View>
+                                </View>
+                            )}
+
                             <ScrollView 
                                 horizontal 
                                 showsHorizontalScrollIndicator={false} 
@@ -435,7 +463,7 @@ export default function FavoritesScreen() {
                         </View>
 
                         <FlatList
-                            data={showSkeletons ? [1, 2, 3, 4] : (activeTab === 'all' ? items : folders.filter((f: FavoritesFolder) => !f.is_default))}
+                            data={showSkeletons ? [1, 2, 3, 4] : (activeTab === 'all' ? filteredItems : folders.filter((f: FavoritesFolder) => !f.is_default))}
                             keyExtractor={(item, index) => (showSkeletons ? `skeleton-${index}` : (item.id || String(index)))}
                             renderItem={({ item }) => (
                                 showSkeletons ? (
@@ -464,8 +492,27 @@ export default function FavoritesScreen() {
                                     )
                                 )
                             )}
-                            contentContainerStyle={styles.listContent}
-                            ListEmptyComponent={renderEmptyState}
+                            contentContainerStyle={[
+                                styles.listContent,
+                                (filteredItems.length === 0 && activeTab === 'all') && { flex: 1, justifyContent: 'center' }
+                            ]}
+                            ListEmptyComponent={() => {
+                                if (showSkeletons) return null;
+                                if (searchQuery && filteredItems.length === 0) {
+                                    return (
+                                        <View style={styles.emptyContainer}>
+                                            <View style={styles.emptyIconContainer}>
+                                                <Search size={40} color="#9CA3AF" />
+                                            </View>
+                                            <Text style={styles.emptyTitle}>No matching items</Text>
+                                            <Text style={styles.emptySubtitle}>
+                                                We couldn't find any products matching "{searchQuery}".
+                                            </Text>
+                                        </View>
+                                    );
+                                }
+                                return renderEmptyState();
+                            }}
                             refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} colors={[COLORS.primary]} />}
                         />
                     </>
@@ -1139,5 +1186,31 @@ const styles = StyleSheet.create({
         marginTop: 8,
         color: '#9CA3AF',
         fontSize: 14,
+    },
+    searchContainer: {
+        paddingHorizontal: 20,
+        paddingBottom: 16,
+    },
+    searchBar: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        backgroundColor: 'white',
+        borderRadius: 16,
+        paddingHorizontal: 16,
+        paddingVertical: 12,
+        borderWidth: 1,
+        borderColor: '#F3F4F6',
+        elevation: 2,
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: 0.05,
+        shadowRadius: 8,
+    },
+    searchInput: {
+        flex: 1,
+        marginLeft: 12,
+        fontSize: 16,
+        color: '#111827',
+        padding: 0,
     },
 });

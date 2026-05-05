@@ -1,51 +1,37 @@
-# PR Description: Favorites Module Implementation (Epic 49)
+# PR Description: Favorites System Enhancements & Mobile Optimization
 
 ## Overview
-This PR implements the comprehensive **Favorites** module for the BAZAARX mobile application, transforming it into a premium shopping hub. It provides users with a robust system to save, organize, and manage products they love through a highly intuitive and visually stunning interface.
+This PR introduces a significant upgrade to the Favorites management system in the BazaarX mobile application. The focus was on improving user organization through seamless categorization, real-time search capabilities, and a refined, premium UI experience.
 
-## Key Features & Changes
+## Key Changes
 
-### 1. Advanced Collection Management
-- **Folders & Collections**: Users can now create, rename, and delete custom collections (folders) to organize their favorite products.
-- **System Folders**: Integrated a protected "All Items" view that consolidates every favorited product across all collections.
-- **Themed Modals**: Implemented premium, consistent modals for creating and editing collection names.
+### 1. Smart Categorization & Background Sync
+- **Dual-Insert Logic**: Refactored the favorites logic so that any item added to a specific collection is automatically and silently mirrored in the "All" master list.
+- **Master List Integrity**: The "All" tab now serves as a comprehensive master collection that remains persistent even as items are organized into custom folders.
+- **Optimized Upsert**: Utilized Supabase `.upsert()` for all synchronization tasks to ensure high-performance, duplicate-proof data handling.
 
-### 2. Premium UX & UI Standardisation
-- **Favorites Screen**: A new dual-tab interface ("All Items" & "Collections") that matches the soft-amber aesthetic of the BAZAARX brand.
-- **Action Icons**: Synchronized "Edit" (pencil) and "Delete" (trash) icons with the Wishlist module for a familiar user experience.
-- **Dynamic Header**: 
-    - The "Collections" tab features a "Create" button.
-    - The "All Items" tab features an "Add Item" button that navigates directly to the Shop page to encourage discovery.
-- **Loading States**: Added semi-transparent loading overlays for "Add to Cart" and database operations to provide immediate visual feedback.
+### 2. Search & Filtering
+- **Real-Time Search Bar**: Added a modern, themed search bar to the "All" favorites tab, allowing users to find specific items by name instantly.
+- **Interactive States**: Included a quick-clear feature and custom empty states for search results to ensure a smooth UX.
+- **Performance**: Implemented `useMemo` for efficient list filtering, ensuring zero lag even with large favorite lists.
 
-### 3. Product & Cart Integration
-- **Favorites Selection Modal**: Users can choose specific folders when favoriting a product from the Product Detail page.
-- **Cart Sync**: 
-    - Resolved synchronization issues where cart items would disappear after a hard refresh.
-    - Implemented a custom themed "Already in Cart" modal to handle duplicate additions gracefully.
-- **Real-time Price Sync**: Integrated flash sale pricing logic within the Favorites view to ensure users always see the latest accurate prices.
+### 3. UI/UX Refinement
+- **Categorization Modals**: Implemented a slide-up folder selection modal with "duplicate-aware" logic that disables collections where the item already exists.
+- **Premium Feedback**: Added `CategorizedSuccessModal` and `DeletionSuccessModal` featuring smooth animations and BlurView backgrounds for consistent, high-end user feedback.
+- **UI Cleanup**: Filtered out redundant folders (like the master "All" list) from selectable options to streamline the organization workflow.
 
-### 4. Technical Implementation
-- **Custom Hook (`useFavorites`)**: Centralized CRUD logic for folders and items using Supabase, featuring optimistic UI updates for zero-latency feel.
-- **Refined Data Fetching**: Optimized folder and item loading to prevent layout shifts and improve performance.
-- **Type Safety**: Extended `discount.ts` and `discountService.ts` to support integrated campaign data across the favorites module.
+### 4. Technical & Database Improvements
+- **Data Constraints**: Applied a unique constraint (`unique_folder_product`) to the database to prevent accidental data duplication.
+- **Hook Refactor**: Completely rewrote the `useFavorites` hook for better state management, optimized API calls, and full TypeScript compliance.
+- **Robust Deletion**: Enhanced the `delete_favorites_folder` RPC to handle secure, cascading deletions of custom collections.
 
-## Files Modified/Created
-- `mobile-app/app/FavoritesScreen.tsx` (New)
-- `mobile-app/src/hooks/useFavorites.ts` (New)
-- `mobile-app/src/components/FavoritesSelectionModal.tsx` (New)
-- `mobile-app/src/components/favorites/` (FolderCard, FavoriteProductCard)
-- `mobile-app/app/ProductDetailScreen.tsx` (Integrated Favorites logic)
-- `mobile-app/App.tsx` (Navigation & State initialization)
-- `mobile-app/src/services/discountService.ts` (Price syncing)
-- `web/src/pages/ProductDetailPage.tsx` (Web parity adjustments)
+## Screenshots/Demos
+*(Demos would showcase the new search bar, the smooth categorization animations, and the "Already in this collection" UI states)*
 
-## Testing Conducted
-- [x] Folder creation, renaming, and deletion.
-- [x] Adding/removing products from Favorites across multiple entry points.
-- [x] Cart addition flow with duplicate handling.
-- [x] Hard refresh persistence testing.
-- [x] Navigation flow from Favorites to Shop and Product Details.
-
----
-*This implementation brings Favorites to feature parity with the Wishlist module while introducing several unique UX enhancements for the shopping flow.*
+## Checklist
+- [x] Background sync between collections and master list implemented
+- [x] Real-time search bar integrated and tested
+- [x] Duplicate prevention logic applied at UI and DB levels
+- [x] Animated success modals added for all actions
+- [x] TypeScript errors resolved across all modified screens
+- [x] Master "All" list correctly filtered from selectable options
