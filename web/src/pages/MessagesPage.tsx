@@ -532,6 +532,7 @@ export default function MessagesPage() {
                   <div className="flex gap-3">
                     <div className="relative">
                       <Avatar className="h-12 w-12 border-2 border-white shadow-sm">
+                        <AvatarImage src={conv.seller_avatar} />
                         <AvatarFallback className="bg-[var(--brand-wash)] text-[var(--brand-primary)] font-bold">
                           {(conv.seller_store_name || 'S').charAt(0)}
                         </AvatarFallback>
@@ -616,7 +617,7 @@ export default function MessagesPage() {
               <div className="bg-[var(--brand-primary)] p-4 flex items-center gap-4 text-white shadow-md relative z-10">
                 <div className="relative">
                   <Avatar className="h-10 w-10 border-2 border-white/20">
-                    <AvatarImage src={useRealData ? undefined : (activeConversation as Conversation).sellerImage} />
+                    <AvatarImage src={useRealData ? (activeConversation as DBConversation).seller_avatar : (activeConversation as Conversation).sellerImage} />
                     <AvatarFallback className="bg-white/20 text-white font-bold">
                       {(useRealData ? ((activeConversation as DBConversation).seller_store_name || 'S') : (activeConversation as Conversation).sellerName).charAt(0)}
                     </AvatarFallback>
@@ -844,10 +845,10 @@ export default function MessagesPage() {
                 <form onSubmit={handleSendMessage} className="flex items-center gap-2 p-1 bg-[var(--brand-wash)] rounded-2xl border border-[var(--brand-wash-gold)]/20 focus-within:border-[var(--brand-primary)] transition-all">
                   <input type="file" ref={fileInputRef} onChange={handleMediaUpload} accept="image/jpeg,image/png,image/webp,video/mp4,video/quicktime" multiple className="hidden" />
                   <input type="file" ref={docInputRef} onChange={handleMediaUpload} accept="application/pdf" className="hidden" />
-                  <Button type="button" variant="ghost" size="icon" className="text-[var(--text-muted)] hover:text-[var(--brand-primary)] rounded-full" onClick={() => fileInputRef.current?.click()} disabled={sending || uploading || sellerSuspended}>
+                  <Button type="button" variant="ghost" size="icon" className="text-[var(--text-muted)] hover:text-[var(--brand-primary)] hover:bg-[var(--brand-primary)]/10 rounded-full" onClick={() => fileInputRef.current?.click()} disabled={sending || uploading || sellerSuspended}>
                     {uploading ? <Loader2 className="h-5 w-5 animate-spin" /> : <ImageIcon className="h-5 w-5" />}
                   </Button>
-                  <Button type="button" variant="ghost" size="icon" className="text-[var(--text-muted)] hover:text-[var(--brand-primary)] rounded-full -ml-1" onClick={() => docInputRef.current?.click()} disabled={sending || uploading || sellerSuspended}>
+                  <Button type="button" variant="ghost" size="icon" className="text-[var(--text-muted)] hover:text-[var(--brand-primary)] hover:bg-[var(--brand-primary)]/10 rounded-full -ml-1" onClick={() => docInputRef.current?.click()} disabled={sending || uploading || sellerSuspended}>
                     <Paperclip className="h-5 w-5" />
                   </Button>
                   <textarea
