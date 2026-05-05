@@ -20,6 +20,7 @@ export interface FavoritesItem {
     user_id: string;
     created_at: string;
     product?: any; // Joined product data
+    folder?: FavoritesFolder;
 }
 
 export const useFavorites = () => {
@@ -28,12 +29,12 @@ export const useFavorites = () => {
     const [loading, setLoading] = useState(false);
     const [favoritedProductIds, setFavoritedProductIds] = useState<Set<string>>(new Set());
     const [itemFolders, setItemFolders] = useState<Record<string, string[]>>({});
+    const [itemFolderIds, setItemFolderIds] = useState<Record<string, string[]>>({});
 
     const fetchFolders = useCallback(async () => {
         if (!user?.id) return;
         try {
             setLoading(true);
-            // Cast to any to bypass missing table definitions in generated types and deep recursion errors
             const { data, error } = await (supabase as any)
                 .from('favorites_folders')
                 .select(`
@@ -54,7 +55,6 @@ export const useFavorites = () => {
             
             let transformedFolders = (data as any[]).map(folder => {
                 const folderItems = folder.latest_item || [];
-                // Sort by created_at descending to get the most recent item
                 const latest = folderItems.sort((a: any, b: any) => 
                     new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
                 )[0];
@@ -76,25 +76,16 @@ export const useFavorites = () => {
                 };
             });
 
-            // If "All" folder is missing, create it and re-fetch
             if (!transformedFolders.some(f => f.is_default)) {
                 const { data: newFolder, error: createError } = await (supabase as any)
                     .from('favorites_folders')
-                    .insert({
-                        user_id: user.id,
-                        name: 'All',
-                        is_default: true
-                    })
+                    .insert({ user_id: user.id, name: 'All', is_default: true })
                     .select()
                     .single();
                 
                 if (!createError && newFolder) {
                     transformedFolders = [{
-                        id: newFolder.id,
-                        user_id: newFolder.user_id,
-                        name: newFolder.name,
-                        is_default: newFolder.is_default,
-                        created_at: newFolder.created_at,
+                        ...newFolder,
                         item_count: 0,
                         thumbnail_url: undefined
                     }, ...transformedFolders];
@@ -107,25 +98,31 @@ export const useFavorites = () => {
                 .from('favorites_items')
                 .select(`
                     product_id,
+                    folder_id,
                     folder:favorites_folders(name, is_default)
                 `)
                 .eq('user_id', user.id);
             
             if (itemData) {
-                const map: Record<string, string[]> = {};
+                const nameMap: Record<string, string[]> = {};
+                const idMap: Record<string, string[]> = {};
                 const ids = new Set<string>();
                 
                 (itemData as any[]).forEach(item => {
                     ids.add(item.product_id);
+                    if (!idMap[item.product_id]) idMap[item.product_id] = [];
+                    idMap[item.product_id].push(item.folder_id);
+
                     if (item.folder && !item.folder.is_default) {
-                        if (!map[item.product_id]) map[item.product_id] = [];
-                        if (!map[item.product_id].includes(item.folder.name)) {
-                            map[item.product_id].push(item.folder.name);
+                        if (!nameMap[item.product_id]) nameMap[item.product_id] = [];
+                        if (!nameMap[item.product_id].includes(item.folder.name)) {
+                            nameMap[item.product_id].push(item.folder.name);
                         }
                     }
                 });
                 
-                setItemFolders(map);
+                setItemFolders(nameMap);
+                setItemFolderIds(idMap);
                 setFavoritedProductIds(ids);
             }
         } catch (error) {
@@ -135,11 +132,73 @@ export const useFavorites = () => {
         }
     }, [user?.id]);
 
-    const createCollection = async (name: string) => {
-        if (!user?.id) throw new Error('User not logged in');
-        if (!name.trim()) throw new Error('Collection name is required');
+    const syncToAllFolder = async (productId: string) => {
+        if (!user?.id) return;
+        try {
+            const allFolder = folders.find(f => f.is_default);
+            if (!allFolder) return;
 
-        // Check for duplicate names (case-insensitive)
+            await (supabase as any)
+                .from('favorites_items')
+                .upsert({
+                    folder_id: allFolder.id,
+                    product_id: productId,
+                    user_id: user.id
+                }, { 
+                    onConflict: 'folder_id, product_id',
+                    ignoreDuplicates: true 
+                });
+        } catch (error) {
+            console.error('[useFavorites] syncToAllFolder failed:', error);
+        }
+    };
+
+    const addToFavorites = useCallback(async (productId: string, folderId?: string) => {
+        if (!user?.id) throw new Error('User not logged in');
+        
+        try {
+            setLoading(true);
+            const allFolder = folders.find(f => f.is_default);
+            const targetFolderId = folderId || allFolder?.id;
+
+            if (!targetFolderId) throw new Error('Target collection not found');
+
+            // Scenario A: Selecting existing collection
+            const inserts = [];
+            
+            // Add to selected folder
+            inserts.push({
+                folder_id: targetFolderId,
+                product_id: productId,
+                user_id: user.id
+            });
+
+            // If selected folder is NOT "All", silently add to "All" too
+            if (allFolder && targetFolderId !== allFolder.id) {
+                inserts.push({
+                    folder_id: allFolder.id,
+                    product_id: productId,
+                    user_id: user.id
+                });
+            }
+
+            const { error } = await (supabase as any)
+                .from('favorites_items')
+                .upsert(inserts, { onConflict: 'folder_id, product_id' });
+
+            if (error) throw error;
+            await fetchFolders();
+        } catch (error) {
+            console.error('[useFavorites] Error adding to favorites:', error);
+            throw error;
+        } finally {
+            setLoading(false);
+        }
+    }, [user?.id, folders, fetchFolders]);
+
+    const createCollection = async (name: string, productId?: string) => {
+        if (!user?.id) throw new Error('User not logged in');
+        
         const isDuplicate = folders.some(f => f.name.toLowerCase() === name.trim().toLowerCase());
         if (isDuplicate) {
             Alert.alert('Duplicate Name', 'You already have a collection with this name.');
@@ -148,19 +207,31 @@ export const useFavorites = () => {
 
         try {
             setLoading(true);
-            const { data, error } = await (supabase as any)
+            const { data: newFolder, error: folderError } = await (supabase as any)
                 .from('favorites_folders')
-                .insert({
-                    user_id: user.id,
-                    name: name.trim(),
-                    is_default: false
-                })
-                .select()
-                .single();
+                .insert({ user_id: user.id, name: name.trim(), is_default: false })
+                .select().single();
 
-            if (error) throw error;
+            if (folderError) throw folderError;
+
+            // Scenario B: Creating new collection
+            if (productId && newFolder) {
+                const allFolder = folders.find(f => f.is_default);
+                const inserts = [
+                    { folder_id: newFolder.id, product_id: productId, user_id: user.id }
+                ];
+
+                if (allFolder) {
+                    inserts.push({ folder_id: allFolder.id, product_id: productId, user_id: user.id });
+                }
+
+                await (supabase as any)
+                    .from('favorites_items')
+                    .upsert(inserts, { onConflict: 'folder_id, product_id' });
+            }
+
             await fetchFolders();
-            return data as FavoritesFolder;
+            return newFolder;
         } catch (error) {
             console.error('[useFavorites] Error creating collection:', error);
             throw error;
@@ -193,179 +264,74 @@ export const useFavorites = () => {
     };
 
     const deleteCollection = async (folderId: string) => {
-        if (!user?.id) throw new Error('User not logged in');
+        if (!user?.id) throw new Error('No active session');
+        const folderToDelete = folders.find(f => f.id === folderId);
+        if (folderToDelete?.is_default) {
+            Alert.alert('Protected Folder', 'The default "All" collection is protected.');
+            return false;
+        }
 
         try {
             setLoading(true);
-            
-            // 1. Manually delete all items in this folder first to avoid foreign key constraints
-            const { error: itemsError } = await (supabase as any)
-                .from('favorites_items')
-                .delete()
-                .eq('folder_id', folderId)
-                .eq('user_id', user.id);
-
-            if (itemsError) throw itemsError;
-
-            // 2. Delete the folder
-            const { error: folderError } = await (supabase as any)
-                .from('favorites_folders')
-                .delete()
-                .eq('id', folderId)
-                .eq('user_id', user.id);
-
-            if (folderError) throw folderError;
-            
+            const { data: success, error: rpcError } = await (supabase as any).rpc('delete_favorites_folder', { 
+                folder_id_param: folderId 
+            });
+            if (rpcError) throw rpcError;
             await fetchFolders();
-            return true;
+            return success;
         } catch (error) {
-            console.error('[useFavorites] Error deleting collection:', error);
+            Alert.alert('Deletion Error', 'Failed to delete the collection.');
             throw error;
         } finally {
             setLoading(false);
         }
     };
 
-    const addToFavorites = useCallback(async (productId: string, folderId?: string) => {
-        if (!user?.id) throw new Error('User not logged in');
-        
+    const moveToFolder = async (productId: string, targetFolderId: string) => {
+        if (!user?.id) return false;
         try {
             setLoading(true);
-            
-            // Optimistic update: instantly fill the heart
-            setFavoritedProductIds(prev => new Set([...prev, productId]));
-            
-            // Get default "All" folder
-            let defaultFolder = folders.find(f => f.is_default);
-            
-            if (!defaultFolder) {
-                // If not in state, try fetching
-                const { data: fetchedDefault } = await (supabase as any)
-                    .from('favorites_folders')
-                    .select('id')
-                    .eq('user_id', user.id)
-                    .eq('is_default', true)
-                    .single();
-                
-                if (fetchedDefault) {
-                    defaultFolder = { id: fetchedDefault.id } as any;
-                } else {
-                    throw new Error('Default folder not found');
-                }
-            }
-
-            const inserts = [];
-
-            // Always add to "All" folder
-            inserts.push({
-                folder_id: defaultFolder!.id,
-                product_id: productId,
-                user_id: user.id
-            });
-
-            // If a specific folder was selected and it's not the "All" folder
-            if (folderId && folderId !== defaultFolder!.id) {
-                inserts.push({
-                    folder_id: folderId,
-                    product_id: productId,
-                    user_id: user.id
-                });
-            }
-
-            // Use upsert to handle duplicates gracefully (UNIQUE constraint on folder_id, product_id)
             const { error } = await (supabase as any)
                 .from('favorites_items')
-                .upsert(inserts, { onConflict: 'folder_id, product_id' });
-
-            if (error) {
-                // Rollback on error
-                setFavoritedProductIds(prev => {
-                    const next = new Set(prev);
-                    next.delete(productId);
-                    return next;
-                });
-                throw error;
-            }
-            
+                .upsert({ folder_id: targetFolderId, product_id: productId, user_id: user.id }, 
+                        { onConflict: 'folder_id, product_id' });
+            if (error) throw error;
             await fetchFolders();
             return true;
         } catch (error) {
-            // Rollback on error
-            setFavoritedProductIds(prev => {
-                const next = new Set(prev);
-                next.delete(productId);
-                return next;
-            });
-            console.error('[useFavorites] Error adding to favorites:', error);
-            throw error;
+            Alert.alert('Operation Failed', 'Could not add the item to the collection.');
+            return false;
         } finally {
             setLoading(false);
         }
-    }, [user?.id, folders, fetchFolders]);
+    };
 
     const removeFromFolder = useCallback(async (productId: string, folderId: string) => {
         if (!user?.id) return;
-
-        // Optimistic update if removing from default (which removes from all)
-        const folder = folders.find(f => f.id === folderId);
-        const isRemovingFromAll = folder?.is_default;
-        
-        let previousFavoritedIds: Set<string> | null = null;
-        if (isRemovingFromAll) {
-            setFavoritedProductIds(prev => {
-                previousFavoritedIds = new Set(prev);
-                const next = new Set(prev);
-                next.delete(productId);
-                return next;
-            });
-        }
-
         try {
             setLoading(true);
             const { error } = await (supabase as any)
                 .from('favorites_items')
                 .delete()
                 .match({ product_id: productId, folder_id: folderId, user_id: user.id });
-
             if (error) throw error;
-
-            if (isRemovingFromAll) {
-                // Fully delete from all folders
-                await (supabase as any)
-                    .from('favorites_items')
-                    .delete()
-                    .match({ product_id: productId, user_id: user.id });
-            }
-
             await fetchFolders();
         } catch (error) {
-            // Rollback on error
-            if (isRemovingFromAll && previousFavoritedIds) {
-                setFavoritedProductIds(previousFavoritedIds);
-            }
             console.error('[useFavorites] Error removing item:', error);
         } finally {
             setLoading(false);
         }
-    }, [user?.id, folders, fetchFolders]);
+    }, [user?.id, fetchFolders]);
 
     const fetchItemsByFolder = useCallback(async (folderId: string) => {
         if (!user?.id) return [];
         try {
             const { data, error } = await (supabase as any)
                 .from('favorites_items')
-                .select(`
-                    *,
-                    product:products(
-                        *,
-                        images:product_images(image_url, is_primary),
-                        seller:sellers(store_name)
-                    )
-                `)
+                .select(`*, product:products(*, images:product_images(image_url, is_primary), seller:sellers(store_name)), folder:favorites_folders(*)`)
                 .eq('folder_id', folderId)
                 .eq('user_id', user.id)
                 .order('created_at', { ascending: false });
-
             if (error) throw error;
             return data as FavoritesItem[];
         } catch (error) {
@@ -376,26 +342,14 @@ export const useFavorites = () => {
 
     useEffect(() => {
         fetchFolders();
-
-        // Real-time subscription
-        const foldersChannel = (supabase as any)
-            .channel('favorites-changes')
-            .on(
-                'postgres_changes',
-                { event: '*', schema: 'public', table: 'favorites_folders', filter: `user_id=eq.${user?.id}` },
-                () => fetchFolders()
-            )
-            .on(
-                'postgres_changes',
-                { event: '*', schema: 'public', table: 'favorites_items', filter: `user_id=eq.${user?.id}` },
-                () => fetchFolders()
-            )
+        const channel = (supabase as any)
+            .channel('favorites-all')
+            .on('postgres_changes', { event: '*', schema: 'public', table: 'favorites_folders', filter: `user_id=eq.${user?.id}` }, () => fetchFolders())
+            .on('postgres_changes', { event: '*', schema: 'public', table: 'favorites_items', filter: `user_id=eq.${user?.id}` }, () => fetchFolders())
             .subscribe();
+        return () => { channel.unsubscribe(); };
+    }, [user?.id, fetchFolders]);
 
-        return () => {
-            supabase.removeChannel(foldersChannel);
-        };
-    }, [fetchFolders, user?.id]);
     return {
         folders,
         loading,
@@ -405,8 +359,10 @@ export const useFavorites = () => {
         deleteCollection,
         addToFavorites,
         removeFromFolder,
+        moveToFolder,
         fetchItemsByFolder,
         isFavorited: (productId: string) => favoritedProductIds.has(productId),
-        getItemFolders: (productId: string) => itemFolders[productId] || []
+        getItemFolders: (productId: string) => itemFolders[productId] || [],
+        getItemFolderIds: (productId: string) => itemFolderIds[productId] || []
     };
 };

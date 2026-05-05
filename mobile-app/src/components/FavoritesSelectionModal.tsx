@@ -74,8 +74,9 @@ export const FavoritesSelectionModal = ({ visible, onClose, product }: Favorites
         setIsSaving(true);
         try {
             await addToFavorites(product.id, folderId);
-            showSuccess('Saved to favorites!');
-            setTimeout(handleClose, 1000); 
+            const folder = folders.find(f => f.id === folderId);
+            showSuccess(`Saved to ${folder?.name || 'favorites'}`);
+            setTimeout(handleClose, 1200); 
         } catch (error) {
             Alert.alert('Error', 'Failed to save product');
         } finally {
@@ -83,18 +84,20 @@ export const FavoritesSelectionModal = ({ visible, onClose, product }: Favorites
         }
     };
 
-    const handleCreateCollectionOnly = async () => {
+    const handleCreateAndSave = async () => {
         if (!newFolderName.trim() || isSaving) return;
         setIsSaving(true);
         try {
-            const newFolder = await createCollection(newFolderName);
+            // Passing product.id triggers the dual-insert logic (New Folder + All Folder)
+            const newFolder = await createCollection(newFolderName, product.id);
             if (newFolder) {
-                showSuccess(`Collection "${newFolderName}" created!`);
+                showSuccess(`Saved to new collection "${newFolderName}"`);
                 setNewFolderName('');
-                setIsCreating(false); // Switch back to list view
+                setIsCreating(false);
+                setTimeout(handleClose, 1200);
             }
         } catch (error) {
-            Alert.alert('Error', 'Failed to create collection');
+            Alert.alert('Error', 'Failed to create collection and save product');
         } finally {
             setIsSaving(false);
         }
@@ -163,7 +166,7 @@ export const FavoritesSelectionModal = ({ visible, onClose, product }: Favorites
                                             <Text style={styles.cancelBtnText}>Cancel</Text>
                                         </Pressable>
                                         <Pressable 
-                                            onPress={handleCreateCollectionOnly}
+                                            onPress={handleCreateAndSave}
                                             disabled={!newFolderName.trim() || isSaving}
                                             style={[styles.confirmBtn, (!newFolderName.trim() || isSaving) && styles.disabledBtn]}
                                         >
@@ -179,19 +182,15 @@ export const FavoritesSelectionModal = ({ visible, onClose, product }: Favorites
                                 <View style={styles.listContainer}>
                                     <Text style={styles.sectionTitle}>Your Collections</Text>
                                     
-                                    {folders.map((folder) => (
+                                    {folders.filter(f => !f.is_default && f.name.toLowerCase() !== 'all').map((folder) => (
                                         <Pressable
                                             key={folder.id}
                                             onPress={() => handleSelectFolder(folder.id)}
                                             disabled={isSaving}
                                             style={[styles.folderRow, isSaving && { opacity: 0.5 }]}
                                         >
-                                            <View style={[styles.folderIcon, folder.is_default ? styles.defaultFolderIcon : styles.customFolderIcon]}>
-                                                {folder.is_default ? (
-                                                    <Heart size={22} color={COLORS.primary} fill={COLORS.primary} />
-                                                ) : (
-                                                    <Folder size={22} color="#6B7280" />
-                                                )}
+                                            <View style={[styles.folderIcon, styles.customFolderIcon]}>
+                                                <Folder size={22} color="#6B7280" />
                                             </View>
                                             <View style={styles.folderInfo}>
                                                 <Text style={styles.folderName}>{folder.name}</Text>

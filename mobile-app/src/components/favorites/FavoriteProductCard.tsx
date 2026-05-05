@@ -13,6 +13,8 @@ interface FavoriteProductCardProps {
     onAddToCart: (quantity: number) => void;
     isInCart?: boolean;
     folderName?: string;
+    onMove?: () => void;
+    showMove?: boolean;
 }
 export const FavoriteProductCard: React.FC<FavoriteProductCardProps> = ({ 
     product, 
@@ -21,7 +23,9 @@ export const FavoriteProductCard: React.FC<FavoriteProductCardProps> = ({
     onPress,
     onAddToCart,
     isInCart = false,
-    folderName
+    folderName,
+    onMove,
+    showMove = false
 }) => {
     const [quantity, setQuantity] = React.useState(1);
     const basePrice = typeof product.price === 'number' ? product.price : parseFloat(String(product.price || 0));
@@ -95,6 +99,11 @@ export const FavoriteProductCard: React.FC<FavoriteProductCardProps> = ({
                                 <Text style={styles.folderBadgeText}>{folderName}</Text>
                             </View>
                         )}
+                        {showMove && !folderName && (
+                            <View style={[styles.folderBadge, { backgroundColor: '#F3F4F6', borderColor: '#E5E7EB' }]}>
+                                <Text style={[styles.folderBadgeText, { color: '#6B7280' }]}>Unorganized</Text>
+                            </View>
+                        )}
                     </View>
                 </View>
 
@@ -132,6 +141,17 @@ export const FavoriteProductCard: React.FC<FavoriteProductCardProps> = ({
                     </View>
 
                     <View style={styles.rightActions}>
+                        {showMove && (
+                            <Pressable 
+                                onPress={(e) => {
+                                    e.stopPropagation();
+                                    onMove?.();
+                                }}
+                                style={[styles.actionBtn, { backgroundColor: '#F0F9FF', borderColor: '#E0F2FE' }]}
+                            >
+                                <Folder size={16} color="#0284C7" />
+                            </Pressable>
+                        )}
                         <Pressable 
                             onPress={onRemove}
                             style={styles.actionBtn}

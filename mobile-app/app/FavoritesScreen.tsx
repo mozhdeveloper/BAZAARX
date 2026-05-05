@@ -16,7 +16,7 @@ import {
     Platform,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { ChevronLeft, PlusCircle, Ghost, Heart, Trash2, Edit2, X } from 'lucide-react-native';
+import { ChevronLeft, PlusCircle, Ghost, Heart, Trash2, Edit2, X, Folder } from 'lucide-react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useNavigation } from '@react-navigation/native';
 import { useFavorites, FavoritesFolder } from '../src/hooks/useFavorites';
@@ -27,13 +27,15 @@ import { discountService } from '../src/services/discountService';
 import { ActiveDiscount } from '../src/types/discount';
 import { useCartStore } from '../src/stores/cartStore';
 import { AddedToCartModal } from '../src/components/AddedToCartModal';
+import { DeletionSuccessModal } from '../src/components/DeletionSuccessModal';
+import { CategorizedSuccessModal } from '../src/components/CategorizedSuccessModal';
 
 type TabType = 'all' | 'collections';
 
 export default function FavoritesScreen() {
     const insets = useSafeAreaInsets();
     const navigation = useNavigation<any>();
-    const { folders, loading, fetchFolders, fetchItemsByFolder, removeFromFolder, createCollection, updateCollection, deleteCollection, getItemFolders } = useFavorites();
+    const { folders, loading, fetchFolders, fetchItemsByFolder, removeFromFolder, moveToFolder, createCollection, updateCollection, deleteCollection, getItemFolders, getItemFolderIds } = useFavorites();
 
     const [activeTab, setActiveTab] = useState<TabType>('all');
     const [items, setItems] = useState<any[]>([]);
@@ -45,13 +47,22 @@ export default function FavoritesScreen() {
     const [newCollectionName, setNewCollectionName] = useState('');
     const [isCreateModalVisible, setIsCreateModalVisible] = useState(false);
     const [isEditModalVisible, setIsEditModalVisible] = useState(false);
+    const [isDeleteModalVisible, setIsDeleteModalVisible] = useState(false);
     const [editCollectionName, setEditCollectionName] = useState('');
+    const [isDeleting, setIsDeleting] = useState(false);
     const [showAddedToCartModal, setShowAddedToCartModal] = useState(false);
+    const [showDeletionModal, setShowDeletionModal] = useState(false);
+    const [showCategorizedModal, setShowCategorizedModal] = useState(false);
+    const [deletedCollectionName, setDeletedCollectionName] = useState('');
+    const [targetCollectionName, setTargetCollectionName] = useState('');
     const [isAddingToCart, setIsAddingToCart] = useState(false);
     const [addedProductInfo, setAddedProductInfo] = useState({ name: '', image: '' });
     const [showDuplicateModal, setShowDuplicateModal] = useState(false);
     const [pendingProduct, setPendingProduct] = useState<any>(null);
     const [pendingQuantity, setPendingQuantity] = useState(1);
+    const [isMoveModalVisible, setIsMoveModalVisible] = useState(false);
+    const [productToMove, setProductToMove] = useState<any>(null);
+    const [isMoving, setIsMoving] = useState(false);
 
     const cartItems = useCartStore(state => state.items);
     const addItemToCart = useCartStore(state => state.addItem);
@@ -62,7 +73,7 @@ export default function FavoritesScreen() {
         try {
             let fetchedItems: any[] = [];
             if (activeTab === 'all') {
-                const allFolder = folders.find(f => f.is_default);
+                const allFolder = folders.find((f: FavoritesFolder) => f.is_default);
                 if (allFolder) {
                     fetchedItems = await fetchItemsByFolder(allFolder.id);
                 }
@@ -107,7 +118,7 @@ export default function FavoritesScreen() {
 
     const handleRemove = (productId: string) => {
         const targetFolderId = activeTab === 'all' 
-            ? folders.find(f => f.is_default)?.id 
+            ? folders.find((f: FavoritesFolder) => f.is_default)?.id 
             : selectedFolder?.id;
 
         if (!targetFolderId) return;
@@ -129,6 +140,34 @@ export default function FavoritesScreen() {
                 }
             ]
         );
+    };
+
+    const handleMove = (product: any) => {
+        setProductToMove(product);
+        setIsMoveModalVisible(true);
+    };
+
+    const confirmMove = async (targetFolderId: string) => {
+        if (!productToMove) return;
+        
+        try {
+            setIsMoving(true);
+            const success = await moveToFolder(productToMove.product_id, targetFolderId);
+            if (success) {
+                const folder = folders.find(f => f.id === targetFolderId);
+                setTargetCollectionName(folder?.name || 'Collection');
+                setIsMoveModalVisible(false);
+                setProductToMove(null);
+                loadContent();
+                setTimeout(() => {
+                    setShowCategorizedModal(true);
+                }, 300);
+            }
+        } catch (err) {
+            // Error handled by hook alert
+        } finally {
+            setIsMoving(false);
+        }
     };
 
     const handleAddToCart = async (product: any, quantity: number) => {
@@ -200,22 +239,45 @@ export default function FavoritesScreen() {
 
     const handleDeleteFolder = () => {
         if (!selectedFolder) return;
-        Alert.alert(
-            'Delete Collection',
-            `Are you sure you want to delete "${selectedFolder.name}"? All items inside will be removed from this collection.`,
-            [
-                { text: 'Cancel', style: 'cancel' },
-                { 
-                    text: 'Delete', 
-                    style: 'destructive',
-                    onPress: async () => {
-                        await deleteCollection(selectedFolder.id);
-                        setSelectedFolder(null);
-                        fetchFolders();
-                    }
-                }
-            ]
-        );
+        
+        if (selectedFolder.is_default || selectedFolder.name?.toLowerCase() === 'all') {
+            Alert.alert('Protected Folder', 'The default "All" collection is essential and cannot be deleted.');
+            return;
+        }
+        
+        setIsDeleteModalVisible(true);
+    };
+
+    const confirmDeleteFolder = async () => {
+        if (!selectedFolder) {
+            return;
+        }
+        
+        try {
+            setIsDeleting(true);
+            const folderName = selectedFolder.name;
+            const success = await deleteCollection(selectedFolder.id);
+            
+            if (success) {
+                setDeletedCollectionName(folderName);
+                setIsDeleteModalVisible(false);
+                
+                setTimeout(() => {
+                    setSelectedFolder(null);
+                    setActiveTab('collections');
+                    // Show success toast
+                    setTimeout(() => {
+                        setShowDeletionModal(true);
+                    }, 300);
+                }, 150);
+            } else {
+                setIsDeleteModalVisible(false);
+            }
+        } catch (error) {
+            setIsDeleteModalVisible(false);
+        } finally {
+            setIsDeleting(false);
+        }
     };
 
     const ProductSkeleton = () => (
@@ -373,7 +435,7 @@ export default function FavoritesScreen() {
                         </View>
 
                         <FlatList
-                            data={showSkeletons ? [1, 2, 3, 4] : (activeTab === 'all' ? items : folders.filter(f => !f.is_default))}
+                            data={showSkeletons ? [1, 2, 3, 4] : (activeTab === 'all' ? items : folders.filter((f: FavoritesFolder) => !f.is_default))}
                             keyExtractor={(item, index) => (showSkeletons ? `skeleton-${index}` : (item.id || String(index)))}
                             renderItem={({ item }) => (
                                 showSkeletons ? (
@@ -386,6 +448,8 @@ export default function FavoritesScreen() {
                                             onPress={() => navigation.navigate('ProductDetail', { product: item.product })}
                                             onRemove={() => handleRemove(item.product_id)}
                                             onAddToCart={(qty: number) => handleAddToCart(item.product, qty)}
+                                            onMove={() => handleMove(item)}
+                                            showMove={activeTab === 'all'}
                                             isInCart={cartItems.some(ci => ci.id === item.product_id)}
                                             folderName={getItemFolders(item.product_id)[0]}
                                         />
@@ -480,7 +544,6 @@ export default function FavoritesScreen() {
                             onChangeText={setEditCollectionName}
                             autoFocus
                         />
-                        
                         <Pressable 
                             style={[styles.modalButton, styles.confirmButton, !editCollectionName.trim() && styles.disabledButton]}
                             onPress={confirmEditFolder}
@@ -492,11 +555,68 @@ export default function FavoritesScreen() {
                 </View>
             </Modal>
 
+            {/* Delete Confirmation Modal */}
+            <Modal
+                visible={isDeleteModalVisible}
+                transparent={true}
+                animationType="fade"
+                onRequestClose={() => setIsDeleteModalVisible(false)}
+            >
+                <View style={styles.modalOverlay}>
+                    <View style={styles.modalContent}>
+                        <View style={styles.modalHeader}>
+                            <Text style={styles.modalTitle}>Delete Collection</Text>
+                            <Pressable onPress={() => setIsDeleteModalVisible(false)} disabled={isDeleting}>
+                                <X size={20} color="#6B7280" />
+                            </Pressable>
+                        </View>
+                        
+                        <Text style={styles.modalSubtitle}>
+                            Are you sure you want to delete "{selectedFolder?.name}"? 
+                            This action will permanently remove all items from this collection.
+                        </Text>
+                        
+                        <View style={styles.modalButtons}>
+                            <Pressable 
+                                style={[styles.modalButton, styles.cancelButton, { flex: 1 }]} 
+                                onPress={() => setIsDeleteModalVisible(false)}
+                                disabled={isDeleting}
+                            >
+                                <Text style={styles.cancelButtonText}>Cancel</Text>
+                            </Pressable>
+                            <Pressable 
+                                style={[styles.modalButton, styles.confirmButton, { flex: 1, backgroundColor: '#DC2626' }]} 
+                                onPress={confirmDeleteFolder}
+                                disabled={isDeleting}
+                            >
+                                {isDeleting ? (
+                                    <ActivityIndicator color="white" />
+                                ) : (
+                                    <Text style={styles.confirmButtonText}>Delete</Text>
+                                )}
+                            </Pressable>
+                        </View>
+                    </View>
+                </View>
+            </Modal>
+
             <AddedToCartModal
                 visible={showAddedToCartModal}
                 onClose={() => setShowAddedToCartModal(false)}
                 productName={addedProductInfo.name}
                 productImage={addedProductInfo.image}
+            />
+
+            <DeletionSuccessModal
+                visible={showDeletionModal}
+                onClose={() => setShowDeletionModal(false)}
+                collectionName={deletedCollectionName}
+            />
+
+            <CategorizedSuccessModal
+                visible={showCategorizedModal}
+                onClose={() => setShowCategorizedModal(false)}
+                collectionName={targetCollectionName}
             />
 
             {/* Duplicate Item Alert Modal */}
@@ -546,6 +666,72 @@ export default function FavoritesScreen() {
                                 <Text style={styles.confirmButtonText}>Add Again</Text>
                             </Pressable>
                         </View>
+                    </View>
+                </View>
+            </Modal>
+
+            {/* Move to Folder Modal */}
+            <Modal
+                visible={isMoveModalVisible}
+                transparent={true}
+                animationType="slide"
+                onRequestClose={() => setIsMoveModalVisible(false)}
+            >
+                <View style={styles.modalOverlay}>
+                    <View style={[styles.modalContent, { maxHeight: '70%' }]}>
+                        <View style={styles.modalHeader}>
+                            <View>
+                                <Text style={styles.modalTitle}>Add to Collection</Text>
+                                <Text style={styles.modalSubtitle}>Select a folder for this item</Text>
+                            </View>
+                            <Pressable onPress={() => setIsMoveModalVisible(false)}>
+                                <X size={20} color="#6B7280" />
+                            </Pressable>
+                        </View>
+
+                        <ScrollView style={{ marginVertical: 16 }}>
+                            {folders.filter(f => !f.is_default && f.name.toLowerCase() !== 'all').map(folder => {
+                                const isAlreadyInFolder = productToMove ? getItemFolderIds(productToMove.product_id).includes(folder.id) : false;
+                                
+                                return (
+                                    <Pressable
+                                        key={folder.id}
+                                        style={({ pressed }) => [
+                                            styles.folderSelectionItem,
+                                            pressed && !isAlreadyInFolder && { backgroundColor: '#F3F4F6' },
+                                            isAlreadyInFolder && { opacity: 0.6, backgroundColor: '#F9FAFB' }
+                                        ]}
+                                        onPress={() => !isAlreadyInFolder && confirmMove(folder.id)}
+                                        disabled={isMoving || isAlreadyInFolder}
+                                    >
+                                        <View style={[styles.folderIconContainer, isAlreadyInFolder && { backgroundColor: '#E5E7EB' }]}>
+                                            <Folder size={20} color={isAlreadyInFolder ? '#9CA3AF' : COLORS.primary} />
+                                        </View>
+                                        <View style={{ flex: 1 }}>
+                                            <Text style={[styles.folderSelectionName, isAlreadyInFolder && { color: '#9CA3AF' }]}>{folder.name}</Text>
+                                            <Text style={styles.folderSelectionCount}>
+                                                {isAlreadyInFolder ? 'Already in this collection' : `${folder.item_count || 0} items`}
+                                            </Text>
+                                        </View>
+                                    </Pressable>
+                                );
+                            })}
+                            
+                            {folders.filter(f => !f.is_default && f.name.toLowerCase() !== 'all').length === 0 && (
+                                <View style={styles.emptyState}>
+                                    <Ghost size={40} color="#D1D5DB" />
+                                    <Text style={styles.emptyStateText}>No collections created yet</Text>
+                                </View>
+                            )}
+                        </ScrollView>
+
+                        <Pressable 
+                            style={[styles.modalButton, styles.cancelButton]} 
+                            onPress={() => setIsMoveModalVisible(false)}
+                            disabled={isMoving}
+                        >
+                            <Text style={styles.cancelButtonText}>Cancel</Text>
+                        </Pressable>
                     </View>
                 </View>
             </Modal>
@@ -917,5 +1103,41 @@ const styles = StyleSheet.create({
         fontSize: 12,
         color: '#6B7280',
         marginTop: 2,
+    },
+    folderSelectionItem: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        padding: 12,
+        borderRadius: 12,
+        marginBottom: 8,
+        borderWidth: 1,
+        borderColor: '#F3F4F6',
+    },
+    folderIconContainer: {
+        width: 40,
+        height: 40,
+        borderRadius: 20,
+        backgroundColor: '#FFF7ED',
+        justifyContent: 'center',
+        alignItems: 'center',
+        marginRight: 12,
+    },
+    folderSelectionName: {
+        fontSize: 16,
+        fontWeight: '600',
+        color: '#111827',
+    },
+    folderSelectionCount: {
+        fontSize: 12,
+        color: '#6B7280',
+    },
+    emptyState: {
+        alignItems: 'center',
+        padding: 24,
+    },
+    emptyStateText: {
+        marginTop: 8,
+        color: '#9CA3AF',
+        fontSize: 14,
     },
 });

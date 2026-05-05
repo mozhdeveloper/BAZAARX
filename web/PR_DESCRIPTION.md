@@ -7,28 +7,22 @@ This PR implements the comprehensive **Favorites** module for the BAZAARX mobile
 
 ### 1. Advanced Collection Management
 - **Folders & Collections**: Users can now create, rename, and delete custom collections (folders) to organize their favorite products.
-- **Robust Deletion**: Implemented manual cleanup of collection items during deletion to ensure database integrity and resolve constraint issues.
-- **System Folders**: Integrated a protected "All" view that consolidates every favorited product across all collections.
+- **System Folders**: Integrated a protected "All Items" view that consolidates every favorited product across all collections.
 - **Themed Modals**: Implemented premium, consistent modals for creating and editing collection names.
 
 ### 2. Premium UX & UI Standardisation
-- **Favorites Screen**: A new dual-tab interface ("All" & "Collections") that matches the soft-amber aesthetic of the BAZAARX brand.
+- **Favorites Screen**: A new dual-tab interface ("All Items" & "Collections") that matches the soft-amber aesthetic of the BAZAARX brand.
 - **Action Icons**: Synchronized "Edit" (pencil) and "Delete" (trash) icons with the Wishlist module for a familiar user experience.
 - **Dynamic Header**: 
     - The "Collections" tab features a "Create" button.
-    - The "All" tab features an "Add Item" button that navigates directly to the Shop page to encourage discovery.
+    - The "All Items" tab features an "Add Item" button that navigates directly to the Shop page to encourage discovery.
 - **Loading States**: Added semi-transparent loading overlays for "Add to Cart" and database operations to provide immediate visual feedback.
 
 ### 3. Product & Cart Integration
-- **Favorites Selection Modal**: 
-    - Optimized layout with constrained `maxHeight` and internal `ScrollView` to handle many collections without cutting off the "Create New Collection" button.
-    - Users can choose specific folders when favoriting a product from the Product Detail page.
-- **Product Card Indicators**:
-    - **Folder Names**: Added a styled badge to `FavoriteProductCard` to show which collection an item belongs to (especially useful in "All").
-    - **Cart Status**: Integrated an "In Cart" badge in the upper right with proper text wrapping to prevent name overlap.
+- **Favorites Selection Modal**: Users can choose specific folders when favoriting a product from the Product Detail page.
 - **Cart Sync**: 
     - Resolved synchronization issues where cart items would disappear after a hard refresh.
-    - Implemented a custom themed "Already in Cart" modal to handle duplicate additions gracefully while keeping the "Add" button active for further actions.
+    - Implemented a custom themed "Already in Cart" modal to handle duplicate additions gracefully.
 - **Real-time Price Sync**: Integrated flash sale pricing logic within the Favorites view to ensure users always see the latest accurate prices.
 
 ### 4. Technical Implementation
