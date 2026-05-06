@@ -1237,19 +1237,11 @@ export default function HomeScreen({ navigation }: Props) {
                   </View>
                   <View style={{ flex: 1 }}>
                     <Text style={styles.labBannerEyebrow}>BAZAARX</Text>
-                    <Text style={styles.labBannerTitle}>Lab Pipeline</Text>
+                    <Text style={styles.labBannerTitle}>Community Request</Text>
                     <Text style={styles.labBannerSub}>Community-requested & tested products</Text>
                   </View>
                 </View>
                 <View style={styles.labBannerRight}>
-                  <View style={styles.labStatChip}>
-                    <Flame size={11} color="#FCD34D" />
-                    <Text style={styles.labStatText}>Community</Text>
-                  </View>
-                  <View style={[styles.labStatChip, { marginTop: 4 }]}>
-                    <TrendingUp size={11} color="#6EE7B7" />
-                    <Text style={styles.labStatText}>Verified</Text>
-                  </View>
                   <View style={styles.labExploreBtn}>
                     <Text style={styles.labExploreBtnText}>Explore →</Text>
                   </View>

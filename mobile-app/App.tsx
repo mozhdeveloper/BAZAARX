@@ -318,14 +318,6 @@ function MainTabs() {
             tabBarIcon: ({ color, size }) => <User size={size} color={color} />,
           }}
         />
-        <Tab.Screen
-          name="Discover"
-          getComponent={() => require('./app/DiscoverScreen').default}
-          options={{
-            tabBarLabel: 'Lab',
-            tabBarIcon: ({ color, size }) => <FlaskConical size={size} color={color} />,
-          }}
-        />
       </Tab.Navigator>
     </ErrorBoundary>
   );

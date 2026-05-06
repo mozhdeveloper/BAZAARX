@@ -15,9 +15,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import {
   ChevronLeft,
   Search,
-  FlaskConical,
-  Flame,
-  TrendingUp,
+  Users,
   Package,
   Plus,
   ShieldCheck,
@@ -70,7 +68,7 @@ const STATUS_CONFIG: Record<string, { label: string; emoji: string; color: strin
   on_hold:               { label: 'On Hold',         emoji: '⏸️', color: '#92400E', bg: '#FFFBEB', border: '#FDE68A' },
   converted_to_listing:  { label: 'Listed 🎉',       emoji: '🚀', color: '#166534', bg: '#F0FDF4', border: '#BBF7D0' },
   // Legacy aliases
-  pending:               { label: 'Gathering',       emoji: '📍', color: '#92400E', bg: '#FFFBEB', border: '#FDE68A' },
+  pending:               { label: 'Submitted',      emoji: '📍', color: '#92400E', bg: '#FFFBEB', border: '#FDE68A' },
   in_progress:           { label: 'Sourcing',        emoji: '🔍', color: '#1E40AF', bg: '#EFF6FF', border: '#BFDBFE' },
   approved:              { label: 'Verified',        emoji: '✅', color: '#166534', bg: '#F0FDF4', border: '#BBF7D0' },
   rejected:              { label: 'Rejected',        emoji: '❌', color: '#991B1B', bg: '#FEF2F2', border: '#FECACA' },
@@ -104,9 +102,8 @@ export default function LabPipelineScreen({ navigation }: Props) {
       .from('product_requests')
       .select('*')
       .not('status', 'in', '(rejected,on_hold)')
-      .order('staked_bazcoins', { ascending: false })
       .order('demand_count', { ascending: false })
-      .order('votes', { ascending: false });
+      .order('created_at', { ascending: false });
 
     if (!error && data) setRequests(data as unknown as ProductRequest[]);
     setLoading(false);
@@ -133,7 +130,7 @@ export default function LabPipelineScreen({ navigation }: Props) {
         const matchStatus = !filterStatus || r.status === filterStatus;
         return matchSearch && matchStatus;
       })
-      .sort((a, b) => (b.votes + b.estimated_demand) - (a.votes + a.estimated_demand));
+      .sort((a, b) => (b.demand_count || 0) - (a.demand_count || 0));
   }, [requests, searchQuery, filterStatus]);
 
   const counts = useMemo(() => {
@@ -142,14 +139,7 @@ export default function LabPipelineScreen({ navigation }: Props) {
     return c;
   }, [requests]);
 
-  const totalVotes = useMemo(() => requests.reduce((s, r) => s + (r.votes || 0), 0), [requests]);
-  const totalPledges = useMemo(() => requests.reduce((s, r) => s + (r.estimated_demand || 0), 0), [requests]);
-
-  const labProgress = (r: ProductRequest) => {
-    if (r.status === 'approved') return 100;
-    if (r.status === 'in_progress') return 35;
-    return 10;
-  };
+  const totalSupporters = useMemo(() => requests.reduce((s, r) => s + (r.demand_count || 0), 0), [requests]);
 
   return (
     <View style={[styles.container, { paddingTop: insets.top }]}>
@@ -169,14 +159,14 @@ export default function LabPipelineScreen({ navigation }: Props) {
           </Pressable>
           <View style={styles.headerTitleRow}>
             <View style={styles.flaskIcon}>
-              <FlaskConical size={18} color="#FFFFFF" />
+              <Users size={18} color="#FFFFFF" />
             </View>
-            <Text style={styles.headerTitle}>Bazaarx Lab Pipeline</Text>
+            <Text style={styles.headerTitle}>Community Request</Text>
           </View>
           <View style={styles.backBtn} />
         </View>
         <Text style={styles.headerSubtitle}>
-          Community-requested products • verified before they go live
+          Community-requested products
         </Text>
 
         {/* Stat chips */}
@@ -258,15 +248,14 @@ export default function LabPipelineScreen({ navigation }: Props) {
           <>
             {filtered.map(r => {
               const cfg = STATUS_CONFIG[r.status] ?? STATUS_CONFIG.pending;
-              const heat = (r.votes || 0) + (r.estimated_demand || 0);
-              const progress = labProgress(r);
+
               return (
                 <Pressable
                   key={r.id}
                   style={({ pressed }) => [styles.card, pressed && styles.cardPressed]}
                   onPress={() => navigation.navigate('ProductRequestDetail', { requestId: r.id })}
                 >
-                  {/* Top row: status + heat */}
+                  {/* Top row: status + supporter count */}
                   <View style={styles.cardTopRow}>
                     <View style={[styles.statusPill, { backgroundColor: cfg.bg, borderColor: cfg.border }]}>
                       <Text style={[styles.statusText, { color: cfg.color }]}>
@@ -274,8 +263,8 @@ export default function LabPipelineScreen({ navigation }: Props) {
                       </Text>
                     </View>
                     <View style={styles.heatChip}>
-                      <Flame size={13} color={COLORS.primary} />
-                      <Text style={styles.heatValue}>{heat}</Text>
+                      <Users size={12} color={COLORS.primary} />
+                      <Text style={styles.heatValue}>{r.demand_count || 0}</Text>
                     </View>
                   </View>
 
@@ -286,31 +275,6 @@ export default function LabPipelineScreen({ navigation }: Props) {
                   {!!r.description && (
                     <Text style={styles.cardDesc} numberOfLines={2}>{r.description}</Text>
                   )}
-
-                  {/* Stats row */}
-                  <View style={styles.statsRow}>
-                    <View style={styles.statItem}>
-                      <TrendingUp size={12} color="#6366F1" />
-                      <Text style={styles.statItemText}>{r.votes || 0} upvotes</Text>
-                    </View>
-                    <View style={styles.statItem}>
-                      <Text style={styles.statItemText}>💰 {r.estimated_demand || 0} pledges</Text>
-                    </View>
-                  </View>
-
-                  {/* Progress bar */}
-                  <View style={styles.progressRow}>
-                    <Text style={styles.progressLabel}>Lab Progress</Text>
-                    <View style={styles.progressTrack}>
-                      <LinearGradient
-                        colors={[COLORS.primary, '#E58C1A']}
-                        start={{ x: 0, y: 0 }}
-                        end={{ x: 1, y: 0 }}
-                        style={[styles.progressFill, { width: `${progress}%` as any }]}
-                      />
-                    </View>
-                    <Text style={styles.progressPct}>{progress}%</Text>
-                  </View>
 
                   {/* Footer */}
                   <View style={styles.cardFooter}>
@@ -327,12 +291,12 @@ export default function LabPipelineScreen({ navigation }: Props) {
               );
             })}
 
-            {/* ── MARKETPLACE ACTIVITY ── */}
+            {/* ── COMMUNITY STATS ── */}
             <View style={styles.activityBar}>
               {[
-                { value: totalVotes.toLocaleString(), label: 'Community Votes' },
-                { value: totalPledges.toLocaleString(), label: 'Active Pledges' },
-                { value: String(counts.approved ?? 0), label: 'Lab Verified' },
+                { value: String(requests.length),              label: 'Total Requests' },
+                { value: totalSupporters.toLocaleString(),      label: 'Community Supporters' },
+                { value: String(counts.approved ?? 0),          label: 'Verified' },
               ].map(({ value, label }) => (
                 <View key={label} style={styles.activityItem}>
                   <Text style={styles.activityValue}>{value}</Text>
@@ -364,7 +328,7 @@ export default function LabPipelineScreen({ navigation }: Props) {
             {/* ── REQUEST CTA ── */}
             <View style={styles.ctaSection}>
               <Text style={styles.ctaTitle}>Don't see what you need?</Text>
-              <Text style={styles.ctaSubtitle}>Request it — the community votes, we source + test it.</Text>
+              <Text style={styles.ctaSubtitle}>Request it — the community supports it, we work to bring it here.</Text>
               <Pressable
                 style={({ pressed }) => [styles.requestCta, { marginTop: 14 }, pressed && { opacity: 0.85 }]}
                 onPress={() => setShowRequestModal(true)}
