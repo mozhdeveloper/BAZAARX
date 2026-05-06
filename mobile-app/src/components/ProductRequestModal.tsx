@@ -257,14 +257,6 @@ export default function ProductRequestModal({ visible, onClose }: ProductRequest
                 onChangeText={setQuantity}
               />
             </View>
-
-            {/* Info Box */}
-            <View style={styles.infoBox}>
-              <Text style={styles.infoText}>
-                💡 Your request will be reviewed by our team. We'll notify you once a seller
-                offers this product!
-              </Text>
-            </View>
           </ScrollView>
 
           {/* Footer */}
