@@ -18,7 +18,8 @@ import {
   ShoppingBag,
   Star,
   Timer,
-  TrendingUp
+  TrendingUp,
+  Users
 } from 'lucide-react-native';
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
@@ -215,6 +216,7 @@ export default function HomeScreen({ navigation }: Props) {
   const [showGuestModal, setShowGuestModal] = useState(false);
   const [showCameraSearch, setShowCameraSearch] = useState(false);
   const [showProductRequest, setShowProductRequest] = useState(false);
+  const [topProductRequests, setTopProductRequests] = useState<{ id: string; product_name: string; demand_count: number }[]>([]);
   const [isSearchFocused, setIsSearchFocused] = useState(false);
   const [sellers, setSellers] = useState<any[]>([]);
   const [searchQuery, setSearchQuery] = useState('');
@@ -247,6 +249,18 @@ export default function HomeScreen({ navigation }: Props) {
   const [debouncedSearchQuery, setDebouncedSearchQuery] = useState('');
 
   const [dbCategories, setDbCategories] = useState<Category[]>([]); //
+
+  useEffect(() => {
+    supabase
+      .from('product_requests')
+      .select('id, product_name, demand_count')
+      .not('status', 'in', '(rejected,on_hold)')
+      .order('demand_count', { ascending: false })
+      .limit(3)
+      .then(({ data }) => {
+        if (data) setTopProductRequests(data as any);
+      });
+  }, []);
 
   const [showOnboardingModal, setShowOnboardingModal] = useState(false);
   const [hasDismissedOnboarding, setHasDismissedOnboarding] = useState(false);
@@ -1249,21 +1263,36 @@ export default function HomeScreen({ navigation }: Props) {
               </LinearGradient>
             </Pressable>
 
-            {/* Lab Quick Actions */}
+            {/* Top 3 Requested Products */}
+            {topProductRequests.length > 0 && (
+              <View style={styles.topRequestsContainer}>
+                {topProductRequests.map((req, idx) => (
+                  <Pressable
+                    key={req.id}
+                    onPress={() => navigation.navigate('LabPipeline')}
+                    style={[styles.topRequestRow, idx === topProductRequests.length - 1 && { borderBottomWidth: 0 }]}
+                  >
+                    <View style={styles.topRequestRank}>
+                      <Text style={styles.topRequestRankText}>#{idx + 1}</Text>
+                    </View>
+                    <Text style={styles.topRequestName} numberOfLines={1}>{req.product_name}</Text>
+                    <View style={styles.topRequestBadge}>
+                      <Users size={11} color="#7C3AED" />
+                      <Text style={styles.topRequestBadgeText}>{req.demand_count ?? 0}</Text>
+                    </View>
+                  </Pressable>
+                ))}
+              </View>
+            )}
+
+            {/* Request a Product — full-width */}
             <View style={styles.labActionRow}>
               <Pressable
                 onPress={() => setShowProductRequest(true)}
                 style={({ pressed }) => [styles.labActionBtn, styles.labRequestBtn, pressed && { opacity: 0.85 }]}
               >
                 <Plus size={16} color="#FFFFFF" />
-                <Text style={styles.labActionBtnText}>Request a Product</Text>
-              </Pressable>
-              <Pressable
-                onPress={() => navigation.navigate('MyRequests')}
-                style={({ pressed }) => [styles.labActionBtn, styles.labMyRequestsBtn, pressed && { opacity: 0.85 }]}
-              >
-                <Package size={16} color={COLORS.primary} />
-                <Text style={[styles.labActionBtnText, { color: COLORS.primary }]}>My Requests</Text>
+                <Text style={styles.labActionBtnText}>+ Request a Product</Text>
               </Pressable>
             </View>
 
@@ -1913,7 +1942,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     gap: 10,
     marginHorizontal: 20,
-    marginTop: 0,
+    marginTop: 4,
     marginBottom: 8,
   },
   labActionBtn: {
@@ -1922,7 +1951,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     gap: 7,
-    paddingVertical: 12,
+    paddingVertical: 13,
     borderRadius: 14,
   },
   labRequestBtn: {
@@ -1933,15 +1962,62 @@ const styles = StyleSheet.create({
     shadowRadius: 8,
     elevation: 4,
   },
-  labMyRequestsBtn: {
-    backgroundColor: '#FFFFFF',
-    borderWidth: 1.5,
-    borderColor: `${COLORS.primary}60`,
-  },
   labActionBtnText: {
     fontSize: 14,
     fontWeight: '700',
     color: '#FFFFFF',
+  },
+  topRequestsContainer: {
+    marginHorizontal: 20,
+    marginTop: 8,
+    marginBottom: 4,
+    backgroundColor: '#F5F3FF',
+    borderRadius: 14,
+    paddingVertical: 6,
+    paddingHorizontal: 12,
+    borderWidth: 1,
+    borderColor: '#EDE9FE',
+  },
+  topRequestRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 7,
+    gap: 10,
+    borderBottomWidth: 1,
+    borderBottomColor: '#EDE9FE',
+  },
+  topRequestRank: {
+    width: 26,
+    height: 26,
+    borderRadius: 13,
+    backgroundColor: '#7C3AED',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  topRequestRankText: {
+    fontSize: 11,
+    fontWeight: '800',
+    color: '#FFFFFF',
+  },
+  topRequestName: {
+    flex: 1,
+    fontSize: 13,
+    fontWeight: '600',
+    color: '#1F2937',
+  },
+  topRequestBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 3,
+    backgroundColor: '#EDE9FE',
+    borderRadius: 20,
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+  },
+  topRequestBadgeText: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: '#7C3AED',
   },
 
   /* ── Onboarding Modal & Banner ── */
