@@ -204,13 +204,6 @@ export default function MyRequestsScreen({ navigation }: Props) {
           <Text style={styles.headerTitle}>My Requests</Text>
           <View style={{ flexDirection: 'row', gap: 8, alignItems: 'center' }}>
             <Pressable
-              onPress={() => navigation.navigate('BrowseRequests')}
-              style={styles.headerIconButton}
-              accessibilityLabel="Browse community requests"
-            >
-              <Package size={22} color={COLORS.primary} strokeWidth={2.2} />
-            </Pressable>
-            <Pressable
               onPress={() => (navigation as any).navigate('CreateProductRequest')}
               style={styles.headerIconButton}
             >
