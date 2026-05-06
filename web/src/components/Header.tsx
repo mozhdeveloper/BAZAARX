@@ -32,7 +32,7 @@ interface HeaderProps {
 const Header: React.FC<HeaderProps> = ({ transparentOnTop = false, hideSearch = false }) => {
   const navigate = useNavigate();
   const location = useLocation();
-  const { profile, logout, getTotalCartItems, cartItems, campaignDiscountCache, updateCampaignDiscountCache, initializeCart, subscribeToProfile, unsubscribeFromProfile } = useBuyerStore();
+  const { profile, logout, getTotalCartItems, cartItems, campaignDiscountCache, updateCampaignDiscountCache, evictFromCampaignDiscountCache, initializeCart, subscribeToProfile, unsubscribeFromProfile } = useBuyerStore();
 
   // Live discount map — merges the reactive Zustand cache with freshly fetched data.
   // campaignDiscountCache from Zustand IS reactive: any update from the cart page or
@@ -47,12 +47,16 @@ const Header: React.FC<HeaderProps> = ({ transparentOnTop = false, hideSearch = 
 
   useEffect(() => {
     let cancelled = false;
-    const productIds = cartProductIdsKey ? cartProductIdsKey.split('|') : [];
-    if (productIds.length === 0) return; // don't clear on initial empty-cart state
+    const productIds = cartProductIdsKey ? cartProductIdsKey.split('|').filter(Boolean) : [];
+    if (productIds.length === 0) return;
     discountService.getActiveDiscountsForProducts(productIds).then(discounts => {
       if (cancelled) return;
+      // Replace fetched entries only (not the full cache), so expired ones are removed
       setFetchedDiscounts(discounts);
-      updateCampaignDiscountCache(discounts); // keep store cache in sync
+      updateCampaignDiscountCache(discounts);
+      // Evict any products that were queried but returned no active discount (expired)
+      const expired = productIds.filter(id => !discounts[id]);
+      if (expired.length) evictFromCampaignDiscountCache(expired);
     }).catch(() => { /* campaignDiscountCache already serves as fallback */ });
     return () => { cancelled = true; };
   }, [cartProductIdsKey]); // eslint-disable-line react-hooks/exhaustive-deps
@@ -61,6 +65,10 @@ const Header: React.FC<HeaderProps> = ({ transparentOnTop = false, hideSearch = 
   const getDropdownPrice = (item: (typeof cartItems)[0]): number => {
     const basePrice = (item as any).selectedVariant?.price ?? item.price;
     const discount = headerDiscountMap[item.id] ?? null;
+    // Guard: if the campaign has already ended client-side, treat as no discount
+    if (discount?.endsAt && new Date(discount.endsAt).getTime() <= Date.now()) {
+      return basePrice;
+    }
     const { discountedUnitPrice } = discountService.calculateLineDiscount(basePrice, 1, discount);
     return discountedUnitPrice;
   };

@@ -100,6 +100,7 @@ export default function EnhancedCartPage() {
     updateItemVariant,
     campaignDiscountCache,
     updateCampaignDiscountCache,
+    evictFromCampaignDiscountCache,
     clearCart,
     validateCheckout,
     isValidatingCheckout,
@@ -211,13 +212,21 @@ export default function EnhancedCartPage() {
   useEffect(() => {
     let isMounted = true;
     const loadDiscounts = async () => {
-      const productIds = cartProductIdsKey ? cartProductIdsKey.split("|") : [];
+      const productIds = cartProductIdsKey ? cartProductIdsKey.split("|").filter(Boolean) : [];
       if (productIds.length === 0) return;
       try {
         const discounts = await discountService.getActiveDiscountsForProducts(productIds);
         if (isMounted) {
-          setActiveCampaignDiscounts(prev => ({ ...prev, ...discounts }));
-          updateCampaignDiscountCache(discounts); // persist for next visit
+          // Replace entries for queried products only — remove expired ones, keep unqueried
+          setActiveCampaignDiscounts(prev => {
+            const next = { ...prev, ...discounts };
+            productIds.forEach(id => { if (!discounts[id]) delete next[id]; });
+            return next;
+          });
+          updateCampaignDiscountCache(discounts);
+          // Evict products whose discount has ended from the persistent cache
+          const expired = productIds.filter(id => !discounts[id]);
+          if (expired.length) evictFromCampaignDiscountCache(expired);
         }
       } catch {
         // keep whatever we already have from cache
@@ -225,12 +234,16 @@ export default function EnhancedCartPage() {
     };
     loadDiscounts();
     return () => { isMounted = false; };
-  }, [cartProductIdsKey]);
+  }, [cartProductIdsKey]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Helper: get effective (discounted) unit price for a cart item
   const getEffectivePrice = (item: any): number => {
     const basePrice = item.selectedVariant?.price ?? item.price;
     const activeDiscount = activeCampaignDiscounts[item.id] ?? null;
+    // Guard: if the discount has already ended client-side, treat as no discount
+    if (activeDiscount?.endsAt && new Date(activeDiscount.endsAt).getTime() <= Date.now()) {
+      return basePrice;
+    }
     const { discountedUnitPrice } = discountService.calculateLineDiscount(basePrice, 1, activeDiscount);
     return discountedUnitPrice;
   };

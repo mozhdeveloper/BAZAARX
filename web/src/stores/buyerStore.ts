@@ -83,6 +83,7 @@ interface BuyerStore {
   // Campaign Discount Cache — persists across navigations for instant display
   campaignDiscountCache: Record<string, ActiveDiscount>;
   updateCampaignDiscountCache: (updates: Record<string, ActiveDiscount>) => void;
+  evictFromCampaignDiscountCache: (ids: string[]) => void;
 
   // Quick Order (Buy Now)
   quickOrder: CartItem | null;
@@ -599,6 +600,11 @@ export const useBuyerStore = create<BuyerStore>()(persist(
     updateCampaignDiscountCache: (updates) => set((state) => ({
       campaignDiscountCache: { ...state.campaignDiscountCache, ...updates }
     })),
+    evictFromCampaignDiscountCache: (ids) => set((state) => {
+      const next = { ...state.campaignDiscountCache };
+      ids.forEach(id => delete next[id]);
+      return { campaignDiscountCache: next };
+    }),
 
     // Quick Order (Buy Now)
     quickOrder: null,
