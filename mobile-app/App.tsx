@@ -65,6 +65,8 @@ export type RootStackParamList = {
   ResetPassword: undefined;
   SellerLogin: undefined;
   SellerSignup: undefined;
+  SellerEmailVerification: { email: string; signupData?: any };
+  SellerEmailConfirmed: undefined;
   SellerFinalize: undefined;
   SellerAuthChoice: undefined;
   BecomeSeller: undefined;
@@ -493,6 +495,30 @@ export default function App() {
           setTimeout(() => {
             navigationRef.current?.navigate('ResetPassword');
           }, 500);
+        } else {
+          // Email verification callback (buyer or seller)
+          console.log('[App] 📧 Email verification callback detected');
+
+          // Small delay to ensure session is fully propagated
+          setTimeout(async () => {
+            try {
+              // Check if user has seller role (pending signup)
+              const authState = useAuthStore.getState();
+              const pendingSignupData = authState.pendingSignupData;
+
+              if (pendingSignupData && pendingSignupData.user_type === 'seller') {
+                console.log('[App] 🏪 Seller email verification detected, navigating to SellerEmailConfirmed...');
+                navigationRef.current?.navigate('SellerEmailConfirmed');
+              } else {
+                console.log('[App] 👤 Buyer email verification detected, navigating to EmailConfirmed...');
+                navigationRef.current?.navigate('EmailConfirmed');
+              }
+            } catch (err) {
+              console.error('[App] Error determining user type for email verification:', err);
+              // Default to buyer flow
+              navigationRef.current?.navigate('EmailConfirmed');
+            }
+          }, 500);
         }
       }
     });
@@ -691,6 +717,21 @@ export default function App() {
                 name="SellerSignup"
                 getComponent={() => require('./app/seller/signup').default}
                 options={{ animation: 'slide_from_bottom' }}
+              />
+              <Stack.Screen
+                name="SellerEmailVerification"
+                getComponent={() => require('./app/seller/email-verification').default}
+                options={{ animation: 'slide_from_right' }}
+              />
+              <Stack.Screen
+                name="SellerEmailConfirmed"
+                getComponent={() => require('./app/seller/email-confirmed').default}
+                options={{ animation: 'slide_from_right' }}
+              />
+              <Stack.Screen
+                name="SellerFinalize"
+                getComponent={() => require('./app/seller/finalize').default}
+                options={{ animation: 'fade' }}
               />
               <Stack.Screen
                 name="SellerAuthChoice"

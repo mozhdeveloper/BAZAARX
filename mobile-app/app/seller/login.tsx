@@ -197,7 +197,7 @@ export default function SellerLoginScreen() {
         // Set roles and switch to seller role
         useAuthStore.getState().addRole('seller');
         useAuthStore.getState().switchRole('seller');
-        
+
         // Sync with Global Auth Store to ensure root navigation respects the role
         useGlobalAuthStore.getState().addRole('seller');
         useGlobalAuthStore.getState().switchRole('seller');
@@ -422,8 +422,12 @@ const styles = StyleSheet.create({
   subtitle: { fontSize: 16, textAlign: 'center' },
   form: { marginBottom: 24 },
   inputContainer: { flexDirection: 'column', marginBottom: 20 },
-  labelRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 },
-  label: { fontSize: 13, fontWeight: '600', color: COLORS.gray400 },
+  labelRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'baseline',
+  },
+  label: { fontSize: 13, fontWeight: '600', color: COLORS.gray400, marginBottom: 8 },
   forgotText: { fontSize: 13, color: COLORS.gray400, fontWeight: '600' },
   inputWrapper: {
     flexDirection: 'row',

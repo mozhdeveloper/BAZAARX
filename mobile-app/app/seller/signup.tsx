@@ -168,10 +168,10 @@ export default function SellerSignupScreen() {
         setLoading(true);
         try {
             const normalizedEmail = formData.email.trim().toLowerCase();
-            
+
             // Check if email already exists
             const status = await authService.getEmailRoleStatus(normalizedEmail);
-            
+
             const signupData = {
                 firstName: formData.storeName.split(' ')[0],
                 lastName: formData.storeName.split(' ').slice(1).join(' ') || 'Store',
@@ -208,7 +208,7 @@ export default function SellerSignupScreen() {
             }
 
             // Navigate to verification screen
-            navigation.replace('EmailVerification', { email: normalizedEmail, signupData });
+            navigation.replace('SellerEmailVerification', { email: normalizedEmail, signupData });
         } catch (err: any) {
             console.error('Submit form error:', err);
             Alert.alert('Error', err.message || 'Signup initialization failed.');
@@ -343,8 +343,8 @@ export default function SellerSignupScreen() {
                                 </View>
 
                                 <View style={styles.termsContainer}>
-                                    <Pressable 
-                                        style={styles.checkboxBase} 
+                                    <Pressable
+                                        style={styles.checkboxBase}
                                         onPress={() => setAcceptedTerms(!acceptedTerms)}
                                     >
                                         {acceptedTerms ? (
@@ -361,20 +361,20 @@ export default function SellerSignupScreen() {
                                     </View>
                                 </View>
 
-                                    <Pressable
-                                        style={[
-                                            styles.primaryButton, 
-                                            (emailStatus === 'checking' || emailStatus === 'taken' || !acceptedTerms || !watch('email') || !watch('password') || !watch('confirmPassword')) && styles.buttonDisabled
-                                        ]}
-                                        onPress={handleNextStep}
-                                        disabled={emailStatus === 'checking' || emailStatus === 'taken' || !acceptedTerms || !watch('email') || !watch('password') || !watch('confirmPassword')}
-                                    >
-                                        <Text style={styles.buttonText}>Next: Store Details</Text>
-                                        <ArrowRight size={20} color="#FFF" />
-                                    </Pressable>
+                                <Pressable
+                                    style={[
+                                        styles.primaryButton,
+                                        (emailStatus === 'checking' || emailStatus === 'taken' || !acceptedTerms || !watch('email') || !watch('password') || !watch('confirmPassword')) && styles.buttonDisabled
+                                    ]}
+                                    onPress={handleNextStep}
+                                    disabled={emailStatus === 'checking' || emailStatus === 'taken' || !acceptedTerms || !watch('email') || !watch('password') || !watch('confirmPassword')}
+                                >
+                                    <Text style={styles.buttonText}>Next: Store Details</Text>
+                                    <ArrowRight size={20} color="#FFF" />
+                                </Pressable>
                             </View>
                         </View>
-                        
+
                         {/* Step 2: Store Details */}
                         <View style={{ display: step === 2 ? 'flex' : 'none' }}>
                             <View style={styles.stepContent}>
@@ -536,7 +536,7 @@ export default function SellerSignupScreen() {
                                 </Text>
                                 <View style={{ height: 40 }} />
                             </ScrollView>
-                            <Pressable 
+                            <Pressable
                                 style={styles.modalCloseButton}
                                 onPress={() => {
                                     setAcceptedTerms(true);
