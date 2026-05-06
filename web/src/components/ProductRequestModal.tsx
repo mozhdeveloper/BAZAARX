@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { X, Package, ImagePlus, Send, CheckCircle, Upload, Trash2, Link, Plus, ChevronDown } from 'lucide-react';
+import { X, Package, ImagePlus, Send, CheckCircle, Upload, Trash2, Link, ChevronDown } from 'lucide-react';
 import { Button } from './ui/button';
 import { Input } from './ui/input';
 import { Label } from './ui/label';
@@ -32,7 +32,7 @@ export default function ProductRequestModal({
     category: '',
     imageUrl: ''
   });
-  const [referenceLinks, setReferenceLinks] = useState<string[]>(['']);
+  const [referenceLink, setReferenceLink] = useState<string>('');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isSuccess, setIsSuccess] = useState(false);
   const [isDragging, setIsDragging] = useState(false);
@@ -76,13 +76,14 @@ export default function ProductRequestModal({
         }
       }
 
+      const link = referenceLink.trim();
       await productRequestService.addRequest({
         productName: formData.productName.trim(),
         description: formData.description.trim(),
         category: formData.category || 'General',
         requestedByName,
         requestedById,
-        referenceLinks: referenceLinks.map(l => l.trim()).filter(Boolean),
+        referenceLinks: link ? [link] : [],
       });
 
       setIsSubmitting(false);
@@ -97,7 +98,7 @@ export default function ProductRequestModal({
           category: '',
           imageUrl: ''
         });
-        setReferenceLinks(['']);
+        setReferenceLink('');
         handleRemove();
         onClose();
       }, 2000);
@@ -324,53 +325,25 @@ export default function ProductRequestModal({
                   )}
                 </div>
 
-                {/* Reference Links */}
-                <div className="space-y-2">
-                  <div>
-                    <Label className="text-sm font-semibold text-gray-800">
-                      Reference Links <span className="text-gray-400 font-normal text-xs">(optional)</span>
-                    </Label>
-                    <p className="text-[11px] text-gray-400 mt-0.5">Paste links from Shopee, Lazada, Amazon, etc.</p>
+                {/* Reference Link */}
+                <div className="space-y-1.5">
+                  <Label htmlFor="referenceLink" className="text-sm font-semibold text-gray-800">
+                    Reference Link <span className="text-gray-400 font-normal text-xs">(optional)</span>
+                  </Label>
+                  <div className="flex items-center gap-2">
+                    <div className="w-11 h-11 rounded-xl bg-gray-50 border border-gray-200 flex items-center justify-center flex-shrink-0">
+                      <Link className="w-4 h-4 text-gray-400" />
+                    </div>
+                    <Input
+                      id="referenceLink"
+                      type="url"
+                      value={referenceLink}
+                      onChange={(e) => setReferenceLink(e.target.value)}
+                      placeholder="https://shopee.ph/product-link"
+                      className="flex-1 h-11 text-sm border-gray-200 focus:border-orange-400 focus:ring-2 focus:ring-orange-400/20 rounded-xl"
+                    />
                   </div>
-                  <div className="space-y-2">
-                    {referenceLinks.map((link, idx) => (
-                      <div key={idx} className="flex items-center gap-2">
-                        <div className="w-9 h-9 rounded-xl bg-gray-50 border border-gray-200 flex items-center justify-center flex-shrink-0">
-                          <Link className="w-3.5 h-3.5 text-gray-400" />
-                        </div>
-                        <Input
-                          type="url"
-                          value={link}
-                          onChange={(e) => {
-                            const updated = [...referenceLinks];
-                            updated[idx] = e.target.value;
-                            setReferenceLinks(updated);
-                          }}
-                          placeholder={`https://shopee.ph/product-link`}
-                          className="flex-1 h-9 text-sm border-gray-200 focus:border-orange-400 focus:ring-orange-400/20 rounded-xl"
-                        />
-                        {referenceLinks.length > 1 && (
-                          <button
-                            type="button"
-                            onClick={() => setReferenceLinks(referenceLinks.filter((_, i) => i !== idx))}
-                            className="w-9 h-9 rounded-xl flex items-center justify-center text-gray-300 hover:text-red-400 hover:bg-red-50 transition-colors flex-shrink-0"
-                          >
-                            <X className="w-3.5 h-3.5" />
-                          </button>
-                        )}
-                      </div>
-                    ))}
-                    {referenceLinks.length < 5 && (
-                      <button
-                        type="button"
-                        onClick={() => setReferenceLinks([...referenceLinks, ''])}
-                        className="flex items-center gap-1.5 text-xs text-orange-500 hover:text-orange-600 font-semibold transition-colors mt-1"
-                      >
-                        <Plus className="w-3.5 h-3.5" />
-                        Add another link
-                      </button>
-                    )}
-                  </div>
+                  <p className="text-[11px] text-gray-400">Optional — paste a link from Shopee, Lazada, Amazon, etc.</p>
                 </div>
               </div>
 

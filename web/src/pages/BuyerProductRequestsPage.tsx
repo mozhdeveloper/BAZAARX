@@ -381,17 +381,7 @@ export default function BuyerProductRequestsPage() {
                               )}
                               {request.demandCount > 0 && (
                                 <span className="flex items-center gap-1">
-                                  👥 {request.demandCount} {request.demandCount === 1 ? 'backer' : 'backers'}
-                                </span>
-                              )}
-                              {request.stakedBazcoins > 0 && (
-                                <span className="flex items-center gap-1">
-                                  🪙 {request.stakedBazcoins.toLocaleString()} BC staked
-                                </span>
-                              )}
-                              {request.votes > 0 && (
-                                <span className="flex items-center gap-1">
-                                  👍 {request.votes} {request.votes === 1 ? 'vote' : 'votes'}
+                                  👥 {request.demandCount} {request.demandCount === 1 ? 'supporter' : 'supporters'}
                                 </span>
                               )}
                             </div>
