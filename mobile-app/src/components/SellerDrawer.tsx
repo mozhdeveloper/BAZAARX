@@ -63,8 +63,8 @@ type SellerNavigationProp = NativeStackNavigationProp<SellerStackParamList>;
 export default function SellerDrawer({ visible, onClose }: SellerDrawerProps) {
   const navigation = useNavigation<SellerNavigationProp>();
   const insets = useSafeAreaInsets();
-  const { seller, logout } = useSellerStore();
-  const { switchRole } = useAuthStore();
+  const { seller } = useSellerStore();
+  const { switchRole, signOut } = useAuthStore();
   const [unreadMsgCount, setUnreadMsgCount] = React.useState(0);
   const [unreadNotifCount, setUnreadNotifCount] = React.useState(0);
   const pollIntervalRef = React.useRef<ReturnType<typeof setInterval> | null>(null);
@@ -229,16 +229,19 @@ export default function SellerDrawer({ visible, onClose }: SellerDrawerProps) {
 
   const handleSwitchToBuyer = () => {
     closeWithAnimation(() => {
-        switchRole('buyer');
-        navigation.navigate('MainTabs' as never);
+      switchRole('buyer');
+      navigation.navigate('MainTabs' as never);
     });
   };
 
-  const handleLogout = () => {
-    closeWithAnimation(() => {
-      logout();
-      // Navigate back to seller login via the root stack
-      navigation.getParent()?.navigate('SellerLogin' as never);
+  const handleLogout = async () => {
+    closeWithAnimation(async () => {
+      await signOut();
+      // Reset navigation to the root to ensure a clean state and go to SellerLogin
+      navigation.reset({
+        index: 0,
+        routes: [{ name: 'SellerLogin' as never }],
+      });
     });
   };
 

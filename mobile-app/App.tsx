@@ -45,7 +45,7 @@ export const navigationRef = React.createRef<any>();
 
 export type TabParamList = {
   Home: undefined;
-  Shop: { category?: string; searchQuery?: string; view?: 'featured' };
+  Shop: { category?: string; searchQuery?: string; view?: 'featured'; refreshProductId?: string };
   Cart: { selectedCartItemIds?: string[] } | undefined;
   Messages: undefined;
   Profile: undefined;

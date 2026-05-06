@@ -4,14 +4,16 @@ import * as AuthSession from 'expo-auth-session';
  * Generates a dynamic redirect URI for authentication callbacks.
  * In Expo Go, this usually resolves to an exp://... URL with the local IP.
  * In a native build (Internal distribution/Production), it resolves to bazaarx://auth/callback.
- * 
+ *
  * @returns {string} The generated redirect URI
  */
 export const getRedirectUri = (): string => {
-  return AuthSession.makeRedirectUri({
+  const redirectUri = AuthSession.makeRedirectUri({
     scheme: 'bazaarx',
     path: 'auth/callback',
   });
+
+  return redirectUri;
 };
 
 /**
@@ -20,7 +22,7 @@ export const getRedirectUri = (): string => {
  */
 export const processAuthSessionResultUrl = async (url: string, supabase: any) => {
   if (!url) return false;
-  
+
   try {
     if (url.includes('code=')) {
       const { error } = await supabase.auth.exchangeCodeForSession(url);
