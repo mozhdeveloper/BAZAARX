@@ -294,7 +294,10 @@ export default function StoreChatModal({ visible, onClose, storeName, sellerId }
         const asset = result.assets[0];
         const ext = asset.uri.split('.').pop()?.toLowerCase() || 'jpg';
         const mediaType: ChatMediaType = asset.type === 'video' ? 'video' : 'image';
-        const mime = getMimeFromExtension(ext);
+        const detectedMime = asset.mimeType || getMimeFromExtension(ext);
+        const mime = detectedMime === 'application/octet-stream'
+            ? (mediaType === 'video' ? 'video/mp4' : 'image/jpeg')
+            : detectedMime;
 
         const fileInfo = await FileSystem.getInfoAsync(asset.uri);
         const maxSize = CHAT_MEDIA_LIMITS[mediaType].maxSize;

@@ -48,6 +48,7 @@ export function getMimeFromExtension(ext: string): string {
   const lower = ext.toLowerCase().replace(/^\./, '');
   const mimeMap: Record<string, string> = {
     jpg: 'image/jpeg', jpeg: 'image/jpeg', png: 'image/png', webp: 'image/webp',
+    heic: 'image/jpeg', heif: 'image/jpeg', // iOS HEIC — upload as JPEG (already re-encoded by expo)
     mp4: 'video/mp4', mov: 'video/quicktime',
     pdf: 'application/pdf',
   };
