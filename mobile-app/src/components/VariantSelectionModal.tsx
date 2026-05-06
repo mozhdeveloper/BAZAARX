@@ -395,7 +395,7 @@ export const VariantSelectionModal: React.FC<VariantSelectionModalProps> = React
                 {Number(activeVariantInfo.stock || 0) <= 0 ? 'Out of Stock' : `In Stock: ${activeVariantInfo.stock}`}
               </Text>
               <Text style={styles.modalSelections} numberOfLines={1}>
-                {[selectedOption1, selectedOption2].filter(Boolean).join(', ') || 'Select variants'}
+                {[selectedOption1, selectedOption2].filter(Boolean).join(', ')}
               </Text>
             </View>
             <Pressable onPress={handleCloseInternal} style={styles.closeBtn}>
