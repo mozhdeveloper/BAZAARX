@@ -577,9 +577,11 @@ export class OrderService {
                 (buyerEmail ? `POS Sale - ${buyerEmail}` : "POS Walk-in Sale"),
             recipient_id: null,
             address_id: null,
-            payment_status: "paid" as PaymentStatus,
+            // NOTE: Insert as pending_payment to satisfy the enforce_paid_order_has_items
+            // trigger (migration 046) which forbids inserting an order with payment_status='paid'
+            // before any order_items rows exist. We promote to 'paid' after items insert.
+            payment_status: "pending_payment" as PaymentStatus,
             shipment_status: "delivered" as ShipmentStatus,
-            paid_at: new Date().toISOString(),
             notes:
                 buyerEmail && !buyerLinked
                     ? `Customer email (not registered): ${buyerEmail}`
@@ -689,7 +691,12 @@ export class OrderService {
             }
 
             if (orderError) {
-                console.error('[OrderService] Order insert failed:', orderError);
+                console.error('[OrderService] Order insert failed:', {
+                    code: (orderError as any).code,
+                    message: (orderError as any).message,
+                    details: (orderError as any).details,
+                    hint: (orderError as any).hint,
+                });
                 throw orderError;
             }
 
@@ -707,6 +714,22 @@ export class OrderService {
             }
 
             console.log(`[OrderService] Order items inserted successfully`);
+
+            // Now that order_items exist, promote the order to paid. This satisfies the
+            // enforce_paid_order_has_items trigger (migration 046).
+            const paidAt = new Date().toISOString();
+            const { error: paidUpdateError } = await supabase
+                .from("orders")
+                .update({ payment_status: "paid", paid_at: paidAt })
+                .eq("id", orderId);
+
+            if (paidUpdateError) {
+                console.error('[OrderService] Failed to promote order to paid:', paidUpdateError);
+                // Roll back: items + order
+                await supabase.from("order_items").delete().eq("order_id", orderId);
+                await supabase.from("orders").delete().eq("id", orderId);
+                throw paidUpdateError;
+            }
 
             // Verify the order was created correctly
             const { data: verifyOrder } = await supabase
