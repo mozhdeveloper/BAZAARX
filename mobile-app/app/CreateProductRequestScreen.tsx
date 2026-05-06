@@ -301,7 +301,7 @@ export default function CreateProductRequestScreen({ navigation }: Props) {
         {/* ── REFERENCE LINKS ── */}
         <View style={styles.fieldGroup}>
           <Text style={styles.label}>Reference Links (optional)</Text>
-          <Text style={styles.fieldHint} style={styles.refLinkHint}>
+          <Text style={[styles.fieldHint, styles.refLinkHint]}>
             Add links to similar products, supplier pages, or spec sheets
           </Text>
           {refLinks.map((link, i) => (

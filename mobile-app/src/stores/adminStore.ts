@@ -1143,9 +1143,9 @@ export const useAdminProductRequests = create<ProductRequestsState>((set) => ({
         await supabase.rpc('admin_action_product_request', {
           p_request_id: id,
           p_action: rpcAction,
-          p_reason: reason ?? null,
-          p_target_id: null,
-          p_new_stage: null,
+          p_reason: reason ?? undefined,
+          p_target_id: undefined,
+          p_new_stage: undefined,
         });
       } else {
         // Direct update for statuses not covered by RPC (e.g. under_review)
