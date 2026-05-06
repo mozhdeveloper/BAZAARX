@@ -10,7 +10,7 @@ import { useNavigation, useRoute } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { COLORS } from '../constants/theme';
 import { chatService, Conversation, Message } from '../services/chatService';
-import { getMimeFromExtension, detectMediaTypeFromExtension, CHAT_MEDIA_LIMITS, ALL_PLACEHOLDERS, MEDIA_PLACEHOLDER_MAP, extractFileName, type ChatMediaType } from '../utils/chatMediaUtils';
+import { getMimeFromExtension, normalizeMimeType, detectMediaTypeFromExtension, CHAT_MEDIA_LIMITS, ALL_PLACEHOLDERS, MEDIA_PLACEHOLDER_MAP, extractFileName, type ChatMediaType } from '../utils/chatMediaUtils';
 import { formatDateLabel, formatMessageTimestamp } from '../utils/chatDateUtils';
 import {
   isMessagingBlocked,
@@ -445,10 +445,8 @@ export default function ChatScreen({ conversation, currentUserId, userType, onBa
     const asset = result.assets[0];
     const ext = asset.uri.split('.').pop()?.toLowerCase() || 'jpg';
     const mediaType: ChatMediaType = asset.type === 'video' ? 'video' : 'image';
-    const detectedMime = asset.mimeType || getMimeFromExtension(ext);
-    const mime = detectedMime === 'application/octet-stream'
-      ? (mediaType === 'video' ? 'video/mp4' : 'image/jpeg')
-      : detectedMime;
+    const rawMime = asset.mimeType || getMimeFromExtension(ext);
+    const mime = normalizeMimeType(rawMime, mediaType);
 
     // Validate size
     const fileInfo = await FileSystem.getInfoAsync(asset.uri);

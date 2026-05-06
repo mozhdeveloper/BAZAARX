@@ -38,7 +38,7 @@ import {
 } from 'lucide-react-native';
 import { Alert, Keyboard } from 'react-native';
 import { chatService, Conversation as ChatConversation, Message as ChatMessage } from '../../src/services/chatService';
-import { getMimeFromExtension, CHAT_MEDIA_LIMITS, ALL_PLACEHOLDERS, MEDIA_PLACEHOLDER_MAP, extractFileName, type ChatMediaType } from '../../src/utils/chatMediaUtils';
+import { getMimeFromExtension, normalizeMimeType, CHAT_MEDIA_LIMITS, ALL_PLACEHOLDERS, MEDIA_PLACEHOLDER_MAP, extractFileName, type ChatMediaType } from '../../src/utils/chatMediaUtils';
 import { formatDateLabel, formatMessageTimestamp } from '../../src/utils/chatDateUtils';
 import { isMessagingBlocked, type MessagingAccountStatus } from '../../src/utils/messagingAccountStatus';
 import ChatMediaPreviewModal from '../../src/components/ChatMediaPreviewModal';
@@ -545,7 +545,8 @@ export default function MessagesScreen() {
     const asset = result.assets[0];
     const ext = asset.uri.split('.').pop()?.toLowerCase() || 'jpg';
     const mediaType: ChatMediaType = asset.type === 'video' ? 'video' : 'image';
-    const mime = getMimeFromExtension(ext);
+    const rawMime = asset.mimeType || getMimeFromExtension(ext);
+    const mime = normalizeMimeType(rawMime, mediaType);
 
     const fileInfo = await FileSystem.getInfoAsync(asset.uri);
     const maxSize = CHAT_MEDIA_LIMITS[mediaType].maxSize;

@@ -25,7 +25,7 @@ import { useNavigation } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { RootStackParamList } from '../../App';
 import { chatService, Conversation, Message as ChatMessage } from '../services/chatService';
-import { getMimeFromExtension, CHAT_MEDIA_LIMITS, ALL_PLACEHOLDERS, MEDIA_PLACEHOLDER_MAP, extractFileName, type ChatMediaType } from '../utils/chatMediaUtils';
+import { getMimeFromExtension, normalizeMimeType, CHAT_MEDIA_LIMITS, ALL_PLACEHOLDERS, MEDIA_PLACEHOLDER_MAP, extractFileName, type ChatMediaType } from '../utils/chatMediaUtils';
 import { formatDateLabel, formatMessageTimestamp } from '../utils/chatDateUtils';
 import ChatMediaPreviewModal from './ChatMediaPreviewModal';
 import ChatSendPreviewModal, { type SendPreviewAsset } from './ChatSendPreviewModal';
@@ -294,10 +294,8 @@ export default function StoreChatModal({ visible, onClose, storeName, sellerId }
         const asset = result.assets[0];
         const ext = asset.uri.split('.').pop()?.toLowerCase() || 'jpg';
         const mediaType: ChatMediaType = asset.type === 'video' ? 'video' : 'image';
-        const detectedMime = asset.mimeType || getMimeFromExtension(ext);
-        const mime = detectedMime === 'application/octet-stream'
-            ? (mediaType === 'video' ? 'video/mp4' : 'image/jpeg')
-            : detectedMime;
+        const rawMime = asset.mimeType || getMimeFromExtension(ext);
+        const mime = normalizeMimeType(rawMime, mediaType);
 
         const fileInfo = await FileSystem.getInfoAsync(asset.uri);
         const maxSize = CHAT_MEDIA_LIMITS[mediaType].maxSize;

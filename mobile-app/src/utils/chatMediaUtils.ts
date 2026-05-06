@@ -48,11 +48,27 @@ export function getMimeFromExtension(ext: string): string {
   const lower = ext.toLowerCase().replace(/^\./, '');
   const mimeMap: Record<string, string> = {
     jpg: 'image/jpeg', jpeg: 'image/jpeg', png: 'image/png', webp: 'image/webp',
-    heic: 'image/jpeg', heif: 'image/jpeg', // iOS HEIC — upload as JPEG (already re-encoded by expo)
+    heic: 'image/jpeg', heif: 'image/jpeg',
     mp4: 'video/mp4', mov: 'video/quicktime',
     pdf: 'application/pdf',
   };
   return mimeMap[lower] || 'application/octet-stream';
+}
+
+// MIME types that Supabase Storage does NOT accept — map them to safe equivalents.
+const UNSUPPORTED_IMAGE_MIMES = new Set(['image/heic', 'image/heif', 'application/octet-stream']);
+const UNSUPPORTED_VIDEO_MIMES = new Set(['application/octet-stream']);
+
+/**
+ * Normalize a raw MIME type coming from expo-image-picker so it is always
+ * accepted by Supabase Storage. iOS devices frequently return `image/heic`
+ * or `application/octet-stream` for photos.
+ */
+export function normalizeMimeType(raw: string, mediaKind: 'image' | 'video'): string {
+  const lower = raw.toLowerCase();
+  if (mediaKind === 'image' && UNSUPPORTED_IMAGE_MIMES.has(lower)) return 'image/jpeg';
+  if (mediaKind === 'video' && UNSUPPORTED_VIDEO_MIMES.has(lower)) return 'video/mp4';
+  return lower;
 }
 
 /** Media preview text for sidebar */
