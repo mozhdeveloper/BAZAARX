@@ -200,7 +200,7 @@ export default function LabPipelineScreen({ navigation }: Props) {
 
       {/* ── FILTER TABS ── */}
       <View style={styles.tabsWrapper}>
-        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.tabs}>
+        <ScrollView horizontal showsHorizontalScrollIndicator={false} showsVerticalScrollIndicator={false} contentContainerStyle={styles.tabs}>
           {FILTER_TABS.map(({ key, label }) => {
             const count = key ? counts[key] ?? 0 : requests.length;
             const active = filterStatus === key;
