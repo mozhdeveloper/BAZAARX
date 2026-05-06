@@ -9,6 +9,7 @@ import React, { useState } from 'react';
 import {
   View,
   Text,
+  Image,
   ScrollView,
   TextInput,
   Pressable,
@@ -20,12 +21,16 @@ import {
   StatusBar,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import * as ImagePicker from 'expo-image-picker';
+import * as FileSystem from 'expo-file-system';
+import { decode } from 'base64-arraybuffer';
 import {
   ChevronLeft,
   Package,
-  Link2,
   CheckCircle2,
   ChevronDown,
+  ImagePlus,
+  X,
 } from 'lucide-react-native';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import type { RootStackParamList } from '../App';
@@ -60,7 +65,8 @@ export default function CreateProductRequestScreen({ navigation }: Props) {
   const [category, setCategory] = useState('');
   const [showCategories, setShowCategories] = useState(false);
   const [description, setDescription] = useState('');
-  const [refLink, setRefLink] = useState('');
+  const [imageUri, setImageUri] = useState<string | null>(null);
+  const [imageMime, setImageMime] = useState<string>('image/jpeg');
 
   // UI state
   const [submitting, setSubmitting] = useState(false);
@@ -68,6 +74,28 @@ export default function CreateProductRequestScreen({ navigation }: Props) {
 
   // ─── Validation ────────────────────────────────────────────
   const isValid = title.trim().length >= 3 && category !== '' && description.trim().length >= 10;
+
+  // ─── Image Picker ──────────────────────────────────────────
+  const pickImage = async () => {
+    const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+    if (status !== 'granted') {
+      Alert.alert('Permission required', 'Please allow photo library access to upload an image.');
+      return;
+    }
+    const result = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: ['images'],
+      quality: 0.8,
+      allowsEditing: true,
+      aspect: [4, 3],
+    });
+    if (result.canceled || !result.assets?.[0]) return;
+    const asset = result.assets[0];
+    const ext = asset.uri.split('.').pop()?.toLowerCase() || 'jpg';
+    const mimeMap: Record<string, string> = { jpg: 'image/jpeg', jpeg: 'image/jpeg', png: 'image/png', webp: 'image/webp', heic: 'image/jpeg', heif: 'image/jpeg' };
+    const detected = asset.mimeType || mimeMap[ext] || 'image/jpeg';
+    setImageMime(detected === 'application/octet-stream' ? 'image/jpeg' : detected);
+    setImageUri(asset.uri);
+  };
 
 
   // ─── Submit ────────────────────────────────────────────────
@@ -90,8 +118,24 @@ export default function CreateProductRequestScreen({ navigation }: Props) {
         }
       }
 
-      const trimmedLink = refLink.trim();
-      const filteredLinks = trimmedLink ? [trimmedLink] : [];
+      // Upload image if selected
+      let uploadedImageUrl: string | null = null;
+      if (imageUri) {
+        try {
+          const base64 = await FileSystem.readAsStringAsync(imageUri, { encoding: 'base64' });
+          const ext = imageMime === 'image/png' ? 'png' : imageMime === 'image/webp' ? 'webp' : 'jpg';
+          const storagePath = `request-images/${user?.id ?? 'anon'}/${Date.now()}.${ext}`;
+          const { error: uploadErr } = await supabase.storage
+            .from('product-images')
+            .upload(storagePath, decode(base64), { contentType: imageMime, upsert: false });
+          if (!uploadErr) {
+            const { data: urlData } = supabase.storage.from('product-images').getPublicUrl(storagePath);
+            uploadedImageUrl = urlData?.publicUrl ?? null;
+          }
+        } catch (_) {
+          // non-fatal — submit without image
+        }
+      }
 
       const payload = {
         product_name: title.trim(),
@@ -101,7 +145,8 @@ export default function CreateProductRequestScreen({ navigation }: Props) {
         category,
         requested_by_name: requestedByName,
         requested_by_id: user?.id ?? null,
-        reference_links: filteredLinks,
+        reference_links: [],
+        image_url: uploadedImageUrl,
         status: 'new',
         priority: 'medium',
       };
@@ -275,25 +320,23 @@ export default function CreateProductRequestScreen({ navigation }: Props) {
           <Text style={styles.fieldHint}>{description.length}/1000 characters · min 10 chars</Text>
         </View>
 
-        {/* ── REFERENCE LINK ── */}
+        {/* ── IMAGE UPLOAD ── */}
         <View style={styles.fieldGroup}>
-          <Text style={styles.label}>Reference Link (optional)</Text>
-          <Text style={styles.refLinkHint}>
-            Link to a similar product, supplier page, or spec sheet
-          </Text>
-          <View style={styles.refLinkRow}>
-            <Link2 size={15} color={COLORS.textMuted} style={styles.refLinkIcon} />
-            <TextInput
-              style={styles.refLinkInput}
-              placeholder="https://..."
-              placeholderTextColor={COLORS.textMuted}
-              value={refLink}
-              onChangeText={setRefLink}
-              keyboardType="url"
-              autoCapitalize="none"
-              autoCorrect={false}
-            />
-          </View>
+          <Text style={styles.label}>Product Image (optional)</Text>
+          {imageUri ? (
+            <View style={styles.imagePreviewWrapper}>
+              <Image source={{ uri: imageUri }} style={styles.imagePreview} resizeMode="cover" />
+              <Pressable style={styles.imageRemoveBtn} onPress={() => setImageUri(null)}>
+                <X size={16} color="#FFFFFF" />
+              </Pressable>
+            </View>
+          ) : (
+            <Pressable style={styles.imageUploadBtn} onPress={pickImage}>
+              <ImagePlus size={22} color={COLORS.primary} />
+              <Text style={styles.imageUploadText}>Tap to add a photo</Text>
+              <Text style={styles.imageUploadHint}>JPG, PNG or WEBP · max 10 MB</Text>
+            </Pressable>
+          )}
         </View>
 
         {/* ── HINT BOX ── */}
@@ -427,33 +470,29 @@ const styles = StyleSheet.create({
   categoryOptionText: { fontSize: 13, color: COLORS.textHeadline },
   categoryOptionTextSelected: { color: COLORS.primary, fontWeight: '700' },
 
-  // Ref links
-  refLinkRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
+  // Image upload
+  imageUploadBtn: {
     backgroundColor: '#FFFFFF',
     borderWidth: 1.5,
     borderColor: '#E5E7EB',
+    borderStyle: 'dashed',
     borderRadius: 12,
-    paddingHorizontal: 10,
-    marginBottom: 8,
+    paddingVertical: 28,
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
     ...shadow,
   },
-  refLinkIcon: { marginRight: 6 },
-  refLinkInput: {
-    flex: 1,
-    fontSize: 13,
-    color: COLORS.textHeadline,
-    paddingVertical: Platform.OS === 'ios' ? 11 : 8,
+  imageUploadText: { fontSize: 14, fontWeight: '600', color: COLORS.primary, marginTop: 4 },
+  imageUploadHint: { fontSize: 11, color: COLORS.textMuted },
+  imagePreviewWrapper: { borderRadius: 12, overflow: 'hidden', position: 'relative' },
+  imagePreview: { width: '100%', height: 200, borderRadius: 12 },
+  imageRemoveBtn: {
+    position: 'absolute', top: 8, right: 8,
+    backgroundColor: 'rgba(0,0,0,0.55)',
+    borderRadius: 20, width: 28, height: 28,
+    alignItems: 'center', justifyContent: 'center',
   },
-  refLinkRemove: { padding: 6, marginLeft: 4 },
-  addLinkBtn: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-    paddingVertical: 8,
-  },
-  addLinkText: { fontSize: 13, fontWeight: '600', color: COLORS.primary },
 
   // Hint box
   hintBox: {
