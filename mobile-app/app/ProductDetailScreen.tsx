@@ -1309,7 +1309,7 @@ export default function ProductDetailScreen({ route, navigation }: Props) {
               onPress={() => handleWishlistAction()}
               style={{ width: 40, height: 40, alignItems: 'center', justifyContent: 'center' }}
             >
-              <Gift size={24} color={BRAND_COLOR} strokeWidth={1.5} />
+              <Gift size={24} color={BRAND_COLOR} strokeWidth={2.0} />
             </Pressable>
           </View>
         </View>
@@ -1460,9 +1460,9 @@ export default function ProductDetailScreen({ route, navigation }: Props) {
           </View>
 
           {/* 4. Free Shipping */}
-          <View style={{ backgroundColor: '#FFF7ED', paddingHorizontal: 8, paddingVertical: 3, borderRadius: 6, alignSelf: 'flex-start', marginTop: 12 }}>
+          {/* <View style={{ backgroundColor: '#FFF7ED', paddingHorizontal: 8, paddingVertical: 3, borderRadius: 6, alignSelf: 'flex-start', marginTop: 12 }}>
             <Text style={{ fontSize: 11, fontWeight: '700', color: '#FB8C00' }}>Free Shipping</Text>
-          </View>
+          </View> */}
 
           {/* --- VARIANT IMAGE SELECTION (Now below Price/Rating) --- */}
           {hasOption2 && (
