@@ -24,8 +24,6 @@ import {
   ChevronLeft,
   Package,
   Link2,
-  Plus,
-  X,
   CheckCircle2,
   ChevronDown,
 } from 'lucide-react-native';
@@ -62,8 +60,7 @@ export default function CreateProductRequestScreen({ navigation }: Props) {
   const [category, setCategory] = useState('');
   const [showCategories, setShowCategories] = useState(false);
   const [description, setDescription] = useState('');
-  const [refLinks, setRefLinks] = useState<string[]>(['']);
-  const [estimatedDemand, setEstimatedDemand] = useState('');
+  const [refLink, setRefLink] = useState('');
 
   // UI state
   const [submitting, setSubmitting] = useState(false);
@@ -72,11 +69,6 @@ export default function CreateProductRequestScreen({ navigation }: Props) {
   // ─── Validation ────────────────────────────────────────────
   const isValid = title.trim().length >= 3 && category !== '' && description.trim().length >= 10;
 
-  // ─── Ref-link helpers ──────────────────────────────────────
-  const addRefLink = () => setRefLinks((prev) => [...prev, '']);
-  const removeRefLink = (i: number) => setRefLinks((prev) => prev.filter((_, idx) => idx !== i));
-  const updateRefLink = (i: number, val: string) =>
-    setRefLinks((prev) => prev.map((v, idx) => (idx === i ? val : v)));
 
   // ─── Submit ────────────────────────────────────────────────
   const handleSubmit = async () => {
@@ -98,7 +90,8 @@ export default function CreateProductRequestScreen({ navigation }: Props) {
         }
       }
 
-      const filteredLinks = refLinks.map((l) => l.trim()).filter(Boolean);
+      const trimmedLink = refLink.trim();
+      const filteredLinks = trimmedLink ? [trimmedLink] : [];
 
       const payload = {
         product_name: title.trim(),
@@ -108,7 +101,6 @@ export default function CreateProductRequestScreen({ navigation }: Props) {
         category,
         requested_by_name: requestedByName,
         requested_by_id: user?.id ?? null,
-        estimated_demand: estimatedDemand ? parseInt(estimatedDemand, 10) || 0 : 0,
         reference_links: filteredLinks,
         status: 'new',
         priority: 'medium',
@@ -126,7 +118,6 @@ export default function CreateProductRequestScreen({ navigation }: Props) {
               category,
               requestedByName,
               requestedById: user?.id,
-              estimatedDemand: estimatedDemand ? parseInt(estimatedDemand, 10) || 0 : 0,
               referenceLinks: filteredLinks,
             },
           });
@@ -153,8 +144,8 @@ export default function CreateProductRequestScreen({ navigation }: Props) {
           <CheckCircle2 size={56} color="#16A34A" />
           <Text style={styles.successTitle}>Request Submitted!</Text>
           <Text style={styles.successSub}>
-            Your product request has been received. The community can now vote and pledge to
-            help it reach the sourcing stage.
+            Your product request has been received. The community can support it to help
+            it move forward.
           </Text>
           <Pressable
             style={styles.successBtn}
@@ -203,8 +194,8 @@ export default function CreateProductRequestScreen({ navigation }: Props) {
         <View style={styles.eyebrow}>
           <Text style={styles.eyebrowTitle}>Submit a Product Request</Text>
           <Text style={styles.eyebrowSub}>
-            Describe what you're looking for. Community votes determine what gets
-            sourced and lab-verified.
+            Describe what you're looking for. Other buyers can support your request to
+            help it get sourced.
           </Text>
         </View>
 
@@ -284,52 +275,25 @@ export default function CreateProductRequestScreen({ navigation }: Props) {
           <Text style={styles.fieldHint}>{description.length}/1000 characters · min 10 chars</Text>
         </View>
 
-        {/* ── ESTIMATED DEMAND ── */}
+        {/* ── REFERENCE LINK ── */}
         <View style={styles.fieldGroup}>
-          <Text style={styles.label}>Estimated Demand (optional)</Text>
-          <TextInput
-            style={styles.input}
-            placeholder="How many units do you think buyers need?"
-            placeholderTextColor={COLORS.textMuted}
-            keyboardType="number-pad"
-            value={estimatedDemand}
-            onChangeText={(v) => setEstimatedDemand(v.replace(/[^0-9]/g, ''))}
-          />
-          <Text style={styles.fieldHint}>Helps our team prioritise sourcing</Text>
-        </View>
-
-        {/* ── REFERENCE LINKS ── */}
-        <View style={styles.fieldGroup}>
-          <Text style={styles.label}>Reference Links (optional)</Text>
-          <Text style={styles.fieldHint} style={styles.refLinkHint}>
-            Add links to similar products, supplier pages, or spec sheets
+          <Text style={styles.label}>Reference Link (optional)</Text>
+          <Text style={styles.refLinkHint}>
+            Link to a similar product, supplier page, or spec sheet
           </Text>
-          {refLinks.map((link, i) => (
-            <View key={i} style={styles.refLinkRow}>
-              <Link2 size={15} color={COLORS.textMuted} style={styles.refLinkIcon} />
-              <TextInput
-                style={styles.refLinkInput}
-                placeholder={`https://...`}
-                placeholderTextColor={COLORS.textMuted}
-                value={link}
-                onChangeText={(v) => updateRefLink(i, v)}
-                keyboardType="url"
-                autoCapitalize="none"
-                autoCorrect={false}
-              />
-              {refLinks.length > 1 && (
-                <Pressable style={styles.refLinkRemove} onPress={() => removeRefLink(i)}>
-                  <X size={15} color={COLORS.textMuted} />
-                </Pressable>
-              )}
-            </View>
-          ))}
-          {refLinks.length < 5 && (
-            <Pressable style={styles.addLinkBtn} onPress={addRefLink}>
-              <Plus size={14} color={COLORS.primary} />
-              <Text style={styles.addLinkText}>Add another link</Text>
-            </Pressable>
-          )}
+          <View style={styles.refLinkRow}>
+            <Link2 size={15} color={COLORS.textMuted} style={styles.refLinkIcon} />
+            <TextInput
+              style={styles.refLinkInput}
+              placeholder="https://..."
+              placeholderTextColor={COLORS.textMuted}
+              value={refLink}
+              onChangeText={setRefLink}
+              keyboardType="url"
+              autoCapitalize="none"
+              autoCorrect={false}
+            />
+          </View>
         </View>
 
         {/* ── HINT BOX ── */}
@@ -337,8 +301,8 @@ export default function CreateProductRequestScreen({ navigation }: Props) {
           <Text style={styles.hintBoxTitle}>📋 What happens next?</Text>
           <Text style={styles.hintBoxText}>
             Once submitted, your request becomes visible to the community. Other buyers
-            can upvote, pledge, or stake BazCoins to boost its priority. When it reaches
-            the sourcing threshold, our team contacts suppliers and begins verification.
+            can support it. When it gathers enough interest, our team contacts suppliers
+            and works to bring it to the marketplace.
           </Text>
         </View>
 

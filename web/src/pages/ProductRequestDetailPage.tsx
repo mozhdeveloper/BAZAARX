@@ -16,9 +16,7 @@ import { useAdminAuth } from '@/stores/adminStore';
 import {
   ChevronLeft,
   MessageSquare,
-  TrendingUp,
   Loader2,
-  Flame,
   ExternalLink,
 } from 'lucide-react';
 import { productRequestService, type ProductRequest } from '@/services/productRequestService';
@@ -58,7 +56,6 @@ const ProductRequestDetailPage: React.FC = () => {
   const [request, setRequest] = useState<ProductRequest | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [viewerUserId, setViewerUserId] = useState<string | null>(null);
-  const [activeTab, setActiveTab] = useState<DetailTab>('discussion');
   const [refreshKey, setRefreshKey] = useState(0);
 
   const { isAuthenticated: isAdmin } = useAdminAuth();
@@ -111,10 +108,6 @@ const ProductRequestDetailPage: React.FC = () => {
   }
 
   const cfg = STATUS_CONFIG[request.status] ?? STATUS_CONFIG.pending;
-  const heatScore = request.votes + request.estimatedDemand;
-  const nextStage = NEXT_STAGE[request.status] ?? NEXT_STAGE.approved;
-  const progressPct = Math.min(100, Math.round((heatScore / nextStage.threshold) * 100));
-  const toGo = Math.max(0, nextStage.threshold - heatScore);
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -204,142 +197,33 @@ const ProductRequestDetailPage: React.FC = () => {
               </Card>
             )}
 
-            {/* Discussion / Lab Pipeline tabs */}
+            {/* Discussion */}
             <div className="flex border-b border-gray-200">
-              <button
-                onClick={() => setActiveTab('discussion')}
-                className={`flex items-center gap-2 px-5 py-3 text-sm font-semibold border-b-2 transition-colors ${
-                  activeTab === 'discussion'
-                    ? 'border-gray-800 text-gray-900'
-                    : 'border-transparent text-gray-400 hover:text-gray-600'
-                }`}
-              >
+              <div className="flex items-center gap-2 px-5 py-3 text-sm font-semibold border-b-2 border-gray-800 text-gray-900">
                 <MessageSquare className="h-4 w-4" />
                 Discussion ({request.comments})
-              </button>
-              <button
-                onClick={() => setActiveTab('pipeline')}
-                className={`flex items-center gap-2 px-5 py-3 text-sm font-semibold border-b-2 transition-colors ${
-                  activeTab === 'pipeline'
-                    ? 'border-gray-800 text-gray-900'
-                    : 'border-transparent text-gray-400 hover:text-gray-600'
-                }`}
-              >
-                <TrendingUp className="h-4 w-4" />
-                Lab Pipeline
-              </button>
+              </div>
             </div>
 
-            {/* Tab content */}
-            {activeTab === 'discussion' && (
-              <Card className="shadow-sm">
-                <CardContent className="p-6">
-                  <h3 className="text-lg font-extrabold text-gray-900 mb-4">Contribute to this Request</h3>
-                  <CommentSection
-                    requestId={request.id}
-                    viewerUserId={viewerUserId}
-                    isAdminViewer={false}
-                    showForm
-                  />
-                </CardContent>
-              </Card>
-            )}
-
-            {activeTab === 'pipeline' && (
-              <Card className="shadow-sm">
-                <CardContent className="p-6">
-                  <h3 className="text-lg font-extrabold text-gray-900 mb-4">Lab Pipeline Progress</h3>
-
-                  {/* Pipeline stages */}
-                  <div className="space-y-4">
-                    {[
-                      { emoji: '📍', label: 'Gathering Interest', key: 'pending',     desc: 'Community is voting and pledging to show demand.' },
-                      { emoji: '🔍', label: 'Sourcing',           key: 'in_progress', desc: 'Suppliers contacted, samples ordered and negotiated.' },
-                      { emoji: '🧪', label: 'Lab Testing',        key: 'testing',     desc: 'Bend tests, spec checks, durability testing underway.' },
-                      { emoji: '✅', label: 'Verified',            key: 'approved',    desc: 'All tests passed — ready for marketplace listing.' },
-                      { emoji: '🚀', label: 'Live',               key: 'live',        desc: 'Product is live and available for purchase.' },
-                    ].map(({ emoji, label, key, desc }) => {
-                      const stages = ['pending', 'in_progress', 'testing', 'approved', 'live'];
-                      const currentIdx = stages.indexOf(request.status);
-                      const stageIdx = stages.indexOf(key);
-                      const isPast = stageIdx < currentIdx;
-                      const isCurrent = stageIdx === currentIdx;
-
-                      return (
-                        <div
-                          key={key}
-                          className={`flex items-start gap-4 p-4 rounded-xl border ${
-                            isCurrent
-                              ? 'border-purple-300 bg-purple-50'
-                              : isPast
-                              ? 'border-green-200 bg-green-50/50'
-                              : 'border-gray-100 bg-gray-50/50'
-                          }`}
-                        >
-                          <span className="text-2xl">{emoji}</span>
-                          <div className="flex-1">
-                            <div className="flex items-center gap-2">
-                              <span className="text-sm font-bold text-gray-900">{label}</span>
-                              {isPast && <span className="text-xs text-green-600 font-medium">✓ Complete</span>}
-                              {isCurrent && <span className="text-xs text-purple-600 font-bold">← Current</span>}
-                            </div>
-                            <p className="text-xs text-gray-500 mt-0.5">{desc}</p>
-                          </div>
-                        </div>
-                      );
-                    })}
-                  </div>
-                </CardContent>
-              </Card>
-            )}
-          </div>
-
-          {/* ═══════ RIGHT SIDEBAR: Heat Score ═══════ */}
-          <div className="lg:w-72 shrink-0 space-y-4">
-            {/* Heat Score card */}
-            <Card className="border-2 border-gray-900 shadow-sm overflow-hidden">
-              <CardContent className="p-5">
-                <div className="flex items-start justify-between mb-2">
-                  <div>
-                    <p className="text-[10px] font-bold uppercase tracking-widest text-gray-500">Heat Score</p>
-                    <div className="flex items-center gap-2 mt-1">
-                      <Flame className="h-8 w-8 text-[var(--brand-primary)]" />
-                      <span className="text-4xl font-extrabold text-[var(--brand-primary)]">{heatScore}</span>
-                    </div>
-                  </div>
-                  {request.status !== 'rejected' && (
-                    <div className="text-right">
-                      <p className="text-[10px] font-bold uppercase tracking-widest text-gray-400">Next</p>
-                      <p className="text-xl font-extrabold text-gray-700 italic">{nextStage.label}</p>
-                      <p className="text-xs text-gray-400">{toGo} to go</p>
-                    </div>
-                  )}
-                </div>
-
-                {/* Progress bar */}
-                <div className="mt-4">
-                  <div className="h-3 bg-gray-100 rounded-full overflow-hidden">
-                    <div
-                      className="h-full rounded-full transition-all duration-700"
-                      style={{
-                        width: `${progressPct}%`,
-                        background: 'linear-gradient(90deg, #D97706, #E58C1A)',
-                      }}
-                    />
-                  </div>
-                  <div className="flex items-center justify-between mt-1.5 text-xs text-gray-500">
-                    <span>{heatScore} / {nextStage.threshold}</span>
-                    <span className="font-bold text-[var(--brand-primary)]">{progressPct}%</span>
-                  </div>
-                </div>
+            <Card className="shadow-sm">
+              <CardContent className="p-6">
+                <h3 className="text-lg font-extrabold text-gray-900 mb-4">Contribute to this Request</h3>
+                <CommentSection
+                  requestId={request.id}
+                  viewerUserId={viewerUserId}
+                  isAdminViewer={false}
+                  showForm
+                />
               </CardContent>
             </Card>
+          </div>
 
-            {/* Support / Stake widget */}
+          {/* ═══════ RIGHT SIDEBAR ═══════ */}
+          <div className="lg:w-72 shrink-0 space-y-4">
+            {/* Support widget */}
             <SupportWidget
               requestId={request.id}
               demandCount={request.demandCount}
-              stakedBazcoins={request.stakedBazcoins}
               onSupported={reload}
             />
 

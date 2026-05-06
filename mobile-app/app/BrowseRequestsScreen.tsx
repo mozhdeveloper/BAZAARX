@@ -9,7 +9,7 @@ import {
   RefreshControl, StatusBar, TextInput, Platform,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { ChevronLeft, Search, Package, Coins, Users, Flame, Plus } from 'lucide-react-native';
+import { ChevronLeft, Search, Package, Heart, Plus } from 'lucide-react-native';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import type { RootStackParamList } from '../App';
 import { productRequestService, type ProductRequestDTO } from '../src/services/productRequestService';
@@ -120,7 +120,7 @@ export default function BrowseRequestsScreen({ navigation, route }: Props) {
           refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
         >
           {items.map((r) => {
-            const heat = (r.votes || 0) + (r.demandCount || 0);
+            const supporters = r.demandCount || 0;
             return (
               <Pressable
                 key={r.id}
@@ -130,19 +130,15 @@ export default function BrowseRequestsScreen({ navigation, route }: Props) {
                 <View style={styles.cardHeader}>
                   <Text style={styles.cardTitle} numberOfLines={1}>{r.productName || r.title}</Text>
                   <View style={styles.heatBox}>
-                    <Flame size={12} color="#DC2626" />
-                    <Text style={styles.heatText}>{heat}</Text>
+                    <Heart size={12} color="#DC2626" />
+                    <Text style={styles.heatText}>{supporters}</Text>
                   </View>
                 </View>
                 {!!r.description && <Text style={styles.cardDesc} numberOfLines={2}>{r.description}</Text>}
                 <View style={styles.statsRow}>
                   <View style={styles.stat}>
-                    <Users size={12} color="#6B7280" />
-                    <Text style={styles.statText}>{r.demandCount} backers</Text>
-                  </View>
-                  <View style={styles.stat}>
-                    <Coins size={12} color="#D97706" />
-                    <Text style={styles.statText}>{r.stakedBazcoins.toLocaleString()} BC</Text>
+                    <Heart size={12} color="#6B7280" />
+                    <Text style={styles.statText}>{supporters} {supporters === 1 ? 'supporter' : 'supporters'}</Text>
                   </View>
                   {!!r.category && (
                     <View style={[styles.stat, styles.catPill]}>

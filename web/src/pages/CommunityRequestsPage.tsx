@@ -11,7 +11,7 @@ import {
   Loader2,
   Plus,
   TrendingUp,
-  Flame,
+  Heart,
   Search,
   ShieldCheck,
   Hammer,
@@ -147,7 +147,7 @@ export default function CommunityRequestsPage() {
       const matchesStatus = !filterStatus || r.status === filterStatus;
       return matchesSearch && matchesStatus;
     })
-    .sort((a, b) => (b.votes + b.estimatedDemand) - (a.votes + a.estimatedDemand));
+    .sort((a, b) => b.demandCount - a.demandCount);
 
   const statusCounts = useMemo(() => {
     const counts: Record<string, number> = { pending: 0, in_progress: 0, approved: 0 };
@@ -158,8 +158,7 @@ export default function CommunityRequestsPage() {
   }, [requests]);
 
   const totalCount = requests.length;
-  const totalVotes = useMemo(() => requests.reduce((s, r) => s + r.votes, 0), [requests]);
-  const totalPledges = useMemo(() => requests.reduce((s, r) => s + r.estimatedDemand, 0), [requests]);
+  const totalSupporters = useMemo(() => requests.reduce((s, r) => s + r.demandCount, 0), [requests]);
 
   /* ── Render ─────────────────────────────────────── */
 
@@ -393,9 +392,9 @@ export default function CommunityRequestsPage() {
               ] as const).map(({ key, label, color, border, bg }) => {
                 const stageRequests = requests
                   .filter((r) => r.status === key)
-                  .sort((a, b) => (b.votes + b.estimatedDemand) - (a.votes + a.estimatedDemand));
+                  .sort((a, b) => b.demandCount - a.demandCount);
                 const topRequest = stageRequests[0];
-                const totalHeat = stageRequests.reduce((s, r) => s + r.votes + r.estimatedDemand, 0);
+                const totalSupportersInStage = stageRequests.reduce((s, r) => s + r.demandCount, 0);
 
                 return (
                   <motion.div
@@ -409,8 +408,8 @@ export default function CommunityRequestsPage() {
                     <div className={`flex items-center justify-between px-5 py-3.5 border-b ${border} ${bg}`}>
                       <span className={`text-xs font-extrabold uppercase tracking-widest ${color}`}>{label}</span>
                       <span className={`flex items-center gap-1.5 text-sm font-bold ${color}`}>
-                        <Flame className="h-4 w-4" />
-                        {totalHeat.toLocaleString()}
+                        <Heart className="h-4 w-4" />
+                        {totalSupportersInStage.toLocaleString()}
                       </span>
                     </div>
 
@@ -431,9 +430,7 @@ export default function CommunityRequestsPage() {
 
                         {/* Stats row */}
                         <div className="flex items-center gap-4 text-xs text-gray-500 font-semibold uppercase tracking-wide mb-4">
-                          <span>{topRequest.votes.toLocaleString()} Votes</span>
-                          <span className="text-gray-300">•</span>
-                          <span>{topRequest.estimatedDemand.toLocaleString()} Pledges</span>
+                          <span>{topRequest.demandCount.toLocaleString()} {topRequest.demandCount === 1 ? 'Supporter' : 'Supporters'}</span>
                           <span className="text-gray-300">•</span>
                           <span>{topRequest.category}</span>
                         </div>
@@ -523,11 +520,6 @@ export default function CommunityRequestsPage() {
             <div className="space-y-5">
               {filtered.map((request, i) => {
                 const cfg = STATUS_CONFIG[request.status] ?? STATUS_CONFIG.pending;
-                const heatScore = request.votes + request.estimatedDemand;
-                const labProgress =
-                  request.status === 'approved' ? 100 :
-                  request.status === 'in_progress' ? 35 :
-                  request.status === 'pending' ? 10 : 65;
 
                 return (
                   <motion.div
@@ -542,14 +534,14 @@ export default function CommunityRequestsPage() {
                     >
                       <CardContent className="p-6">
                         <div className="flex gap-6">
-                          {/* ── LEFT: Heat Score ── */}
+                          {/* ── LEFT: Status + Supporter count ── */}
                           <div className="hidden sm:flex flex-col items-center gap-1 shrink-0 w-20">
                             <Badge className={`${cfg.badgeBg} border rounded-full text-xs font-bold mb-2`}>
                               {cfg.emoji} {cfg.label}
                             </Badge>
-                            <Flame className="h-5 w-5 text-[var(--brand-primary)]" />
-                            <span className="text-2xl font-extrabold text-[var(--brand-primary)]">{heatScore}</span>
-                            <span className="text-[10px] text-gray-400 font-medium">Heat Score</span>
+                            <Heart className="h-5 w-5 text-[var(--brand-primary)]" />
+                            <span className="text-2xl font-extrabold text-[var(--brand-primary)]">{request.demandCount}</span>
+                            <span className="text-[10px] text-gray-400 font-medium">{request.demandCount === 1 ? 'Supporter' : 'Supporters'}</span>
                           </div>
 
                           {/* ── CENTER: Content ── */}
@@ -571,44 +563,17 @@ export default function CommunityRequestsPage() {
                               </p>
                             )}
 
-                            {/* Stats row */}
-                            <div className="flex flex-wrap items-center gap-4 text-xs text-gray-500 mb-4">
-                              <span className="flex items-center gap-1 font-medium">
-                                <TrendingUp className="h-3.5 w-3.5 text-blue-500" />
-                                {request.votes} upvotes
-                              </span>
-                              <span className="flex items-center gap-1 font-medium">
-                                <span className="text-sm">💰</span>
-                                {request.estimatedDemand} pledges
-                              </span>
-                              <span className="flex items-center gap-1 font-medium">
-                                <span className="text-sm">💵</span>
-                                $25 pledge amount
-                              </span>
-                            </div>
-
-                            {/* Lab Progress bar */}
-                            <div className="flex items-center gap-3">
-                              <span className="text-xs font-semibold text-gray-700 whitespace-nowrap">Lab Progress</span>
-                              <div className="flex-1 h-2.5 bg-gray-100 rounded-full overflow-hidden">
-                                <div
-                                  className="h-full rounded-full transition-all duration-700"
-                                  style={{
-                                    width: `${labProgress}%`,
-                                    background: 'linear-gradient(90deg, #D97706, #E58C1A)',
-                                  }}
-                                />
-                              </div>
-                              <span className="text-xs font-bold text-[var(--brand-primary)] whitespace-nowrap">{labProgress}%</span>
-                            </div>
-
                             {/* Latest update */}
-                            <p className="text-xs text-gray-400 mt-2">
-                              Latest: {request.status === 'approved'
-                                ? 'All tests passed — verified and ready for marketplace.'
-                                : request.status === 'in_progress'
-                                ? 'Supplier samples being sourced and negotiated.'
-                                : 'Gathering community interest and validating demand.'
+                            <p className="text-xs text-gray-400">
+                              {request.status === 'approved' || request.status === 'converted_to_listing'
+                                ? 'Listed on the marketplace.'
+                                : request.status === 'in_progress' || request.status === 'approved_for_sourcing'
+                                ? 'Suppliers are being contacted.'
+                                : request.status === 'on_hold'
+                                ? 'On hold pending more info.'
+                                : request.status === 'rejected'
+                                ? 'Not accepted at this time.'
+                                : 'Submitted — awaiting review.'
                               }
                             </p>
                           </div>
@@ -650,9 +615,9 @@ export default function CommunityRequestsPage() {
         <div className="max-w-5xl mx-auto px-4">
           <div className="grid grid-cols-3 gap-6 text-center">
             {[
-              { value: totalVotes.toLocaleString(),          label: 'Community Votes' },
-              { value: totalPledges.toLocaleString(),         label: 'Active Pledges' },
-              { value: statusCounts.approved?.toString() ?? '0', label: 'Lab Verified Products' },
+              { value: totalCount.toLocaleString(),                                  label: 'Total Requests' },
+              { value: totalSupporters.toLocaleString(),                              label: 'Community Supporters' },
+              { value: (statusCounts.approved ?? 0).toString(),                       label: 'Listed Products' },
             ].map(({ value, label }) => (
               <div key={label}>
                 <p className="text-2xl md:text-3xl font-extrabold text-[var(--text-headline)]">{value}</p>

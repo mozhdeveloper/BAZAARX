@@ -338,17 +338,9 @@ export default function MyRequestsScreen({ navigation }: Props) {
                   {/* Participation badges (Supported tab) */}
                   {tab === 'supported' && supportMeta[request.id] && (
                     <View style={styles.metaRow}>
-                      {supportMeta[request.id].types.map((t) => (
-                        <View key={t} style={styles.metaPill}>
-                          <Text style={styles.metaPillText}>
-                            {t === 'upvote'
-                              ? '👍 Upvoted'
-                              : t === 'pledge'
-                                ? '🙋 Pledged'
-                                : `💰 Staked ${supportMeta[request.id].staked} BC`}
-                          </Text>
-                        </View>
-                      ))}
+                      <View style={styles.metaPill}>
+                        <Text style={styles.metaPillText}>❤️ Supporting</Text>
+                      </View>
                       {supportMeta[request.id].rewarded && (
                         <View style={[styles.metaPill, { backgroundColor: '#D1FAE5' }]}>
                           <Text style={[styles.metaPillText, { color: '#065F46' }]}>🎉 Rewarded</Text>

@@ -11,7 +11,7 @@ import {
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { ChevronLeft, Flame, ThumbsUp, DollarSign, TrendingUp, MessageSquare, CheckCircle2, ShoppingBag, ExternalLink } from 'lucide-react-native';
+import { ChevronLeft, Heart, ShoppingBag, ExternalLink } from 'lucide-react-native';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import type { RootStackParamList } from '../App';
 import { supabase } from '../src/lib/supabase';
@@ -85,9 +85,9 @@ const STATUS_CONFIG: Record<string, { label: string; emoji: string; color: strin
     message: 'This request has been converted into a live marketplace listing.',
   },
   pending: {
-    label: 'Gathering Interest', emoji: '📍',
+    label: 'Submitted', emoji: '📍',
     color: '#92400E', bg: '#FFFBEB', border: '#FDE68A',
-    message: 'Community is gathering interest. Upvote to help this reach sourcing!',
+    message: 'Awaiting review by our team.',
   },
   in_progress: {
     label: 'In Sourcing', emoji: '🔍',
@@ -106,42 +106,6 @@ const STATUS_CONFIG: Record<string, { label: string; emoji: string; color: strin
   },
 };
 
-/* ── Next stage thresholds: aligned with web version ──────────────────────── */
-const NEXT_STAGE: Record<string, { label: string; threshold: number }> = {
-  new:         { label: 'Under Review', threshold: 80 },
-  under_review:{ label: 'Sourcing',     threshold: 140 },
-  approved_for_sourcing: { label: 'Verification', threshold: 260 },
-  already_available: { label: 'Resolved', threshold: 1 },
-  on_hold:     { label: 'Pending Review', threshold: 1 },
-  converted_to_listing: { label: 'Live', threshold: 1 },
-  pending:     { label: 'Sourcing', threshold: 200 },
-  in_progress: { label: 'Testing',  threshold: 400 },
-  approved:    { label: 'Live',     threshold: 500 },
-  rejected:    { label: 'N/A',      threshold: 1   },
-};
-
-const PIPELINE_STAGES = [
-  { key: 'pending',     emoji: '📍', label: 'Gathering Interest', desc: 'Community is voting and pledging to show demand.' },
-  { key: 'in_progress', emoji: '🔍', label: 'Sourcing',           desc: 'Suppliers contacted, samples ordered and negotiated.' },
-  { key: 'testing',     emoji: '🧪', label: 'Lab Testing',        desc: 'Bend tests, spec checks, durability testing underway.' },
-  { key: 'approved',    emoji: '✅', label: 'Verified',            desc: 'All tests passed — ready for marketplace listing.' },
-  { key: 'live',        emoji: '🚀', label: 'Live',               desc: 'Product is live and available for purchase.' },
-];
-
-const STAGE_ORDER = ['pending', 'in_progress', 'testing', 'approved', 'live'];
-
-const toPipelineStatus = (status: ProductRequest['status']) => {
-  if (status === 'new') return 'pending';
-  if (status === 'under_review') return 'pending';
-  if (status === 'approved_for_sourcing') return 'in_progress';
-  if (status === 'already_available') return 'approved';
-  if (status === 'converted_to_listing') return 'approved';
-  if (status === 'on_hold') return 'rejected';
-  return status;
-};
-
-type ActiveTab = 'discussion' | 'pipeline';
-
 export default function ProductRequestDetailScreen({ navigation, route }: Props) {
   const { requestId } = route.params;
   const { user } = useAuthStore();
@@ -149,27 +113,18 @@ export default function ProductRequestDetailScreen({ navigation, route }: Props)
 
   const [request, setRequest] = useState<ProductRequest | null>(null);
   const [loading, setLoading] = useState(true);
-  const [activeTab, setActiveTab] = useState<ActiveTab>('discussion');
-  const [isVoting, setIsVoting] = useState(false);
-  // BX-07-012: participation state
-  const [mySupport, setMySupport] = useState<{ hasUpvoted: boolean; hasPledged: boolean; stakedAmount: number } | null>(null);
+  const [isSupporting, setIsSupporting] = useState(false);
+  const [hasSupported, setHasSupported] = useState(false);
 
   const fetchParticipation = useCallback(async (requestId: string) => {
     if (!user?.id) return;
     const { data } = await supabase
       .from('request_supports')
-      .select('support_type, bazcoin_amount')
+      .select('id')
       .eq('request_id', requestId)
-      .eq('user_id', user.id);
-    if (data) {
-      setMySupport({
-        hasUpvoted: data.some((r: any) => r.support_type === 'upvote'),
-        hasPledged: data.some((r: any) => r.support_type === 'pledge'),
-        stakedAmount: data
-          .filter((r: any) => r.support_type === 'stake')
-          .reduce((sum: number, r: any) => sum + (r.bazcoin_amount || 0), 0),
-      });
-    }
+      .eq('user_id', user.id)
+      .limit(1);
+    setHasSupported(!!data && data.length > 0);
   }, [user?.id]);
 
   const fetchRequest = useCallback(async () => {
@@ -218,67 +173,23 @@ export default function ProductRequestDetailScreen({ navigation, route }: Props)
 
   useEffect(() => { fetchRequest(); }, [fetchRequest]);
 
-  const handleUpvote = async () => {
-    if (!request) return;
-    setIsVoting(true);
+  const handleSupport = async () => {
+    if (!request || hasSupported) return;
+    setIsSupporting(true);
     try {
       const res = await productRequestService.support(request.id, 'upvote', 0);
       if (res.success) {
+        setHasSupported(true);
         await fetchRequest();
       } else if (res.error) {
-        Alert.alert('Cannot upvote', res.error);
+        if (res.error.toLowerCase().includes('already')) {
+          setHasSupported(true);
+        } else {
+          Alert.alert('Cannot support', res.error);
+        }
       }
     } finally {
-      setIsVoting(false);
-    }
-  };
-
-  const handlePledge = () => {
-    if (!request) return;
-    Alert.alert(
-      'Pledge interest',
-      'Pledging signals serious intent to buy. We will notify you when this product is verified and live.',
-      [
-        { text: 'Cancel', style: 'cancel' },
-        {
-          text: 'Pledge',
-          onPress: async () => {
-            const res = await productRequestService.support(request.id, 'pledge', 0);
-            if (res.success) {
-              await fetchRequest();
-              Alert.alert('Pledged', 'You will be notified when this product is available.');
-            } else if (res.error) {
-              Alert.alert('Cannot pledge', res.error);
-            }
-          },
-        },
-      ]
-    );
-  };
-
-  const handleStake = () => {
-    if (!request) return;
-    // Alert.prompt is iOS-only — use fixed amounts for cross-platform.
-    Alert.alert(
-      'Stake BazCoins',
-      'Stake BazCoins to boost this request. If it becomes a real listing you may earn rewards.',
-      [
-        { text: 'Cancel', style: 'cancel' },
-        { text: 'Stake 50 BC', onPress: () => doStake(50) },
-        { text: 'Stake 100 BC', onPress: () => doStake(100) },
-        { text: 'Stake 250 BC', onPress: () => doStake(250) },
-      ]
-    );
-  };
-
-  const doStake = async (amount: number) => {
-    if (!request) return;
-    const res = await productRequestService.support(request.id, 'stake', amount);
-    if (res.success) {
-      Alert.alert('Staked', `${amount} BC staked. New balance: ${res.newBalance ?? '—'}`);
-      fetchRequest();
-    } else {
-      Alert.alert('Cannot stake', res.error || 'Unknown error');
+      setIsSupporting(false);
     }
   };
 
@@ -302,11 +213,7 @@ export default function ProductRequestDetailScreen({ navigation, route }: Props)
   }
 
   const cfg = STATUS_CONFIG[request.status] ?? STATUS_CONFIG.pending;
-  const heatScore = (request.votes || 0) + (request.estimated_demand || 0) + (request.demand_count || 0);
-  const nextStage = NEXT_STAGE[request.status] ?? NEXT_STAGE.approved;
-  const progressPct = Math.min(100, Math.round((heatScore / nextStage.threshold) * 100));
-  const toGo = Math.max(0, nextStage.threshold - heatScore);
-  const currentStageIdx = STAGE_ORDER.indexOf(toPipelineStatus(request.status));
+  const supporterCount = request.demand_count ?? request.estimated_demand ?? 0;
 
   const isAlreadyAvailable = request.status === 'already_available' && !!request.linked_product_id;
   const isRejected = (request.status === 'rejected' || request.status === 'on_hold') && !!(request.rejection_hold_reason || request.admin_notes);
@@ -320,54 +227,11 @@ export default function ProductRequestDetailScreen({ navigation, route }: Props)
         <Pressable style={styles.backBtn} onPress={() => navigation.goBack()}>
           <ChevronLeft size={22} color={COLORS.textHeadline} strokeWidth={2} />
         </Pressable>
-        <Text style={styles.headerTitle} numberOfLines={1}>Lab Pipeline</Text>
+        <Text style={styles.headerTitle} numberOfLines={1}>Product Request</Text>
         <View style={styles.backBtn} />
       </View>
 
       <ScrollView style={styles.scroll} contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
-
-        {/* ── HEAT SCORE CARD ── */}
-        <View style={styles.heatCard}>
-          <View style={styles.heatTopRow}>
-            <View>
-              <Text style={styles.heatEyebrow}>Heat Score</Text>
-              <View style={styles.heatRow}>
-                <Flame size={28} color={COLORS.primary} />
-                <Text style={styles.heatNumber}>{heatScore}</Text>
-              </View>
-            </View>
-            {request.status !== 'rejected' && (
-              <View style={styles.heatNextBox}>
-                <Text style={styles.heatNextLabel}>NEXT</Text>
-                <Text style={styles.heatNextStage}>{nextStage.label}</Text>
-                <Text style={styles.heatToGo}>{toGo} to go</Text>
-              </View>
-            )}
-          </View>
-          <View style={styles.progressWrap}>
-            <View style={styles.progressTrack}>
-              <LinearGradient
-                colors={[COLORS.primary, '#E58C1A']}
-                start={{ x: 0, y: 0 }}
-                end={{ x: 1, y: 0 }}
-                style={[styles.progressFill, { width: `${progressPct}%` as any }]}
-              />
-            </View>
-            <Text style={styles.progressPct}>{progressPct}%</Text>
-          </View>
-        </View>
-
-        {/* ── STAT BOXES ── */}
-        <View style={styles.statBoxRow}>
-          <View style={[styles.statBox, { borderColor: '#BFDBFE' }]}>
-            <Text style={styles.statBoxEyebrow}>UPVOTES</Text>
-            <Text style={styles.statBoxValue}>{request.votes || 0}</Text>
-          </View>
-          <View style={[styles.statBox, { borderColor: `${COLORS.primary}50` }]}>
-            <Text style={[styles.statBoxEyebrow, { color: COLORS.primary }]}>PLEDGES</Text>
-            <Text style={styles.statBoxValue}>{request.estimated_demand || 0}</Text>
-          </View>
-        </View>
 
         {/* ── REQUEST CARD ── */}
         <View style={styles.requestCard}>
@@ -431,16 +295,6 @@ export default function ProductRequestDetailScreen({ navigation, route }: Props)
             </Pressable>
           )}
 
-          {/* BX-07-012: Participation badges */}
-          {mySupport && (mySupport.hasUpvoted || mySupport.hasPledged || mySupport.stakedAmount > 0) && (
-            <View style={styles.participationRow}>
-              <Text style={styles.participationLabel}>Your participation:</Text>
-              {mySupport.hasUpvoted && <View style={styles.participationBadge}><Text style={styles.participationBadgeText}>👍 Upvoted</Text></View>}
-              {mySupport.hasPledged && <View style={[styles.participationBadge, { backgroundColor: '#DCFCE7' }]}><Text style={[styles.participationBadgeText, { color: '#166534' }]}>🤝 Pledged</Text></View>}
-              {mySupport.stakedAmount > 0 && <View style={[styles.participationBadge, { backgroundColor: '#FEF3C7' }]}><Text style={[styles.participationBadgeText, { color: '#92400E' }]}>⚡ {mySupport.stakedAmount} BC Staked</Text></View>}
-            </View>
-          )}
-
           {/* Reference links */}
           {!!request.reference_links?.length && (
             <View style={{ marginTop: 10, gap: 4 }}>
@@ -452,102 +306,37 @@ export default function ProductRequestDetailScreen({ navigation, route }: Props)
           )}
         </View>
 
-        {/* ── ACTION BUTTONS ── */}
-        <View style={styles.actionRow}>
-          <Pressable
-            style={({ pressed }) => [styles.upvoteBtn, mySupport?.hasUpvoted && { backgroundColor: '#6366F1' }, pressed && { opacity: 0.85 }]}
-            onPress={handleUpvote}
-            disabled={isVoting || mySupport?.hasUpvoted}
-          >
-            <ThumbsUp size={18} color="#FFFFFF" />
-            <Text style={styles.actionBtnText}>{mySupport?.hasUpvoted ? 'Upvoted ✓' : `Upvote (${request.votes || 0})`}</Text>
-          </Pressable>
-          <Pressable
-            style={({ pressed }) => [styles.pledgeBtn, mySupport?.hasPledged && { backgroundColor: '#059669' }, pressed && { opacity: 0.85 }]}
-            onPress={handlePledge}
-            disabled={mySupport?.hasPledged}
-          >
-            <DollarSign size={18} color="#FFFFFF" />
-            <Text style={styles.actionBtnText}>{mySupport?.hasPledged ? 'Pledged ✓' : 'Pledge'}</Text>
-          </Pressable>
-          <Pressable
-            style={({ pressed }) => [styles.pledgeBtn, { backgroundColor: '#F59E0B' }, pressed && { opacity: 0.85 }]}
-            onPress={handleStake}
-          >
-            <TrendingUp size={18} color="#FFFFFF" />
-            <Text style={styles.actionBtnText}>Stake BC</Text>
-          </Pressable>
-        </View>
+        {/* ── SUPPORT BUTTON ── */}
+        <Pressable
+          style={({ pressed }) => [
+            styles.supportBtn,
+            hasSupported && styles.supportBtnActive,
+            pressed && { opacity: 0.85 },
+          ]}
+          onPress={handleSupport}
+          disabled={isSupporting || hasSupported}
+        >
+          {isSupporting ? (
+            <ActivityIndicator color="#FFFFFF" size="small" />
+          ) : (
+            <>
+              <Heart size={18} color="#FFFFFF" fill={hasSupported ? '#FFFFFF' : 'transparent'} />
+              <Text style={styles.supportBtnText}>
+                {hasSupported ? `Supporting (${supporterCount})` : `Support (${supporterCount})`}
+              </Text>
+            </>
+          )}
+        </Pressable>
 
-        {/* ── TABS ── */}
-        <View style={styles.tabsRow}>
-          <Pressable
-            onPress={() => setActiveTab('discussion')}
-            style={[styles.tabBtn, activeTab === 'discussion' && styles.tabBtnActive]}
-          >
-            <MessageSquare size={14} color={activeTab === 'discussion' ? COLORS.textHeadline : COLORS.textMuted} />
-            <Text style={[styles.tabBtnText, activeTab === 'discussion' && styles.tabBtnTextActive]}>
-              Discussion ({request.comments_count || 0})
-            </Text>
-          </Pressable>
-          <Pressable
-            onPress={() => setActiveTab('pipeline')}
-            style={[styles.tabBtn, activeTab === 'pipeline' && styles.tabBtnActive]}
-          >
-            <TrendingUp size={14} color={activeTab === 'pipeline' ? COLORS.textHeadline : COLORS.textMuted} />
-            <Text style={[styles.tabBtnText, activeTab === 'pipeline' && styles.tabBtnTextActive]}>
-              Lab Pipeline
-            </Text>
-          </Pressable>
+        {/* ── DISCUSSION ── */}
+        <View style={styles.tabContent}>
+          <Text style={styles.tabSectionTitle}>Discussion ({request.comments_count || 0})</Text>
+          <CommentSection
+            requestId={requestId}
+            viewerUserId={user?.id ?? null}
+            showForm={!!user}
+          />
         </View>
-
-        {/* ── TAB CONTENT ── */}
-        {activeTab === 'discussion' ? (
-          <View style={styles.tabContent}>
-            <Text style={styles.tabSectionTitle}>Contribute to this Request</Text>
-            <CommentSection
-              requestId={requestId}
-              viewerUserId={user?.id ?? null}
-              showForm={!!user}
-            />
-          </View>
-        ) : (
-          <View style={styles.tabContent}>
-            <Text style={styles.tabSectionTitle}>Lab Pipeline Progress</Text>
-            <View style={styles.pipelineList}>
-              {PIPELINE_STAGES.map(({ key, emoji, label, desc }) => {
-                const stageIdx = STAGE_ORDER.indexOf(key);
-                const isPast = stageIdx < currentStageIdx;
-                const isCurrent = stageIdx === currentStageIdx;
-                return (
-                  <View
-                    key={key}
-                    style={[
-                      styles.pipelineStage,
-                      isCurrent && styles.pipelineStageCurrent,
-                      isPast && styles.pipelineStagePast,
-                    ]}
-                  >
-                    <Text style={styles.pipelineEmoji}>{emoji}</Text>
-                    <View style={styles.pipelineStageInfo}>
-                      <View style={styles.pipelineStageRow}>
-                        <Text style={[styles.pipelineStageName, isCurrent && { color: '#7C3AED' }]}>{label}</Text>
-                        {isPast && (
-                          <View style={styles.completedChip}>
-                            <CheckCircle2 size={10} color="#166534" />
-                            <Text style={styles.completedText}>Complete</Text>
-                          </View>
-                        )}
-                        {isCurrent && <Text style={styles.currentText}>← Current</Text>}
-                      </View>
-                      <Text style={styles.pipelineDesc}>{desc}</Text>
-                    </View>
-                  </View>
-                );
-              })}
-            </View>
-          </View>
-        )}
 
         {/* Admin Notes */}
         {!!request.admin_notes && (
@@ -631,6 +420,14 @@ const styles = StyleSheet.create({
   dateText: { fontSize: 12, color: COLORS.textMuted },
   statusMessageBox: { backgroundColor: '#F8F5F0', borderRadius: 10, padding: 12, borderWidth: 1, borderColor: '#E8E0D8' },
   statusMessage: { fontSize: 13, color: COLORS.textPrimary, lineHeight: 19 },
+
+  /* Support button */
+  supportBtn: {
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8,
+    backgroundColor: COLORS.primary, paddingVertical: 14, borderRadius: 12,
+  },
+  supportBtnActive: { backgroundColor: '#16A34A' },
+  supportBtnText: { color: '#FFFFFF', fontSize: 15, fontWeight: '700' },
 
   /* Action buttons */
   actionRow: { flexDirection: 'row', gap: 10 },
